@@ -4,3 +4,4 @@ __pycache__/
 .worktrees/
 spike/*.stdout.json
 spike/*.stderr.txt
+spike/e2e-state/

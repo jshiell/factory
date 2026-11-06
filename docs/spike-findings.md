@@ -53,3 +53,17 @@
 - **`ANTHROPIC_API_KEY` takes precedence over OAuth:** a bogus key gave exit 1, `api_error_status: 401`, `result: "Invalid API key"`, cost 0 (same `subtype: success` + `is_error: true` shape as the bad-model case), and a stderr warning. The runner must strip it from the child environment.
 - **The Bash tool runs commands in its own process group.** claude's pgid was 45363; a Python child run through the Bash tool had pgid 45393 (parent 45393, the tool's shell). Killing claude's process group does NOT kill tool children (one run; not repeated). The timeout must kill the descendant tree, not just the group.
 - Inside the agent's sandbox `ps` is blocked ("operation not permitted") and `$$` is rejected by the Bash tool's pre-run check; use `python3 -c` for process introspection.
+
+## Plan 2 end-to-end result (spike/e2e.py, throwaway)
+- One real task against `target/` (add `subtract`) ran through `run_task` then `verify_task`: states `queued` -> `running` -> `agent_done` -> `verified`, no denials, cost $0.056 (budget $0.50), recorded in the ledger as not assumed.
+- The branch `factory/<id>` holds one commit authored by `factory`, touching only `target/src/calc/__init__.py` and `target/tests/test_calc.py`; the diff was inspected by hand, not taken from the task state.
+- Used live for the first time: `--max-turns 30`, `--disallowedTools "Bash(git *)"`, `--append-system-prompt`, `Bash(uv run pytest*)`. All accepted (exit 0). Not shown: that the git block actually denied anything (the agent never tried).
+- The gate's `uv run pytest` ran with the orchestrator's `VIRTUAL_ENV` inherited (the gate does not strip env, unlike the runner) and still passed.
+
+## Known gaps after plan 2
+- The runner discards stderr (`DEVNULL`), so error diagnostics like `[claude-code:unrecognized_model]` are lost.
+- Timeout kill is SIGKILL with no grace period; the gate's test-timeout does not kill grandchildren.
+- Test tampering (deleting or weakening a test) passes the gate.
+- The timeout path (assumed cost, tree kill) is tested with fake scripts only, never against a real hung agent.
+- Worktrees and branches from spikes (`p2-*`, `p3-*`, `e2e-*`) are never cleaned up; no crash recovery for stale `running` tasks.
+- The signing agent was unavailable mid-session (1Password error), so later commits were made unsigned.
