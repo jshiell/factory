@@ -8,6 +8,9 @@ from factory.store import TaskStore
 from factory.task import Event, Task, apply
 
 
+ASSUMED_COST_MULTIPLIER = 2
+
+
 class BudgetCapReached(Exception):
     pass
 
@@ -43,6 +46,11 @@ def step(
     store.save(running)
     result = runner.run(running, config)
     outcome = classify(result.stdout, result.exit_code)
+    if result.timed_out:
+        ledger.append(task_id, ASSUMED_COST_MULTIPLIER * config.budget_usd, assumed=True)
+        finished = apply(running, Event.FAILED, reason="timeout")
+        store.save(finished)
+        return finished
     ledger.append(task_id, outcome.cost_usd)
     if outcome.kind in (OutcomeKind.SUCCESS, OutcomeKind.SUCCESS_WITH_DENIALS):
         finished = replace(apply(running, Event.SUCCEEDED), denials=outcome.denials)

@@ -17,8 +17,8 @@ def fixture_stdout(name: str) -> str:
 
 
 class FakeRunner:
-    def __init__(self, stdout: str = "", exit_code: int = 0, on_run=None):
-        self._result = RunResult(stdout, exit_code)
+    def __init__(self, stdout: str = "", exit_code: int = 0, on_run=None, timed_out: bool = False):
+        self._result = RunResult(stdout, exit_code, timed_out)
         self._on_run = on_run
         self.calls = 0
 
@@ -137,3 +137,14 @@ def test_non_queued_task_without_budget_is_invalid_transition_first(store, ledge
 
 def test_run_result_defaults_to_not_timed_out():
     assert RunResult("", 0).timed_out is False
+
+
+def test_timeout_fails_the_task_and_records_an_assumed_double_budget_cost(store, ledger):
+    runner = FakeRunner("", -9, timed_out=True)
+
+    task = step("t1", store, ledger, runner, CONFIG, cap_usd=10)
+
+    assert task.state is TaskState.FAILED
+    assert task.failure_reason == "timeout"
+    assert ledger.total() == 1.0
+    assert ledger.entries()[0]["assumed"] is True
