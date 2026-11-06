@@ -1,31 +1,9 @@
-import subprocess
-from pathlib import Path
-
 import pytest
+
+from gitutil import git
 
 from factory.ids import InvalidTaskId
 from factory.worktrees import BranchExists, WorktreeExists, WorktreeManager
-
-
-def git(cwd: Path, *args: str) -> str:
-    result = subprocess.run(
-        ["git", "-c", "user.name=t", "-c", "user.email=t@t", "-c", "commit.gpgsign=false", *args],
-        cwd=cwd, capture_output=True, text=True, check=True,
-    )
-    return result.stdout.strip()
-
-
-@pytest.fixture
-def repo(tmp_path, monkeypatch):
-    monkeypatch.setenv("GIT_CONFIG_GLOBAL", "/dev/null")
-    monkeypatch.setenv("GIT_CONFIG_SYSTEM", "/dev/null")
-    repo = tmp_path / "repo"
-    repo.mkdir()
-    git(repo, "init", "-q", "-b", "main")
-    (repo / "a.txt").write_text("a")
-    git(repo, "add", "a.txt")
-    git(repo, "commit", "-q", "-m", "init")
-    return repo
 
 
 @pytest.fixture
