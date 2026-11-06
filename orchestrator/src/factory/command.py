@@ -15,6 +15,8 @@ class RunnerConfig:
 def build_command(
     prompt: str, config: RunnerConfig, executable: str = "claude"
 ) -> tuple[list[str], dict[str, str]]:
+    if prompt.startswith("-"):
+        raise ValueError("prompt must not start with '-'")
     argv = [executable, "-p", prompt, "--output-format", "json", "--model", config.model]
     argv += ["--setting-sources", ""]
     if config.budget_usd is not None:

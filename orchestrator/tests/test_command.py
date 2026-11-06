@@ -1,5 +1,7 @@
 import json
 
+import pytest
+
 from factory.command import RunnerConfig, build_command
 
 
@@ -57,3 +59,8 @@ def test_append_system_prompt_is_passed_as_one_argument():
     argv, _env = build_command("p", config)
 
     assert argv[argv.index("--append-system-prompt") + 1] == "Be terse."
+
+
+def test_prompt_starting_with_dash_is_rejected_because_it_would_parse_as_a_flag():
+    with pytest.raises(ValueError):
+        build_command("--dangerous", RunnerConfig(model="sonnet"))
