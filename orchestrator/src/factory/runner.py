@@ -1,5 +1,7 @@
 import os
+import signal
 import subprocess
+import tempfile
 from pathlib import Path
 
 from factory.command import RunnerConfig, build_command
@@ -18,15 +20,26 @@ class SubprocessRunner:
     def run(self, task: Task, config: RunnerConfig) -> RunResult:
         argv, env_overlay = build_command(task.prompt, config, executable=self._executable)
         cwd = Path(task.worktree) / self._project_subdir
-        completed = subprocess.run(
-            argv,
-            cwd=cwd,
-            env=self._child_env(env_overlay),
-            capture_output=True,
-            text=True,
-            stdin=subprocess.DEVNULL,
-        )
-        return RunResult(completed.stdout, completed.returncode)
+        with tempfile.TemporaryFile("w+") as stdout_file:
+            process = subprocess.Popen(
+                argv,
+                cwd=cwd,
+                env=self._child_env(env_overlay),
+                stdout=stdout_file,
+                stderr=subprocess.DEVNULL,
+                stdin=subprocess.DEVNULL,
+                text=True,
+                start_new_session=True,
+            )
+            timed_out = False
+            try:
+                process.wait(timeout=self._timeout_s)
+            except subprocess.TimeoutExpired:
+                timed_out = True
+                os.killpg(process.pid, signal.SIGKILL)
+                process.wait()
+            stdout_file.seek(0)
+            return RunResult(stdout_file.read(), process.returncode, timed_out)
 
     @staticmethod
     def _child_env(overlay: dict[str, str]) -> dict[str, str]:

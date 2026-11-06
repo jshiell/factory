@@ -1,4 +1,5 @@
 import stat
+import time
 from pathlib import Path
 
 import pytest
@@ -59,3 +60,15 @@ def test_non_zero_exit_code_and_stdout_are_preserved(tmp_path, task):
 
     assert result.exit_code == 3
     assert result.stdout.strip() == "partial"
+
+
+def test_timeout_returns_promptly_with_timed_out_even_if_a_grandchild_holds_stdout(tmp_path, task):
+    body = "sleep 5 &\necho started\nsleep 5"
+    runner = SubprocessRunner(fake_claude(tmp_path, body), project_subdir="proj", timeout_s=0.5)
+
+    started = time.monotonic()
+    result = runner.run(task, CONFIG)
+
+    assert time.monotonic() - started < 3
+    assert result.timed_out is True
+    assert result.stdout.strip() == "started"
