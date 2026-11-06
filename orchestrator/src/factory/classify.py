@@ -23,9 +23,18 @@ class Outcome:
     result: str | None = None
 
 
-def classify(stdout: str, exit_code: int) -> Outcome:
+def _parse_result(stdout: str) -> dict | None:
     try:
-        json.loads(stdout)
+        payload = json.loads(stdout)
     except json.JSONDecodeError:
-        pass
+        return None
+    if not isinstance(payload, dict) or payload.get("type") != "result":
+        return None
+    return payload
+
+
+def classify(stdout: str, exit_code: int) -> Outcome:
+    payload = _parse_result(stdout)
+    if payload is None:
+        return Outcome(OutcomeKind.UNPARSEABLE, exit_code)
     return Outcome(OutcomeKind.UNPARSEABLE, exit_code)

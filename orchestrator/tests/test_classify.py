@@ -19,3 +19,11 @@ def test_empty_stdout_is_unparseable_and_keeps_exit_code():
 
 def test_non_json_stdout_is_unparseable():
     assert classify("not json", exit_code=0).kind is OutcomeKind.UNPARSEABLE
+
+
+def test_json_that_is_not_an_object_is_unparseable():
+    assert classify("[1, 2]", exit_code=0).kind is OutcomeKind.UNPARSEABLE
+
+
+def test_json_object_without_result_type_is_unparseable():
+    assert classify(json.dumps({"type": "other"}), exit_code=0).kind is OutcomeKind.UNPARSEABLE
