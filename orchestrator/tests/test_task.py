@@ -43,3 +43,24 @@ def test_terminal_task_cannot_start_again():
 
     with pytest.raises(InvalidTransition):
         apply(failed, Event.START)
+
+
+def agent_done_task() -> Task:
+    return apply(apply(queued_task(), Event.START), Event.SUCCEEDED)
+
+
+def test_gate_passed_moves_agent_done_to_verified():
+    assert apply(agent_done_task(), Event.GATE_PASSED).state is TaskState.VERIFIED
+
+
+def test_gate_failed_moves_agent_done_to_failed_with_reason():
+    task = apply(agent_done_task(), Event.GATE_FAILED, reason="tests_failed")
+
+    assert task.state is TaskState.FAILED
+    assert task.failure_reason == "tests_failed"
+
+
+@pytest.mark.parametrize("event", [Event.GATE_PASSED, Event.GATE_FAILED])
+def test_gate_events_are_invalid_before_the_agent_is_done(event):
+    with pytest.raises(InvalidTransition):
+        apply(apply(queued_task(), Event.START), event)

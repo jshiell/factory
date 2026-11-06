@@ -6,6 +6,7 @@ class TaskState(Enum):
     QUEUED = "queued"
     RUNNING = "running"
     AGENT_DONE = "agent_done"
+    VERIFIED = "verified"
     FAILED = "failed"
 
 
@@ -13,6 +14,8 @@ class Event(Enum):
     START = "start"
     SUCCEEDED = "succeeded"
     FAILED = "failed"
+    GATE_PASSED = "gate_passed"
+    GATE_FAILED = "gate_failed"
 
 
 class InvalidTransition(Exception):
@@ -35,6 +38,8 @@ _TRANSITIONS = {
     (TaskState.QUEUED, Event.START): TaskState.RUNNING,
     (TaskState.RUNNING, Event.SUCCEEDED): TaskState.AGENT_DONE,
     (TaskState.RUNNING, Event.FAILED): TaskState.FAILED,
+    (TaskState.AGENT_DONE, Event.GATE_PASSED): TaskState.VERIFIED,
+    (TaskState.AGENT_DONE, Event.GATE_FAILED): TaskState.FAILED,
 }
 
 
