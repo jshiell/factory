@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from factory.worktrees import WorktreeManager
+from factory.worktrees import BranchExists, WorktreeExists, WorktreeManager
 
 
 def git(cwd: Path, *args: str) -> str:
@@ -38,3 +38,17 @@ def test_create_makes_a_branch_worktree_at_the_current_head(repo, manager):
     assert base_sha == git(repo, "rev-parse", "HEAD")
     assert git(path, "rev-parse", "HEAD") == base_sha
     assert git(path, "rev-parse", "--abbrev-ref", "HEAD") == "factory/t1"
+
+
+def test_creating_twice_raises_worktree_exists(manager):
+    manager.create("t1")
+
+    with pytest.raises(WorktreeExists):
+        manager.create("t1")
+
+
+def test_existing_branch_without_a_worktree_raises_branch_exists(repo, manager):
+    git(repo, "branch", "factory/t1")
+
+    with pytest.raises(BranchExists):
+        manager.create("t1")

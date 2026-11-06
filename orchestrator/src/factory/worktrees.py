@@ -11,6 +11,14 @@ def run_git(cwd: Path, *args: str) -> str:
     return result.stdout.strip()
 
 
+class WorktreeExists(Exception):
+    pass
+
+
+class BranchExists(Exception):
+    pass
+
+
 class WorktreeManager:
     def __init__(self, repo: Path, root: Path):
         self._repo = repo
@@ -18,7 +26,12 @@ class WorktreeManager:
 
     def create(self, task_id: str) -> tuple[Path, str]:
         require_safe_id(task_id)
-        base_sha = run_git(self._repo, "rev-parse", "HEAD")
         path = self._root / task_id
-        run_git(self._repo, "worktree", "add", "-q", "-b", f"factory/{task_id}", str(path), base_sha)
+        branch = f"factory/{task_id}"
+        if path.exists():
+            raise WorktreeExists(task_id)
+        if run_git(self._repo, "branch", "--list", branch):
+            raise BranchExists(branch)
+        base_sha = run_git(self._repo, "rev-parse", "HEAD")
+        run_git(self._repo, "worktree", "add", "-q", "-b", branch, str(path), base_sha)
         return path, base_sha
