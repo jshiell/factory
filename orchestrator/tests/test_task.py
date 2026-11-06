@@ -1,4 +1,6 @@
-from factory.task import Event, Task, TaskState, apply
+import pytest
+
+from factory.task import Event, InvalidTransition, Task, TaskState, apply
 
 
 def queued_task() -> Task:
@@ -28,3 +30,16 @@ def test_failed_moves_running_to_failed_with_reason():
 
     assert task.state is TaskState.FAILED
     assert task.failure_reason == "budget exhausted"
+
+
+@pytest.mark.parametrize("event", [Event.SUCCEEDED, Event.FAILED])
+def test_queued_task_cannot_finish_before_starting(event):
+    with pytest.raises(InvalidTransition):
+        apply(queued_task(), event)
+
+
+def test_terminal_task_cannot_start_again():
+    failed = apply(apply(queued_task(), Event.START), Event.FAILED, reason="x")
+
+    with pytest.raises(InvalidTransition):
+        apply(failed, Event.START)

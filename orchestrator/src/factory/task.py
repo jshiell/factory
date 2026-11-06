@@ -15,6 +15,10 @@ class Event(Enum):
     FAILED = "failed"
 
 
+class InvalidTransition(Exception):
+    pass
+
+
 @dataclass(frozen=True)
 class Task:
     id: str
@@ -32,7 +36,10 @@ _TRANSITIONS = {
 
 
 def apply(task: Task, event: Event, reason: str | None = None) -> Task:
-    new_state = _TRANSITIONS[(task.state, event)]
+    try:
+        new_state = _TRANSITIONS[(task.state, event)]
+    except KeyError:
+        raise InvalidTransition(f"{event.value} not allowed from {task.state.value}")
     attempts = task.attempts + 1 if event is Event.START else task.attempts
     return replace(
         task, state=new_state, attempts=attempts, failure_reason=reason
