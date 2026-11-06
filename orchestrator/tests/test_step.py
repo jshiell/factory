@@ -126,3 +126,10 @@ def test_missing_budget_is_refused_without_calling_runner(store, ledger):
 
     assert runner.calls == 0
     assert store.load("t1").state is TaskState.QUEUED
+
+
+def test_non_queued_task_without_budget_is_invalid_transition_first(store, ledger):
+    store.save(Task(id="t1", prompt="done", state=TaskState.AGENT_DONE))
+
+    with pytest.raises(InvalidTransition):
+        step("t1", store, ledger, FakeRunner(), RunnerConfig(model="sonnet"), cap_usd=10)
