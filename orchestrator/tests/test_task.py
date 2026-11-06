@@ -19,3 +19,12 @@ def test_succeeded_moves_running_to_agent_done():
 
     assert task.state is TaskState.AGENT_DONE
     assert task.attempts == 1
+
+
+def test_failed_moves_running_to_failed_with_reason():
+    running = apply(queued_task(), Event.START)
+
+    task = apply(running, Event.FAILED, reason="budget exhausted")
+
+    assert task.state is TaskState.FAILED
+    assert task.failure_reason == "budget exhausted"
