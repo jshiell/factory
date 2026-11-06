@@ -78,3 +78,11 @@ def test_non_error_result_with_unknown_subtype_is_error():
 
     assert outcome.kind is OutcomeKind.ERROR
     assert outcome.subtype == "mystery"
+
+
+def test_api_error_with_success_subtype_is_error():
+    outcome = classify(fixture_stdout("bad_model"), exit_code=1)
+
+    assert outcome.kind is OutcomeKind.ERROR
+    assert outcome.subtype == "success"
+    assert outcome.cost_usd == 0
