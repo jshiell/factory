@@ -24,3 +24,12 @@ def test_commit_all_skips_repository_hooks(repo):
     (repo / "new.txt").write_text("new")
 
     assert commit_all(repo, "Task t1") is True
+
+
+def test_commit_all_with_nothing_changed_makes_no_commit(repo):
+    before = git(repo, "rev-parse", "HEAD")
+
+    committed = commit_all(repo, "Task t1")
+
+    assert committed is False
+    assert git(repo, "rev-parse", "HEAD") == before
