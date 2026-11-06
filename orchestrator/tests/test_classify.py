@@ -43,3 +43,21 @@ def test_budget_fixture_is_budget_exhausted_despite_is_error():
     assert outcome.kind is OutcomeKind.BUDGET_EXHAUSTED
     assert outcome.cost_usd == 0.0689462
     assert outcome.errors == ("Reached maximum budget ($0.02)",)
+
+
+def test_is_error_with_other_subtype_is_error_keeping_subtype_and_errors():
+    stdout = json.dumps(
+        {
+            "type": "result",
+            "subtype": "error_during_execution",
+            "is_error": True,
+            "total_cost_usd": 0.01,
+            "errors": ["boom"],
+        }
+    )
+
+    outcome = classify(stdout, exit_code=1)
+
+    assert outcome.kind is OutcomeKind.ERROR
+    assert outcome.subtype == "error_during_execution"
+    assert outcome.errors == ("boom",)

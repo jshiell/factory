@@ -37,14 +37,16 @@ def classify(stdout: str, exit_code: int) -> Outcome:
     payload = _parse_result(stdout)
     if payload is None:
         return Outcome(OutcomeKind.UNPARSEABLE, exit_code)
-    kind = (
-        OutcomeKind.BUDGET_EXHAUSTED
-        if payload.get("subtype") == "error_max_budget_usd"
-        else OutcomeKind.SUCCESS
-    )
+    if payload.get("subtype") == "error_max_budget_usd":
+        kind = OutcomeKind.BUDGET_EXHAUSTED
+    elif payload.get("is_error"):
+        kind = OutcomeKind.ERROR
+    else:
+        kind = OutcomeKind.SUCCESS
     return Outcome(
         kind,
         exit_code,
         cost_usd=payload.get("total_cost_usd", 0.0),
+        subtype=payload.get("subtype"),
         errors=tuple(payload.get("errors", ())),
     )
