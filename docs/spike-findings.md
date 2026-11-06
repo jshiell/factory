@@ -25,3 +25,11 @@
 - Runner builds the command from a config: model, budget, tool allowlist, isolation (`--setting-sources ""` + env var).
 - Runner classifies outcomes from `subtype`/`terminal_reason`/exit code: success, budget_exhausted, error, plus `permission_denials` non-empty.
 - Orchestrator keeps its own cost ledger and stops launching work when the cap is hit.
+
+## Gaps carried into plan 2 (recorded after plan 1)
+- Exit codes were not saved by the spike; the budget-abort exit code 1 was seen on the console only. Record exit codes in future probes.
+- Isolation flags (`--setting-sources ""` + `CLAUDE_CODE_DISABLE_CLAUDE_MDS=1`) and tool use have not been tested together. First spike of plan 2.
+- Whether `--setting-sources ""` keeps a project-level CLAUDE.md in the worktree is untested.
+- `--allowedTools` repeated-arg form and `--` before the prompt are unverified; `build_command` uses one space-joined argument.
+- `step` assumes `RunnerConfig.budget_usd` is set; with `None` the cap check raises `TypeError`. Make it required or fail explicitly in plan 2.
+- Other result subtypes (max turns, auth, rate limit) are unobserved; they classify as `error` by default.
