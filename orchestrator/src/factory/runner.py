@@ -1,3 +1,4 @@
+import os
 import subprocess
 from pathlib import Path
 
@@ -13,9 +14,14 @@ class SubprocessRunner:
         self._timeout_s = timeout_s
 
     def run(self, task: Task, config: RunnerConfig) -> RunResult:
-        argv, _env = build_command(task.prompt, config, executable=self._executable)
+        argv, env_overlay = build_command(task.prompt, config, executable=self._executable)
         cwd = Path(task.worktree) / self._project_subdir
         completed = subprocess.run(
-            argv, cwd=cwd, capture_output=True, text=True, stdin=subprocess.DEVNULL
+            argv,
+            cwd=cwd,
+            env={**os.environ, **env_overlay},
+            capture_output=True,
+            text=True,
+            stdin=subprocess.DEVNULL,
         )
         return RunResult(completed.stdout, completed.returncode)

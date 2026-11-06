@@ -30,3 +30,13 @@ def test_runs_in_the_project_subdir_of_the_worktree_and_returns_stdout(tmp_path,
 
     assert Path(result.stdout.strip()).resolve() == (tmp_path / "wt" / "proj").resolve()
     assert result.exit_code == 0
+
+
+def test_env_overlay_is_merged_over_the_parent_environment(tmp_path, task, monkeypatch):
+    monkeypatch.setenv("FACTORY_PARENT_VAR", "kept")
+    body = 'echo "$CLAUDE_CODE_DISABLE_CLAUDE_MDS $FACTORY_PARENT_VAR"'
+    runner = SubprocessRunner(fake_claude(tmp_path, body), project_subdir="proj", timeout_s=10)
+
+    result = runner.run(task, CONFIG)
+
+    assert result.stdout.strip() == "1 kept"
