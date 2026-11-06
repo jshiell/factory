@@ -110,3 +110,12 @@ def test_tests_run_in_the_project_subdir_of_the_worktree(repo):
     result = gate(repo, base, test_argv=["sh", "-c", 'test "$(basename "$PWD")" = proj'])
 
     assert result.passed is True
+
+
+def test_hanging_tests_fail_the_gate_with_tests_timeout(repo):
+    base = repo_with_project_change(repo)
+
+    result = check_gate(repo, base, "proj", ["sleep", "5"], timeout_s=0.3)
+
+    assert result.passed is False
+    assert result.reason == "tests_timeout"

@@ -34,9 +34,17 @@ def check_gate(
         return GateResult(False, "no_commits")
     if not run_git(worktree, "diff", "--name-only", base_sha, "HEAD", "--", project_subdir):
         return GateResult(False, "no_changes")
-    tests = subprocess.run(
-        test_argv, cwd=worktree / project_subdir, capture_output=True, stdin=subprocess.DEVNULL
-    )
+    try:
+        tests = subprocess.run(
+            test_argv,
+            cwd=worktree / project_subdir,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=timeout_s,
+        )
+    except subprocess.TimeoutExpired:
+        return GateResult(False, "tests_timeout")
     if tests.returncode != 0:
         return GateResult(False, "tests_failed", tests.returncode)
     return GateResult(True)
