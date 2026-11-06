@@ -52,3 +52,14 @@ def test_existing_branch_without_a_worktree_raises_branch_exists(repo, manager):
 
     with pytest.raises(BranchExists):
         manager.create("t1")
+
+
+def test_remove_deletes_a_dirty_worktree_but_keeps_the_branch(repo, manager):
+    path, _sha = manager.create("t1")
+    (path / "untracked.txt").write_text("junk")
+    (path / "a.txt").write_text("modified")
+
+    manager.remove("t1")
+
+    assert not path.exists()
+    assert git(repo, "branch", "--list", "factory/t1") != ""

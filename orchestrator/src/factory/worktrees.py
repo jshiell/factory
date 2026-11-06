@@ -35,3 +35,7 @@ class WorktreeManager:
         base_sha = run_git(self._repo, "rev-parse", "HEAD")
         run_git(self._repo, "worktree", "add", "-q", "-b", branch, str(path), base_sha)
         return path, base_sha
+
+    def remove(self, task_id: str) -> None:
+        require_safe_id(task_id)
+        run_git(self._repo, "worktree", "remove", "--force", str(self._root / task_id))
