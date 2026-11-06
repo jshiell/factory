@@ -10,7 +10,18 @@
 - stderr warns "no stdin data received in 3s": pass `stdin=DEVNULL`.
 - `--max-budget-usd` accepted; hitting the cap not yet tested.
 
-## Open questions for Increment 1
-- Does `--setting-sources project` stop user CLAUDE.md leaking while keeping OAuth?
-- What does a budget-cap or max-turns abort look like in the JSON?
-- Can a Bash allow-rule permit `git add`/`commit` inside the worktree only?
+## Answers (spike 1, one run each; isolation judged from the model's self-report)
+1. **Settings isolation.** `--setting-sources project` does NOT stop user `~/.claude/CLAUDE.md` leaking, and `--system-prompt` doesn't either.
+   Two things did: `--setting-sources ""` and env `CLAUDE_CODE_DISABLE_CLAUDE_MDS=1` (agent answered NONE under both). OAuth still worked.
+   Memory instructions still appear in context; not yet tested how to disable. Untested: whether `--setting-sources ""` also drops project-level CLAUDE.md in the worktree (we'd want project-level kept).
+2. **Budget cap.** `--max-budget-usd 0.02` aborted with exit code 1, `subtype: error_max_budget_usd`, `terminal_reason: budget_exhausted`, `is_error: true`, no `result` field.
+   The cap is checked after a turn: spend was $0.069 vs the $0.02 limit, so treat it as a soft cap and keep a separate orchestrator ledger/limit.
+   No `--max-turns` flag exists in `claude --help`; `num_turns` is reported but can't be capped via CLI (unverified for SDK).
+3. **Scoped git.** With `--permission-mode acceptEdits` and allow rules `Bash(git add *)`, `Bash(git commit *)`, `Bash(git status*)`, `Bash(git log *)`, the agent created a file and committed in the worktree: no denials.
+   So the earlier denials were from compound `cd … &&` commands / missing rules, not a worktree restriction.
+   Agent still appended its Co-Authored-By trailer and offered to sign (user CLAUDE.md effect) -> isolate, or let the orchestrator own commits.
+
+## Implications for runner design
+- Runner builds the command from a config: model, budget, tool allowlist, isolation (`--setting-sources ""` + env var).
+- Runner classifies outcomes from `subtype`/`terminal_reason`/exit code: success, budget_exhausted, error, plus `permission_denials` non-empty.
+- Orchestrator keeps its own cost ledger and stops launching work when the cap is hit.
