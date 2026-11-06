@@ -69,3 +69,12 @@ def test_denials_fixture_is_success_with_denials_carrying_output():
     assert outcome.kind is OutcomeKind.SUCCESS_WITH_DENIALS
     assert len(outcome.denials) == 5
     assert outcome.structured_output["tests_passed"] is True
+
+
+def test_non_error_result_with_unknown_subtype_is_error():
+    stdout = json.dumps({"type": "result", "subtype": "mystery", "is_error": False})
+
+    outcome = classify(stdout, exit_code=0)
+
+    assert outcome.kind is OutcomeKind.ERROR
+    assert outcome.subtype == "mystery"

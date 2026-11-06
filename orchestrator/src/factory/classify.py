@@ -39,7 +39,7 @@ def classify(stdout: str, exit_code: int) -> Outcome:
         return Outcome(OutcomeKind.UNPARSEABLE, exit_code)
     if payload.get("subtype") == "error_max_budget_usd":
         kind = OutcomeKind.BUDGET_EXHAUSTED
-    elif payload.get("is_error"):
+    elif payload.get("is_error") or payload.get("subtype") != "success":
         kind = OutcomeKind.ERROR
     elif payload.get("permission_denials"):
         kind = OutcomeKind.SUCCESS_WITH_DENIALS
