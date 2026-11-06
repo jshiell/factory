@@ -27,6 +27,8 @@ class Task:
     attempts: int = 0
     failure_reason: str | None = None
     denials: tuple[dict, ...] = ()
+    worktree: str | None = None
+    base_sha: str | None = None
 
 
 _TRANSITIONS = {

@@ -43,3 +43,23 @@ def test_unsafe_task_ids_are_rejected(tmp_path, task_id):
         store.save(Task(id=task_id, prompt="x"))
     with pytest.raises(InvalidTaskId):
         store.load(task_id)
+
+
+def test_worktree_and_base_sha_round_trip(tmp_path):
+    store = TaskStore(tmp_path)
+    task = Task(id="t1", prompt="x", worktree="/w/t1", base_sha="abc123")
+
+    store.save(task)
+
+    assert store.load("t1") == task
+
+
+def test_json_saved_without_worktree_fields_still_loads(tmp_path):
+    (tmp_path / "t1.json").write_text(
+        '{"id": "t1", "prompt": "x", "state": "queued", "attempts": 0, "failure_reason": null, "denials": []}'
+    )
+
+    task = TaskStore(tmp_path).load("t1")
+
+    assert task.worktree is None
+    assert task.base_sha is None
