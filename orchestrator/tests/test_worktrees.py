@@ -3,6 +3,7 @@ from pathlib import Path
 
 import pytest
 
+from factory.ids import InvalidTaskId
 from factory.worktrees import BranchExists, WorktreeExists, WorktreeManager
 
 
@@ -63,3 +64,11 @@ def test_remove_deletes_a_dirty_worktree_but_keeps_the_branch(repo, manager):
 
     assert not path.exists()
     assert git(repo, "branch", "--list", "factory/t1") != ""
+
+
+@pytest.mark.parametrize("task_id", ["a/b", "..", "../evil", ""])
+def test_unsafe_ids_are_rejected(manager, task_id):
+    with pytest.raises(InvalidTaskId):
+        manager.create(task_id)
+    with pytest.raises(InvalidTaskId):
+        manager.remove(task_id)
