@@ -13,3 +13,10 @@ def test_isolation_disables_setting_sources_and_claude_md_via_env():
     index = argv.index("--setting-sources")
     assert argv[index + 1] == ""
     assert env == {"CLAUDE_CODE_DISABLE_CLAUDE_MDS": "1"}
+
+
+def test_budget_is_passed_as_max_budget_usd():
+    argv, _env = build_command("p", RunnerConfig(model="sonnet", budget_usd=0.5))
+
+    index = argv.index("--max-budget-usd")
+    assert argv[index + 1] == "0.5"
