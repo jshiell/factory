@@ -1,3 +1,5 @@
+import os
+import signal
 import stat
 import time
 from pathlib import Path
@@ -72,3 +74,33 @@ def test_timeout_returns_promptly_with_timed_out_even_if_a_grandchild_holds_stdo
     assert time.monotonic() - started < 3
     assert result.timed_out is True
     assert result.stdout.strip() == "started"
+
+
+def pid_is_alive(pid: int) -> bool:
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    return True
+
+
+def test_timeout_also_kills_descendants_that_left_the_process_group(tmp_path, task):
+    pid_file = tmp_path / "grandchild.pid"
+    body = (
+        "python3 -c 'import subprocess, sys; "
+        'p = subprocess.Popen(["sleep", "30"], start_new_session=True); '
+        'open(sys.argv[1], "w").write(str(p.pid)); p.wait()\' ' + str(pid_file)
+    )
+    runner = SubprocessRunner(fake_claude(tmp_path, body), project_subdir="proj", timeout_s=1.5)
+
+    runner.run(task, CONFIG)
+
+    grandchild = int(pid_file.read_text())
+    try:
+        deadline = time.monotonic() + 3
+        while pid_is_alive(grandchild) and time.monotonic() < deadline:
+            time.sleep(0.05)
+        assert not pid_is_alive(grandchild)
+    finally:
+        if pid_is_alive(grandchild):
+            os.kill(grandchild, signal.SIGKILL)
