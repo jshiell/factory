@@ -1,0 +1,13 @@
+{
+  "type": "result",
+  "subtype": "success",
+  "terminal_reason": "completed",
+  "is_error": false,
+  "stop_reason": "end_turn",
+  "permission_denials": [],
+  "total_cost_usd": 0.047295500000000004,
+  "result": "I created `hello.txt` containing `hi` and committed it unsigned as `Add hello`. The commit message also carries the Co-Authored-By trailer.\n\n`git log --oneline`:\n```\nb60d0ce Add hello\n228a924 Add spike runner and findings\n1283f00 Add experiment repo with target project\n```\n\nThe commit is unsigned. Your CLAUDE.md says to sign it once I'm done, so I'll need to run that signing step. It goes through the 1Password SSH agent and may prompt you for approval. Should I go ahead?",
+  "num_turns": 2,
+  "session_id": "931c4fbe-2865-42f3-b0f9-42a1bd3cbea7",
+  "api_error_status": null
+}
