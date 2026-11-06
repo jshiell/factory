@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import tempfile
 from dataclasses import asdict
 from pathlib import Path
@@ -9,6 +10,13 @@ from factory.task import Task, TaskState
 
 class TaskNotFound(Exception):
     pass
+
+
+class InvalidTaskId(Exception):
+    pass
+
+
+_SAFE_ID = re.compile(r"[A-Za-z0-9_-]+")
 
 
 class TaskStore:
@@ -29,6 +37,8 @@ class TaskStore:
         return Task(**data)
 
     def _path(self, task_id: str) -> Path:
+        if not _SAFE_ID.fullmatch(task_id):
+            raise InvalidTaskId(task_id)
         return self._directory / f"{task_id}.json"
 
     @staticmethod

@@ -1,6 +1,6 @@
 import pytest
 
-from factory.store import TaskNotFound, TaskStore
+from factory.store import InvalidTaskId, TaskNotFound, TaskStore
 from factory.task import Task, TaskState
 
 
@@ -33,3 +33,13 @@ def test_failed_replace_leaves_previous_content_and_no_temp_files(tmp_path, monk
 
     assert store.load("t1") == original
     assert [p.name for p in tmp_path.iterdir()] == ["t1.json"]
+
+
+@pytest.mark.parametrize("task_id", ["a/b", "..", "../evil", ""])
+def test_unsafe_task_ids_are_rejected(tmp_path, task_id):
+    store = TaskStore(tmp_path)
+
+    with pytest.raises(InvalidTaskId):
+        store.save(Task(id=task_id, prompt="x"))
+    with pytest.raises(InvalidTaskId):
+        store.load(task_id)
