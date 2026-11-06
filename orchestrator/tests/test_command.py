@@ -20,3 +20,16 @@ def test_budget_is_passed_as_max_budget_usd():
 
     index = argv.index("--max-budget-usd")
     assert argv[index + 1] == "0.5"
+
+
+def test_permission_mode_and_space_joined_allowed_tools():
+    config = RunnerConfig(
+        model="sonnet",
+        permission_mode="acceptEdits",
+        allowed_tools=("Bash(git add *)", "Bash(git commit *)"),
+    )
+
+    argv, _env = build_command("p", config)
+
+    assert argv[argv.index("--permission-mode") + 1] == "acceptEdits"
+    assert argv[argv.index("--allowedTools") + 1] == "Bash(git add *) Bash(git commit *)"

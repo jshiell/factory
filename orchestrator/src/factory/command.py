@@ -5,6 +5,8 @@ from dataclasses import dataclass
 class RunnerConfig:
     model: str
     budget_usd: float | None = None
+    permission_mode: str | None = None
+    allowed_tools: tuple[str, ...] = ()
 
 
 def build_command(prompt: str, config: RunnerConfig) -> tuple[list[str], dict[str, str]]:
@@ -12,4 +14,8 @@ def build_command(prompt: str, config: RunnerConfig) -> tuple[list[str], dict[st
     argv += ["--setting-sources", ""]
     if config.budget_usd is not None:
         argv += ["--max-budget-usd", str(config.budget_usd)]
+    if config.permission_mode is not None:
+        argv += ["--permission-mode", config.permission_mode]
+    if config.allowed_tools:
+        argv += ["--allowedTools", " ".join(config.allowed_tools)]
     return argv, {"CLAUDE_CODE_DISABLE_CLAUDE_MDS": "1"}
