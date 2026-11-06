@@ -13,15 +13,15 @@ Goal: run one real headless agent on one task in its own git worktree, commit it
 - A non-queued task fails with `InvalidTransition` before `MissingBudget` is considered.
 
 ## Cycles
-0. **Probe (throwaway `spike/probe3.py`, saves exit codes):** check by running, not by `--help` (it omits flags): `--append-system-prompt`, `--max-turns`, `--permission-prompts none`, and whether a Bash-tool child shares claude's process group (`ps -o pgid`) and whether `ANTHROPIC_API_KEY` set in env changes auth. Correct `docs/spike-findings.md` (it wrongly says `--max-turns` does not exist). Unconfirmed flags are dropped from later cycles.
+0. **DONE: probe (`spike/probe3.py`; results in `docs/spike-findings.md`).** Outcomes: `--append-system-prompt` and `--max-turns` confirmed; `--permission-prompts` inconclusive and dropped; `ANTHROPIC_API_KEY` overrides OAuth (strip it); the Bash tool runs in its own process group, so group kill alone misses tool children. Original scope: check by running, not by `--help` (it omits flags): `--append-system-prompt`, `--max-turns`, `--permission-prompts none`, and whether a Bash-tool child shares claude's process group (`ps -o pgid`) and whether `ANTHROPIC_API_KEY` set in env changes auth. Correct `docs/spike-findings.md` (it wrongly says `--max-turns` does not exist). Unconfirmed flags are dropped from later cycles.
 A. **Budget**
    - A1 `budget_usd is None` -> `MissingBudget`, runner not called, task stays queued
    - A2 non-queued task with no budget -> `InvalidTransition` wins
 B. **Command**
    - B1 `build_command(..., executable="claude")`
-   - B2 `append_system_prompt` -> flag (or prompt fallback per cycle 0)
+   - B2 `append_system_prompt` -> `--append-system-prompt` (confirmed)
    - B3 prompt passed as `-p -- <prompt>` (a prompt starting with `-` is not a flag)
-   - B4 `max_turns` -> `--max-turns N` (if confirmed by cycle 0)
+   - B4 `max_turns` -> `--max-turns N` (confirmed; exit 1, `error_max_turns`)
    - B5 `disallowed_tools` -> `--disallowedTools` (default `Bash(git *)`; defence in depth, the gate does not rely on it)
 C. **Task fields**
    - C1 `Task.worktree`, `Task.base_sha` round-trip through the store; JSON without them loads
@@ -38,7 +38,8 @@ E. **SubprocessRunner(executable, worktrees, project_subdir, timeout_s)**
    - E3 `VIRTUAL_ENV`, `GIT_DIR`, `GIT_WORK_TREE`, `ANTHROPIC_API_KEY` stripped from the child
    - E4 non-zero exit code kept
    - E5 `RunResult.timed_out` defaults to False
-   - E6 timeout: `Popen(start_new_session=True)`, output to temp files, SIGTERM the group, grace, SIGKILL, bounded wait; a backgrounded grandchild holding stdout is killed and the call returns within the bound; `timed_out=True`
+   - E6 timeout returns within the bound with `timed_out=True`: `Popen(start_new_session=True)`, output to temp files, bounded wait (no hang even if a grandchild holds stdout)
+   - E7 timeout kills the descendant tree, not only the group (spike: tool children are in a different group): collect descendants with `pgrep -P` recursively before signalling, SIGTERM, grace, SIGKILL; test with a fake script that starts a grandchild via `setsid` and assert its pid is gone
 F. **Run driver `run_task`** (wraps `step`; budget check -> `create` -> persist `worktree`/`base_sha` -> `START` persisted -> run)
    - F1 `create` failure leaves the task queued, runner not called
    - F2 `timed_out` -> `failed("timeout")`, ledger records `2 * budget_usd` with `assumed: true` (`Ledger.append(..., assumed=False)` default)
@@ -57,7 +58,7 @@ H. **Throwaway end to end (`spike/e2e.py`, not in the suite):** one real task ag
 ## Known gaps (not fixed in plan 2)
 - Test tampering: an agent that deletes or weakens a test still passes `tests_failed`. Needs the review/audit stage.
 - Assumed-cost multiplier is a guess against a soft cap.
-- A grandchild that calls `setsid` escapes the process-group kill (cycle 0 checks the Bash tool's behaviour only).
+- A descendant that double-forks and reparents to init before the kill escapes the `pgrep -P` walk. `--max-turns` and the budget cap are the first line of defence; the timeout is the backstop.
 
 ## Out of scope
 Plan/review/audit stages, retry, concurrency, daily cap, crash recovery (stale `running` tasks, leftover worktrees), `TaskStore.list()`, CLI, worktree garbage collection, rate-limit handling.
@@ -65,4 +66,4 @@ Plan/review/audit stages, retry, concurrency, daily cap, crash recovery (stale `
 ## Assumptions
 - Max-turns, auth and rate-limit result shapes are unobserved; they classify as `error`.
 - Isolation checks relied on model self-report, not a context log.
-- Reviewer's claims about the CLI docs (`--max-turns`, `--permission-prompts`, API-key precedence) are unverified until cycle 0.
+- The process-group finding is from one run.
