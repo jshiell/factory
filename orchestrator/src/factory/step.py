@@ -30,6 +30,18 @@ class Runner(Protocol):
     def run(self, task: Task, config: RunnerConfig) -> RunResult: ...
 
 
+def preflight(
+    task_id: str, store: TaskStore, ledger: Ledger, config: RunnerConfig, cap_usd: float
+) -> Task:
+    """Return the task as it would be once running; raise if it must not run."""
+    running = apply(store.load(task_id), Event.START)
+    if config.budget_usd is None:
+        raise MissingBudget(task_id)
+    if ledger.would_exceed(cap_usd, config.budget_usd):
+        raise BudgetCapReached(task_id)
+    return running
+
+
 def step(
     task_id: str,
     store: TaskStore,
@@ -38,11 +50,7 @@ def step(
     config: RunnerConfig,
     cap_usd: float,
 ) -> Task:
-    running = apply(store.load(task_id), Event.START)
-    if config.budget_usd is None:
-        raise MissingBudget(task_id)
-    if ledger.would_exceed(cap_usd, config.budget_usd):
-        raise BudgetCapReached(task_id)
+    running = preflight(task_id, store, ledger, config, cap_usd)
     store.save(running)
     try:
         result = runner.run(running, config)
