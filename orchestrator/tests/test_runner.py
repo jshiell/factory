@@ -50,3 +50,12 @@ def test_leaky_variables_are_stripped_from_the_child(tmp_path, task, monkeypatch
     result = runner.run(task, CONFIG)
 
     assert result.stdout.strip() == "[]"
+
+
+def test_non_zero_exit_code_and_stdout_are_preserved(tmp_path, task):
+    runner = SubprocessRunner(fake_claude(tmp_path, 'echo partial; exit 3'), project_subdir="proj", timeout_s=10)
+
+    result = runner.run(task, CONFIG)
+
+    assert result.exit_code == 3
+    assert result.stdout.strip() == "partial"
