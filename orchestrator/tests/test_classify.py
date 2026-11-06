@@ -86,3 +86,12 @@ def test_api_error_with_success_subtype_is_error():
     assert outcome.kind is OutcomeKind.ERROR
     assert outcome.subtype == "success"
     assert outcome.cost_usd == 0
+
+
+def test_max_turns_fixture_is_error_keeping_subtype_and_errors():
+    outcome = classify(fixture_stdout("max_turns"), exit_code=1)
+
+    assert outcome.kind is OutcomeKind.ERROR
+    assert outcome.subtype == "error_max_turns"
+    assert outcome.errors == ("Reached maximum number of turns (1)",)
+    assert outcome.cost_usd > 0

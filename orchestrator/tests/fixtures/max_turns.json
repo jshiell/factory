@@ -1,0 +1,14 @@
+{
+  "type": "result",
+  "subtype": "error_max_turns",
+  "terminal_reason": "max_turns",
+  "is_error": true,
+  "stop_reason": "tool_use",
+  "permission_denials": [],
+  "total_cost_usd": 0.0231651,
+  "errors": [
+    "Reached maximum number of turns (1)"
+  ],
+  "num_turns": 2,
+  "session_id": "c93a193f-f096-41fe-b4c9-23dd7c2ec5d9"
+}
