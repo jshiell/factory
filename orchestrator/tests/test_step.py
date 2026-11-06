@@ -1,4 +1,4 @@
-import json
+from pathlib import Path
 
 import pytest
 
@@ -9,6 +9,11 @@ from factory.store import TaskStore
 from factory.task import Task, TaskState
 
 CONFIG = RunnerConfig(model="sonnet", budget_usd=0.5)
+FIXTURES = Path(__file__).parent / "fixtures"
+
+
+def fixture_stdout(name: str) -> str:
+    return (FIXTURES / f"{name}.json").read_text()
 
 
 class FakeRunner:
@@ -44,3 +49,13 @@ def test_running_state_is_persisted_before_the_runner_is_called(store, ledger):
     step("t1", store, ledger, runner, CONFIG, cap_usd=10)
 
     assert seen == [TaskState.RUNNING]
+
+
+def test_success_marks_agent_done_and_records_cost(store, ledger):
+    runner = FakeRunner(fixture_stdout("success"))
+
+    task = step("t1", store, ledger, runner, CONFIG, cap_usd=10)
+
+    assert task.state is TaskState.AGENT_DONE
+    assert store.load("t1").state is TaskState.AGENT_DONE
+    assert ledger.total() == 0.047295500000000004
