@@ -11,6 +11,7 @@ class RunnerConfig:
     json_schema: dict | None = None
     append_system_prompt: str | None = None
     max_turns: int | None = None
+    disallowed_tools: tuple[str, ...] = ()
 
 
 def build_command(
@@ -32,4 +33,6 @@ def build_command(
         argv += ["--append-system-prompt", config.append_system_prompt]
     if config.max_turns is not None:
         argv += ["--max-turns", str(config.max_turns)]
+    if config.disallowed_tools:
+        argv += ["--disallowedTools", " ".join(config.disallowed_tools)]
     return argv, {"CLAUDE_CODE_DISABLE_CLAUDE_MDS": "1"}

@@ -70,3 +70,11 @@ def test_max_turns_is_passed():
     argv, _env = build_command("p", RunnerConfig(model="sonnet", max_turns=12))
 
     assert argv[argv.index("--max-turns") + 1] == "12"
+
+
+def test_disallowed_tools_are_space_joined():
+    config = RunnerConfig(model="sonnet", disallowed_tools=("Bash(git *)", "WebFetch"))
+
+    argv, _env = build_command("p", config)
+
+    assert argv[argv.index("--disallowedTools") + 1] == "Bash(git *) WebFetch"
