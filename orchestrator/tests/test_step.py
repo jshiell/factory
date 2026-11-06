@@ -6,7 +6,7 @@ from factory.command import RunnerConfig
 from factory.ledger import Ledger
 from factory.step import BudgetCapReached, RunResult, step
 from factory.store import TaskStore
-from factory.task import Task, TaskState
+from factory.task import InvalidTransition, Task, TaskState
 
 CONFIG = RunnerConfig(model="sonnet", budget_usd=0.5)
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -106,3 +106,13 @@ def test_cap_that_would_be_exceeded_refuses_without_calling_runner(store, ledger
 
     assert runner.calls == 0
     assert store.load("t1").state is TaskState.QUEUED
+
+
+def test_non_queued_task_is_rejected_without_calling_runner(store, ledger):
+    store.save(Task(id="t1", prompt="done already", state=TaskState.AGENT_DONE))
+    runner = FakeRunner(fixture_stdout("success"))
+
+    with pytest.raises(InvalidTransition):
+        step("t1", store, ledger, runner, CONFIG, cap_usd=10)
+
+    assert runner.calls == 0
