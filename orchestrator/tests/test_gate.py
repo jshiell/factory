@@ -2,7 +2,7 @@ import stat
 
 from gitutil import git
 
-from factory.gate import commit_all
+from factory.gate import check_gate, commit_all
 
 
 def test_commit_all_commits_new_and_changed_files_with_the_factory_identity(repo):
@@ -33,3 +33,35 @@ def test_commit_all_with_nothing_changed_makes_no_commit(repo):
 
     assert committed is False
     assert git(repo, "rev-parse", "HEAD") == before
+
+
+PASSING_TESTS = ["true"]
+
+
+def gate(repo, base_sha, test_argv=PASSING_TESTS, project_subdir="proj"):
+    return check_gate(repo, base_sha, project_subdir, test_argv, timeout_s=10)
+
+
+def test_gate_fails_with_no_commits_when_head_is_the_base(repo):
+    base = git(repo, "rev-parse", "HEAD")
+
+    result = gate(repo, base)
+
+    assert result.passed is False
+    assert result.reason == "no_commits"
+
+
+def test_gate_fails_when_head_does_not_descend_from_the_base(repo):
+    git(repo, "checkout", "-q", "-b", "side")
+    (repo / "side.txt").write_text("s")
+    git(repo, "add", "side.txt")
+    git(repo, "commit", "-q", "-m", "side")
+    side = git(repo, "rev-parse", "HEAD")
+    git(repo, "checkout", "-q", "main")
+    (repo / "main.txt").write_text("m")
+    git(repo, "add", "main.txt")
+    git(repo, "commit", "-q", "-m", "main")
+
+    result = gate(repo, side)
+
+    assert result.reason == "not_descendant"

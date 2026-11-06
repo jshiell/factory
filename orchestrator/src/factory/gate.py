@@ -1,3 +1,5 @@
+import subprocess
+from dataclasses import dataclass
 from pathlib import Path
 
 from factory.worktrees import run_git
@@ -14,3 +16,27 @@ def commit_all(worktree: Path, message: str) -> bool:
         "commit", "-q", "--no-verify", "-m", message,
     )
     return True
+
+
+@dataclass(frozen=True)
+class GateResult:
+    passed: bool
+    reason: str | None = None
+
+
+def check_gate(
+    worktree: Path, base_sha: str, project_subdir: str, test_argv: list[str], timeout_s: float
+) -> GateResult:
+    if not _is_ancestor(worktree, base_sha):
+        return GateResult(False, "not_descendant")
+    if run_git(worktree, "rev-parse", "HEAD") == base_sha:
+        return GateResult(False, "no_commits")
+    return GateResult(True)
+
+
+def _is_ancestor(worktree: Path, base_sha: str) -> bool:
+    completed = subprocess.run(
+        ["git", "merge-base", "--is-ancestor", base_sha, "HEAD"],
+        cwd=worktree, capture_output=True, stdin=subprocess.DEVNULL,
+    )
+    return completed.returncode == 0
