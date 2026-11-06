@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from typing import Protocol
 
-from factory.classify import classify
+from factory.classify import OutcomeKind, classify
 from factory.command import RunnerConfig
 from factory.ledger import Ledger
 from factory.store import TaskStore
@@ -31,6 +31,9 @@ def step(
     result = runner.run(running, config)
     outcome = classify(result.stdout, result.exit_code)
     ledger.append(task_id, outcome.cost_usd)
-    finished = apply(running, Event.SUCCEEDED)
+    if outcome.kind is OutcomeKind.SUCCESS:
+        finished = apply(running, Event.SUCCEEDED)
+    else:
+        finished = apply(running, Event.FAILED, reason=outcome.kind.value)
     store.save(finished)
     return finished

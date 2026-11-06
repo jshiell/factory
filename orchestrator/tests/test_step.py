@@ -59,3 +59,29 @@ def test_success_marks_agent_done_and_records_cost(store, ledger):
     assert task.state is TaskState.AGENT_DONE
     assert store.load("t1").state is TaskState.AGENT_DONE
     assert ledger.total() == 0.047295500000000004
+
+
+@pytest.mark.parametrize(
+    ("stdout", "exit_code", "expected_reason", "expected_cost"),
+    [
+        (fixture_stdout("budget"), 1, "budget_exhausted", 0.0689462),
+        ("", 1, "unparseable", 0.0),
+        (
+            '{"type": "result", "subtype": "error_during_execution", "is_error": true, "total_cost_usd": 0.01}',
+            1,
+            "error",
+            0.01,
+        ),
+    ],
+)
+def test_non_success_fails_the_task_and_still_records_cost(
+    store, ledger, stdout, exit_code, expected_reason, expected_cost
+):
+    runner = FakeRunner(stdout, exit_code)
+
+    task = step("t1", store, ledger, runner, CONFIG, cap_usd=10)
+
+    assert task.state is TaskState.FAILED
+    assert task.failure_reason == expected_reason
+    assert store.load("t1") == task
+    assert ledger.total() == expected_cost
