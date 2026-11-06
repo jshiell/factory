@@ -148,3 +148,17 @@ def test_timeout_fails_the_task_and_records_an_assumed_double_budget_cost(store,
     assert task.failure_reason == "timeout"
     assert ledger.total() == 1.0
     assert ledger.entries()[0]["assumed"] is True
+
+
+def test_runner_exception_fails_the_task_instead_of_leaving_it_running(store, ledger):
+    def explode(task):
+        raise FileNotFoundError("no claude")
+
+    runner = FakeRunner(on_run=explode)
+
+    task = step("t1", store, ledger, runner, CONFIG, cap_usd=10)
+
+    assert task.state is TaskState.FAILED
+    assert task.failure_reason == "runner_error"
+    assert store.load("t1").state is TaskState.FAILED
+    assert ledger.total() == 1.0

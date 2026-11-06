@@ -44,13 +44,13 @@ def step(
     if ledger.would_exceed(cap_usd, config.budget_usd):
         raise BudgetCapReached(task_id)
     store.save(running)
-    result = runner.run(running, config)
-    outcome = classify(result.stdout, result.exit_code)
+    try:
+        result = runner.run(running, config)
+    except Exception:
+        return _fail_with_assumed_cost(running, "runner_error", store, ledger, config)
     if result.timed_out:
-        ledger.append(task_id, ASSUMED_COST_MULTIPLIER * config.budget_usd, assumed=True)
-        finished = apply(running, Event.FAILED, reason="timeout")
-        store.save(finished)
-        return finished
+        return _fail_with_assumed_cost(running, "timeout", store, ledger, config)
+    outcome = classify(result.stdout, result.exit_code)
     ledger.append(task_id, outcome.cost_usd)
     if outcome.kind in (OutcomeKind.SUCCESS, OutcomeKind.SUCCESS_WITH_DENIALS):
         finished = replace(apply(running, Event.SUCCEEDED), denials=outcome.denials)
@@ -58,3 +58,12 @@ def step(
         finished = apply(running, Event.FAILED, reason=outcome.kind.value)
     store.save(finished)
     return finished
+
+
+def _fail_with_assumed_cost(
+    running: Task, reason: str, store: TaskStore, ledger: Ledger, config: RunnerConfig
+) -> Task:
+    ledger.append(running.id, ASSUMED_COST_MULTIPLIER * config.budget_usd, assumed=True)
+    failed = apply(running, Event.FAILED, reason=reason)
+    store.save(failed)
+    return failed
