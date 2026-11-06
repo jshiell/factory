@@ -43,3 +43,9 @@ def test_json_schema_is_serialised_with_json_dumps():
     argv, _env = build_command("p", RunnerConfig(model="sonnet", json_schema=schema))
 
     assert json.loads(argv[argv.index("--json-schema") + 1]) == schema
+
+
+def test_executable_can_be_overridden():
+    argv, _env = build_command("p", RunnerConfig(model="sonnet"), executable="/tmp/fake-claude")
+
+    assert argv[0] == "/tmp/fake-claude"
