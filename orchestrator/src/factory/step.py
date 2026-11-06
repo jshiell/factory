@@ -12,6 +12,10 @@ class BudgetCapReached(Exception):
     pass
 
 
+class MissingBudget(Exception):
+    pass
+
+
 @dataclass(frozen=True)
 class RunResult:
     stdout: str
@@ -31,6 +35,8 @@ def step(
     cap_usd: float,
 ) -> Task:
     running = apply(store.load(task_id), Event.START)
+    if config.budget_usd is None:
+        raise MissingBudget(task_id)
     if ledger.would_exceed(cap_usd, config.budget_usd):
         raise BudgetCapReached(task_id)
     store.save(running)

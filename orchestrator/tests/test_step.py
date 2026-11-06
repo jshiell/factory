@@ -4,7 +4,7 @@ import pytest
 
 from factory.command import RunnerConfig
 from factory.ledger import Ledger
-from factory.step import BudgetCapReached, RunResult, step
+from factory.step import BudgetCapReached, MissingBudget, RunResult, step
 from factory.store import TaskStore
 from factory.task import InvalidTransition, Task, TaskState
 
@@ -116,3 +116,13 @@ def test_non_queued_task_is_rejected_without_calling_runner(store, ledger):
         step("t1", store, ledger, runner, CONFIG, cap_usd=10)
 
     assert runner.calls == 0
+
+
+def test_missing_budget_is_refused_without_calling_runner(store, ledger):
+    runner = FakeRunner(fixture_stdout("success"))
+
+    with pytest.raises(MissingBudget):
+        step("t1", store, ledger, runner, RunnerConfig(model="sonnet"), cap_usd=10)
+
+    assert runner.calls == 0
+    assert store.load("t1").state is TaskState.QUEUED
