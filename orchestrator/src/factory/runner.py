@@ -6,6 +6,8 @@ from factory.command import RunnerConfig, build_command
 from factory.step import RunResult
 from factory.task import Task
 
+_STRIPPED_ENV = ("VIRTUAL_ENV", "GIT_DIR", "GIT_WORK_TREE", "ANTHROPIC_API_KEY")
+
 
 class SubprocessRunner:
     def __init__(self, executable: str, project_subdir: str, timeout_s: float):
@@ -19,9 +21,14 @@ class SubprocessRunner:
         completed = subprocess.run(
             argv,
             cwd=cwd,
-            env={**os.environ, **env_overlay},
+            env=self._child_env(env_overlay),
             capture_output=True,
             text=True,
             stdin=subprocess.DEVNULL,
         )
         return RunResult(completed.stdout, completed.returncode)
+
+    @staticmethod
+    def _child_env(overlay: dict[str, str]) -> dict[str, str]:
+        inherited = {k: v for k, v in os.environ.items() if k not in _STRIPPED_ENV}
+        return {**inherited, **overlay}

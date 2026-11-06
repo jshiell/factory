@@ -40,3 +40,13 @@ def test_env_overlay_is_merged_over_the_parent_environment(tmp_path, task, monke
     result = runner.run(task, CONFIG)
 
     assert result.stdout.strip() == "1 kept"
+
+
+@pytest.mark.parametrize("name", ["VIRTUAL_ENV", "GIT_DIR", "GIT_WORK_TREE", "ANTHROPIC_API_KEY"])
+def test_leaky_variables_are_stripped_from_the_child(tmp_path, task, monkeypatch, name):
+    monkeypatch.setenv(name, "leaked")
+    runner = SubprocessRunner(fake_claude(tmp_path, f'echo "[${name}]"'), project_subdir="proj", timeout_s=10)
+
+    result = runner.run(task, CONFIG)
+
+    assert result.stdout.strip() == "[]"
