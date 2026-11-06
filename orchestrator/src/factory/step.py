@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Protocol
 
 from factory.classify import OutcomeKind, classify
@@ -31,8 +31,8 @@ def step(
     result = runner.run(running, config)
     outcome = classify(result.stdout, result.exit_code)
     ledger.append(task_id, outcome.cost_usd)
-    if outcome.kind is OutcomeKind.SUCCESS:
-        finished = apply(running, Event.SUCCEEDED)
+    if outcome.kind in (OutcomeKind.SUCCESS, OutcomeKind.SUCCESS_WITH_DENIALS):
+        finished = replace(apply(running, Event.SUCCEEDED), denials=outcome.denials)
     else:
         finished = apply(running, Event.FAILED, reason=outcome.kind.value)
     store.save(finished)

@@ -26,6 +26,7 @@ class Task:
     state: TaskState = TaskState.QUEUED
     attempts: int = 0
     failure_reason: str | None = None
+    denials: tuple[dict, ...] = ()
 
 
 _TRANSITIONS = {

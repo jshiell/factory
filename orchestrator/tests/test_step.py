@@ -85,3 +85,13 @@ def test_non_success_fails_the_task_and_still_records_cost(
     assert task.failure_reason == expected_reason
     assert store.load("t1") == task
     assert ledger.total() == expected_cost
+
+
+def test_success_with_denials_is_agent_done_and_records_denials(store, ledger):
+    runner = FakeRunner(fixture_stdout("denials"))
+
+    task = step("t1", store, ledger, runner, CONFIG, cap_usd=10)
+
+    assert task.state is TaskState.AGENT_DONE
+    assert len(task.denials) == 5
+    assert store.load("t1") == task

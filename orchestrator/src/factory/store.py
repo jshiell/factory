@@ -34,6 +34,7 @@ class TaskStore:
         except FileNotFoundError:
             raise TaskNotFound(task_id) from None
         data["state"] = TaskState(data["state"])
+        data["denials"] = tuple(data["denials"])
         return Task(**data)
 
     def _path(self, task_id: str) -> Path:
