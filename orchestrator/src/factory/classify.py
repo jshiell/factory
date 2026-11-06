@@ -37,4 +37,6 @@ def classify(stdout: str, exit_code: int) -> Outcome:
     payload = _parse_result(stdout)
     if payload is None:
         return Outcome(OutcomeKind.UNPARSEABLE, exit_code)
-    return Outcome(OutcomeKind.UNPARSEABLE, exit_code)
+    return Outcome(
+        OutcomeKind.SUCCESS, exit_code, cost_usd=payload.get("total_cost_usd", 0.0)
+    )

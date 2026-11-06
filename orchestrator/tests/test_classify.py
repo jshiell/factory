@@ -27,3 +27,11 @@ def test_json_that_is_not_an_object_is_unparseable():
 
 def test_json_object_without_result_type_is_unparseable():
     assert classify(json.dumps({"type": "other"}), exit_code=0).kind is OutcomeKind.UNPARSEABLE
+
+
+def test_success_fixture_is_success_with_cost():
+    outcome = classify(fixture_stdout("success"), exit_code=0)
+
+    assert outcome.kind is OutcomeKind.SUCCESS
+    assert outcome.cost_usd == 0.047295500000000004
+    assert outcome.exit_code == 0
