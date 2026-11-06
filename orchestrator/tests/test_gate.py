@@ -1,8 +1,10 @@
 import stat
 
+import pytest
+
 from gitutil import git
 
-from factory.gate import check_gate, commit_all
+from factory.gate import ProjectSubdirEscapes, check_gate, commit_all
 
 
 def test_commit_all_commits_new_and_changed_files_with_the_factory_identity(repo):
@@ -119,3 +121,11 @@ def test_hanging_tests_fail_the_gate_with_tests_timeout(repo):
 
     assert result.passed is False
     assert result.reason == "tests_timeout"
+
+
+@pytest.mark.parametrize("subdir", ["..", "../elsewhere", "/etc", "proj/../.."])
+def test_project_subdir_escaping_the_worktree_is_rejected(repo, subdir):
+    base = repo_with_project_change(repo)
+
+    with pytest.raises(ProjectSubdirEscapes):
+        gate(repo, base, project_subdir=subdir)

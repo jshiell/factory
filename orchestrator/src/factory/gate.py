@@ -18,6 +18,10 @@ def commit_all(worktree: Path, message: str) -> bool:
     return True
 
 
+class ProjectSubdirEscapes(Exception):
+    pass
+
+
 @dataclass(frozen=True)
 class GateResult:
     passed: bool
@@ -28,6 +32,7 @@ class GateResult:
 def check_gate(
     worktree: Path, base_sha: str, project_subdir: str, test_argv: list[str], timeout_s: float
 ) -> GateResult:
+    project_dir = _resolve_inside(worktree, project_subdir)
     if not _is_ancestor(worktree, base_sha):
         return GateResult(False, "not_descendant")
     if run_git(worktree, "rev-parse", "HEAD") == base_sha:
@@ -37,7 +42,7 @@ def check_gate(
     try:
         tests = subprocess.run(
             test_argv,
-            cwd=worktree / project_subdir,
+            cwd=project_dir,
             stdin=subprocess.DEVNULL,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
@@ -56,3 +61,10 @@ def _is_ancestor(worktree: Path, base_sha: str) -> bool:
         cwd=worktree, capture_output=True, stdin=subprocess.DEVNULL,
     )
     return completed.returncode == 0
+
+
+def _resolve_inside(worktree: Path, subdir: str) -> Path:
+    resolved = (worktree / subdir).resolve()
+    if not resolved.is_relative_to(worktree.resolve()) or resolved == worktree.resolve():
+        raise ProjectSubdirEscapes(subdir)
+    return resolved
