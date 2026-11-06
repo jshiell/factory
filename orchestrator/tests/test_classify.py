@@ -35,3 +35,11 @@ def test_success_fixture_is_success_with_cost():
     assert outcome.kind is OutcomeKind.SUCCESS
     assert outcome.cost_usd == 0.047295500000000004
     assert outcome.exit_code == 0
+
+
+def test_budget_fixture_is_budget_exhausted_despite_is_error():
+    outcome = classify(fixture_stdout("budget"), exit_code=1)
+
+    assert outcome.kind is OutcomeKind.BUDGET_EXHAUSTED
+    assert outcome.cost_usd == 0.0689462
+    assert outcome.errors == ("Reached maximum budget ($0.02)",)
