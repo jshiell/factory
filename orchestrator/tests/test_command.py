@@ -49,3 +49,11 @@ def test_executable_can_be_overridden():
     argv, _env = build_command("p", RunnerConfig(model="sonnet"), executable="/tmp/fake-claude")
 
     assert argv[0] == "/tmp/fake-claude"
+
+
+def test_append_system_prompt_is_passed_as_one_argument():
+    config = RunnerConfig(model="sonnet", append_system_prompt="Be terse.")
+
+    argv, _env = build_command("p", config)
+
+    assert argv[argv.index("--append-system-prompt") + 1] == "Be terse."

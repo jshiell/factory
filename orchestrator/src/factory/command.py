@@ -9,6 +9,7 @@ class RunnerConfig:
     permission_mode: str | None = None
     allowed_tools: tuple[str, ...] = ()
     json_schema: dict | None = None
+    append_system_prompt: str | None = None
 
 
 def build_command(
@@ -24,4 +25,6 @@ def build_command(
         argv += ["--allowedTools", " ".join(config.allowed_tools)]
     if config.json_schema is not None:
         argv += ["--json-schema", json.dumps(config.json_schema)]
+    if config.append_system_prompt is not None:
+        argv += ["--append-system-prompt", config.append_system_prompt]
     return argv, {"CLAUDE_CODE_DISABLE_CLAUDE_MDS": "1"}
