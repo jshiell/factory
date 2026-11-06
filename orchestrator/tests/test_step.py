@@ -4,7 +4,7 @@ import pytest
 
 from factory.command import RunnerConfig
 from factory.ledger import Ledger
-from factory.step import RunResult, step
+from factory.step import BudgetCapReached, RunResult, step
 from factory.store import TaskStore
 from factory.task import Task, TaskState
 
@@ -95,3 +95,14 @@ def test_success_with_denials_is_agent_done_and_records_denials(store, ledger):
     assert task.state is TaskState.AGENT_DONE
     assert len(task.denials) == 5
     assert store.load("t1") == task
+
+
+def test_cap_that_would_be_exceeded_refuses_without_calling_runner(store, ledger):
+    ledger.append(task_id="earlier", cost_usd=9.8)
+    runner = FakeRunner(fixture_stdout("success"))
+
+    with pytest.raises(BudgetCapReached):
+        step("t1", store, ledger, runner, CONFIG, cap_usd=10)
+
+    assert runner.calls == 0
+    assert store.load("t1").state is TaskState.QUEUED

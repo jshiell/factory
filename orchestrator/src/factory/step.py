@@ -8,6 +8,10 @@ from factory.store import TaskStore
 from factory.task import Event, Task, apply
 
 
+class BudgetCapReached(Exception):
+    pass
+
+
 @dataclass(frozen=True)
 class RunResult:
     stdout: str
@@ -27,6 +31,8 @@ def step(
     cap_usd: float,
 ) -> Task:
     running = apply(store.load(task_id), Event.START)
+    if ledger.would_exceed(cap_usd, config.budget_usd):
+        raise BudgetCapReached(task_id)
     store.save(running)
     result = runner.run(running, config)
     outcome = classify(result.stdout, result.exit_code)
