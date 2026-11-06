@@ -24,5 +24,13 @@ class Task:
     failure_reason: str | None = None
 
 
+_TRANSITIONS = {
+    (TaskState.QUEUED, Event.START): TaskState.RUNNING,
+    (TaskState.RUNNING, Event.SUCCEEDED): TaskState.AGENT_DONE,
+}
+
+
 def apply(task: Task, event: Event) -> Task:
-    return replace(task, state=TaskState.RUNNING, attempts=task.attempts + 1)
+    new_state = _TRANSITIONS[(task.state, event)]
+    attempts = task.attempts + 1 if event is Event.START else task.attempts
+    return replace(task, state=new_state, attempts=attempts)

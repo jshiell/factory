@@ -10,3 +10,12 @@ def test_start_moves_queued_to_running_and_counts_attempt():
 
     assert task.state is TaskState.RUNNING
     assert task.attempts == 1
+
+
+def test_succeeded_moves_running_to_agent_done():
+    running = apply(queued_task(), Event.START)
+
+    task = apply(running, Event.SUCCEEDED)
+
+    assert task.state is TaskState.AGENT_DONE
+    assert task.attempts == 1
