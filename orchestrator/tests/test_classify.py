@@ -61,3 +61,11 @@ def test_is_error_with_other_subtype_is_error_keeping_subtype_and_errors():
     assert outcome.kind is OutcomeKind.ERROR
     assert outcome.subtype == "error_during_execution"
     assert outcome.errors == ("boom",)
+
+
+def test_denials_fixture_is_success_with_denials_carrying_output():
+    outcome = classify(fixture_stdout("denials"), exit_code=0)
+
+    assert outcome.kind is OutcomeKind.SUCCESS_WITH_DENIALS
+    assert len(outcome.denials) == 5
+    assert outcome.structured_output["tests_passed"] is True

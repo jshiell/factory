@@ -41,6 +41,8 @@ def classify(stdout: str, exit_code: int) -> Outcome:
         kind = OutcomeKind.BUDGET_EXHAUSTED
     elif payload.get("is_error"):
         kind = OutcomeKind.ERROR
+    elif payload.get("permission_denials"):
+        kind = OutcomeKind.SUCCESS_WITH_DENIALS
     else:
         kind = OutcomeKind.SUCCESS
     return Outcome(
@@ -49,4 +51,7 @@ def classify(stdout: str, exit_code: int) -> Outcome:
         cost_usd=payload.get("total_cost_usd", 0.0),
         subtype=payload.get("subtype"),
         errors=tuple(payload.get("errors", ())),
+        denials=tuple(payload.get("permission_denials", ())),
+        structured_output=payload.get("structured_output"),
+        result=payload.get("result"),
     )
