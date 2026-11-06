@@ -1,3 +1,5 @@
+import json
+
 from factory.command import RunnerConfig, build_command
 
 
@@ -33,3 +35,11 @@ def test_permission_mode_and_space_joined_allowed_tools():
 
     assert argv[argv.index("--permission-mode") + 1] == "acceptEdits"
     assert argv[argv.index("--allowedTools") + 1] == "Bash(git add *) Bash(git commit *)"
+
+
+def test_json_schema_is_serialised_with_json_dumps():
+    schema = {"type": "object", "properties": {"summary": {"type": "string"}}}
+
+    argv, _env = build_command("p", RunnerConfig(model="sonnet", json_schema=schema))
+
+    assert json.loads(argv[argv.index("--json-schema") + 1]) == schema
