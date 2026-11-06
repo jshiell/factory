@@ -80,3 +80,33 @@ def test_gate_fails_with_no_changes_when_only_files_outside_the_project_changed(
     result = gate(repo, base)
 
     assert result.reason == "no_changes"
+
+
+def repo_with_project_change(repo):
+    (repo / "proj").mkdir()
+    (repo / "proj" / "code.py").write_text("x")
+    git(repo, "add", "proj")
+    git(repo, "commit", "-q", "-m", "project")
+    base = git(repo, "rev-parse", "HEAD")
+    (repo / "proj" / "code.py").write_text("y")
+    git(repo, "add", "proj")
+    git(repo, "commit", "-q", "-m", "change")
+    return base
+
+
+def test_gate_fails_with_tests_failed_keeping_the_exit_code(repo):
+    base = repo_with_project_change(repo)
+
+    result = gate(repo, base, test_argv=["sh", "-c", "exit 3"])
+
+    assert result.passed is False
+    assert result.reason == "tests_failed"
+    assert result.test_exit_code == 3
+
+
+def test_tests_run_in_the_project_subdir_of_the_worktree(repo):
+    base = repo_with_project_change(repo)
+
+    result = gate(repo, base, test_argv=["sh", "-c", 'test "$(basename "$PWD")" = proj'])
+
+    assert result.passed is True

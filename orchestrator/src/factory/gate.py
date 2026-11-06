@@ -22,6 +22,7 @@ def commit_all(worktree: Path, message: str) -> bool:
 class GateResult:
     passed: bool
     reason: str | None = None
+    test_exit_code: int | None = None
 
 
 def check_gate(
@@ -33,6 +34,11 @@ def check_gate(
         return GateResult(False, "no_commits")
     if not run_git(worktree, "diff", "--name-only", base_sha, "HEAD", "--", project_subdir):
         return GateResult(False, "no_changes")
+    tests = subprocess.run(
+        test_argv, cwd=worktree / project_subdir, capture_output=True, stdin=subprocess.DEVNULL
+    )
+    if tests.returncode != 0:
+        return GateResult(False, "tests_failed", tests.returncode)
     return GateResult(True)
 
 
