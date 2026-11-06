@@ -133,3 +133,7 @@ def test_non_queued_task_without_budget_is_invalid_transition_first(store, ledge
 
     with pytest.raises(InvalidTransition):
         step("t1", store, ledger, FakeRunner(), RunnerConfig(model="sonnet"), cap_usd=10)
+
+
+def test_run_result_defaults_to_not_timed_out():
+    assert RunResult("", 0).timed_out is False

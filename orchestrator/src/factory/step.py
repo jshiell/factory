@@ -20,6 +20,7 @@ class MissingBudget(Exception):
 class RunResult:
     stdout: str
     exit_code: int
+    timed_out: bool = False
 
 
 class Runner(Protocol):
