@@ -31,6 +31,8 @@ def check_gate(
         return GateResult(False, "not_descendant")
     if run_git(worktree, "rev-parse", "HEAD") == base_sha:
         return GateResult(False, "no_commits")
+    if not run_git(worktree, "diff", "--name-only", base_sha, "HEAD", "--", project_subdir):
+        return GateResult(False, "no_changes")
     return GateResult(True)
 
 

@@ -65,3 +65,18 @@ def test_gate_fails_when_head_does_not_descend_from_the_base(repo):
     result = gate(repo, side)
 
     assert result.reason == "not_descendant"
+
+
+def test_gate_fails_with_no_changes_when_only_files_outside_the_project_changed(repo):
+    (repo / "proj").mkdir()
+    (repo / "proj" / "code.py").write_text("x")
+    git(repo, "add", "proj")
+    git(repo, "commit", "-q", "-m", "project")
+    base = git(repo, "rev-parse", "HEAD")
+    (repo / "scratch.txt").write_text("junk")
+    git(repo, "add", "scratch.txt")
+    git(repo, "commit", "-q", "-m", "junk only")
+
+    result = gate(repo, base)
+
+    assert result.reason == "no_changes"
