@@ -1,4 +1,6 @@
 import json
+import os
+import tempfile
 from dataclasses import asdict
 from pathlib import Path
 
@@ -16,7 +18,7 @@ class TaskStore:
     def save(self, task: Task) -> None:
         data = asdict(task)
         data["state"] = task.state.value
-        self._path(task.id).write_text(json.dumps(data))
+        self._write_atomically(self._path(task.id), json.dumps(data))
 
     def load(self, task_id: str) -> Task:
         try:
@@ -28,3 +30,14 @@ class TaskStore:
 
     def _path(self, task_id: str) -> Path:
         return self._directory / f"{task_id}.json"
+
+    @staticmethod
+    def _write_atomically(path: Path, text: str) -> None:
+        fd, temp_name = tempfile.mkstemp(dir=path.parent, suffix=".tmp")
+        try:
+            with os.fdopen(fd, "w") as temp_file:
+                temp_file.write(text)
+            os.replace(temp_name, path)
+        except BaseException:
+            Path(temp_name).unlink(missing_ok=True)
+            raise
