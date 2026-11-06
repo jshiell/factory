@@ -5,6 +5,10 @@ from pathlib import Path
 from factory.task import Task, TaskState
 
 
+class TaskNotFound(Exception):
+    pass
+
+
 class TaskStore:
     def __init__(self, directory: Path):
         self._directory = directory
@@ -15,7 +19,10 @@ class TaskStore:
         self._path(task.id).write_text(json.dumps(data))
 
     def load(self, task_id: str) -> Task:
-        data = json.loads(self._path(task_id).read_text())
+        try:
+            data = json.loads(self._path(task_id).read_text())
+        except FileNotFoundError:
+            raise TaskNotFound(task_id) from None
         data["state"] = TaskState(data["state"])
         return Task(**data)
 

@@ -1,4 +1,6 @@
-from factory.store import TaskStore
+import pytest
+
+from factory.store import TaskNotFound, TaskStore
 from factory.task import Task, TaskState
 
 
@@ -9,3 +11,8 @@ def test_saved_task_loads_back_equal(tmp_path):
     store.save(task)
 
     assert store.load("t1") == task
+
+
+def test_loading_a_missing_task_raises_task_not_found(tmp_path):
+    with pytest.raises(TaskNotFound):
+        TaskStore(tmp_path).load("nope")
