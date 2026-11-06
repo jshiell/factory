@@ -64,3 +64,9 @@ def test_append_system_prompt_is_passed_as_one_argument():
 def test_prompt_starting_with_dash_is_rejected_because_it_would_parse_as_a_flag():
     with pytest.raises(ValueError):
         build_command("--dangerous", RunnerConfig(model="sonnet"))
+
+
+def test_max_turns_is_passed():
+    argv, _env = build_command("p", RunnerConfig(model="sonnet", max_turns=12))
+
+    assert argv[argv.index("--max-turns") + 1] == "12"
