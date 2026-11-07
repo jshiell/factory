@@ -30,3 +30,26 @@ E1: throwaway `spike/keep_plan_e2e.py` run by the user in a terminal (needs a TT
 
 ## Out of scope
 Retrying from `agent_done`/`verified` (resuming a worktree), carrying fix rounds or the old branch over, a flag for plain retry.
+
+## Folded from the plan-reviewer (supersedes the text above where they differ)
+Design sound; the reviewer had a read-only helper run the greps and could not run tests.
+
+**Approval inference (user chose (a)):** "approved by a human" means `prompt != ""` plus the plan, plan digest and goal checks. Only `approve_plan` (approve_plan.py:25) ever persists a non-empty prompt (agent_call.py's `replace(task, prompt=...)` is an unsaved copy; `new` and `retry` write `""`). This replaces the template-equality check, which refused 3 of the 4 real tasks on disk because `build_implementation_prompt` changed twice on 2026-11-07. The new task's prompt is built from the current template. It is a policy filter, not a security control: forging it needs write access to `.factory/tasks`, which already allows setting `state: queued`, and the human still confirms.
+
+**Corrected residual (my claim was false):** `cap_usd` is a global spend cap across all tasks (`ledger.would_exceed` sums the whole ledger), so keep-plan retries reset nothing and stop at the global cap. The README says "per task" in two places (lines 72 and 194); fixed in K5.
+
+**Guard order (a bad order crashes `plan_digest(None)`):** state (failed or audited), then goal and plan present, then the stored digest equals `plan_digest(plan)`, then `shown_digest` equals both, then `prompt != ""`. The core reloads the task and binds to `shown_digest` as `approve_plan` does (not a tautology: the CLI computes it from the task it displayed).
+
+**Refusals worth naming:** reviewer-rejected (`planned -> failed`, plan kept, prompt `""`), human-rejected and abandoned-from-reviewed (prompt `""`), failed in proposed (plan `None`, no crash). **Accepted (characterisation, start green):** audited, rebased then audited or failed, abandoned from queued, a keep-plan child that failed again, a task whose prompt came from an older template.
+
+**Confirmation shows** goal, plan, risks, review findings, the source's failure reason, its audit findings if any, "retry of <id>", all through `escape_control`; for an audited source it also says the source stays mergeable (abandon it if you take this retry). Not taking `state_lock` matches plain retry and approve (`create_with_fresh_id` is atomic).
+
+**Cycles (replaces the list above)**
+- K1 (red): `retry_with_plan(src_id, store, clock, shown_digest)` on a failed approved task returns a queued task with goal, plan, plan_risks, plan_digest, review_findings copied, `prompt = build_implementation_prompt(goal, plan)`, `retry_of` set, everything else default, saved; the source unchanged.
+- K2 (red, one commit each, in guard order): wrong state (running, merged); no goal; failed-in-proposed with plan `None` (no crash); stored digest mismatch; `shown_digest` mismatch; prompt `""` for reviewer-rejected and for human-rejected. In each the store's task count is unchanged.
+- K2b (green characterisation, labelled): the accepted cases above.
+- K3 (CLI, one commit each): `--keep-plan` parses on `retry` only (exit 2 elsewhere); non-TTY exit 1, nothing created; anything but `y` creates nothing; `y` creates the task and prints the id and `run: factory advance <id>`; the display content above, escaped; an unapproved source exits 1 without prompting; a digest that changed between display and confirm creates nothing.
+- K3b tripwire: no command except `retry --keep-plan` calls `retry_with_plan`; plain `retry` with a TTY and "y" never does (like `test_no_command_except_approve_calls_approve_plan`).
+- K4 (wiring): the CLI subprocess has no TTY, so seed the keep-plan child in-process, run `factory advance <new>` as a subprocess with the existing fakes, and assert a worktree is created and the implementer's `-p` equals `build_implementation_prompt(goal, plan)`. (The run_task stage already creates the worktree for a queued task without one.)
+- K5: README command table row; correct README lines 72 and 194 to say the spend cap is global; `docs/spike-findings.md`.
+- E1: `spike/keep_plan_e2e.py`, run by the user in a terminal ($0): a failed approved task, a reviewer-rejected one and an audited one in a scratch repo; `retry --keep-plan` with `y` creates a queued task, with `n` and non-TTY nothing, the rejected one is refused. Then `verify`.
