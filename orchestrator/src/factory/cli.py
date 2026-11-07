@@ -109,6 +109,8 @@ def _describe(task: Task) -> list[str]:
         lines.append(f"failure: {task.failure_reason}")
     if task.retry_of:
         lines.append(f"retry_of: {task.retry_of}")
+    if task.fix_rounds_used:
+        lines.append(f"fix_rounds_used: {task.fix_rounds_used}")
     lines += [f"plan:\n{task.plan}"] if task.plan else []
     for label, items in (("risks", task.plan_risks), ("review findings", task.review_findings),
                          ("audit findings", task.audit_findings)):

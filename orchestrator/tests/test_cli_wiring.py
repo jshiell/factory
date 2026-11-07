@@ -16,6 +16,8 @@ with open(os.environ["FAKE_CLAUDE_LOG"], "a") as log:
     log.write(json.dumps(argv) + "\n")
 if "--json-schema" not in argv:  # the implementer: no structured output
     output = None
+    if "<test-output-" in argv[argv.index("-p") + 1]:  # a fix round: do what the failure asked
+        open("fixed", "w").write("ok")
 else:
     schema = json.loads(argv[argv.index("--json-schema") + 1])
     if "plan" in schema["properties"]:
@@ -33,7 +35,7 @@ argv = sys.argv[1:]
 with open(os.environ["FAKE_NONO_LOG"], "a") as log:
     log.write(json.dumps(argv) + "\n")
 rest = argv[argv.index("--") + 1:]
-os.execv(rest[0], rest)
+os.execvp(rest[0], rest)
 '''
 
 
@@ -156,3 +158,30 @@ def test_the_implement_stage_runs_confined_with_no_shell_and_a_read_only_view_of
     assert argv[argv.index("--add-dir") + 1] == str(worktree.resolve())
     (sandbox_argv,) = [json.loads(line) for line in (tmp_path / "nono.log").read_text().splitlines()]
     assert sandbox_argv[:7] == ["run", "-s", "--profile", "nolabs-ai/claude", "--allow-cwd", "--read", str(worktree.resolve())]
+
+
+def test_a_failing_gate_runs_one_confined_fix_round_and_the_tests_then_pass(project):
+    import re
+    from factory.store import TaskStore
+    from factory.task import Task, TaskState
+    repo, env, tmp_path = project
+    config = repo / "factory.toml"
+    config.write_text(config.read_text() + 'test_argv = ["sh", "-c", "echo NEEDS-FIX; test -f fixed"]\n')
+    (repo / "target" / "code.py").write_text("changed by the implementer")
+    (tmp_path / "state" / "tasks").mkdir(parents=True)
+    base = sh("git", "rev-parse", "HEAD", cwd=repo, env=env).stdout.strip()
+    TaskStore(tmp_path / "state" / "tasks").save(
+        Task(id="t9", prompt="stored", state=TaskState.AGENT_DONE, worktree=str(repo), base_sha=base, goal="g", plan="p"))
+
+    result = factory(project, "advance", "t9")
+
+    assert "verify -> verified" in result.stdout, result.stdout + result.stderr  # the fake audit is out of scope
+    calls = [json.loads(line) for line in (tmp_path / "argv.log").read_text().splitlines()]
+    (fix,) = [argv for argv in calls if "--json-schema" not in argv]
+    assert "NEEDS-FIX" in fix[fix.index("-p") + 1]
+    assert re.search(r"<test-output-[0-9a-f]+>", fix[fix.index("-p") + 1])
+    assert fix[fix.index("--disallowedTools") + 1] == "Bash Bash(git *) Glob NotebookEdit"
+    nono_calls = [json.loads(line) for line in (tmp_path / "nono.log").read_text().splitlines()]
+    assert any(argv[argv.index("--") + 1].endswith("fake-claude") and "--profile" in argv for argv in nono_calls)
+    shown = factory(project, "show", "t9").stdout
+    assert "verified" in shown and "NEEDS-FIX" not in shown and "fix_rounds_used: 1" in shown
