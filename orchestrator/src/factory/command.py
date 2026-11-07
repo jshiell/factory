@@ -1,5 +1,8 @@
 import json
 from dataclasses import dataclass
+from pathlib import Path
+
+SANDBOX_PROFILE = "nolabs-ai/claude"
 
 
 @dataclass(frozen=True)
@@ -36,3 +39,8 @@ def build_command(
     if config.disallowed_tools:
         argv += ["--disallowedTools", " ".join(config.disallowed_tools)]
     return argv, {"CLAUDE_CODE_DISABLE_CLAUDE_MDS": "1"}
+
+
+def sandbox_prefix(executable: str, worktree: str | Path) -> list[str]:
+    return [executable, "run", "-s", "--profile", SANDBOX_PROFILE, "--allow-cwd",
+            "--read", str(Path(worktree).resolve()), "--"]

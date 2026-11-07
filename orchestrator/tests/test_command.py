@@ -2,7 +2,7 @@ import json
 
 import pytest
 
-from factory.command import RunnerConfig, build_command
+from factory.command import RunnerConfig, build_command, sandbox_prefix
 
 
 def test_base_argv_has_prompt_json_output_and_model():
@@ -78,3 +78,16 @@ def test_disallowed_tools_are_space_joined():
     argv, _env = build_command("p", config)
 
     assert argv[argv.index("--disallowedTools") + 1] == "Bash(git *) WebFetch"
+
+
+def test_sandbox_prefix_grants_the_resolved_worktree_read_only_and_ends_with_double_dash(tmp_path):
+    real = tmp_path / "real"
+    real.mkdir()
+    link = tmp_path / "link"
+    link.symlink_to(real)
+
+    prefix = sandbox_prefix("nono", link)
+
+    assert prefix == [
+        "nono", "run", "-s", "--profile", "nolabs-ai/claude", "--allow-cwd", "--read", str(real.resolve()), "--",
+    ]
