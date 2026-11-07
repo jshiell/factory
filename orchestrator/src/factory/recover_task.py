@@ -12,4 +12,7 @@ def recover_task(task_id: str, store: TaskStore, ledger: Ledger, budget_usd: flo
     task = store.load(task_id)
     if task.state is not TaskState.RUNNING:
         raise RecoverRefused(f"{task.id} is {task.state.value}, not running")
-    raise NotImplementedError
+    ledger.append(task.id, ASSUMED_COST_MULTIPLIER * budget_usd, assumed=True, stage="implement")
+    failed = apply(task, Event.FAILED, reason="interrupted")
+    store.save(failed)
+    return failed
