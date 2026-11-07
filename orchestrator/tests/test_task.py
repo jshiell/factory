@@ -141,3 +141,20 @@ def test_merged_moves_audited_to_merged_and_merged_is_terminal():
         if state is not TaskState.AUDITED:
             with pytest.raises(InvalidTransition):
                 apply(Task(id="t1", prompt="p", state=state), Event.MERGED)
+
+
+ABANDONABLE = [TaskState.PROPOSED, TaskState.PLANNED, TaskState.REVIEWED, TaskState.QUEUED,
+               TaskState.AGENT_DONE, TaskState.VERIFIED, TaskState.AUDITED]
+
+
+@pytest.mark.parametrize("state", ABANDONABLE)
+def test_abandoned_fails_every_non_terminal_state_except_running(state):
+    task = apply(task_in(state), Event.ABANDONED, "abandoned")
+
+    assert task.state is TaskState.FAILED and task.failure_reason == "abandoned"
+
+
+@pytest.mark.parametrize("state", [TaskState.RUNNING, TaskState.MERGED, TaskState.FAILED])
+def test_abandoned_is_refused_from_running_and_the_terminal_states(state):
+    with pytest.raises(InvalidTransition):
+        apply(task_in(state), Event.ABANDONED, "abandoned")
