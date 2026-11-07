@@ -50,7 +50,7 @@ def main():
     (repo / "proj" / "pyproject.toml").write_text(
         '[project]\nname = "p"\nversion = "0"\nrequires-python = ">=3.10"\ndependencies = []\n\n'
         '[dependency-groups]\ndev = ["pytest"]\n')
-    (repo / "proj" / "code.py").write_text("def add(a, b):\n    return a + b\n")
+    (repo / "proj" / "calc.py").write_text("def add(a, b):\n    return a + b\n")
     git(repo, "add", "-A")
     git(repo, "commit", "-q", "-m", "init")
     (state / "tasks").mkdir(parents=True)
@@ -68,7 +68,7 @@ def main():
         return result, path, time.monotonic() - started
 
     def failing_with_planted_conftest(proj):
-        (proj / "test_add.py").write_text("from code import add\n\n\ndef test_add():\n    assert add(1, 1) == 3\n")
+        (proj / "test_add.py").write_text("from calc import add\n\n\ndef test_add():\n    assert add(1, 1) == 3\n")
         (proj / ".gitignore").write_text("conftest.py\n")
         (proj / "conftest.py").write_text(
             "import pytest\n\n\n@pytest.hookimpl(hookwrapper=True)\ndef pytest_runtest_makereport(item, call):\n"
@@ -79,7 +79,7 @@ def main():
     check("the planted conftest is gone from the worktree", (path / "proj" / "conftest.py").exists(), False)
 
     def passing(proj):
-        (proj / "test_add.py").write_text("from code import add\n\n\ndef test_add():\n    assert add(1, 1) == 2\n")
+        (proj / "test_add.py").write_text("from calc import add\n\n\ndef test_add():\n    assert add(1, 1) == 2\n")
 
     result, path, took = gate("c2", passing)
     check("a legitimate project is verified", result.state, TaskState.VERIFIED)
@@ -87,7 +87,7 @@ def main():
 
     # a .pth planted in the ignored .venv after a real run: the next gate must delete it before pytest starts
     path, base = manager.create("c3")
-    (path / "proj" / "test_add.py").write_text("from code import add\n\n\ndef test_add():\n    assert add(1, 1) == 2\n")
+    (path / "proj" / "test_add.py").write_text("from calc import add\n\n\ndef test_add():\n    assert add(1, 1) == 2\n")
     store.save(Task(id="c3", prompt="p", state=TaskState.AGENT_DONE, goal="g", worktree=str(path), base_sha=base))
     verify_task("c3", store, "proj", list(settings.test_argv), settings.gate_timeout_s, sandbox, factory_paths=(state, wt_root))
     # c3 is now verified; reuse the worktree as a fresh agent_done task carrying a planted .pth
