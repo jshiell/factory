@@ -376,3 +376,36 @@ def test_an_orphan_swapped_for_a_symlink_is_not_followed(env, tmp_path):
     outcomes = remove_orphan_caches(store, tmp_path / "gate-cache", orphans)
 
     assert (precious / "keep").exists() and outcomes[0].problems
+
+
+def commit_on(path, name="x.txt"):
+    (path / name).write_text("x")
+    git(path, "add", "-A")
+    git(path, "commit", "-q", "-m", "work")
+
+
+def test_a_branch_still_at_the_base_is_empty(env):
+    add = env[4]
+    add("failed", S.FAILED)
+
+    assert candidate(env, "failed").branch_empty is True
+
+
+def test_a_branch_with_a_commit_is_not_empty(env):
+    add = env[4]
+    commit_on(add("failed", S.FAILED))
+
+    assert candidate(env, "failed").branch_empty is False
+
+
+def test_an_unset_base_or_a_missing_branch_is_never_empty(env):
+    store, repo, manager, root, add = env
+    path = add("nobase", S.FAILED)
+    store.save(Task(id="nobase", prompt="", state=S.FAILED, worktree=str(path)))  # base_sha unset
+    path = add("nobranch", S.FAILED)
+    git(repo, "worktree", "remove", "--force", str(path))
+    git(repo, "branch", "-D", "factory/nobranch")
+    store.save(Task(id="nobranch", prompt="", state=S.FAILED, worktree=str(path), base_sha="deadbeef"))
+
+    assert candidate(env, "nobase").branch_empty is False
+    assert [c for c in clean_candidates(store, repo, root) if c.task.id == "nobranch"][0].branch_empty is False

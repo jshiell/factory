@@ -19,6 +19,7 @@ class Candidate:
     branch_exists: bool
     outside_root: bool = False
     cache_bytes: int | None = None  # None: no gate cache directory
+    branch_empty: bool = False  # the branch tip is exactly the base commit: nothing on it to lose
 
 
 def clean_candidates(
@@ -43,7 +44,18 @@ def _describe(task: Task, repo: Path, worktree_root: Path, cache_root: Path | No
     exists = directory is not None and directory.is_dir()
     dirty = exists and bool(run_git(directory, "status", "--porcelain"))
     size = None if cache_root is None else cache_size(cache_root, task.id)
-    return Candidate(task, exists, dirty, _commits_ahead(task, branch, branch_exists, repo), branch_exists, outside, size)
+    ahead = _commits_ahead(task, branch, branch_exists, repo)
+    return Candidate(task, exists, dirty, ahead, branch_exists, outside, size, _branch_empty(task, repo))
+
+
+def _branch_empty(task: Task, repo: Path) -> bool:
+    """Strict: unknown (no base, no branch, any git error) is never empty."""
+    if not task.base_sha:
+        return False
+    try:
+        return run_git(repo, "rev-parse", "--verify", "-q", f"refs/heads/factory/{task.id}") == task.base_sha
+    except subprocess.CalledProcessError:
+        return False
 
 
 def _commits_ahead(task: Task, branch: str, branch_exists: bool, repo: Path) -> int:
