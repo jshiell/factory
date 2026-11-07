@@ -130,3 +130,16 @@ Single runs; all exit 0, `permission_denials` empty, worktree clean afterwards.
 - An implement-stage infrastructure failure is terminal; a task stuck `queued` on a dirty worktree needs manual repair; legacy `queued` tasks bypass the front half.
 - SIGKILL leaves a stale `running` task and possibly a live agent. Worktrees from rejected plans are orphaned.
 - The auditor judges against the plan, not the goal.
+
+## Plan 6 cycle 0: nono probe (`spike/nono_probe.py`, run by the user, ~7 runs, about $0.25)
+Command shape: `nono run -s --profile nolabs-ai/claude --allow-cwd --read <resolved worktree> -- claude -p ...`, cwd `worktree/target`. Raw output in `spike/nono-probe-out/` (gitignored).
+- **Confirmed (Read, scored by canary tokens):** readable: control file in `target/`, worktree-root file, `$TMPDIR` dir, `~/.claude` dir. Denied: repo root, `repo/.factory`, `repo/.git/config`, a `$HOME` dir, and a symlink in `target/` pointing at the `$HOME` canary. Authentication works under the profile. So the worktree plus `$TMPDIR` plus `~/.claude` is the effective read set (the last two are the profile's and nono's default grants).
+- **Confirmed (Grep):** same split as Read (control, worktree root, `$TMPDIR`, `~/.claude` found; the rest absent).
+- **Inconclusive (Glob):** returned nothing anywhere, including the control file, so the probe's Glob pattern or usage was wrong; no claim about Glob confinement.
+- **Confirmed:** `permission_denials` is incomplete: only 2 of the 5 denied Reads in the Read run appear in it (the rest were nono errors). Score by tokens, never by denials.
+- **Confirmed:** a bad model gives exit 1 with empty stdout and `[claude-code:unrecognized_model]` on stderr, so exit codes and failure shape pass through nono.
+- **Confirmed (fork):** nono stays as a parent process: `nono` (parent) -> `claude` plus a `/usr/bin/log stream ... sandboxd` helper. The runner's descendant-tree kill must cover both (not yet tested under a wrapper).
+- **Confirmed:** Claude still reports "git-repo: yes" in the worktree with the main `.git` not granted (likely via the worktree's `.git` file; mechanism not checked).
+- **Confirmed (h1, `Read Grep Glob` dropped from the allow list, under nono):** only `target/` (the cwd) is readable; even the worktree-root file, `$TMPDIR` and `~/.claude` are denied. Headless default rules are stricter than nono's grants. Not tested: whether Grep and Glob work in cwd without being allowed, and whether `--add-dir <worktree>` restores the worktree root.
+- **Confirmed (h2, `--settings` deny rule on `~/.claude/**`):** `--settings` is honoured under `--setting-sources ""`; `~/.claude` became unreadable for Read, `$TMPDIR` still readable. Not tested: a deny rule for `$TMPDIR`, or whether Read deny rules also stop Grep and Glob.
+- **Limitation:** `nono why --profile ... --path` reported `DENIED` for the worktree files because it was not given `--read <worktree>`; only the `$TMPDIR` and `~/.claude` lines (`ALLOWED`) are informative. The default profile text has no explicit temp line (the grant likely comes from a group such as `system_read_macos`); cycle 0i (can a derived profile drop temp, `~/.claude/projects`, workdir write) is not yet tested. `nono run` has a `--dry-run` flag that was not used.
