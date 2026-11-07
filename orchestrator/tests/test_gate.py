@@ -658,6 +658,14 @@ def test_a_root_uv_config_file_fails_tests_modified(repo, name):
     assert gate(repo, base).reason == "tests_modified"
 
 
+@pytest.mark.parametrize("name", ["UV.toml", ".Python-Version", "Conftest.py", "PYTEST.INI"])
+def test_a_differently_cased_protected_name_fails_tests_modified(repo, name):
+    base = repo_with_test_file(repo)
+    commit_project_edit(repo, name, "x\n")
+
+    assert gate(repo, base).reason == "tests_modified"
+
+
 def test_guard_moving_a_file_out_of_the_project_fails_outside_project(repo):
     base = repo_with_project_change(repo)
     git(repo, "mv", "proj/code.py", "moved.py")
