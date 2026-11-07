@@ -7,6 +7,7 @@ from gitutil import git
 
 from factory.audit_task import AUDIT_CONFIG
 from factory.digest import plan_digest
+from factory.gate_sandbox import UvTooling
 from factory.ledger import Ledger
 from factory.plan_task import PLAN_CONFIG
 from factory.review_plan import REVIEW_CONFIG
@@ -116,7 +117,26 @@ def test_verify_receives_the_test_command_subdir_and_timeout(setup, monkeypatch)
 
     build_stages(settings, deps)["verify"]("t1")
 
-    assert calls == [(("t1", deps.store), {"project_subdir": "proj", "test_argv": ["pytest", "-x"], "gate_timeout_s": 7.0})]
+    (args, kwargs), = calls
+    sandbox = kwargs.pop("sandbox")
+    assert callable(sandbox)
+    assert (args, kwargs) == (("t1", deps.store), {"project_subdir": "proj", "test_argv": ["pytest", "-x"], "gate_timeout_s": 7.0})
+
+
+def test_the_verify_stage_builds_the_gate_sandbox_from_the_settings_and_the_task(setup, monkeypatch):
+    store, runner, settings, deps, repo, base = setup
+    settings = replace(settings, sandbox_executable="fake-nono")
+    saved = Task(id="t1", prompt="p", worktree=str(repo), base_sha=base)
+    seen = {}
+    monkeypatch.setattr("factory.stages.verify_task", lambda *a, **k: seen.update(k))
+    monkeypatch.setattr("factory.stages.discover_uv_tooling", lambda project_dir: UvTooling("/real/uv", "/py", "/uvpy"))
+
+    build_stages(settings, deps)["verify"]("t1")
+    sandbox = seen["sandbox"](saved)
+
+    assert sandbox.prefix[0] == "fake-nono" and sandbox.argv[0] == "pytest"
+    assert str(settings.state_dir / "gate-cache" / "t1") in sandbox.prefix
+    assert (settings.state_dir / "gate-cache" / "t1").is_dir()
 
 
 def test_stage_names_are_exactly_the_pipeline(setup):

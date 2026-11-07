@@ -1,8 +1,11 @@
+import os
 from collections.abc import Callable
 from dataclasses import dataclass
+from pathlib import Path
 
 from factory.audit_task import AUDIT_CONFIG, audit_task
 from factory.command import RunnerConfig
+from factory.gate_sandbox import GateSandbox, build_gate_sandbox, discover_uv_tooling
 from factory.ledger import Ledger
 from factory.plan_task import PLAN_CONFIG, plan_task
 from factory.review_plan import REVIEW_CONFIG, review_plan
@@ -35,6 +38,21 @@ def implementer_config(settings: Settings) -> RunnerConfig:
     )
 
 
+def gate_sandbox_for(settings: Settings) -> Callable[[Task], GateSandbox]:
+    def make(task: Task) -> GateSandbox:
+        worktree = Path(task.worktree)
+        project_dir = (worktree / settings.project_subdir).resolve()
+        cache_dir = settings.state_dir / "gate-cache" / task.id  # private: never the shared uv cache
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        tooling = discover_uv_tooling(project_dir)
+        return build_gate_sandbox(
+            sandbox_executable=settings.sandbox_executable, worktree=worktree, project_dir=project_dir,
+            cache_dir=cache_dir, python_prefix=tooling.python_prefix, uv_python_dir=tooling.uv_python_dir,
+            real_uv=tooling.real_uv, base_env=dict(os.environ), test_argv=settings.test_argv,
+        )
+    return make
+
+
 def build_stages(settings: Settings, deps: Deps) -> dict[str, Callable[[str], Task]]:
     store, ledger, runner, cap = deps.store, deps.ledger, deps.runner, settings.cap_usd
     implementer = implementer_config(settings)
@@ -45,6 +63,7 @@ def build_stages(settings: Settings, deps: Deps) -> dict[str, Callable[[str], Ta
         "verify": lambda task_id: verify_task(
             task_id, store, project_subdir=settings.project_subdir,
             test_argv=list(settings.test_argv), gate_timeout_s=settings.gate_timeout_s,
+            sandbox=gate_sandbox_for(settings),
         ),
         "audit": lambda task_id: audit_task(
             task_id, store, ledger, runner, AUDIT_CONFIG, cap, settings.project_subdir
