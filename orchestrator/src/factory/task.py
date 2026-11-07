@@ -37,6 +37,7 @@ class Task:
     base_sha: str | None = None
     audit_findings: tuple[str, ...] = ()
     audited_sha: str | None = None
+    audit_error: str | None = None
 
 
 _TRANSITIONS = {
