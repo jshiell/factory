@@ -1,9 +1,11 @@
 import subprocess
+import tomllib
 from dataclasses import dataclass
 from pathlib import Path
 
 from factory.worktrees import run_git
 
+_PROTECTED_NAMES = ("conftest.py", "pytest.ini", "tox.ini", "setup.cfg")
 _FACTORY_IDENTITY = ("-c", "user.name=factory", "-c", "user.email=factory@localhost")
 
 
@@ -39,7 +41,7 @@ def check_gate(
         return GateResult(False, "no_commits")
     if not run_git(worktree, "diff", "--name-only", base_sha, "HEAD", "--", project_subdir):
         return GateResult(False, "no_changes")
-    if _tests_tampered(worktree, base_sha, project_subdir):
+    if _tests_tampered(worktree, base_sha, project_subdir) or _protected_changed(worktree, base_sha, project_subdir):
         return GateResult(False, "tests_modified")
     try:
         tests = subprocess.run(
@@ -64,6 +66,27 @@ def _tests_tampered(worktree: Path, base_sha: str, project_subdir: str) -> bool:
         return True
     numstat = run_git(worktree, "diff", "--numstat", "--no-renames", base_sha, "HEAD", "--", *pathspecs)
     return any(line.split("\t")[1] != "0" for line in numstat.splitlines())
+
+
+def _protected_changed(worktree: Path, base_sha: str, project_subdir: str) -> bool:
+    pathspecs = [f":(glob){project_subdir}/**/{name}" for name in _PROTECTED_NAMES]
+    if run_git(worktree, "diff", "--name-only", "--no-renames", base_sha, "HEAD", "--", *pathspecs):
+        return True
+    pyproject = f"{project_subdir}/pyproject.toml"
+    return _pytest_table(worktree, base_sha, pyproject) != _pytest_table(worktree, "HEAD", pyproject)
+
+
+def _pytest_table(worktree: Path, revision: str, path: str) -> dict | None:
+    shown = subprocess.run(
+        ["git", "show", f"{revision}:{path}"], cwd=worktree, capture_output=True, stdin=subprocess.DEVNULL
+    )
+    if shown.returncode != 0:
+        return None
+    try:
+        document = tomllib.loads(shown.stdout.decode())
+    except (tomllib.TOMLDecodeError, UnicodeDecodeError):
+        return {"unparseable": True}
+    return document.get("tool", {}).get("pytest", {}).get("ini_options")
 
 
 def _is_ancestor(worktree: Path, base_sha: str) -> bool:

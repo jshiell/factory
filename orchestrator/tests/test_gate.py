@@ -198,3 +198,62 @@ def test_a_new_test_file_and_a_changed_non_test_file_pass(repo):
     git(repo, "commit", "-q", "-m", "more")
 
     assert gate(repo, base).passed is True
+
+
+PROTECTED = ["conftest.py", "pytest.ini", "tox.ini", "setup.cfg", "sub/conftest.py"]
+
+
+@pytest.mark.parametrize("name", PROTECTED)
+def test_adding_a_protected_file_fails_tests_modified(repo, name):
+    base = repo_with_test_file(repo)
+    (repo / "proj" / name).parent.mkdir(parents=True, exist_ok=True)
+    (repo / "proj" / name).write_text("x\n")
+    git(repo, "add", "-A")
+    git(repo, "commit", "-q", "-m", "protected")
+
+    assert gate(repo, base).reason == "tests_modified"
+
+
+@pytest.mark.parametrize("name", PROTECTED)
+def test_appending_to_a_protected_file_fails_tests_modified(repo, name):
+    (repo / "proj" / name).parent.mkdir(parents=True, exist_ok=True)
+    (repo / "proj" / name).write_text("x\n")
+    base = repo_with_test_file(repo)
+    commit_project_edit(repo, name, "x\ny\n")
+
+    assert gate(repo, base).reason == "tests_modified"
+
+
+PYPROJECT = '[project]\nname = "p"\ndependencies = []\n\n[tool.pytest.ini_options]\naddopts = "-q"\n'
+
+
+def test_changing_the_pytest_table_of_pyproject_fails_tests_modified(repo):
+    base = repo_with_test_file(repo)
+    (repo / "proj" / "pyproject.toml").write_text(PYPROJECT)
+    git(repo, "add", "-A")
+    git(repo, "commit", "-q", "-m", "add table")
+    mid = git(repo, "rev-parse", "HEAD")
+    commit_project_edit(repo, "pyproject.toml", PYPROJECT.replace('"-q"', '"-q --deselect x"'))
+
+    assert gate(repo, base).reason == "tests_modified"
+    assert gate(repo, mid).reason == "tests_modified"
+
+
+def test_adding_a_dependency_to_pyproject_passes(repo):
+    (repo / "proj").mkdir()
+    (repo / "proj" / "pyproject.toml").write_text(PYPROJECT)
+    base = repo_with_test_file(repo)
+    commit_project_edit(repo, "pyproject.toml", PYPROJECT.replace("dependencies = []", 'dependencies = ["requests"]'))
+
+    assert gate(repo, base).passed is True
+
+
+def test_tamper_is_reported_before_tests_run(repo, tmp_path):
+    base = repo_with_test_file(repo)
+    commit_project_edit(repo, "test_calc.py", "a\n")
+    sentinel = tmp_path / "ran"
+
+    result = gate(repo, base, test_argv=["sh", "-c", f"touch {sentinel}; exit 1"])
+
+    assert result.reason == "tests_modified"
+    assert not sentinel.exists()
