@@ -623,3 +623,11 @@ def test_guard_an_unnormalised_project_subdir_still_watches_its_pyproject(repo, 
     commit_root_file(repo, "proj/pyproject.toml", ROOT_PYPROJECT)
 
     assert check_gate(repo, base, subdir, ["true"], 5).reason == "tests_modified"
+
+
+def test_a_gitlink_added_outside_the_project_fails_outside_project(repo):
+    base = repo_with_project_change(repo)
+    git(repo, "update-index", "--add", "--cacheinfo", f"160000,{base},sub")
+    git(repo, "commit", "-q", "-m", "gitlink")
+
+    assert gate(repo, base).reason == "outside_project"
