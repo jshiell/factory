@@ -62,13 +62,13 @@ def check_gate(
     ):
         return GateResult(False, "tests_modified")
     try:
-        exit_code, timed_out = run_to_exit([*test_prefix, *test_argv], project_dir, env, timeout_s)
+        ran = run_to_exit([*test_prefix, *test_argv], project_dir, env, timeout_s)
     except OSError:  # a missing sandbox wrapper: fail closed, never run the tests unconfined
         return GateResult(False, "sandbox_unavailable")
-    if timed_out:
+    if ran.timed_out:
         return GateResult(False, "tests_timeout")
-    if exit_code != 0:
-        return GateResult(False, "tests_failed", exit_code)
+    if ran.exit_code != 0:
+        return GateResult(False, "tests_failed", ran.exit_code)
     return GateResult(True)
 
 
