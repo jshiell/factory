@@ -117,3 +117,16 @@ Single runs; all exit 0, `permission_denials` empty, worktree clean afterwards.
 - **Confirmed (Claude Code Bash tool):** `stdin.isatty()` and `stdout.isatty()` are False, piped or `</dev/null`; `/dev/tty` fails to open (`Device not configured`). An agent's Bash call cannot satisfy the TTY check or reach the user's terminal via `/dev/tty`.
 - **Confirmed (user's real terminal):** `stdin.isatty=True`, `stdout.isatty=True`, `/dev/tty` opens.
 - Not tested: a pty or `script` wrapper, which can fake a TTY (known gap: the check is a process control, not a security one).
+
+## Plan 5 end-to-end result (`factory` CLI, run by the user in a terminal)
+- `new` -> `advance` (plan, review; stopped at `reviewed`) -> `approve` (interactive `y` on the printed text) -> `advance` (implement, verify, audit) -> `audited`. `show` and `costs` worked. Costs: plan $0.044, review $0.046, implement $0.062, audit $0.028; total $0.180, none assumed.
+- The approval was the user's `y` at the prompt; the agent never ran `approve`. The goal was displayed above the plan.
+- The audit again said it could not confirm test-first ordering or a passing run (no execution tool).
+- Not exercised live: `reject`, `list`, a stage stopping on infrastructure failure, `AlreadyRunning`, SIGTERM cleanup. Covered by unit and $0 subprocess tests.
+
+## Known gaps after plan 5
+- `Read` in the read-only agents is not confined to the worktree.
+- The approve TTY check is a process control; a pty can fake it.
+- An implement-stage infrastructure failure is terminal; a task stuck `queued` on a dirty worktree needs manual repair; legacy `queued` tasks bypass the front half.
+- SIGKILL leaves a stale `running` task and possibly a live agent. Worktrees from rejected plans are orphaned.
+- The auditor judges against the plan, not the goal.
