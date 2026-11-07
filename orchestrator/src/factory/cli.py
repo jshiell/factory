@@ -11,6 +11,7 @@ from pathlib import Path
 
 from factory.advance import advance
 from factory.approve_plan import approve_plan, reject_plan
+from factory.clean_tasks import clean_candidates, clean_tasks
 from factory.digest import plan_digest
 from factory.ids import InvalidTaskId
 from factory.ledger import Ledger
@@ -70,6 +71,7 @@ def _parser() -> argparse.ArgumentParser:
     commands.add_parser("list")
     for name in ("show", "advance", "approve", "reject", "merge", "retry", "recover"):
         commands.add_parser(name).add_argument("task_id")
+    commands.add_parser("clean")
     commands.add_parser("costs").add_argument("task_id", nargs="?")
     return parser
 
@@ -249,6 +251,43 @@ def _recover(args, io, ctx) -> int:
     return 0
 
 
+def _describe_candidate(candidate) -> str:
+    flags = ["worktree present" if candidate.directory_exists else "worktree missing"]
+    flags += ["dirty (uncommitted work will be discarded)"] if candidate.dirty else []
+    flags += [f"{candidate.commits_ahead} commits ahead of base"] if candidate.commits_ahead else []
+    flags += ["branch left behind"] if candidate.branch_exists else []
+    flags += ["worktree path is not <root>/<id>: will be skipped"] if candidate.outside_root else []
+    return f"{candidate.task.id}  {candidate.task.state.value}: " + ", ".join(flags)
+
+
+def _clean(args, io, ctx) -> int:
+    if not io.stdin.isatty():
+        print("clean needs an interactive terminal", file=io.stderr)
+        return 1
+    settings = ctx.settings
+    try:
+        with state_lock(settings.state_dir):
+            candidates = clean_candidates(ctx.store, settings.repo, settings.worktree_root)
+            if not candidates:
+                print("nothing to clean", file=io.stdout)
+                return 0
+            print(escape_control("\n".join(_describe_candidate(c) for c in candidates)), file=io.stdout)
+            print("Clean these? [y/N] ", end="", file=io.stdout)
+            io.stdout.flush()
+            if io.stdin.readline().strip() != "y":
+                print("not cleaned", file=io.stdout)
+                return 1
+            worktrees = WorktreeManager(settings.repo, settings.worktree_root)
+            outcomes = clean_tasks(candidates, ctx.store, worktrees, settings.repo, settings.worktree_root)
+    except AlreadyRunning:
+        print("another factory run holds the lock", file=io.stderr)
+        return 1
+    for outcome in outcomes:
+        for line in outcome.done + outcome.problems:
+            print(escape_control(f"{outcome.task_id}: {line}"), file=io.stdout)
+    return 1 if any(o.problems for o in outcomes) else 0
+
+
 def _merge(args, io, ctx) -> int:
     task = _load(ctx, args.task_id)
     if not io.stdin.isatty():
@@ -284,7 +323,7 @@ def _merge(args, io, ctx) -> int:
 
 _COMMANDS = {
     "new": _new, "list": _list, "show": _show, "advance": _advance,
-    "approve": _approve, "reject": _reject, "merge": _merge, "retry": _retry, "recover": _recover, "costs": _costs,
+    "approve": _approve, "reject": _reject, "merge": _merge, "retry": _retry, "recover": _recover, "clean": _clean, "costs": _costs,
 }
 
 
