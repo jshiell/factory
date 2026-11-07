@@ -377,6 +377,17 @@ def test_a_change_outside_the_project_fails_outside_project_without_a_fix_round(
     assert ledger.entries() == []
 
 
+def test_a_uv_toml_beside_the_change_fails_tests_modified_without_a_fix_round(repo, store, ledger, task, tmp_path):
+    (repo / "proj" / "uv.toml").write_text("exclude-newer = '2000-01-01T00:00:00Z'\n")
+    sentinel = tmp_path / "tests-ran"
+    runner = FakeRunner(repo)
+
+    result = verify(store, ledger, runner, rounds=1, test_argv=["touch", str(sentinel)])
+
+    assert result.state is TaskState.FAILED and result.failure_reason == "tests_modified"
+    assert runner.calls == [] and result.fix_rounds_used == 0 and not sentinel.exists()
+
+
 def test_a_fix_round_that_edits_outside_the_project_fails_outside_project(repo, store, ledger, task):
     runner = FakeRunner(repo, lambda: (repo / "README.md").write_text("edited by the fixer"))
 
