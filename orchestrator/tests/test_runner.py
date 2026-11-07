@@ -188,3 +188,32 @@ def test_an_unconfined_config_does_not_touch_the_wrapper(tmp_path, task):
 
     assert result.stdout.strip() == "direct"
     assert not log.exists()
+
+
+def test_a_missing_sandbox_wrapper_raises_and_claude_never_runs_unconfined(tmp_path, task):
+    marker = tmp_path / "claude-ran"
+    runner = SubprocessRunner(
+        fake_claude(tmp_path, f"touch {marker}"), project_subdir="proj", timeout_s=10,
+        sandbox_executable=str(tmp_path / "no-such-nono"),
+    )
+
+    with pytest.raises(FileNotFoundError):
+        runner.run(task, replace(CONFIG, confine=True))
+
+    assert not marker.exists()
+
+
+def test_a_wrapper_that_fails_before_launching_claude_surfaces_its_exit_code_with_empty_stdout(tmp_path, task):
+    marker = tmp_path / "claude-ran"
+    failing = tmp_path / "failing-nono"
+    failing.write_text("#!/bin/sh\necho 'profile not found' >&2\nexit 1\n")
+    failing.chmod(failing.stat().st_mode | stat.S_IEXEC)
+    runner = SubprocessRunner(
+        fake_claude(tmp_path, f"touch {marker}"), project_subdir="proj", timeout_s=10,
+        sandbox_executable=str(failing),
+    )
+
+    result = runner.run(task, replace(CONFIG, confine=True))
+
+    assert (result.exit_code, result.stdout) == (1, "")
+    assert not marker.exists()
