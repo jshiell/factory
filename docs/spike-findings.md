@@ -96,3 +96,17 @@ Single runs; all exit 0, `permission_denials` empty, worktree clean afterwards.
 - **Confirmed:** a read-only reviewer returned `approve` for the sound plan ($0.043) and `revise` with relevant findings for a plan that deletes the test file and names a nonexistent path, and for an off-goal plan (divide instead of multiply). One sample each, three plans; not a reliability measure. It also made a useful extra catch on the sound plan (unnamed tests could shadow each other).
 - **Finding (security-relevant):** `Read` is not confined to the worktree. The agent read `../ROOT_NOTE.txt` (worktree root) and a file in an unrelated temp directory outside the repo. Read-only agents can read anything the user can, so the planner, reviewer and auditor could exfiltrate or be steered by local files. The plan's read-only checks protect writes, not reads. Not mitigated in plan 4; recorded as a known gap.
 - Plan size is small here, so `MAX_PLAN_BYTES` (to be set well under argv limits, e.g. 100 KB) is unexercised.
+
+## Plan 4 end-to-end result (spike/e2e4.py, run by the user in a terminal)
+- One goal ("add multiply") went `proposed` -> `planned` -> `reviewed` -> (human `y`) -> `queued` -> `agent_done` -> `verified` -> `audited`. Costs by stage: plan $0.086, review $0.085, implement $0.054, audit $0.028; none assumed, total about $0.25.
+- The approval was given by the user at the prompt on the exact printed text (digest taken from it); the script did not auto-approve.
+- The plan observed the additive-only rule on its own (a second import line instead of editing `from calc import add`), because `build_plan_prompt` states it. The implementer then satisfied the tamper gate; the audit passed.
+- The reviewer found a real detail: a failing red phase would break collection of the whole test file, not just the new tests. Harmless, but shows it checks the plan against the repo.
+- The audit again noted it could not run tests or confirm test-first ordering (no execution tool). Reused the pre-made planning worktree for implementation (pristine check passed).
+- Not exercised live: `revise` verdict, `reject`, infrastructure failures at plan or review, digest mismatch. Unit tests cover them with fakes.
+
+## Known gaps after plan 4
+- Read-only agents can still read outside the worktree (see the plan 4 spike).
+- Legacy `queued` tasks bypass the front half; the digest is not access control; approval is human-only by process only.
+- The auditor judges against the plan text, not the goal; worktrees from rejected plans accumulate.
+- Planner and reviewer reliability rests on a handful of single runs.
