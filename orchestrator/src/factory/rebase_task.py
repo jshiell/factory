@@ -1,4 +1,5 @@
 import os
+import re
 import subprocess
 from dataclasses import dataclass, replace
 from pathlib import Path
@@ -34,6 +35,15 @@ class _Worktree:
         return run_git(self.path, f"--git-dir={self.git_dir}", f"--work-tree={self.path}", *args, env=_NO_USER_CONFIG)
 
 
+_PROGRESS = re.compile(r"^Rebasing \(\d+/\d+\)")
+
+
+def _failure_reason(error: subprocess.CalledProcessError) -> str:
+    """Quote git's own conflict line; its progress line comes first and says nothing."""
+    lines = [_PROGRESS.sub("", line).strip() for line in f"{error.stderr}\n{error.stdout}".splitlines()]
+    return next((line for line in lines if line.startswith("CONFLICT (")), None) or "no reason given"
+
+
 def rebase_task(task_id: str, store: TaskStore, repo: Path) -> Rebased:
     """Human-only by process: replay an audited task on the current main, then send it back through verify and audit."""
     task = store.load(task_id)
@@ -44,9 +54,9 @@ def rebase_task(task_id: str, store: TaskStore, repo: Path) -> Rebased:
         worktree.git(*_REBASE, "--onto", main_head, task.base_sha)
     except subprocess.CalledProcessError as error:
         _restore(task, repo, worktree)
-        reason = next((line for line in f"{error.stderr}\n{error.stdout}".splitlines() if line.strip()), "no reason given")
+        reason = _failure_reason(error)
         raise RebaseRefused(
-            f"git rebase failed ({reason.strip()}); on a conflict run `factory abandon {task.id}` then `factory retry {task.id}`"
+            f"git rebase failed ({reason}); on a conflict run `factory abandon {task.id}` then `factory retry {task.id}`"
         ) from error
     except BaseException:  # a signal (SystemExit, KeyboardInterrupt) must not leave a rebase half done
         _restore(task, repo, worktree)

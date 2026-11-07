@@ -318,3 +318,15 @@ def test_a_rebased_task_is_unmergeable_until_the_gate_and_audit_pass_again_and_t
     assert audited.state is TaskState.AUDITED and audited.audited_sha == new_head != old_tip
     assert merge_preview("t1", store, repo).task.audited_sha == new_head
     assert merge_task("t1", store, repo, manager, shown_sha=new_head).state is TaskState.MERGED
+
+
+def test_a_conflict_refusal_quotes_the_conflict_line_not_gits_progress_line(audited):
+    store, repo, worktree, task = audited
+    conflict_on_main(repo)
+
+    with pytest.raises(RebaseRefused) as raised:
+        rebase_task("t1", store, repo)
+
+    message = str(raised.value)
+    assert "CONFLICT (" in message and "Rebasing (" not in message
+    assert "factory abandon t1" in message and "factory retry t1" in message
