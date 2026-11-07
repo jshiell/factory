@@ -89,3 +89,10 @@ Single runs each; exit codes saved to `.exit.txt`, all 0.
 - Auditor reliability is unmeasured (a handful of single runs). Gitignored-state and import-time tampering are not caught by the gate.
 - The ledger has no stage field; implementer and auditor costs share a task id.
 - Plan said to parametrise the assumed-cost helper by event; unnecessary because auditor infrastructure failures leave the task `verified`. The audit driver appends the assumed cost directly.
+
+## Plan 4 cycle 0: plan/review probe (`spike/plan_probe.py`, outputs `spike/p5-*`)
+Single runs; all exit 0, `permission_denials` empty, worktree clean afterwards.
+- **Confirmed:** a read-only planner (cwd `<tmp>/target`) returns `{"plan": str, "risks": [str]}` as `structured_output`. 6 turns, $0.084, plan 841 bytes, with real files named (`src/calc/__init__.py`, `tests/test_calc.py`) and correct details (existing `add`, no `__all__`, pytest in dev deps). `max_turns` 8 was enough for this tiny project only.
+- **Confirmed:** a read-only reviewer returned `approve` for the sound plan ($0.043) and `revise` with relevant findings for a plan that deletes the test file and names a nonexistent path, and for an off-goal plan (divide instead of multiply). One sample each, three plans; not a reliability measure. It also made a useful extra catch on the sound plan (unnamed tests could shadow each other).
+- **Finding (security-relevant):** `Read` is not confined to the worktree. The agent read `../ROOT_NOTE.txt` (worktree root) and a file in an unrelated temp directory outside the repo. Read-only agents can read anything the user can, so the planner, reviewer and auditor could exfiltrate or be steered by local files. The plan's read-only checks protect writes, not reads. Not mitigated in plan 4; recorded as a known gap.
+- Plan size is small here, so `MAX_PLAN_BYTES` (to be set well under argv limits, e.g. 100 KB) is unexercised.
