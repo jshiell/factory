@@ -252,3 +252,15 @@ Command shape: `nono run -s --profile nolabs-ai/claude --allow-cwd --read <resol
 - A failed task's branch whose tip is exactly `base_sha` (strict: unset base, missing branch or git error is never empty) is deleted by `clean` after its worktree, re-checked at execution; branches with commits stay as "branch left behind". Real `git branch -d` behaviour confirmed: it refuses an empty branch still registered to a worktree (`reg`) and one whose base is no longer an ancestor of main (`rebased`); both are reported, kept, and make `clean` exit 1 on every run.
 - Known gaps: the preview promises a deletion when main is on a detached HEAD (reported at clean time, not previewed); a refused empty branch stays a candidate and keeps `clean` at exit 1 until fixed by hand; branches with commits accumulate by design.
 - Fixed afterwards (27679f2): the refusal message now quotes git's own reason instead of always saying "not merged into main".
+
+## Plan 15: rebase when main has moved (e2e, run by the user, $0)
+`spike/rebase_e2e.py`: 13 PASS on the second run. The first run's two failures (fresh audit, merge) were the script: the synthetic repo had no `.gitignore`, so the gate's `__pycache__` left the worktree dirty and the audit refused it. Confirmed by the rerun after adding one.
+- Verified: `factory rebase` runs with the user's real global git config (1Password signing) and never prompts; a clean rebase of a disjoint change goes `audited -> agent_done`, passes the real gate, gets a fresh audit with a new `audited_sha`, and only then merges; before re-audit `merge` refuses both the old and the new commit; a conflict is refused with the worktree back at the old tip and no `rebase-merge` left; a `.git` file redirected elsewhere is refused before git runs; main-not-moved is refused.
+- Known gaps:
+  - The conflict refusal quotes git's first stderr line, which is progress text ("Rebasing (1/1)"), not the conflict.
+  - A `merge=union` `.gitattributes` silently resolves a conflict (pinned by a test, judged by the re-run gate and audit).
+  - SIGKILL mid-rebase leaves the worktree mid-rebase and the task `audited`; the way out is `abandon`. How `clean` treats such a worktree is unverified.
+  - A rebase can change behaviour without a textual conflict; only the re-run gate can catch it.
+  - `fix_rounds_used` resets to 0, so `show` no longer lists earlier fix rounds and the fresh gate gets a new fix budget.
+  - The pre-rebase audited commits become unreachable once `clean` deletes the branch; the old sha is printed once.
+  - Submodules and a rewritten main are not specially handled.
