@@ -32,7 +32,7 @@ class _Worktree:
     git_dir: Path
 
     def git(self, *args: str) -> str:
-        return run_git(self.path, f"--git-dir={self.git_dir}", f"--work-tree={self.path}", *args, env=_NO_USER_CONFIG)
+        return run_git(self.path, f"--git-dir={self.git_dir}", f"--work-tree={self.path}", *args, env={**_NO_USER_CONFIG, "LC_ALL": "C"})  # untranslated: we parse its words
 
 
 _PROGRESS = re.compile(r"^Rebasing \(\d+/\d+\)")

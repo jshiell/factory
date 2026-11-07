@@ -342,3 +342,13 @@ def test_a_failure_that_is_not_a_conflict_quotes_gits_reason_and_gives_no_confli
     message = str(raised.value)
     assert "git rebase failed" in message and "no reason given" not in message
     assert "abandon" not in message
+
+
+def test_the_conflict_line_is_found_whatever_locale_the_callers_environment_has(audited, monkeypatch):
+    from factory import rebase_task as module
+    store, repo, worktree, task = audited
+    conflict_on_main(repo)
+    monkeypatch.setattr(module, "_NO_USER_CONFIG", {**module._NO_USER_CONFIG, "LC_ALL": "de_DE.UTF-8"})
+
+    with pytest.raises(RebaseRefused, match=r"CONFLICT \(.*abandon"):
+        rebase_task("t1", store, repo)
