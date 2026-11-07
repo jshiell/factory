@@ -1,9 +1,12 @@
 import argparse
+import signal
+import sys
 import unicodedata
 from collections import defaultdict
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
+from pathlib import Path
 
 from factory.advance import advance
 from factory.approve_plan import approve_plan, reject_plan
@@ -11,9 +14,12 @@ from factory.digest import plan_digest
 from factory.ids import InvalidTaskId
 from factory.ledger import Ledger
 from factory.lock import AlreadyRunning, state_lock
-from factory.settings import Settings
+from factory.runner import SubprocessRunner
+from factory.settings import Settings, SettingsError, load_settings
+from factory.stages import Deps, build_stages
 from factory.store import TaskExists, TaskNotFound, TaskStore, new_task_id
 from factory.task import InvalidTransition, Task, TaskState
+from factory.worktrees import WorktreeManager
 
 
 @dataclass
@@ -216,3 +222,35 @@ _COMMANDS = {
     "new": _new, "list": _list, "show": _show, "advance": _advance,
     "approve": _approve, "reject": _reject, "costs": _costs,
 }
+
+
+def build_context(settings: Settings) -> Context:
+    settings.tasks_dir.mkdir(parents=True, exist_ok=True)
+    store, ledger = TaskStore(settings.tasks_dir), Ledger(settings.ledger_path)
+    runner = SubprocessRunner(settings.claude_executable, settings.project_subdir, settings.runner_timeout_s)
+    worktrees = WorktreeManager(settings.repo, settings.worktree_root)
+    stages = build_stages(settings, Deps(store, ledger, runner, worktrees))
+    return Context(settings, store, ledger, stages)
+
+
+def _exit_on_signal(signum, frame):
+    raise SystemExit(128 + signum)  # a BaseException, so the runner kills the agent tree on the way out
+
+
+def run() -> None:
+    pre = argparse.ArgumentParser(add_help=False)
+    pre.add_argument("--config", type=Path)
+    known, rest = pre.parse_known_args(sys.argv[1:])
+    io = IO(sys.stdin, sys.stdout, sys.stderr)
+    try:
+        ctx = build_context(load_settings(known.config, cwd=Path.cwd()))
+    except SettingsError as error:
+        print(f"settings error: {error}", file=sys.stderr)
+        sys.exit(2)
+    for signum in (signal.SIGTERM, signal.SIGHUP):
+        signal.signal(signum, _exit_on_signal)
+    sys.exit(main(rest, io, ctx))
+
+
+if __name__ == "__main__":
+    run()
