@@ -256,6 +256,50 @@ def test_adding_a_dependency_to_pyproject_passes(repo):
     assert gate(repo, base).passed is True
 
 
+# Guards (start green): uv config files are protected wherever they sit under the repo.
+@pytest.mark.parametrize("name", ["uv.toml", ".python-version", ".python-versions"])
+def test_guard_editing_a_uv_config_file_fails_tests_modified(repo, name):
+    (repo / "proj").mkdir()
+    (repo / "proj" / name).write_text("3.12\n")
+    base = repo_with_test_file(repo)
+    commit_project_edit(repo, name, "3.13\n")
+
+    assert gate(repo, base).reason == "tests_modified"
+
+
+@pytest.mark.parametrize("name", ["uv.toml", ".python-version", ".python-versions"])
+def test_guard_deleting_a_uv_config_file_fails_tests_modified(repo, name):
+    (repo / "proj").mkdir()
+    (repo / "proj" / name).write_text("3.12\n")
+    base = repo_with_test_file(repo)
+    (repo / "proj" / name).unlink()
+    commit_project_edit(repo, "code.py", "y")
+
+    assert gate(repo, base).reason == "tests_modified"
+
+
+def test_guard_a_uv_toml_in_a_project_subdirectory_fails_tests_modified(repo):
+    base = repo_with_test_file(repo)
+    (repo / "proj" / "sub").mkdir()
+    commit_project_edit(repo, "sub/uv.toml", "x\n")
+
+    assert gate(repo, base).reason == "tests_modified"
+
+
+def test_guard_a_uv_toml_in_a_parent_of_a_nested_project_fails_tests_modified(repo):
+    (repo / "a" / "b").mkdir(parents=True)
+    (repo / "a" / "b" / "test_x.py").write_text("a\n")
+    git(repo, "add", "-A")
+    git(repo, "commit", "-q", "-m", "tests")
+    base = git(repo, "rev-parse", "HEAD")
+    commit_root_file(repo, "a/uv.toml", "x\n")
+    (repo / "a" / "b" / "code.py").write_text("y")
+    git(repo, "add", "-A")
+    git(repo, "commit", "-q", "-m", "code")
+
+    assert check_gate(repo, base, "a/b", ["true"], 5).reason == "tests_modified"
+
+
 def test_tamper_is_reported_before_tests_run(repo, tmp_path):
     base = repo_with_test_file(repo)
     commit_project_edit(repo, "test_calc.py", "a\n")
