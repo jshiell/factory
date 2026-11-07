@@ -54,3 +54,26 @@ def test_a_merged_task_without_a_worktree_but_with_a_live_branch_is_a_candidate(
     add("bare", S.MERGED, with_worktree=False)  # no worktree and no branch
 
     assert ids(clean_candidates(store, repo, root)) == ["merged"]
+
+
+def candidate(env, task_id):
+    store, repo, _, root, _ = env
+    return next(c for c in clean_candidates(store, repo, root) if c.task.id == task_id)
+
+
+def test_the_flags_show_a_missing_directory_dirty_state_and_commits_ahead_of_base(env):
+    _, _, _, _, add = env
+    clean_path = add("clean", S.FAILED)
+    dirty_path = add("dirty", S.FAILED)
+    (dirty_path / "x.txt").write_text("x")
+    git(dirty_path, "add", "-A")
+    git(dirty_path, "commit", "-q", "-m", "work")
+    (dirty_path / "y.txt").write_text("y")
+    gone_path = add("gone", S.FAILED)
+    git(gone_path.parent.parent / "repo", "worktree", "remove", "--force", str(gone_path))
+
+    clean, dirty, gone = (candidate(env, name) for name in ("clean", "dirty", "gone"))
+
+    assert (clean.directory_exists, clean.dirty, clean.commits_ahead) == (True, False, 0)
+    assert (dirty.directory_exists, dirty.dirty, dirty.commits_ahead) == (True, True, 1)
+    assert (gone.directory_exists, gone.dirty, gone.commits_ahead) == (False, False, 0)
