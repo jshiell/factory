@@ -464,15 +464,15 @@ def test_an_empty_failed_branch_is_deleted_even_when_the_base_is_no_longer_an_an
     assert "deleted branch" in outcomes[0].done and outcomes[0].problems == []
 
 
-def test_an_empty_failed_branch_is_kept_when_main_is_not_on_a_branch(env):
+def test_an_empty_failed_branch_is_deleted_while_main_is_not_on_a_branch(env):
     store, repo, _, _, add = env
     add("failed", S.FAILED)
     git(repo, "checkout", "-q", "--detach")
 
     outcomes = run_clean(env)
 
-    assert branch_exists(repo, "failed")
-    assert any("main is not on a branch" in problem for problem in outcomes[0].problems)
+    assert not branch_exists(repo, "failed")
+    assert "deleted branch" in outcomes[0].done and outcomes[0].problems == []
 
 
 def test_a_commit_made_between_the_preview_and_the_clean_keeps_the_branch(env):

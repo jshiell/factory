@@ -139,9 +139,6 @@ def _delete_branch(task: Task, repo: Path, outcome: Outcome) -> None:
 def _delete_empty_branch(task: Task, repo: Path, outcome: Outcome) -> None:
     """The tip is exactly the base commit, so nothing is lost; `update-ref -d <ref> <base>` deletes only if it still is."""
     ref = f"refs/heads/factory/{task.id}"
-    if not run_git(repo, "branch", "--show-current"):
-        outcome.problems.append(f"branch factory/{task.id} kept: main is not on a branch")
-        return
     if f"branch {ref}" in run_git(repo, "worktree", "list", "--porcelain").splitlines():  # update-ref would not refuse
         outcome.problems.append(f"branch factory/{task.id} kept: it is checked out in a worktree")
         return
