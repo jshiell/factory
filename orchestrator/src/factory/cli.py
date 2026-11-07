@@ -19,7 +19,7 @@ from factory.merge_task import MergeRefused, merge_preview, merge_task
 from factory.runner import SubprocessRunner
 from factory.settings import Settings, SettingsError, load_settings
 from factory.stages import Deps, build_stages
-from factory.store import TaskExists, TaskNotFound, TaskStore, new_task_id
+from factory.store import TaskNotFound, TaskStore, create_with_fresh_id
 from factory.task import InvalidTransition, Task, TaskState
 from factory.worktrees import WorktreeManager
 
@@ -94,15 +94,10 @@ def _load(ctx: Context, task_id: str) -> Task:
 
 def _new(args, io, ctx) -> int:
     ctx.settings.tasks_dir.mkdir(parents=True, exist_ok=True)
-    suffix = 1
-    while True:
-        task_id = new_task_id(ctx.clock(), "" if suffix == 1 else str(suffix))
-        try:
-            ctx.store.create(Task(id=task_id, prompt="", state=TaskState.PROPOSED, goal=args.goal))
-            break
-        except TaskExists:
-            suffix += 1
-    print(task_id, file=io.stdout)
+    task = create_with_fresh_id(
+        ctx.store, ctx.clock, lambda task_id: Task(id=task_id, prompt="", state=TaskState.PROPOSED, goal=args.goal)
+    )
+    print(task.id, file=io.stdout)
     return 0
 
 
