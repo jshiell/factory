@@ -51,6 +51,7 @@ def check_gate(
     env: dict[str, str] | None = None,
     test_prefix: tuple[str, ...] = (),
     capture_limit: int | None = None,
+    frozen_sha: str | None = None,
 ) -> GateResult:
     project_dir = _resolve_inside(worktree, project_subdir)
     if not _is_ancestor(worktree, base_sha):
@@ -63,6 +64,11 @@ def check_gate(
         worktree, base_sha, project_subdir, protected_names
     ):
         return GateResult(False, "tests_modified")
+    if frozen_sha is not None:
+        if not _is_ancestor(worktree, frozen_sha):
+            return GateResult(False, "not_descendant")
+        if _tests_changed_since(worktree, frozen_sha, project_subdir, test_globs):
+            return GateResult(False, "tests_modified")
     try:
         ran = run_to_exit([*test_prefix, *test_argv], project_dir, env, timeout_s, capture_limit)
     except OSError:  # a missing sandbox wrapper: fail closed, never run the tests unconfined
@@ -72,6 +78,13 @@ def check_gate(
     if ran.exit_code != 0:
         return GateResult(False, "tests_failed", ran.exit_code, ran.tail)
     return GateResult(True)
+
+
+def _tests_changed_since(worktree: Path, frozen_sha: str, project_subdir: str, test_globs: tuple[str, ...]) -> bool:
+    """Since a fix round began, test files may only be added: the base comparison cannot see edits to the agent's own tests."""
+    pathspecs = tuple(f":(glob){project_subdir}/**/{glob}" for glob in test_globs)
+    statuses = run_git(worktree, "diff", "--name-status", "--no-renames", frozen_sha, "HEAD", "--", *pathspecs)
+    return any(line[0] != "A" for line in statuses.splitlines())
 
 
 def _tests_tampered(worktree: Path, base_sha: str, project_subdir: str, test_globs: tuple[str, ...]) -> bool:

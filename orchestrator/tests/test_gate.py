@@ -439,3 +439,68 @@ def test_a_malformed_tool_table_in_pyproject_fails_tests_modified_without_crashi
     commit_project_edit(repo, "pyproject.toml", tool)
 
     assert gate(repo, base).reason == "tests_modified"
+
+
+def frozen_scenario(repo):
+    """An implementer commit that appended to an old test and added a new one; returns (base, frozen)."""
+    base = repo_with_test_file(repo, content="def test_old():\n    pass\n")
+    (repo / "proj" / "code.py").write_text("x")
+    commit_project_edit(repo, "test_calc.py", "def test_old():\n    pass\n\n\ndef test_appended():\n    assert False\n")
+    commit_project_edit(repo, "test_new.py", "def test_new():\n    assert False\n")
+    return base, git(repo, "rev-parse", "HEAD")
+
+
+def frozen_gate(repo, base, frozen):
+    return check_gate(repo, base, "proj", PASSING_TESTS, timeout_s=10, frozen_sha=frozen)
+
+
+def test_rewriting_an_implementer_added_test_after_the_frozen_commit_fails_tests_modified(repo):
+    base, frozen = frozen_scenario(repo)
+    commit_project_edit(repo, "test_new.py", "def test_new():\n    assert True\n")
+
+    assert gate(repo, base).passed is True  # the base comparison alone cannot see it
+    assert frozen_gate(repo, base, frozen).reason == "tests_modified"
+
+
+def test_deleting_an_implementer_added_test_file_after_the_frozen_commit_fails_tests_modified(repo):
+    base, frozen = frozen_scenario(repo)
+    git(repo, "rm", "-q", "proj/test_new.py")
+    git(repo, "commit", "-q", "-m", "delete")
+
+    assert gate(repo, base).passed is True
+    assert frozen_gate(repo, base, frozen).reason == "tests_modified"
+
+
+def test_removing_lines_the_implementer_appended_to_an_old_test_file_fails_tests_modified(repo):
+    base, frozen = frozen_scenario(repo)
+    commit_project_edit(repo, "test_calc.py", "def test_old():\n    pass\n")
+
+    assert gate(repo, base).passed is True
+    assert frozen_gate(repo, base, frozen).reason == "tests_modified"
+
+
+def test_renaming_a_test_file_after_the_frozen_commit_fails_tests_modified(repo):
+    base, frozen = frozen_scenario(repo)
+    git(repo, "mv", "proj/test_new.py", "proj/test_renamed.py")
+    git(repo, "commit", "-q", "-m", "rename")
+
+    assert frozen_gate(repo, base, frozen).reason == "tests_modified"
+
+
+def test_adding_a_new_test_file_after_the_frozen_commit_passes(repo):
+    base, frozen = frozen_scenario(repo)
+    commit_project_edit(repo, "test_extra.py", "def test_extra():\n    pass\n")
+
+    assert frozen_gate(repo, base, frozen).passed is True
+
+
+def test_a_frozen_commit_that_is_not_an_ancestor_fails_not_descendant(repo):
+    base, _ = frozen_scenario(repo)
+    git(repo, "checkout", "-q", "-b", "side", base)
+    (repo / "side.txt").write_text("s")
+    git(repo, "add", "-A")
+    git(repo, "commit", "-q", "-m", "side")
+    side = git(repo, "rev-parse", "HEAD")
+    git(repo, "checkout", "-q", "main")
+
+    assert frozen_gate(repo, base, side).reason == "not_descendant"
