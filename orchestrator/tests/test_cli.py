@@ -863,3 +863,14 @@ def test_an_audited_source_is_shown_with_its_findings_and_a_mergeable_warning(ct
     _, out, _ = run(ctx, "retry", "t1", "--keep-plan", stdin="n\n")
 
     assert "naming is odd" in out and "still mergeable" in out
+
+
+@pytest.mark.parametrize("command", [["new", "g"], ["list"], ["show", "t1"], ["advance", "t1"], ["reject", "t1"],
+                                      ["approve", "t1"], ["retry", "t1"], ["costs"]])
+def test_guard_no_command_except_retry_keep_plan_calls_retry_with_plan(ctx, keep_spy, command):
+    approved_failure(ctx)
+    ctx.stages.update(all_stages(ctx))
+
+    run(ctx, *command, stdin="y\n")
+
+    assert keep_spy == []
