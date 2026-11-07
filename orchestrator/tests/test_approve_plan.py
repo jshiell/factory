@@ -90,3 +90,9 @@ def test_tripwire_approval_is_only_wired_in_approve_plan_and_exactly_once_in_the
 
     assert {name: count for name, count in calls.items() if count} == {"cli.py": 1}
     assert event_users == []
+
+
+def test_the_implementation_prompt_says_the_agent_cannot_run_commands_and_the_factory_runs_the_tests():
+    prompt = build_implementation_prompt("g", "p")
+
+    assert "cannot run commands" in prompt and "factory will run the tests" in prompt
