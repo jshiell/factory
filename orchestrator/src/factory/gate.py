@@ -4,6 +4,7 @@ import tomllib
 from dataclasses import dataclass
 from pathlib import Path
 
+from factory.process import run_to_exit
 from factory.worktrees import HARDENED_GIT, run_git
 
 DEFAULT_PROTECTED_NAMES = ("conftest.py", "pytest.ini", "tox.ini", "setup.cfg")
@@ -45,6 +46,7 @@ def check_gate(
     worktree: Path, base_sha: str, project_subdir: str, test_argv: list[str], timeout_s: float,
     test_globs: tuple[str, ...] = DEFAULT_TEST_GLOBS,
     protected_names: tuple[str, ...] = DEFAULT_PROTECTED_NAMES,
+    env: dict[str, str] | None = None,
 ) -> GateResult:
     project_dir = _resolve_inside(worktree, project_subdir)
     if not _is_ancestor(worktree, base_sha):
@@ -57,19 +59,11 @@ def check_gate(
         worktree, base_sha, project_subdir, protected_names
     ):
         return GateResult(False, "tests_modified")
-    try:
-        tests = subprocess.run(
-            test_argv,
-            cwd=project_dir,
-            stdin=subprocess.DEVNULL,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            timeout=timeout_s,
-        )
-    except subprocess.TimeoutExpired:
+    exit_code, timed_out = run_to_exit(test_argv, project_dir, env, timeout_s)
+    if timed_out:
         return GateResult(False, "tests_timeout")
-    if tests.returncode != 0:
-        return GateResult(False, "tests_failed", tests.returncode)
+    if exit_code != 0:
+        return GateResult(False, "tests_failed", exit_code)
     return GateResult(True)
 
 

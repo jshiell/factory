@@ -270,3 +270,30 @@ def test_test_globs_and_protected_names_can_be_overridden(repo):
     commit_project_edit(repo, "locked.cfg", "x")
     assert check_gate(repo, base, "proj", ["true"], 10, **custom).reason == "tests_modified"
     assert check_gate(repo, base, "proj", ["true"], 10).passed is True
+
+
+def _alive(pid: int) -> bool:
+    import os
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    return True
+
+
+def test_a_gate_timeout_kills_descendants_of_the_test_command(repo, tmp_path):
+    import os, signal, time
+    base = repo_with_project_change(repo)
+    pid_file = tmp_path / "sleeper.pid"
+
+    result = check_gate(repo, base, "proj", ["sh", "-c", f"sleep 31 & echo $! > {pid_file}; wait"], timeout_s=0.5)
+
+    sleeper = int(pid_file.read_text())
+    try:
+        deadline = time.monotonic() + 3
+        while _alive(sleeper) and time.monotonic() < deadline:
+            time.sleep(0.05)
+        assert result.reason == "tests_timeout" and not _alive(sleeper)
+    finally:
+        if _alive(sleeper):
+            os.kill(sleeper, signal.SIGKILL)
