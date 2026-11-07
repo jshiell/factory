@@ -316,3 +316,50 @@ def test_a_resumed_task_is_still_frozen_against_its_stored_pre_round_head(repo, 
 
     assert (result.state, result.failure_reason) == (TaskState.FAILED, "tests_modified")
     assert runner.calls == []
+
+
+def plant_ignored_files(repo):
+    (repo / "proj" / ".gitignore").write_text("conftest.py\n")
+    (repo / "proj" / "conftest.py").write_text("planted")
+    (repo / "proj" / ".venv").mkdir()
+    (repo / "proj" / ".venv" / ".gitignore").write_text("*\n")
+    (repo / "proj" / ".venv" / "x.pth").write_text("import os")
+
+
+def test_the_gate_runs_only_committed_files_and_cleans_before_the_sandbox_is_built(repo, store, ledger, task):
+    import os
+    from factory.gate_sandbox import GateSandbox
+    plant_ignored_files(repo)
+    seen = []
+
+    def sandbox(_task):
+        seen.append((repo / "proj" / "conftest.py").exists())
+        return GateSandbox((), ("sh", "-c", "test ! -e conftest.py && test ! -e .venv/x.pth"), {"PATH": os.environ["PATH"]})
+
+    result = verify_task("t1", store, project_subdir="proj", test_argv=["unused"], gate_timeout_s=10, sandbox=sandbox)
+
+    assert result.state == TaskState.VERIFIED
+    assert seen == [False]
+
+
+def test_a_gate_that_cannot_clean_fails_the_task_instead_of_raising(repo, store, ledger, task):
+    state_inside = repo / ".factory"
+    state_inside.mkdir()
+    (state_inside / "ledger.jsonl").write_text("l")
+
+    result = verify_task("t1", store, project_subdir="proj", test_argv=["true"], gate_timeout_s=10, factory_paths=(state_inside,))
+
+    assert (result.state, result.failure_reason) == (TaskState.FAILED, "worktree_mismatch")
+    assert (state_inside / "ledger.jsonl").exists()
+
+
+def test_a_fix_round_that_plants_an_ignored_file_alongside_a_real_change_is_cleaned_before_the_next_gate(repo, store, ledger, task):
+    def plant_and_fix():
+        plant_ignored_files(repo)
+        write_fix(repo)()
+
+    runner = FakeRunner(repo, plant_and_fix)
+
+    result = verify(store, ledger, runner, test_argv=["sh", "-c", "test -f fixed && test ! -e conftest.py && test ! -e .venv/x.pth"])
+
+    assert result.state == TaskState.VERIFIED

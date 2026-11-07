@@ -12,6 +12,7 @@ from factory.ledger import Ledger
 from factory.step import ASSUMED_COST_MULTIPLIER, Runner, check_budget
 from factory.store import TaskStore
 from factory.task import Event, Task, apply
+from factory.worktree_clean import clean_worktree
 from factory.worktrees import run_git
 
 _SUCCESS = (OutcomeKind.SUCCESS, OutcomeKind.SUCCESS_WITH_DENIALS)
@@ -31,6 +32,7 @@ def verify_task(
     fix_config: RunnerConfig | None = None,
     cap_usd: float | None = None,
     fix_rounds: int = 0,
+    factory_paths: tuple[Path, ...] = (),
 ) -> Task:
     """Gate the agent's work; on `tests_failed`, up to `fix_rounds` fresh agent runs get the failure text."""
     task = store.load(task_id)
@@ -39,7 +41,7 @@ def verify_task(
         return _fail_interrupted(task, store, ledger, fix_config)
     capture = OUTPUT_LIMIT if fix_rounds > 0 else None
     while True:
-        result = _gate_once(task, project_subdir, test_argv, gate_timeout_s, sandbox, capture)
+        result = _gate_once(task, project_subdir, test_argv, gate_timeout_s, sandbox, capture, factory_paths)
         if result.passed:
             return _finish(apply(task, Event.GATE_PASSED), store)
         if result.reason != "tests_failed" or task.fix_rounds_used >= fix_rounds:
@@ -89,11 +91,15 @@ def _finish(task: Task, store: TaskStore) -> Task:
 def _gate_once(
     task: Task, project_subdir: str, test_argv: list[str], gate_timeout_s: float,
     sandbox: Callable[[Task], GateSandbox] | None, capture_limit: int | None = None,
+    factory_paths: tuple[Path, ...] = (),
 ) -> GateResult:
     worktree = Path(task.worktree)
     if has_nested_repo(worktree, project_subdir):  # before `git add -A` records it as a gitlink
         return GateResult(False, "nested_repo")
     commit_all(worktree, f"Task {task.id}")
+    not_clean = clean_worktree(worktree, factory_paths)  # the tests must see only what the tamper checks saw
+    if not_clean:
+        return GateResult(False, not_clean)
     if sandbox is None:
         return check_gate(
             worktree, task.base_sha, project_subdir, test_argv, gate_timeout_s,
