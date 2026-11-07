@@ -39,6 +39,8 @@ def check_gate(
         return GateResult(False, "no_commits")
     if not run_git(worktree, "diff", "--name-only", base_sha, "HEAD", "--", project_subdir):
         return GateResult(False, "no_changes")
+    if _tests_tampered(worktree, base_sha, project_subdir):
+        return GateResult(False, "tests_modified")
     try:
         tests = subprocess.run(
             test_argv,
@@ -53,6 +55,14 @@ def check_gate(
     if tests.returncode != 0:
         return GateResult(False, "tests_failed", tests.returncode)
     return GateResult(True)
+
+
+def _tests_tampered(worktree: Path, base_sha: str, project_subdir: str) -> bool:
+    output = run_git(
+        worktree, "diff", "--numstat", "--no-renames", base_sha, "HEAD", "--",
+        f":(glob){project_subdir}/**/test_*.py", f":(glob){project_subdir}/**/*_test.py",
+    )
+    return any(line.split("\t")[1] != "0" for line in output.splitlines())
 
 
 def _is_ancestor(worktree: Path, base_sha: str) -> bool:

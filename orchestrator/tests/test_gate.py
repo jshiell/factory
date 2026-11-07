@@ -129,3 +129,34 @@ def test_project_subdir_escaping_the_worktree_is_rejected(repo, subdir):
 
     with pytest.raises(ProjectSubdirEscapes):
         gate(repo, base, project_subdir=subdir)
+
+
+def repo_with_test_file(repo, content="a\nb\n", name="test_calc.py"):
+    (repo / "proj").mkdir(exist_ok=True)
+    (repo / "proj" / name).write_text(content)
+    git(repo, "add", "proj")
+    git(repo, "commit", "-q", "-m", "tests")
+    return git(repo, "rev-parse", "HEAD")
+
+
+def commit_project_edit(repo, name, content):
+    (repo / "proj" / name).write_text(content)
+    git(repo, "add", "-A")
+    git(repo, "commit", "-q", "-m", "edit")
+
+
+def test_adding_lines_to_an_existing_test_file_passes(repo):
+    base = repo_with_test_file(repo)
+    commit_project_edit(repo, "test_calc.py", "a\nb\nc\n")
+
+    assert gate(repo, base).passed is True
+
+
+def test_removing_lines_from_an_existing_test_file_fails_tests_modified(repo):
+    base = repo_with_test_file(repo)
+    commit_project_edit(repo, "test_calc.py", "a\n")
+
+    result = gate(repo, base)
+
+    assert result.passed is False
+    assert result.reason == "tests_modified"
