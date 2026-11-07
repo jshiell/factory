@@ -55,10 +55,10 @@ def audit_task(
     worktree = Path(task.worktree)
     diff = run_git(worktree, "diff", task.base_sha, "HEAD", "--", project_subdir)
     if len(diff.encode()) > MAX_DIFF_BYTES:
-        return _finish(store, apply(task, Event.AUDIT_FAILED, "diff_too_large"))
+        return _reject(store, task, "diff_too_large")
     head = run_git(worktree, "rev-parse", "HEAD")
     if run_git(worktree, "status", "--porcelain"):
-        return _finish(store, apply(task, Event.AUDIT_FAILED, "audit_modified_worktree"))
+        return _reject(store, task, "audit_modified_worktree")
     try:
         result = runner.run(replace(task, prompt=build_audit_prompt(task, diff)), config)
     except Exception:
@@ -68,7 +68,7 @@ def audit_task(
     outcome = classify(result.stdout, result.exit_code)
     ledger.append(task_id, outcome.cost_usd)
     if run_git(worktree, "rev-parse", "HEAD") != head or run_git(worktree, "status", "--porcelain"):
-        return _finish(store, apply(task, Event.AUDIT_FAILED, "audit_modified_worktree"))
+        return _reject(store, task, "audit_modified_worktree")
     if outcome.kind not in (OutcomeKind.SUCCESS, OutcomeKind.SUCCESS_WITH_DENIALS):
         return _infrastructure_failure(task, outcome.kind.value, store, ledger, config)
     verdict = _parse_verdict(outcome.structured_output)
@@ -78,8 +78,7 @@ def audit_task(
     if passed:
         audited = apply(task, Event.AUDIT_PASSED)
         return _finish(store, replace(audited, audit_findings=findings, audited_sha=head, audit_error=None))
-    rejected = apply(task, Event.AUDIT_FAILED, "audit_rejected")
-    return _finish(store, replace(rejected, audit_findings=findings))
+    return _reject(store, task, "audit_rejected", findings)
 
 
 def _parse_verdict(output: dict | None) -> tuple[bool, tuple[str, ...]] | None:
@@ -97,6 +96,11 @@ def _infrastructure_failure(
     if assumed:
         ledger.append(task.id, ASSUMED_COST_MULTIPLIER * config.budget_usd, assumed=True)
     return _finish(store, replace(task, audit_error=reason))
+
+
+def _reject(store: TaskStore, task: Task, reason: str, findings: tuple[str, ...] = ()) -> Task:
+    rejected = apply(task, Event.AUDIT_FAILED, reason)
+    return _finish(store, replace(rejected, audit_findings=findings, audit_error=None))
 
 
 def _finish(store: TaskStore, task: Task) -> Task:

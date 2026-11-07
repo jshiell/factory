@@ -204,3 +204,32 @@ def test_an_auditor_that_changes_the_worktree_fails_the_task(verified, store, le
 
     assert (task.state, task.failure_reason) == (TaskState.FAILED, "audit_modified_worktree")
     assert ledger.total() == pytest.approx(0.05)
+
+
+def test_terminal_audit_failures_clear_an_earlier_audit_error(verified, store, ledger):
+    audit(store, ledger, AuditRunner(timed_out=True))
+    assert store.load("t1").audit_error == "timeout"
+
+    task = audit(store, ledger, AuditRunner(verdict_stdout("fail", ("no",))))
+
+    assert (task.failure_reason, task.audit_error) == ("audit_rejected", None)
+
+
+def test_modified_worktree_clears_an_earlier_audit_error(verified, store, ledger):
+    audit(store, ledger, AuditRunner(timed_out=True))
+    (verified / "proj" / "stray.txt").write_text("s")
+
+    task = audit(store, ledger, AuditRunner(verdict_stdout()))
+
+    assert (task.failure_reason, task.audit_error) == ("audit_modified_worktree", None)
+
+
+def test_diff_too_large_clears_an_earlier_audit_error(verified, store, ledger):
+    audit(store, ledger, AuditRunner(timed_out=True))
+    (verified / "proj" / "code.py").write_text("z" * (MAX_DIFF_BYTES + 1))
+    git(verified, "add", "-A")
+    git(verified, "commit", "-q", "-m", "big")
+
+    task = audit(store, ledger, AuditRunner(verdict_stdout()))
+
+    assert (task.failure_reason, task.audit_error) == ("diff_too_large", None)
