@@ -1,10 +1,11 @@
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from pathlib import Path
 
-from factory.classify import OutcomeKind, classify
+from factory.agent_call import Infra, call_agent
+from factory.classify import OutcomeKind
 from factory.command import RunnerConfig
 from factory.ledger import Ledger
-from factory.step import ASSUMED_COST_MULTIPLIER, Runner
+from factory.step import Runner
 from factory.task import Task
 from factory.worktrees import run_git
 
@@ -12,11 +13,6 @@ from factory.worktrees import run_git
 @dataclass(frozen=True)
 class Modified:
     """The worktree was dirty before the run, or the agent changed it."""
-
-
-@dataclass(frozen=True)
-class Infra:
-    reason: str
 
 
 @dataclass(frozen=True)
@@ -32,14 +28,10 @@ def run_readonly_stage(
     head = run_git(worktree, "rev-parse", "HEAD")
     if _dirty(worktree):
         return Modified()
-    try:
-        result = runner.run(replace(task, prompt=stage_prompt), config)
-    except Exception:
-        return _assumed_failure("runner_error", task, config, ledger, stage)
-    if result.timed_out:
-        return _assumed_failure("timeout", task, config, ledger, stage)
-    outcome = classify(result.stdout, result.exit_code)
-    ledger.append(task.id, outcome.cost_usd, stage=stage)
+    called = call_agent(task, stage_prompt, runner, config, ledger, stage)
+    if isinstance(called, Infra):
+        return called
+    outcome = called.outcome
     if run_git(worktree, "rev-parse", "HEAD") != head or _dirty(worktree):
         return Modified()
     if outcome.kind not in (OutcomeKind.SUCCESS, OutcomeKind.SUCCESS_WITH_DENIALS):
@@ -49,8 +41,3 @@ def run_readonly_stage(
 
 def _dirty(worktree: Path) -> bool:
     return bool(run_git(worktree, "status", "--porcelain"))
-
-
-def _assumed_failure(reason: str, task: Task, config: RunnerConfig, ledger: Ledger, stage: str) -> Infra:
-    ledger.append(task.id, ASSUMED_COST_MULTIPLIER * config.budget_usd, assumed=True, stage=stage)
-    return Infra(reason)
