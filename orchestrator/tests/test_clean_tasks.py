@@ -529,3 +529,29 @@ def test_a_refusal_for_an_unmerged_branch_quotes_git(env):
     problem = next(p for p in run_clean(env)[0].problems if "factory/merged" in p)
 
     assert "not fully merged" in problem
+
+
+def test_guard_the_compare_and_swap_itself_refuses_a_branch_that_moved_after_the_recheck(env, monkeypatch):
+    from factory import clean_tasks as module
+    store, repo, manager, root, add = env
+    path = add("failed", S.FAILED)
+    candidates = clean_candidates(store, repo, root)
+    commit_on(path)
+    monkeypatch.setattr(module, "_branch_empty", lambda task, repo: True)  # the re-check passes: only the CAS can save it
+
+    outcomes = clean_tasks(candidates, store, manager, repo, root)
+
+    assert branch_exists(repo, "failed")
+    assert any("git refused to delete it" in problem and "expected" in problem for problem in outcomes[0].problems)
+
+
+def test_guard_a_base_cleared_between_the_preview_and_the_clean_keeps_the_branch(env):
+    store, repo, manager, root, add = env
+    add("failed", S.FAILED)
+    candidates = clean_candidates(store, repo, root)
+    task = store.load("failed")
+    store.save(Task(**{**task.__dict__, "base_sha": None}))
+
+    outcomes = clean_tasks(candidates, store, manager, repo, root)
+
+    assert branch_exists(repo, "failed") and outcomes[0].problems == []
