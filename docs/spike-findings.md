@@ -264,3 +264,9 @@ Command shape: `nono run -s --profile nolabs-ai/claude --allow-cwd --read <resol
   - `fix_rounds_used` resets to 0, so `show` no longer lists earlier fix rounds and the fresh gate gets a new fix budget.
   - The pre-rebase audited commits become unreachable once `clean` deletes the branch; the old sha is printed once.
   - Submodules and a rewritten main are not specially handled.
+
+## Plan 16: the gate watches protected config repo-wide (real-git tests, no e2e needed)
+- Spike (pytest from `target/`, throwaway repo): a root `pytest.ini` or root `pyproject.toml` pytest table is applied (`addopts = --collect-only` runs no test, exit 0); a root `conftest.py` alone is not loaded, but loads once a root ini exists; a `target/pytest.ini` wins over the root one.
+- Now: protected names (`conftest.py`, `pytest.ini`, `tox.ini`, `setup.cfg`, ...) changed anywhere in the repo give `tests_modified`, and the pytest table of every `pyproject.toml` from the repo root down to the project is compared (resolved path, so `./proj` and `proj/` work; a sibling project's pyproject is not).
+- Characterised: a change only outside the project is still `no_changes`. A legitimate root pytest config edit is refused and needs a human; a new `docs/tox.ini` or tracked vendored config is refused (accepted cost). Conservative: a root ini is refused even when `target/pytest.ini` would win.
+- Known gaps: root `[tool.uv]`, `uv.toml`, `sitecustomize.py`, `.python-version`, `.env` are unwatched (uv's upward discovery not tested); a new test file can still monkeypatch the code under test at import time; earlier plan 13 gaps (submodules, gitignored local files) unchanged.
