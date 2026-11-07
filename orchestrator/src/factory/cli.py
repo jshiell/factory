@@ -268,7 +268,7 @@ def _rebase(args, io, ctx) -> int:
         print("another factory run holds the lock", file=io.stderr)
         return 1
     except (RebaseRefused, InvalidTransition, subprocess.CalledProcessError) as error:
-        print(f"rebase refused: {error}", file=io.stderr)
+        print(escape_control(f"rebase refused: {error}"), file=io.stderr)
         return 1
     print(f"{args.task_id}: rebased onto main, back to agent_done; run `factory advance {args.task_id}` to re-verify and re-audit", file=io.stdout)
     print(f"the previously audited commit was {rebased.old_audited_sha}; it is unreachable once the branch is cleaned", file=io.stdout)

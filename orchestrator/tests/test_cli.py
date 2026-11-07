@@ -688,3 +688,18 @@ def test_rebase_of_an_unknown_or_unsafe_id_exits_2(ctx, task_id):
     code, _, err = run(ctx, "rebase", task_id)
 
     assert code == 2 and task_id in err
+
+
+def test_rebase_refusal_escapes_control_characters_from_the_quoted_git_line(ctx, monkeypatch):
+    from factory import cli
+    from factory.rebase_task import RebaseRefused
+    put(ctx, S.AUDITED)
+
+    def refuse(*args, **kwargs):
+        raise RebaseRefused("git rebase failed (CONFLICT (content): Merge conflict in \x1b[31mevil\x1b[0m.txt)")
+
+    monkeypatch.setattr(cli, "rebase_task", refuse)
+
+    code, _, err = run(ctx, "rebase", "t1")
+
+    assert code == 1 and "\x1b" not in err and "evil" in err
