@@ -1,3 +1,4 @@
+import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -32,5 +33,13 @@ def _describe(task: Task, repo: Path, worktree_root: Path) -> Candidate:
         directory = None  # never inspect or touch a path the factory did not create
     exists = directory is not None and directory.is_dir()
     dirty = exists and bool(run_git(directory, "status", "--porcelain"))
-    ahead = int(run_git(repo, "rev-list", "--count", f"{task.base_sha}..{branch}")) if branch_exists and task.base_sha else 0
-    return Candidate(task, exists, dirty, ahead, branch_exists, outside)
+    return Candidate(task, exists, dirty, _commits_ahead(task, branch, branch_exists, repo), branch_exists, outside)
+
+
+def _commits_ahead(task: Task, branch: str, branch_exists: bool, repo: Path) -> int:
+    if not (branch_exists and task.base_sha):
+        return 0
+    try:
+        return int(run_git(repo, "rev-list", "--count", f"{task.base_sha}..{branch}"))
+    except subprocess.CalledProcessError:  # an unknown base commit must not break the preview
+        return 0
