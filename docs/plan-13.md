@@ -26,3 +26,18 @@ E1. **Throwaway e2e (human, real terminal, $0):** `spike/clean_gate_e2e.py` on a
 
 ## Out of scope
 Re-planning on a moved main, branch GC, watching tracked config above the project subdir, new-test quality checks.
+
+## Folded from the plan-reviewer (supersedes the text above where they differ)
+- **Step order in `_gate_once`:** nested-repo check, `commit_all`, **guard**, **clean**, **postcondition**, `sandbox(task)`, `check_gate`. Clean runs before `sandbox(task)` because that call runs the real uv unconfined in the project dir. Nothing raises: every failure is a `GateResult(False, reason)` and the task fails terminally.
+- **Guard (critical):** the agent can write the worktree-root `.git` file, so before cleaning require `rev-parse --show-toplevel` == the worktree and `--absolute-git-dir` / `--git-common-dir` outside it; else `worktree_mismatch`. The justification "nested repos already rejected" is dropped. Also refuse (`worktree_mismatch`) when `state_dir` or `worktree_root` lies inside the worktree (the factory's own paths are passed in by `stages`; default None keeps existing callers and tests unchanged).
+- **Postcondition:** catch a failed clean (`CalledProcessError`), then require `git status --porcelain --ignored --untracked-files=all` empty; else `worktree_not_clean`.
+- **Cycles (replacing C1 to C4):**
+  - C0 guard: a root `.git` pointing at a gitdir inside the worktree, or a toplevel that is not the worktree, fails `worktree_mismatch` and a planted file survives; `state_dir` inside the worktree fails the same way.
+  - C1 clean: removes an ignored file, an untracked file, an ignored dir, a file ignored only via `.git/info/exclude`, a `.venv` with its own `*` `.gitignore`, an untracked symlink (target untouched); keeps tracked files and `.git`.
+  - C1b a read-only ignored directory gives `worktree_not_clean`, the tests do not run, the task ends `failed` (restore permissions in teardown).
+  - C2 wired: `test_argv=["sh","-c","test ! -e conftest.py && test ! -e .venv/x.pth"]`, rounds 0; a fake `sandbox` callable records whether the planted file still exists when it is called (clean first).
+  - Regression assertion in C2: a fix round that writes an ignored conftest plus a real change is cleaned before the next gate. (A round writing only an ignored file stops at `fix_no_changes`, since ignored files are invisible to `status --porcelain`.)
+  - Old C3 and C4 dropped (cannot go red / not an increment).
+- **E1 adds** the `.venv` `.pth` injection case and reports the venv rebuild time against `gate_timeout_s` (the rebuild is inside the timed run; a slow one becomes `tests_timeout`).
+- **Residual additions:** submodule directories (clean skips them); a directory made read-only mid-run now fails closed; the global `core.excludesFile` is covered by `-x`.
+- Not verified: git clean's exit code on remove failures, whether Claude Code or nono refuses writes to the root `.git`, git honouring `core.worktree` from a fake gitdir during clean, that uv writes `.venv/.gitignore` = `*`, the real rebuild time.
