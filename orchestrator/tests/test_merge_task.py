@@ -167,3 +167,17 @@ def test_merge_does_not_run_hooks_from_the_repository(audited):
     merge_task("t1", store, repo, manager, shown_sha=task.audited_sha)
 
     assert not (repo.parent / "hook-ran").exists()
+
+
+def test_merge_refuses_when_main_moved_and_leaves_everything_unchanged(audited):
+    store, repo, worktree, task, manager = audited
+    (repo / "m.txt").write_text("m")
+    git(repo, "add", "-A")
+    git(repo, "commit", "-q", "-m", "main moved")
+    main_before = git(repo, "rev-parse", "HEAD")
+
+    with pytest.raises(MergeRefused, match="moved"):
+        merge_task("t1", store, repo, manager, shown_sha=task.audited_sha)
+
+    assert git(repo, "rev-parse", "HEAD") == main_before
+    assert store.load("t1") == task and worktree.exists()

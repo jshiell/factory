@@ -46,7 +46,7 @@ def merge_task(task_id: str, store: TaskStore, repo: Path, worktrees: WorktreeMa
     if _already_fast_forwarded(task, repo):
         return _record_merged(task, store, worktrees)
     preview = merge_preview(task_id, store, repo)
-    run_git(repo, "merge", "--ff-only", task.audited_sha)
+    run_git(repo, "-c", "core.hooksPath=/dev/null", "merge", "--ff-only", task.audited_sha)
     return _record_merged(preview.task, store, worktrees)
 
 
