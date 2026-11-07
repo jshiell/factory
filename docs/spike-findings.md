@@ -110,3 +110,10 @@ Single runs; all exit 0, `permission_denials` empty, worktree clean afterwards.
 - Legacy `queued` tasks bypass the front half; the digest is not access control; approval is human-only by process only.
 - The auditor judges against the plan text, not the goal; worktrees from rejected plans accumulate.
 - Planner and reviewer reliability rests on a handful of single runs.
+
+## Plan 5 cycle 0: CLI probe (`spike/cli_probe/`, no API)
+- **Confirmed:** `[project.scripts] cli-probe = "cli_probe:run"` installs and runs under `uv run --project <dir> cli-probe` with the `uv_build` backend.
+- **Confirmed:** `uv run --project` preserves the caller's cwd (printed `.../target` when run from there), so a `repo` default of "git toplevel of the cwd" works.
+- **Confirmed (Claude Code Bash tool):** `stdin.isatty()` and `stdout.isatty()` are False, piped or `</dev/null`; `/dev/tty` fails to open (`Device not configured`). An agent's Bash call cannot satisfy the TTY check or reach the user's terminal via `/dev/tty`.
+- **Confirmed (user's real terminal):** `stdin.isatty=True`, `stdout.isatty=True`, `/dev/tty` opens.
+- Not tested: a pty or `script` wrapper, which can fake a TTY (known gap: the check is a process control, not a security one).
