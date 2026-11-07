@@ -198,3 +198,15 @@ def test_a_worktree_outside_the_root_is_reported_and_left_alone(env, tmp_path):
 
     assert elsewhere.exists() and store.load("t1").worktree == str(elsewhere)
     assert any("outside" in problem for problem in outcomes[0].problems)
+
+
+def test_a_worktree_under_the_root_but_not_at_root_slash_id_is_flagged(env):
+    store, repo, manager, root, add = env
+    other = add("other", S.QUEUED)
+    store.save(Task(id="t1", prompt="", state=S.FAILED, worktree=str(other), base_sha="x"))  # points at another task's
+
+    assert candidate(env, "t1").outside_root is True
+    outcomes = run_clean(env)
+
+    assert other.exists()
+    assert any(o.task_id == "t1" and o.problems for o in outcomes)

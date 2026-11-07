@@ -28,7 +28,7 @@ def _describe(task: Task, repo: Path, worktree_root: Path) -> Candidate:
     branch = f"factory/{task.id}"
     branch_exists = bool(run_git(repo, "branch", "--list", branch))
     directory = Path(task.worktree) if task.worktree else None
-    outside = directory is not None and not directory.resolve().is_relative_to(worktree_root.resolve())
+    outside = directory is not None and directory.resolve() != (worktree_root / task.id).resolve()
     if outside:
         directory = None  # never inspect or touch a path the factory did not create
     exists = directory is not None and directory.is_dir()
