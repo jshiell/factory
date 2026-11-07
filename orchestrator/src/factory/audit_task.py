@@ -53,7 +53,7 @@ def audit_task(
     apply(task, Event.AUDIT_PASSED)  # reject tasks that are not verified before any other work
     check_budget(task_id, ledger, config, cap_usd)
     worktree = Path(task.worktree)
-    diff = run_git(worktree, "diff", task.base_sha, "HEAD", "--", project_subdir)
+    diff = run_git(worktree, "diff", "--no-ext-diff", "--no-textconv", task.base_sha, "HEAD", "--", project_subdir)
     if len(diff.encode()) > MAX_DIFF_BYTES:
         return _reject(store, task, "diff_too_large")
     staged = run_readonly_stage(task, build_audit_prompt(task, diff), runner, config, ledger, "audit")
