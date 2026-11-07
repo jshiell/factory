@@ -210,3 +210,169 @@ def test_a_worktree_under_the_root_but_not_at_root_slash_id_is_flagged(env):
 
     assert other.exists()
     assert any(o.task_id == "t1" and o.problems for o in outcomes)
+
+
+# --- gate caches ---------------------------------------------------------------
+
+import os
+import stat as stat_module
+
+from factory.clean_tasks import Outcome
+
+
+def make_cache(tmp_path, task_id, content="abc"):
+    directory = tmp_path / "gate-cache" / task_id
+    directory.mkdir(parents=True)
+    (directory / "f").write_text(content)
+    return directory
+
+
+def test_a_terminal_task_with_a_cache_reports_its_size_and_a_task_with_only_a_cache_is_a_candidate(env, tmp_path):
+    store, repo, _, root, add = env
+    add("failed", S.FAILED)
+    add("bare", S.MERGED, with_worktree=False)
+    make_cache(tmp_path, "failed")
+    make_cache(tmp_path, "bare")
+
+    found = {c.task.id: c for c in clean_candidates(store, repo, root, tmp_path / "gate-cache")}
+
+    assert set(found) == {"failed", "bare"} and all(c.cache_bytes > 0 for c in found.values())
+
+
+def test_the_caches_of_non_terminal_tasks_are_never_candidates(env, tmp_path):
+    store, repo, _, root, add = env
+    for state in (S.RUNNING, S.AUDITED, S.PROPOSED):
+        add(f"t-{state.value}", state, with_worktree=False)
+        make_cache(tmp_path, f"t-{state.value}")
+
+    assert clean_candidates(store, repo, root, tmp_path / "gate-cache") == []
+
+
+def test_without_a_cache_root_a_cache_changes_nothing(env, tmp_path):
+    store, repo, _, root, add = env
+    add("bare", S.MERGED, with_worktree=False)
+    make_cache(tmp_path, "bare")
+
+    assert clean_candidates(store, repo, root) == []
+
+
+def run_clean_with_caches(env, tmp_path, task_id="failed"):
+    store, repo, manager, root, _ = env
+    candidates = clean_candidates(store, repo, root, tmp_path / "gate-cache")
+    return clean_tasks(candidates, store, manager, repo, root, tmp_path / "gate-cache")
+
+
+def test_clean_removes_a_terminal_tasks_cache_directory(env, tmp_path):
+    _, _, _, _, add = env
+    add("failed", S.FAILED)
+    cache = make_cache(tmp_path, "failed")
+
+    outcomes = run_clean_with_caches(env, tmp_path)
+
+    assert not cache.exists() and not any(o.problems for o in outcomes)
+
+
+def test_a_symlink_inside_a_cache_is_removed_without_touching_its_target(env, tmp_path):
+    _, _, _, _, add = env
+    add("failed", S.FAILED)
+    cache = make_cache(tmp_path, "failed")
+    target = tmp_path / "precious"
+    target.mkdir()
+    (target / "keep").write_text("keep")
+    os.symlink(target, cache / "link")
+
+    run_clean_with_caches(env, tmp_path)
+
+    assert not cache.exists() and (target / "keep").read_text() == "keep"
+
+
+def test_a_removal_failure_is_reported_as_partial_and_the_other_tasks_are_still_cleaned(env, tmp_path):
+    _, _, _, _, add = env
+    add("a-failed", S.FAILED)
+    add("b-failed", S.FAILED)
+    stuck = make_cache(tmp_path, "a-failed")
+    (stuck / "sub").mkdir()
+    (stuck / "sub" / "g").write_text("g")
+    (stuck / "sub").chmod(0o500)  # its entries cannot be unlinked
+    other = make_cache(tmp_path, "b-failed")
+    try:
+        outcomes = run_clean_with_caches(env, tmp_path)
+    finally:
+        (stuck / "sub").chmod(0o700)
+
+    problems = [p for o in outcomes for p in o.problems]
+    assert any("partially removed" in p for p in problems) and not other.exists()
+
+
+def test_a_task_that_is_no_longer_terminal_keeps_its_cache(env, tmp_path):
+    store, repo, manager, root, add = env
+    add("failed", S.FAILED)
+    cache = make_cache(tmp_path, "failed")
+    candidates = clean_candidates(store, repo, root, tmp_path / "gate-cache")
+    store.save(Task(id="failed", prompt="", state=S.QUEUED))
+
+    clean_tasks(candidates, store, manager, repo, root, tmp_path / "gate-cache")
+
+    assert cache.exists()
+
+
+def test_a_worktree_failure_does_not_stop_the_cache_removal(env, tmp_path, monkeypatch):
+    store, repo, manager, root, add = env
+    add("failed", S.FAILED)
+    cache = make_cache(tmp_path, "failed")
+    candidates = clean_candidates(store, repo, root, tmp_path / "gate-cache")
+    monkeypatch.setattr(manager, "remove", lambda task_id: (_ for _ in ()).throw(subprocess.CalledProcessError(1, "git")))
+
+    outcomes = clean_tasks(candidates, store, manager, repo, root, tmp_path / "gate-cache")
+
+    assert not cache.exists() and any("worktree kept" in p for o in outcomes for p in o.problems)
+
+
+def test_an_outside_root_worktree_does_not_stop_the_cache_removal(env, tmp_path):
+    store, repo, manager, root, add = env
+    add("failed", S.FAILED)
+    store.save(Task(id="failed", prompt="", state=S.FAILED, worktree=str(tmp_path / "elsewhere")))
+    cache = make_cache(tmp_path, "failed")
+
+    outcomes = run_clean_with_caches(env, tmp_path)
+
+    assert not cache.exists() and any("outside the worktree root" in p for o in outcomes for p in o.problems)
+
+
+from factory.clean_tasks import remove_orphan_caches
+from factory.gate_cache import OrphanCache, orphan_caches
+
+
+def test_orphan_caches_are_removed(env, tmp_path):
+    store = env[0]
+    gone = make_cache(tmp_path, "gone")
+
+    outcomes = remove_orphan_caches(store, tmp_path / "gate-cache", orphan_caches(store, tmp_path / "gate-cache").orphans)
+
+    assert not gone.exists() and outcomes[0].done == ["removed orphan gate cache"]
+
+
+def test_an_orphan_that_gained_a_task_record_is_kept(env, tmp_path):
+    store, _, _, _, add = env
+    kept = make_cache(tmp_path, "late")
+    orphans = orphan_caches(store, tmp_path / "gate-cache").orphans
+    add("late", S.FAILED, with_worktree=False)
+
+    outcomes = remove_orphan_caches(store, tmp_path / "gate-cache", orphans)
+
+    assert kept.exists() and outcomes[0].problems
+
+
+def test_an_orphan_swapped_for_a_symlink_is_not_followed(env, tmp_path):
+    store = env[0]
+    make_cache(tmp_path, "gone")
+    orphans = orphan_caches(store, tmp_path / "gate-cache").orphans
+    precious = tmp_path / "precious"
+    precious.mkdir()
+    (precious / "keep").write_text("k")
+    shutil.rmtree(tmp_path / "gate-cache" / "gone")
+    os.symlink(precious, tmp_path / "gate-cache" / "gone")
+
+    outcomes = remove_orphan_caches(store, tmp_path / "gate-cache", orphans)
+
+    assert (precious / "keep").exists() and outcomes[0].problems

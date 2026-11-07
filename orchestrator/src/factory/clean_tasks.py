@@ -2,7 +2,8 @@ import subprocess
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 
-from factory.store import TaskStore
+from factory.gate_cache import OrphanCache, cache_size, remove_cache
+from factory.store import TaskNotFound, TaskStore
 from factory.task import Task, TaskState
 from factory.worktrees import WorktreeManager, run_git
 
@@ -17,14 +18,22 @@ class Candidate:
     commits_ahead: int
     branch_exists: bool
     outside_root: bool = False
+    cache_bytes: int | None = None  # None: no gate cache directory
 
 
-def clean_candidates(store: TaskStore, repo: Path, worktree_root: Path) -> list[Candidate]:
-    candidates = (_describe(task, repo, worktree_root) for task in store.list().tasks if task.state in CLEANABLE)
-    return [c for c in candidates if c.task.worktree or (c.task.state is TaskState.MERGED and c.branch_exists)]
+def clean_candidates(
+    store: TaskStore, repo: Path, worktree_root: Path, cache_root: Path | None = None
+) -> list[Candidate]:
+    candidates = (
+        _describe(task, repo, worktree_root, cache_root) for task in store.list().tasks if task.state in CLEANABLE
+    )
+    return [
+        c for c in candidates
+        if c.task.worktree or (c.task.state is TaskState.MERGED and c.branch_exists) or c.cache_bytes is not None
+    ]
 
 
-def _describe(task: Task, repo: Path, worktree_root: Path) -> Candidate:
+def _describe(task: Task, repo: Path, worktree_root: Path, cache_root: Path | None) -> Candidate:
     branch = f"factory/{task.id}"
     branch_exists = bool(run_git(repo, "branch", "--list", branch))
     directory = Path(task.worktree) if task.worktree else None
@@ -33,7 +42,8 @@ def _describe(task: Task, repo: Path, worktree_root: Path) -> Candidate:
         directory = None  # never inspect or touch a path the factory did not create
     exists = directory is not None and directory.is_dir()
     dirty = exists and bool(run_git(directory, "status", "--porcelain"))
-    return Candidate(task, exists, dirty, _commits_ahead(task, branch, branch_exists, repo), branch_exists, outside)
+    size = None if cache_root is None else cache_size(cache_root, task.id)
+    return Candidate(task, exists, dirty, _commits_ahead(task, branch, branch_exists, repo), branch_exists, outside, size)
 
 
 def _commits_ahead(task: Task, branch: str, branch_exists: bool, repo: Path) -> int:
@@ -53,17 +63,23 @@ class Outcome:
 
 
 def clean_tasks(
-    candidates: list[Candidate], store: TaskStore, worktrees: WorktreeManager, repo: Path, worktree_root: Path
+    candidates: list[Candidate], store: TaskStore, worktrees: WorktreeManager, repo: Path, worktree_root: Path,
+    cache_root: Path | None = None,
 ) -> list[Outcome]:
-    return [_clean_one(candidate, store, worktrees, repo) for candidate in candidates]
+    return [_clean_one(candidate, store, worktrees, repo, cache_root) for candidate in candidates]
 
 
-def _clean_one(candidate: Candidate, store: TaskStore, worktrees: WorktreeManager, repo: Path) -> Outcome:
+def _clean_one(
+    candidate: Candidate, store: TaskStore, worktrees: WorktreeManager, repo: Path, cache_root: Path | None
+) -> Outcome:
     outcome = Outcome(candidate.task.id)
     task = store.load(candidate.task.id)
     if task.state not in CLEANABLE:
         outcome.problems.append(f"skipped: {task.id} is now {task.state.value}")
         return outcome
+    if candidate.cache_bytes is not None and cache_root is not None:  # independent of the worktree steps
+        problem = remove_cache(cache_root, task.id)  # path recomputed from cache_root/id, never carried
+        (outcome.problems if problem else outcome.done).append(problem or "removed gate cache")
     if candidate.outside_root:
         outcome.problems.append(f"skipped: worktree {task.worktree} is outside the worktree root")
         return outcome
@@ -102,3 +118,20 @@ def _delete_branch(task: Task, repo: Path, outcome: Outcome) -> None:
         outcome.problems.append(f"branch factory/{task.id} kept: git refused to delete it (not merged into main)")
         return
     outcome.done.append("deleted branch")
+
+
+def remove_orphan_caches(store: TaskStore, cache_root: Path, orphans: list[OrphanCache]) -> list[Outcome]:
+    """Remove caches no task record claims, re-checking each one first."""
+    outcomes = []
+    for orphan in orphans:
+        outcome = Outcome(orphan.name)
+        try:
+            store.load(orphan.name)
+            outcome.problems.append(f"orphan cache {orphan.name} kept: a task record now exists")
+        except TaskNotFound:
+            problem = remove_cache(cache_root, orphan.name)
+            (outcome.problems if problem else outcome.done).append(problem or "removed orphan gate cache")
+        except Exception:
+            outcome.problems.append(f"orphan cache {orphan.name} kept: its task record is unreadable")
+        outcomes.append(outcome)
+    return outcomes
