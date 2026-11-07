@@ -53,3 +53,11 @@ def test_preview_refuses_when_the_branch_tip_is_not_the_audited_sha(audited):
 
     with pytest.raises(MergeRefused, match="audited"):
         merge_preview("t1", store, repo)
+
+
+def test_preview_refuses_a_dirty_worktree(audited):
+    store, repo, worktree, _, _ = audited
+    (worktree / "b.txt").write_text("changed")
+
+    with pytest.raises(MergeRefused, match="dirty"):
+        merge_preview("t1", store, repo)
