@@ -5,7 +5,8 @@ from pathlib import Path
 
 from factory.worktrees import run_git
 
-_PROTECTED_NAMES = ("conftest.py", "pytest.ini", "tox.ini", "setup.cfg")
+DEFAULT_PROTECTED_NAMES = ("conftest.py", "pytest.ini", "tox.ini", "setup.cfg")
+DEFAULT_TEST_GLOBS = ("test_*.py", "*_test.py")
 _FACTORY_IDENTITY = ("-c", "user.name=factory", "-c", "user.email=factory@localhost")
 
 
@@ -32,7 +33,9 @@ class GateResult:
 
 
 def check_gate(
-    worktree: Path, base_sha: str, project_subdir: str, test_argv: list[str], timeout_s: float
+    worktree: Path, base_sha: str, project_subdir: str, test_argv: list[str], timeout_s: float,
+    test_globs: tuple[str, ...] = DEFAULT_TEST_GLOBS,
+    protected_names: tuple[str, ...] = DEFAULT_PROTECTED_NAMES,
 ) -> GateResult:
     project_dir = _resolve_inside(worktree, project_subdir)
     if not _is_ancestor(worktree, base_sha):
@@ -41,7 +44,9 @@ def check_gate(
         return GateResult(False, "no_commits")
     if not run_git(worktree, "diff", "--name-only", base_sha, "HEAD", "--", project_subdir):
         return GateResult(False, "no_changes")
-    if _tests_tampered(worktree, base_sha, project_subdir) or _protected_changed(worktree, base_sha, project_subdir):
+    if _tests_tampered(worktree, base_sha, project_subdir, test_globs) or _protected_changed(
+        worktree, base_sha, project_subdir, protected_names
+    ):
         return GateResult(False, "tests_modified")
     try:
         tests = subprocess.run(
@@ -59,8 +64,8 @@ def check_gate(
     return GateResult(True)
 
 
-def _tests_tampered(worktree: Path, base_sha: str, project_subdir: str) -> bool:
-    pathspecs = (f":(glob){project_subdir}/**/test_*.py", f":(glob){project_subdir}/**/*_test.py")
+def _tests_tampered(worktree: Path, base_sha: str, project_subdir: str, test_globs: tuple[str, ...]) -> bool:
+    pathspecs = tuple(f":(glob){project_subdir}/**/{glob}" for glob in test_globs)
     statuses = run_git(worktree, "diff", "--name-status", "--no-renames", base_sha, "HEAD", "--", *pathspecs)
     if any(line[0] not in "AM" for line in statuses.splitlines()):
         return True
@@ -68,8 +73,10 @@ def _tests_tampered(worktree: Path, base_sha: str, project_subdir: str) -> bool:
     return any(line.split("\t")[1] != "0" for line in numstat.splitlines())
 
 
-def _protected_changed(worktree: Path, base_sha: str, project_subdir: str) -> bool:
-    pathspecs = [f":(glob){project_subdir}/**/{name}" for name in _PROTECTED_NAMES]
+def _protected_changed(
+    worktree: Path, base_sha: str, project_subdir: str, protected_names: tuple[str, ...]
+) -> bool:
+    pathspecs = [f":(glob){project_subdir}/**/{name}" for name in protected_names]
     if run_git(worktree, "diff", "--name-only", "--no-renames", base_sha, "HEAD", "--", *pathspecs):
         return True
     pyproject = f"{project_subdir}/pyproject.toml"

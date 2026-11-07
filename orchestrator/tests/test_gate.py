@@ -257,3 +257,16 @@ def test_tamper_is_reported_before_tests_run(repo, tmp_path):
 
     assert result.reason == "tests_modified"
     assert not sentinel.exists()
+
+
+def test_test_globs_and_protected_names_can_be_overridden(repo):
+    base = repo_with_test_file(repo, name="check_calc.py")
+    commit_project_edit(repo, "check_calc.py", "a\n")
+    custom = dict(test_globs=("check_*.py",), protected_names=("locked.cfg",))
+
+    assert check_gate(repo, base, "proj", ["true"], 10, **custom).reason == "tests_modified"
+
+    base = git(repo, "rev-parse", "HEAD")
+    commit_project_edit(repo, "locked.cfg", "x")
+    assert check_gate(repo, base, "proj", ["true"], 10, **custom).reason == "tests_modified"
+    assert check_gate(repo, base, "proj", ["true"], 10).passed is True
