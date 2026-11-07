@@ -120,7 +120,7 @@ def test_verify_receives_the_test_command_subdir_and_timeout(setup, monkeypatch)
     (args, kwargs), = calls
     sandbox = kwargs.pop("sandbox")
     assert callable(sandbox)
-    for fix_kwarg in ("runner", "ledger", "fix_config", "cap_usd", "fix_rounds"):
+    for fix_kwarg in ("runner", "ledger", "fix_config", "cap_usd", "fix_rounds", "factory_paths"):
         kwargs.pop(fix_kwarg)
     assert (args, kwargs) == (("t1", deps.store), {"project_subdir": "proj", "test_argv": ["pytest", "-x"], "gate_timeout_s": 7.0})
 
@@ -156,3 +156,13 @@ def test_the_verify_stage_builds_the_gate_sandbox_from_the_settings_and_the_task
 
 def test_stage_names_are_exactly_the_pipeline(setup):
     assert set(build_stages(setup[2], setup[3])) == {"plan", "review", "implement", "verify", "audit"}
+
+
+def test_the_verify_stage_passes_the_state_and_worktree_dirs_to_the_gate(setup, monkeypatch):
+    store, runner, settings, deps, repo, base = setup
+    seen = {}
+    monkeypatch.setattr("factory.stages.verify_task", lambda *a, **k: seen.update(k))
+
+    build_stages(settings, deps)["verify"]("t1")
+
+    assert seen["factory_paths"] == (settings.state_dir, settings.worktree_root)

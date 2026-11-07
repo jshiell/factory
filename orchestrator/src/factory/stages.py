@@ -65,6 +65,7 @@ def build_stages(settings: Settings, deps: Deps) -> dict[str, Callable[[str], Ta
             test_argv=list(settings.test_argv), gate_timeout_s=settings.gate_timeout_s,
             sandbox=gate_sandbox_for(settings), runner=runner, ledger=ledger, fix_config=implementer,
             cap_usd=cap, fix_rounds=settings.fix_rounds,
+            factory_paths=(settings.state_dir, settings.worktree_root),
         ),
         "audit": lambda task_id: audit_task(
             task_id, store, ledger, runner, AUDIT_CONFIG, cap, settings.project_subdir
