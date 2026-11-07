@@ -69,3 +69,10 @@ def test_the_prompt_tells_the_fixer_to_stay_inside_the_project():
     prompt = build_fix_prompt(task(), "FAILED test_x")
 
     assert "Only change files inside the project directory" in prompt
+
+
+def test_the_prompt_tells_the_fixer_not_to_touch_uv_config():
+    prompt = build_fix_prompt(task(), "FAILED test_x")
+
+    for name in ("uv.toml", ".python-version", "[tool.uv]"):
+        assert name in prompt

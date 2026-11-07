@@ -35,7 +35,8 @@ def implementer_config(settings: Settings) -> RunnerConfig:
         confine=True,
         max_turns=settings.max_turns,
         append_system_prompt="You are in a git worktree; the project lives in the current directory. Do not commit. "
-        "Only change files inside the project directory; changes anywhere else are refused.",
+        "Only change files inside the project directory; changes anywhere else are refused."
+        " Do not create or edit uv.toml, .python-version or the [tool.uv] table; such changes are refused.",
     )
 
 

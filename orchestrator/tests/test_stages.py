@@ -174,3 +174,12 @@ def test_the_implementer_is_told_to_stay_inside_the_project(setup):
     config = implementer_config(settings)
 
     assert "Only change files inside the project directory" in config.append_system_prompt
+
+
+def test_the_implementer_is_told_not_to_touch_uv_config(setup):
+    _, _, settings, _, _, _ = setup
+
+    config = implementer_config(settings)
+
+    for name in ("uv.toml", ".python-version", "[tool.uv]"):
+        assert name in config.append_system_prompt
