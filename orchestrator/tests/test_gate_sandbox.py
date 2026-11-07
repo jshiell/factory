@@ -42,3 +42,17 @@ def test_discovery_finds_existing_python_and_uv_directories_and_a_real_uv(tmp_pa
 
     assert Path(tooling.python_prefix).is_dir() and Path(tooling.real_uv).is_file()
     assert "shims" not in tooling.real_uv
+
+
+def test_discovery_ignores_the_projects_own_uv_config(tmp_path):
+    import stat
+    log = tmp_path / "uv.log"
+    fake = tmp_path / "bin" / "uv"
+    fake.parent.mkdir()
+    fake.write_text(f'#!/bin/sh\necho "$@" >> {log}\ncase "$*" in *find*) echo {tmp_path}/py/bin/python;; *) echo {tmp_path}/pydir;; esac\n')
+    fake.chmod(fake.stat().st_mode | stat.S_IEXEC)
+
+    discover_uv_tooling(tmp_path, path=str(fake.parent))
+
+    calls = log.read_text().splitlines()
+    assert len(calls) == 2 and all("--no-config" in call.split() for call in calls)

@@ -43,13 +43,16 @@ def build_gate_sandbox(
 
 
 def discover_uv_tooling(project_dir: Path, path: str | None = None) -> UvTooling:
-    """Ask the real uv (trusted, run unconfined by the factory) where Python lives."""
+    """Ask the real uv (trusted, run unconfined by the factory) where Python lives.
+
+    `--no-config`: the project is agent-written, so its uv.toml, [tool.uv] and .python-version must not steer this call.
+    """
     path = _without_shims(path if path is not None else os.environ.get("PATH", ""))
     real_uv = shutil.which("uv", path=path) or "uv"
     env = {**os.environ, "PATH": path}
 
     def ask(*args: str) -> str:
-        return subprocess.run([real_uv, *args], cwd=project_dir, env=env, capture_output=True, text=True,
+        return subprocess.run([real_uv, "--no-config", *args], cwd=project_dir, env=env, capture_output=True, text=True,
                               check=True, stdin=subprocess.DEVNULL).stdout.strip()
 
     python = Path(ask("python", "find")).resolve()
