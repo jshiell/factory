@@ -4,7 +4,7 @@ import pytest
 
 from gitutil import git
 
-from factory.merge_task import MergeRefused, merge_preview
+from factory.merge_task import MergeRefused, merge_preview, merge_task
 from factory.store import TaskStore
 from factory.task import InvalidTransition, Task, TaskState
 from factory.worktrees import WorktreeManager
@@ -97,3 +97,33 @@ def test_preview_refuses_tracked_changes_in_main(audited):
 
     with pytest.raises(MergeRefused, match="changes"):
         merge_preview("t1", store, repo)
+
+
+def test_merge_refuses_when_the_shown_sha_is_not_the_audited_sha(audited):
+    store, repo, _, task, manager = audited
+    main_before = git(repo, "rev-parse", "HEAD")
+
+    with pytest.raises(MergeRefused, match="shown"):
+        merge_task("t1", store, repo, manager, shown_sha="0" * 40)
+
+    assert git(repo, "rev-parse", "HEAD") == main_before
+    assert store.load("t1") == task
+
+
+def test_merge_fast_forwards_main_saves_merged_and_clears_the_worktree_field(audited):
+    store, repo, _, task, manager = audited
+
+    merged = merge_task("t1", store, repo, manager, shown_sha=task.audited_sha)
+
+    assert git(repo, "rev-parse", "HEAD") == task.audited_sha
+    assert (merged.state, merged.worktree) == (TaskState.MERGED, None)
+    assert store.load("t1") == merged
+
+
+def test_merge_removes_the_worktree_and_keeps_the_branch(audited):
+    store, repo, worktree, task, manager = audited
+
+    merge_task("t1", store, repo, manager, shown_sha=task.audited_sha)
+
+    assert not worktree.exists()
+    assert git(repo, "branch", "--list", "factory/t1")
