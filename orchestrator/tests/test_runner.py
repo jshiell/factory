@@ -1,6 +1,7 @@
 import os
 import signal
 import stat
+import subprocess
 import time
 from pathlib import Path
 
@@ -104,3 +105,43 @@ def test_timeout_also_kills_descendants_that_left_the_process_group(tmp_path, ta
     finally:
         if pid_is_alive(grandchild):
             os.kill(grandchild, signal.SIGKILL)
+
+
+def test_an_interruption_while_waiting_kills_the_whole_tree_and_re_raises(tmp_path, task, monkeypatch):
+    pid_file = tmp_path / "grandchild.pid"
+    body = (
+        "python3 -c 'import subprocess, sys; "
+        'p = subprocess.Popen(["sleep", "30"], start_new_session=True); '
+        'open(sys.argv[1], "w").write(str(p.pid)); p.wait()\' ' + str(pid_file)
+    )
+    started = []
+
+    class InterruptingPopen(subprocess.Popen):
+        interrupted = False
+
+        def wait(self, timeout=None):
+            if not InterruptingPopen.interrupted:
+                InterruptingPopen.interrupted = True
+                started.append(self.pid)
+                deadline = time.monotonic() + 5
+                while not (pid_file.exists() and pid_file.read_text()) and time.monotonic() < deadline:
+                    time.sleep(0.05)
+                raise KeyboardInterrupt
+            return super().wait(timeout)
+
+    monkeypatch.setattr("factory.runner.subprocess.Popen", InterruptingPopen)
+    runner = SubprocessRunner(fake_claude(tmp_path, body), project_subdir="proj", timeout_s=30)
+
+    with pytest.raises(KeyboardInterrupt):
+        runner.run(task, CONFIG)
+
+    grandchild = int(pid_file.read_text())
+    try:
+        deadline = time.monotonic() + 3
+        while (pid_is_alive(started[0]) or pid_is_alive(grandchild)) and time.monotonic() < deadline:
+            time.sleep(0.05)
+        assert not pid_is_alive(started[0]) and not pid_is_alive(grandchild)
+    finally:
+        for pid in (started[0], grandchild):
+            if pid_is_alive(pid):
+                os.kill(pid, signal.SIGKILL)

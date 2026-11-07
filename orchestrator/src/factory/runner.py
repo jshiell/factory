@@ -45,6 +45,10 @@ class SubprocessRunner:
                 timed_out = True
                 self._kill_tree(process.pid)
                 process.wait()
+            except BaseException:
+                self._kill_tree(process.pid)
+                process.wait()
+                raise
             stdout_file.seek(0)
             return RunResult(stdout_file.read(), process.returncode, timed_out)
 
