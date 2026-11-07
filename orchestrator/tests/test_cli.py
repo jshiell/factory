@@ -386,3 +386,28 @@ def test_merge_of_a_task_that_is_not_audited_says_which_state_it_is_in(ctx, merg
     code, _, err = run(ctx, "merge", "t2", stdin="y\n")
 
     assert code == 1 and f"t2 is {state.value}, not audited" in err and merge_spy == []
+
+
+# --- retry --------------------------------------------------------------------
+
+def test_retry_prints_the_new_task_id(ctx):
+    put(ctx, S.FAILED, goal="add multiply")
+
+    code, out, _ = run(ctx, "retry", "t1")
+
+    assert code == 0 and out.strip() == "20260102-030405"
+    assert ctx.store.load("20260102-030405").retry_of == "t1"
+
+
+def test_retry_of_a_task_that_cannot_be_retried_exits_1_with_the_reason(ctx):
+    put(ctx, S.QUEUED, goal="g")
+
+    code, _, err = run(ctx, "retry", "t1")
+
+    assert code == 1 and "queued" in err
+
+
+def test_show_prints_retry_of(ctx):
+    put(ctx, S.PROPOSED, goal="g", retry_of="t0")
+
+    assert "retry_of: t0" in run(ctx, "show", "t1")[1]

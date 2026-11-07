@@ -45,3 +45,18 @@ def test_retrying_a_failed_task_creates_a_proposed_task_with_the_goal_and_leaves
     assert (new.state, new.goal, new.retry_of) == (TaskState.PROPOSED, "add multiply", "t1")
     assert new.id == "20260102-030405"
     assert store.load(new.id) == new and store.load("t1") == old
+
+
+def test_an_audited_task_can_be_retried_too(store):
+    put(store, TaskState.AUDITED, goal="g")
+
+    assert retry_task("t1", store, lambda: NOW).retry_of == "t1"
+
+
+def test_two_retries_in_the_same_second_get_distinct_ids(store):
+    put(store, TaskState.FAILED, goal="g")
+
+    first = retry_task("t1", store, lambda: NOW)
+    second = retry_task("t1", store, lambda: NOW)
+
+    assert (first.id, second.id) == ("20260102-030405", "20260102-030405-2")

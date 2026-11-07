@@ -16,6 +16,7 @@ from factory.ids import InvalidTaskId
 from factory.ledger import Ledger
 from factory.lock import AlreadyRunning, state_lock
 from factory.merge_task import MergeRefused, merge_preview, merge_task
+from factory.retry_task import RetryRefused, retry_task
 from factory.runner import SubprocessRunner
 from factory.settings import Settings, SettingsError, load_settings
 from factory.stages import Deps, build_stages
@@ -66,7 +67,7 @@ def _parser() -> argparse.ArgumentParser:
     commands = parser.add_subparsers(dest="command", required=True, parser_class=_Parser)
     commands.add_parser("new").add_argument("goal")
     commands.add_parser("list")
-    for name in ("show", "advance", "approve", "reject", "merge"):
+    for name in ("show", "advance", "approve", "reject", "merge", "retry"):
         commands.add_parser(name).add_argument("task_id")
     commands.add_parser("costs").add_argument("task_id", nargs="?")
     return parser
@@ -115,6 +116,8 @@ def _describe(task: Task) -> list[str]:
     lines = [f"id: {task.id}", f"state: {task.state.value}", f"goal: {task.goal}"]
     if task.failure_reason:
         lines.append(f"failure: {task.failure_reason}")
+    if task.retry_of:
+        lines.append(f"retry_of: {task.retry_of}")
     lines += [f"plan:\n{task.plan}"] if task.plan else []
     for label, items in (("risks", task.plan_risks), ("review findings", task.review_findings),
                          ("audit findings", task.audit_findings)):
@@ -215,6 +218,17 @@ def _costs(args, io, ctx) -> int:
     return 0
 
 
+def _retry(args, io, ctx) -> int:
+    _load(ctx, args.task_id)
+    try:
+        new = retry_task(args.task_id, ctx.store, ctx.clock)
+    except RetryRefused as error:
+        print(f"retry refused: {error}", file=io.stderr)
+        return 1
+    print(new.id, file=io.stdout)
+    return 0
+
+
 def _merge(args, io, ctx) -> int:
     task = _load(ctx, args.task_id)
     if not io.stdin.isatty():
@@ -250,7 +264,7 @@ def _merge(args, io, ctx) -> int:
 
 _COMMANDS = {
     "new": _new, "list": _list, "show": _show, "advance": _advance,
-    "approve": _approve, "reject": _reject, "merge": _merge, "costs": _costs,
+    "approve": _approve, "reject": _reject, "merge": _merge, "retry": _retry, "costs": _costs,
 }
 
 
