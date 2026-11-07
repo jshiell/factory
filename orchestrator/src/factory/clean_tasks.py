@@ -70,6 +70,18 @@ def _clean_one(candidate: Candidate, store: TaskStore, worktrees: WorktreeManage
             outcome.done.append("pruned missing worktree")
         store.save(replace(task, worktree=None))
     if task.state is TaskState.MERGED and candidate.branch_exists:
-        run_git(repo, "branch", "-d", f"factory/{task.id}")
-        outcome.done.append("deleted branch")
+        _delete_branch(task, repo, outcome)
     return outcome
+
+
+def _delete_branch(task: Task, repo: Path, outcome: Outcome) -> None:
+    """`-d` compares against the HEAD of the main checkout, so only try it while main is on a branch."""
+    if not run_git(repo, "branch", "--show-current"):
+        outcome.problems.append(f"branch factory/{task.id} kept: main is not on a branch")
+        return
+    try:
+        run_git(repo, "branch", "-d", f"factory/{task.id}")
+    except subprocess.CalledProcessError:
+        outcome.problems.append(f"branch factory/{task.id} kept: git refused to delete it (not merged into main)")
+        return
+    outcome.done.append("deleted branch")

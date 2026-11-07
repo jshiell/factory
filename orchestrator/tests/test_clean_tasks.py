@@ -125,3 +125,27 @@ def test_a_merged_branch_is_deleted_and_a_failed_branch_is_kept(env):
 
     assert not git(repo, "branch", "--list", "factory/merged")
     assert git(repo, "branch", "--list", "factory/failed")
+
+
+def test_a_refused_branch_delete_is_reported_and_the_branch_kept(env):
+    store, repo, _, _, add = env
+    path = add("merged", S.MERGED)
+    (path / "x.txt").write_text("x")
+    git(path, "add", "-A")
+    git(path, "commit", "-q", "-m", "unmerged work")  # inconsistent: merged task with an unmerged branch
+
+    outcomes = run_clean(env)
+
+    assert git(repo, "branch", "--list", "factory/merged")
+    assert any("branch" in problem for problem in outcomes[0].problems)
+
+
+def test_branches_are_not_deleted_while_main_is_not_on_a_branch(env):
+    store, repo, _, _, add = env
+    add("merged", S.MERGED)
+    git(repo, "checkout", "-q", "--detach")
+
+    outcomes = run_clean(env)
+
+    assert git(repo, "branch", "--list", "factory/merged")
+    assert any("main is not on a branch" in problem for problem in outcomes[0].problems)
