@@ -6,8 +6,12 @@ class Ledger:
     def __init__(self, path: Path):
         self._path = path
 
-    def append(self, task_id: str, cost_usd: float, assumed: bool = False) -> None:
+    def append(
+        self, task_id: str, cost_usd: float, assumed: bool = False, stage: str | None = None
+    ) -> None:
         entry = {"task_id": task_id, "cost_usd": cost_usd, "assumed": assumed}
+        if stage is not None:
+            entry["stage"] = stage
         with self._path.open("a") as ledger_file:
             ledger_file.write(json.dumps(entry) + "\n")
 

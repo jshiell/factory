@@ -20,3 +20,12 @@ def test_would_exceed_only_when_total_plus_next_budget_is_over_cap(tmp_path):
 
     assert not ledger.would_exceed(cap_usd=1.5, next_budget_usd=0.5)
     assert ledger.would_exceed(cap_usd=1.5, next_budget_usd=0.51)
+
+
+def test_stage_is_recorded_when_given_and_absent_otherwise(tmp_path):
+    ledger = Ledger(tmp_path / "ledger.jsonl")
+    ledger.append("t1", 0.1, stage="audit")
+    ledger.append("t1", 0.2)
+
+    assert ledger.entries()[0]["stage"] == "audit"
+    assert "stage" not in ledger.entries()[1]

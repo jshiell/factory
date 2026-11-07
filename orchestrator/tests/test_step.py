@@ -162,3 +162,15 @@ def test_runner_exception_fails_the_task_instead_of_leaving_it_running(store, le
     assert task.failure_reason == "runner_error"
     assert store.load("t1").state is TaskState.FAILED
     assert ledger.total() == 1.0
+
+
+def test_implementer_cost_is_recorded_under_the_implement_stage(store, ledger):
+    step("t1", store, ledger, FakeRunner(fixture_stdout("success")), CONFIG, cap_usd=10)
+
+    assert ledger.entries()[0]["stage"] == "implement"
+
+
+def test_assumed_implementer_cost_is_also_staged(store, ledger):
+    step("t1", store, ledger, FakeRunner(timed_out=True), CONFIG, cap_usd=10)
+
+    assert ledger.entries()[0]["stage"] == "implement"

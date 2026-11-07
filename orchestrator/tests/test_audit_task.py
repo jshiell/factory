@@ -233,3 +233,10 @@ def test_diff_too_large_clears_an_earlier_audit_error(verified, store, ledger):
     task = audit(store, ledger, AuditRunner(verdict_stdout()))
 
     assert (task.failure_reason, task.audit_error) == ("diff_too_large", None)
+
+
+def test_audit_costs_are_recorded_under_the_audit_stage(verified, store, ledger):
+    audit(store, ledger, AuditRunner(timed_out=True))
+    audit(store, ledger, AuditRunner(verdict_stdout()))
+
+    assert [e["stage"] for e in ledger.entries()] == ["audit", "audit"]

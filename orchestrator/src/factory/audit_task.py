@@ -66,7 +66,7 @@ def audit_task(
     if result.timed_out:
         return _infrastructure_failure(task, "timeout", store, ledger, config, assumed=True)
     outcome = classify(result.stdout, result.exit_code)
-    ledger.append(task_id, outcome.cost_usd)
+    ledger.append(task_id, outcome.cost_usd, stage="audit")
     if run_git(worktree, "rev-parse", "HEAD") != head or run_git(worktree, "status", "--porcelain"):
         return _reject(store, task, "audit_modified_worktree")
     if outcome.kind not in (OutcomeKind.SUCCESS, OutcomeKind.SUCCESS_WITH_DENIALS):
@@ -94,7 +94,7 @@ def _infrastructure_failure(
     task: Task, reason: str, store: TaskStore, ledger: Ledger, config: RunnerConfig, assumed: bool = False
 ) -> Task:
     if assumed:
-        ledger.append(task.id, ASSUMED_COST_MULTIPLIER * config.budget_usd, assumed=True)
+        ledger.append(task.id, ASSUMED_COST_MULTIPLIER * config.budget_usd, assumed=True, stage="audit")
     return _finish(store, replace(task, audit_error=reason))
 
 
