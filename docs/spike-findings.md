@@ -235,3 +235,8 @@ Command shape: `nono run -s --profile nolabs-ai/claude --allow-cwd --read <resol
 - Gate code writes the cache dir, so removal never follows symlinks and is limited to real directories directly under `gate-cache`; a hostile read-only tree would make a removal fail (reported as partially removed).
 - A cache dir of a task whose record was deleted by hand is removed as an orphan; sizes walk the tree, so a huge cache slows the preview.
 - Carried over: re-planning on a moved main, the fix agent can weaken its own new tests, pytest config files outside the protected list are unverified.
+
+## Plan 12: test freeze and pytest config (e2e, `spike/test_freeze_e2e.py`, no agents, 11 checks PASS)
+- A fix round's rewrite or delete of an implementer-added test is invisible to the base comparison and caught by the frozen comparison (pre-round HEAD stored on the task as `fix_frozen_sha`, saved before the agent runs, so a resumed task stays frozen).
+- `pytest.toml`, `.pytest.toml`, `.pytest.ini` (also under `sub/`) and a `[tool.pytest]` table in pyproject now fail `tests_modified`. git `:(glob)` matches dotfiles at both depths.
+- Known gaps: gitignored `conftest.py`/`test_*.py` written by the agent are skipped by `git add -A` but loaded by pytest in the worktree (a clean-checkout gate is the real fix, plan 13 candidate); a new test file can monkeypatch the code under test at import time; config files in directories above the project subdir are unwatched.
