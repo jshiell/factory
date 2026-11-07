@@ -224,6 +224,13 @@ def test_appending_to_a_protected_file_fails_tests_modified(repo, name):
     assert gate(repo, base).reason == "tests_modified"
 
 
+def test_adding_a_uv_toml_beside_a_change_fails_tests_modified(repo):
+    base = repo_with_test_file(repo)
+    commit_project_edit(repo, "uv.toml", "exclude-newer = '2000-01-01T00:00:00Z'\n")
+
+    assert gate(repo, base).reason == "tests_modified"
+
+
 PYPROJECT = '[project]\nname = "p"\ndependencies = []\n\n[tool.pytest.ini_options]\naddopts = "-q"\n'
 
 
@@ -634,12 +641,20 @@ def test_a_gitlink_added_outside_the_project_fails_outside_project(repo):
 
 
 # Guards (start green): the outside-project boundary.
-@pytest.mark.parametrize("path", ["proj2/x.py", "proj.txt", "docs/note.md", "sitecustomize.py", "uv.toml", ".python-version", ".env"])
+@pytest.mark.parametrize("path", ["proj2/x.py", "proj.txt", "docs/note.md", "sitecustomize.py", ".python-version", ".env"])
 def test_guard_any_path_outside_the_project_fails_outside_project(repo, path):
     base = repo_with_project_change(repo)
     commit_root_file(repo, path, "x\n")
 
     assert gate(repo, base).reason == "outside_project"
+
+
+@pytest.mark.parametrize("name", ["uv.toml"])
+def test_a_root_uv_config_file_fails_tests_modified(repo, name):
+    base = repo_with_project_change(repo)
+    commit_root_file(repo, name, "x\n")
+
+    assert gate(repo, base).reason == "tests_modified"
 
 
 def test_guard_moving_a_file_out_of_the_project_fails_outside_project(repo):
