@@ -111,3 +111,26 @@ def test_a_task_that_is_not_audited_is_refused_by_the_state_machine(audited):
 
     with pytest.raises(InvalidTransition):
         rebase_task("t1", store, repo)
+
+
+def conflict_on_main(repo):
+    (repo / "b.txt").write_text("main's b")
+    git(repo, "add", "-A")
+    git(repo, "commit", "-q", "-m", "main also adds b")
+
+
+def in_progress(worktree):
+    return any((worktree / git(worktree, "rev-parse", "--git-path", name)).exists() for name in ("rebase-merge", "rebase-apply"))
+
+
+def test_a_conflict_is_refused_the_rebase_aborted_and_the_old_state_left_intact(audited):
+    store, repo, worktree, task = audited
+    conflict_on_main(repo)
+    stored_before = store.load("t1")
+
+    with pytest.raises(RebaseRefused, match="conflict.*abandon.*retry"):
+        rebase_task("t1", store, repo)
+
+    assert store.load("t1") == stored_before
+    assert git(worktree, "rev-parse", "HEAD") == git(repo, "rev-parse", "factory/t1") == task.audited_sha
+    assert git(worktree, "status", "--porcelain") == "" and not in_progress(worktree)
