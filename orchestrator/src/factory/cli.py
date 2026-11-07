@@ -1,5 +1,6 @@
 import argparse
 import signal
+import subprocess
 import sys
 import unicodedata
 from collections import defaultdict
@@ -14,6 +15,7 @@ from factory.digest import plan_digest
 from factory.ids import InvalidTaskId
 from factory.ledger import Ledger
 from factory.lock import AlreadyRunning, state_lock
+from factory.merge_task import MergeRefused, merge_preview, merge_task
 from factory.runner import SubprocessRunner
 from factory.settings import Settings, SettingsError, load_settings
 from factory.stages import Deps, build_stages
@@ -64,7 +66,7 @@ def _parser() -> argparse.ArgumentParser:
     commands = parser.add_subparsers(dest="command", required=True, parser_class=_Parser)
     commands.add_parser("new").add_argument("goal")
     commands.add_parser("list")
-    for name in ("show", "advance", "approve", "reject"):
+    for name in ("show", "advance", "approve", "reject", "merge"):
         commands.add_parser(name).add_argument("task_id")
     commands.add_parser("costs").add_argument("task_id", nargs="?")
     return parser
@@ -218,9 +220,39 @@ def _costs(args, io, ctx) -> int:
     return 0
 
 
+def _merge(args, io, ctx) -> int:
+    _load(ctx, args.task_id)
+    if not io.stdin.isatty():
+        print("merge needs an interactive terminal", file=io.stderr)
+        return 1
+    settings = ctx.settings
+    try:
+        with state_lock(settings.state_dir):
+            preview = merge_preview(args.task_id, ctx.store, settings.repo)
+            shown = "\n".join([f"MERGE {preview.task.id}: fast-forward main to {preview.task.audited_sha}",
+                               f"branch: {preview.branch}", "CHANGES:", preview.diffstat, "AUDIT FINDINGS:"]
+                              + [f"  - {f}" for f in preview.findings])
+            print(escape_control(shown), file=io.stdout)
+            print("Merge? [y/N] ", end="", file=io.stdout)
+            io.stdout.flush()
+            if io.stdin.readline().strip() != "y":
+                print("not merged", file=io.stdout)
+                return 1
+            worktrees = WorktreeManager(settings.repo, settings.worktree_root)
+            merged = merge_task(args.task_id, ctx.store, settings.repo, worktrees, shown_sha=preview.task.audited_sha)
+    except AlreadyRunning:
+        print("another factory run holds the lock", file=io.stderr)
+        return 1
+    except (MergeRefused, InvalidTransition, subprocess.CalledProcessError) as error:
+        print(f"merge refused: {error}", file=io.stderr)
+        return 1
+    print(f"{merged.id}: merged; commits are unsigned: sign them before pushing", file=io.stdout)
+    return 0
+
+
 _COMMANDS = {
     "new": _new, "list": _list, "show": _show, "advance": _advance,
-    "approve": _approve, "reject": _reject, "costs": _costs,
+    "approve": _approve, "reject": _reject, "merge": _merge, "costs": _costs,
 }
 
 

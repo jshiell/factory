@@ -322,3 +322,58 @@ def test_no_command_except_approve_calls_approve_plan(ctx, approve_spy, command)
     run(ctx, *command, stdin="y\n")
 
     assert approve_spy == []
+
+
+# --- merge --------------------------------------------------------------------
+
+@pytest.fixture
+def merge_spy(ctx, monkeypatch):
+    from factory.merge_task import Preview
+    calls = []
+    audited_task = Task(id="t1", prompt="", state=S.AUDITED, audited_sha="abc123", audit_findings=("fine\x1b[31m",))
+    preview = Preview(audited_task, "factory/t1", " evil\x1b[2J.py | 1 +\n 1 file changed", audited_task.audit_findings)
+    monkeypatch.setattr("factory.cli.merge_preview", lambda *a, **k: preview)
+    monkeypatch.setattr("factory.cli.merge_task", lambda *a, **k: calls.append((a, k)) or replace(audited_task, state=S.MERGED))
+    put(ctx, S.AUDITED, audited_sha="abc123")
+    return calls
+
+
+def test_merge_refuses_without_an_interactive_terminal_and_does_nothing(ctx, merge_spy):
+    code, _, err = run(ctx, "merge", "t1", stdin="y\n", tty=False)
+
+    assert code == 1 and "interactive" in err and merge_spy == []
+
+
+def test_merge_shows_branch_diffstat_and_findings_escaped_then_merges_the_shown_sha_on_y(ctx, merge_spy):
+    code, out, _ = run(ctx, "merge", "t1", stdin="y\n")
+
+    assert code == 0 and "factory/t1" in out and "1 file changed" in out and "\x1b" not in out
+    assert "sign" in out
+    (args, kwargs), = merge_spy
+    assert args[0] == "t1" and kwargs["shown_sha"] == "abc123"
+
+
+@pytest.mark.parametrize("answer", ["", "n\n", "yes\n"])
+def test_anything_but_y_does_not_merge(ctx, merge_spy, answer):
+    code, _, _ = run(ctx, "merge", "t1", stdin=answer)
+
+    assert code == 1 and merge_spy == []
+
+
+def test_a_refused_merge_exits_1_with_the_reason(ctx, merge_spy, monkeypatch):
+    def refuse(*a, **k):
+        raise cli.MergeRefused("main moved since the plan; re-run the task")
+    monkeypatch.setattr("factory.cli.merge_task", refuse)
+
+    code, _, err = run(ctx, "merge", "t1", stdin="y\n")
+
+    assert code == 1 and "main moved" in err
+
+
+def test_merge_exits_1_when_another_run_holds_the_lock(ctx, merge_spy):
+    from factory.lock import state_lock
+    with state_lock(ctx.settings.state_dir):
+        # flock is per open file description, so a second open in this process is refused
+        code, _, err = run(ctx, "merge", "t1", stdin="y\n")
+
+    assert code == 1 and "lock" in err and merge_spy == []
