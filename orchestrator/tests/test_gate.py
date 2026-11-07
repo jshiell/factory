@@ -403,3 +403,17 @@ def test_the_wrapper_s_own_lines_are_part_of_the_captured_output(repo, tmp_path)
                         test_prefix=(str(wrapper), "--"), capture_limit=500)
 
     assert "nono: applying sandbox" in result.output and "boom" in result.output
+
+
+MORE_PYTEST_CONFIG = [".pytest.ini", "pytest.toml", ".pytest.toml", "sub/pytest.toml", "sub/.pytest.toml", "sub/.pytest.ini"]
+
+
+@pytest.mark.parametrize("name", MORE_PYTEST_CONFIG)
+def test_adding_any_other_pytest_config_file_fails_tests_modified(repo, name):
+    base = repo_with_test_file(repo)
+    (repo / "proj" / name).parent.mkdir(parents=True, exist_ok=True)
+    (repo / "proj" / name).write_text("[pytest]\n")
+    git(repo, "add", "-A")
+    git(repo, "commit", "-q", "-m", "config")
+
+    assert gate(repo, base).reason == "tests_modified"
