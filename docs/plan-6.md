@@ -1,45 +1,60 @@
-# Plan 6: confine read-only agents to their worktree
+# Plan 6: confine the read-only agents with nono
 
-Goal: close the known gap that `Read` (and `Grep`/`Glob`) in the planner, reviewer and auditor can reach files outside the worktree (plan 4 spike: it read `../ROOT_NOTE.txt` and a file in an unrelated temp dir). After this plan, those agents can read only the worktree, and a test proves it. No new agent behaviour.
+Goal: stop the planner, reviewer and auditor reading outside their worktree (plan 4 spike: they read `../ROOT_NOTE.txt` and a file in an unrelated temp dir). Mechanism: run their `claude -p` under `nono` (Seatbelt, macOS) with the `nolabs-ai/claude` profile. The goal is "reads confined to the worktree **plus an enumerated residual set**"; cycle 0 records that set, and it is written into the known gaps. Not "worktree only": the profile grants `~/.claude` and Keychains (see Residual exposure).
 
 ## Decided (not up for review)
-- uv, pytest, stdlib only. TDD, one red-green-commit per bullet, failing test shown red first, never edit a passing test. Isolation flags stay on.
-- Stage functions, the state machine, the CLI and the `Runner` Protocol do not change. Only `command.py` / `RunnerConfig` / the three read-only configs change, plus the runner only if cycle 0 needs it.
-- No API calls in the unit suite (argv assertions and a fake `claude`). Only the cycle 0 spike and the cycle G e2e are paid; the e2e is run by the human.
-- The implementer (write tools) is out of scope: it needs `Bash`, which no path rule confines. Recorded as a known gap, not addressed here.
+- uv, pytest, stdlib only. TDD, one red-green-commit per bullet, failing test shown red first, never edit a passing test. Isolation flags stay on; OAuth stays (`ANTHROPIC_API_KEY` stays stripped).
+- **nono is the mechanism; claude under nono always uses the `nolabs-ai/claude` profile.** Permission-rule mechanisms (`--settings` deny rules, dropping `Read` from the allow list) are not alternatives; they are at most an optional layer, probed in cycle 0h.
+- Boundary = the **worktree root**, not `project_subdir` (the auditor reads files outside `project_subdir` to verify a diff). Read scope is `--read <resolved worktree>`.
+- Only the plan, review and audit stages are confined. The implementer is not (it needs write tools and `Bash`; confining it is a future plan).
+- Only the executable is a setting (`sandbox_executable`, default `nono`, so tests can inject a fake); the profile name is a constant. No fallback: if confinement is requested and cannot start, the stage fails as infrastructure; claude never runs unconfined.
+- `RunnerConfig`s are frozen module constants and `build_command` never sees the worktree, so the path is added per task in `SubprocessRunner.run`. The runner and settings therefore change (the stage functions, state machine and CLI behaviour do not).
+- No API calls in the unit suite. A nested `nono run` is denied inside the agent's own nono session (audit dir `~/.local/state/nono/audit` not granted; confirmed with `nono why --self`), so unit and wiring tests use a fake nono; the human runs the spike and the e2e from a real terminal.
+- Consequence to document: `factory advance` run from inside an agent's nono session fails at the plan stage (infrastructure `plan_error`), because nested nono is denied. The agent cannot exercise the real pipeline any more; the human does.
 
-## Candidate mechanisms (cycle 0 picks one; nothing here is verified yet)
-1. **Permission rules via `--settings` JSON:** `deny` rules for `Read`/`Grep`/`Glob` outside the worktree, or dropping `Read` from `--allowedTools` so headless default rules apply (reads inside cwd only, prompts auto-denied). Cheap, in argv.
-2. **`--add-dir` / working-directory semantics:** rely on the default "cwd and added dirs only" rule.
-3. **OS sandbox via nono (0.81.0, installed, Seatbelt on macOS).** Wrap the `claude -p` argv as `nono run --profile nolabs-ai/claude --allow-cwd --read <worktree> -- claude -p ...` (**decided: use the `nolabs-ai/claude` profile whenever claude is run under nono**).
-   - **Confirmed (user's terminal, canary under `$HOME`, plain `--read <dir>`, no profile):** read inside the dir works; a read of a file outside it, a read through a symlink inside it that points outside, and a write inside the dir were all denied (`Operation not permitted`). A first attempt with the canary under `mktemp` (`/var/folders`) read `secret`: temp is evidently inside nono's default grants (hypothesis, not checked), so canaries must live under `$HOME`.
-   - **Confirmed:** a confined `claude -p` with only `--read <dir>` returns "Not logged in": it needs `~/.claude` and the macOS Keychain (denied by default, 22 paths blocked). Hence the profile.
-   - **From `nono profile show nolabs-ai/claude` (read, not yet exercised with claude):** extends `default`; grants r+w to `~/.claude`, `~/.cache/claude`, `~/Library/Keychains` (with `bypass_protection`), `~/.claude.json`; workdir access is ReadWrite; keeps `deny_credentials`, `deny_shell_history`, `deny_shell_configs`, `deny_browser_data_*`. **Residual exposure this accepts:** the confined agent can read (and write) `~/.claude`, including other sessions' transcripts under `~/.claude/projects`, and the Keychain files. It is far narrower than the whole home directory but is not "worktree only". Whether a derived profile can narrow this (for example read-only workdir, no `~/.claude/projects`) is a cycle 0 question.
-   - **Not yet tested:** a real `claude -p` under the profile authenticating and returning structured output; the canary outside the worktree and a symlink out still denied under the profile (the profile's grants could widen it); whether workdir ReadWrite can be made read-only for the three read-only stages; `Bash` confinement for the implementer.
-   - **Cannot be tried by the agent:** a nested `nono run` from inside the agent's own nono sandbox is denied (audit dir `~/.local/state/nono/audit` not granted; confirmed by `nono why --self`). The human runs every nono probe and the e2e; unit tests use a fake `claude` and assert argv only.
-Nono's filesystem confinement is now the only mechanism with a confirmed result; 1 and 2 are untested. Cycle 0 still compares them, because they would avoid giving the agent Keychain and `~/.claude` access. Choose by residual exposure first, then simplicity; the user decides if the choice is close.
+## Facts so far
+- **Confirmed (user's terminal, plain `nono run --allow-cwd --read <dir>`, canary under `$HOME`):** read inside works; a read outside, a read through a symlink inside pointing outside, and a write inside were all denied (`Operation not permitted`).
+- **Confirmed:** the same run with a canary under `mktemp` (`/var/folders`) read it. Temp is therefore inside nono's default grants (inferred), which is exactly the plan 4 escape. Canaries must be placed deliberately.
+- **Confirmed:** a confined `claude -p` with only `--read <dir>` says "Not logged in": it needs `~/.claude` and the Keychain, hence the profile.
+- **Read from `nono profile show nolabs-ai/claude` (not yet exercised):** extends `default`; r+w on `~/.claude`, `~/.cache/claude`, `~/Library/Keychains` (`bypass_protection`), `~/.claude.json`; workdir ReadWrite; keeps `deny_credentials`, `deny_shell_history`, `deny_shell_configs`, `deny_browser_data_*`.
+- Default `worktree_root` is `repo/.worktrees`, so a worktree sits inside the main repo: the repo root, `repo/.factory/` (every goal, plan, ledger) and `repo/.git` (via the worktree's gitdir file) are its nearest neighbours.
+- Unverified: that `--allow-cwd` is needed given the profile's workdir grant; fork vs exec; stdout/exit-code passthrough; Claude's git detection under the sandbox; nono's path canonicalisation (macOS `/var` is `/private/var`, so pass `Path(worktree).resolve()`).
 
 ## Cycles
-0. **Spike (throwaway, flagged; real API, ~$0.30 total; exit codes saved).** `spike/confine_probe.py`, results in `docs/spike-findings.md`. In a temp git repo with a worktree and a canary file outside it (and one at the worktree root above `project_subdir`), try each mechanism with a read-only agent told to read: the canary outside, `../`, an absolute path, a symlink inside the worktree pointing outside, `~/.ssh`-style home path, and (as a control) a file inside the worktree. Also check `Grep` and `Glob` with an outside path. Record for each mechanism: which reads were blocked, whether the in-worktree read still works, whether the denial is silent or reported (`permission_denials`), and whether `--setting-sources ""` still honours `--settings`. Unconfirmed items are labelled as such. A mechanism that blocks some but not all vectors is a finding, not a pass.
-A. **Config surface (`command.py`)**
-   - A1 `RunnerConfig` gains the field the chosen mechanism needs (for example `settings: dict | None`); `build_command` emits it; absent field leaves argv unchanged (existing command tests untouched)
-   - A2 argv-injection check: the value is passed as a single argv element, not shell-split
+0. **Spike (human runs it; throwaway, flagged; ~$0.30 real API; exit codes saved).** `spike/nono_probe.py` or documented commands; results in `docs/spike-findings.md`. Fixture: a temp git repo under `$HOME` with a worktree at `repo/.worktrees/x`, `project_subdir=target`. Random-token canaries at: worktree root, repo root, `repo/.factory/`, `$HOME/canary`, `$TMPDIR/canary`; a symlink in `target/` to the `$HOME` canary. Record, each with its exit code:
+   - a. effective grant list: `nono profile show default`, `nolabs-ai/claude`, `nono why` per canary path (and `--dry-run` if 0.81 has it)
+   - b. the real `build_command` argv under `nono run --profile nolabs-ai/claude --read <resolved worktree> [--allow-cwd?] -- ...`: exit 0, stdout parses as JSON, structured output present
+   - c. same with a bad model: non-zero exit passes through; stderr text noted
+   - d. fork vs exec (`pgrep -P <nono pid>` while running)
+   - e. one run per tool family (Read, Grep, Glob), each asked to quote every canary; **scored by canary tokens in `result`/`structured_output`, never by self-report** (denials appear as tool errors, not `permission_denials`, and a confined run still classifies `SUCCESS`)
+   - f. worktree-root canary readable (expected: yes); repo root, `.factory`, `$HOME`, symlink out expected denied; `$TMPDIR` as found
+   - g. Claude's git-repo detection with the main `.git` not granted (does it still work? decision: do **not** grant the main `.git`)
+   - h. optional layering: with `Read Grep Glob` dropped from the allow list, and with a `--settings` deny on `~/.claude/**` (also whether `--settings` is honoured under `--setting-sources ""`)
+   - i. whether a derived profile (`extends: nolabs-ai/claude`) can drop the `$TMPDIR` grant, drop `~/.claude/projects`, or make the workdir read-only
+   - **Decision rule (agreed):** if a derived profile can remove the temp grant, narrow it and ship that; if not, accept temp as residual exposure and say so. Layering (h) and `~/.claude/projects` narrowing (i) are decided with the user after seeing the results, before cycle A.
+A. **Config and command (`command.py`, `settings.py`)**
+   - A1 pure `sandbox_prefix(executable, worktree) -> list[str]`: `[executable, "run", "--profile", PROFILE, ... "--read", <resolved worktree>, "--", ...]` (exact flags from cycle 0); test the exact argv, that the worktree is resolved, and that it ends with `--`
+   - A2 `RunnerConfig.confine: bool = False`; the default leaves `build_command` argv unchanged (existing command tests untouched)
+   - A3 `Settings.sandbox_executable` (default `"nono"`); add to `_STRING_KEYS` / `_KNOWN`; tests: loads from TOML, wrong type rejected naming the key
+R. **Runner (`runner.py`)**
+   - R1 `SubprocessRunner(sandbox_executable=...)`; when `config.confine`, the argv is `sandbox_prefix(..., task.worktree) + claude_argv`; test with a fake wrapper that logs its argv and execs everything after `--`: logged worktree path and the claude argv after `--`
+   - R2 fail closed: confinement requested and the wrapper executable missing, or exiting non-zero with empty stdout (a missing profile), gives an infrastructure result (`runner_error` / error kind); claude is never started unconfined; test both
+   - R3 timeout and interruption still kill the whole tree through a wrapper that forks the child and sleeps (assert the grandchild is gone)
+   - R4 stdout passthrough: a wrapper banner on stderr only does not corrupt stdout JSON (shape taken from cycle 0b, c, d)
 B. **Apply to the read-only stages**
-   - B1 `PLAN_CONFIG`, `REVIEW_CONFIG`, `AUDIT_CONFIG` carry the confinement; a test per config asserts it (the worktree path is per task, so if the rule needs it, it is built per run in the runner or `readonly_stage`, with a test of what the runner receives)
-   - B2 `build_stages` test: the implementer config does not get the confinement and the read-only configs do
-C. **Fake-claude wiring test ($0).** Extend `test_cli_wiring.py` so the logged argv for plan and review includes the confinement
-D. **Throwaway e2e (human runs it).** `factory new` / `advance` / `approve` / `advance` as in plan 5 with a canary file outside the worktree whose path the goal tells the agent to read; expect it denied and the pipeline to still reach `audited` (or stop with a sensible reason). Then `verify`, update `docs/spike-findings.md`, sign.
+   - B1 `PLAN_CONFIG`, `REVIEW_CONFIG`, `AUDIT_CONFIG` have `confine=True` (one assertion each)
+   - B2 `build_stages` / wiring: the implementer config has `confine=False`; `cli.py` passes `settings.sandbox_executable` into the runner
+C. **Wiring test ($0).** `test_cli_wiring.py` sets `sandbox_executable` to a fake nono (logs argv, execs the rest); plan and review argv start with the nono prefix and the fake claude still receives its original argv; implementer argv has no prefix (existing assertions untouched)
+D. **Throwaway e2e (human, real terminal, not under an agent session).** The plan 5 flow with a goal that asks the agent to quote the repo-root and `$HOME` canary tokens. Check the tokens are absent from `factory show` and the pipeline outcome is sensible. Then run `verify`, update `docs/spike-findings.md` and the known gaps, sign.
 
-## Known gaps (accepted)
-- The implementer can still read and write anywhere its `Bash` reaches; confining it needs an OS sandbox (future plan).
-- Whatever cycle 0 shows is not blocked (for example symlinks or `Grep` paths) stays a gap and is named.
-- The confinement is only as good as the CLI's permission engine; a CLI change could silently loosen it, so the e2e canary is the regression check and is manual.
-- Plan 3 to 5 gaps otherwise unchanged (TTY check is process control, SIGKILL leaves `running`, orphaned worktrees, auditor judges the plan not the goal).
+## Residual exposure (accepted, to be finalised from cycle 0)
+- The confined agent can read and write `~/.claude` (including other sessions' transcripts in `~/.claude/projects`) and `~/.claude.json` (may hold MCP server env secrets), and can read the Keychain files; the Keychain itself is still gated by the Security framework grant in the profile.
+- `$TMPDIR` is readable unless a derived profile removes it.
+- The workdir is OS-writable (profile ReadWrite plus `--allow-cwd`); write-protection of the read-only stages rests on the tool disallow-list and the post-run dirty/HEAD check, as before.
+- nono stderr is currently discarded by the runner (plan 2 gap), so profile or sandbox errors show up only as an empty-output infrastructure failure; capturing bounded stderr is out of scope.
+- The implementer remains unconfined.
+- The e2e canary run is the regression check for CLI or nono updates, and is manual.
+- Plans 3 to 5 gaps otherwise unchanged (TTY check is process control, SIGKILL leaves `running`, orphaned worktrees, the auditor judges the plan not the goal).
 
 ## Out of scope
-Implementer confinement, OS sandboxing as the default, network egress controls, retry/merge/GC work.
-
-## Assumptions (unverified until cycle 0)
-- `--settings` is honoured with `--setting-sources ""`.
-- Deny/allow rules or default headless behaviour can express "this directory only" for `Read`, `Grep` and `Glob`.
-- A symlink inside the worktree is resolved before the rule is applied.
+Confining the implementer, network egress rules (`--block-net` and domain filtering), Linux (Landlock) support, capturing stderr, retry, merge and GC work.
