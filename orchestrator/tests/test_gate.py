@@ -521,3 +521,9 @@ def test_a_change_only_outside_the_project_is_no_changes_not_a_protected_refusal
 
     assert gate(repo, base).reason == "no_changes"
 
+
+def test_a_new_root_pytest_ini_fails_tests_modified(repo):
+    base = repo_with_project_change(repo)
+    commit_root_file(repo, "pytest.ini", "[pytest]\naddopts = --collect-only\n")
+
+    assert gate(repo, base).reason == "tests_modified"

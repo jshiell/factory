@@ -118,7 +118,7 @@ def _defines_a_test_twice(worktree: Path, path: str) -> bool:
 def _protected_changed(
     worktree: Path, base_sha: str, project_subdir: str, protected_names: tuple[str, ...]
 ) -> bool:
-    pathspecs = [f":(glob){project_subdir}/**/{name}" for name in protected_names]
+    pathspecs = [f":(glob)**/{name}" for name in protected_names]  # pytest reads ini files above the project too
     if run_git(worktree, "diff", "--name-only", "--no-renames", base_sha, "HEAD", "--", *pathspecs):
         return True
     pyproject = f"{project_subdir}/pyproject.toml"
