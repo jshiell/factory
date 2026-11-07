@@ -217,3 +217,30 @@ def test_a_wrapper_that_fails_before_launching_claude_surfaces_its_exit_code_wit
 
     assert (result.exit_code, result.stdout) == (1, "")
     assert not marker.exists()
+
+
+def test_timeout_kills_the_whole_tree_through_a_wrapper_that_stays_as_a_parent(tmp_path, task):
+    pid_file = tmp_path / "grandchild.pid"
+    body = (
+        "python3 -c 'import subprocess, sys; "
+        'p = subprocess.Popen(["sleep", "30"], start_new_session=True); '
+        'open(sys.argv[1], "w").write(str(p.pid)); p.wait()\' ' + str(pid_file)
+    )
+    forking = tmp_path / "forking-nono"
+    forking.write_text('#!/bin/sh\nwhile [ "$1" != "--" ]; do shift; done\nshift\n"$@"\n')
+    forking.chmod(forking.stat().st_mode | stat.S_IEXEC)
+    runner = SubprocessRunner(
+        fake_claude(tmp_path, body), project_subdir="proj", timeout_s=1.5, sandbox_executable=str(forking)
+    )
+
+    result = runner.run(task, replace(CONFIG, confine=True))
+
+    grandchild = int(pid_file.read_text())
+    try:
+        deadline = time.monotonic() + 3
+        while pid_is_alive(grandchild) and time.monotonic() < deadline:
+            time.sleep(0.05)
+        assert result.timed_out and not pid_is_alive(grandchild)
+    finally:
+        if pid_is_alive(grandchild):
+            os.kill(grandchild, signal.SIGKILL)
