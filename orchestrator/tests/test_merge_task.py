@@ -35,3 +35,11 @@ def test_preview_of_an_audited_task_names_the_branch_diffstat_and_findings(audit
     assert preview.branch == "factory/t1"
     assert "b.txt" in preview.diffstat
     assert preview.findings == ("looks fine",)
+
+
+def test_preview_refuses_a_task_that_is_not_audited(audited):
+    store, repo, _, task, _ = audited
+    store.save(replace(task, state=TaskState.VERIFIED))
+
+    with pytest.raises(InvalidTransition):
+        merge_preview("t1", store, repo)
