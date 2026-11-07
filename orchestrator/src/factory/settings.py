@@ -31,6 +31,10 @@ class Settings:
         return self.state_dir / "ledger.jsonl"
 
     @property
+    def gate_cache_dir(self) -> Path:
+        return self.state_dir / "gate-cache"
+
+    @property
     def tasks_dir(self) -> Path:
         return self.state_dir / "tasks"
 

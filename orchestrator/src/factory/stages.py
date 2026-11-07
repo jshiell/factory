@@ -42,7 +42,7 @@ def gate_sandbox_for(settings: Settings) -> Callable[[Task], GateSandbox]:
     def make(task: Task) -> GateSandbox:
         worktree = Path(task.worktree)
         project_dir = (worktree / settings.project_subdir).resolve()
-        cache_dir = settings.state_dir / "gate-cache" / task.id  # private: never the shared uv cache
+        cache_dir = settings.gate_cache_dir / task.id  # private: never the shared uv cache
         cache_dir.mkdir(parents=True, exist_ok=True)
         tooling = discover_uv_tooling(project_dir)
         return build_gate_sandbox(

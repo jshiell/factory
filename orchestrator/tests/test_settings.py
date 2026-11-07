@@ -109,3 +109,9 @@ def test_a_bad_fix_rounds_is_rejected_naming_the_key(repo_dir, value):
 
     with pytest.raises(SettingsError, match="fix_rounds"):
         load_settings(None, cwd=repo_dir)
+
+
+def test_gate_cache_dir_is_under_the_state_dir(repo_dir):
+    settings = load_settings(None, cwd=repo_dir)
+
+    assert settings.gate_cache_dir == settings.state_dir / "gate-cache"
