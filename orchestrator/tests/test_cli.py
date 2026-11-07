@@ -603,3 +603,31 @@ def test_clean_holding_the_lock_leaves_the_caches_alone(ctx):
         code, _, err = run(ctx, "clean", stdin="y\n")
 
     assert code == 1 and "lock" in err and orphan.exists()
+
+
+def describe(**fields):
+    from factory.cli import _describe_candidate
+    from factory.clean_tasks import Candidate
+    defaults = dict(directory_exists=True, dirty=False, commits_ahead=0, branch_exists=True)
+    task = Task(id="t1", prompt="", state=S.FAILED, worktree="/w/t1")
+    return _describe_candidate(Candidate(task, **{**defaults, **fields}))
+
+
+def test_an_empty_failed_branch_is_previewed_as_will_be_deleted_not_left_behind():
+    line = describe(branch_empty=True)
+
+    assert "empty branch will be deleted" in line and "left behind" not in line
+
+
+def test_a_failed_branch_with_commits_is_still_left_behind():
+    line = describe(commits_ahead=2, branch_empty=False)
+
+    assert "branch left behind" in line and "will be deleted" not in line
+
+
+def test_an_outside_root_task_does_not_promise_a_branch_deletion():
+    assert "will be deleted" not in describe(branch_empty=True, outside_root=True)
+
+
+def test_one_commit_is_singular():
+    assert "1 commit ahead of base" in describe(commits_ahead=1) and "1 commits" not in describe(commits_ahead=1)
