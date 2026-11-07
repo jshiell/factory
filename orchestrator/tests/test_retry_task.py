@@ -27,3 +27,11 @@ def test_retry_refuses_a_task_that_is_not_failed_or_audited(store, state):
 
     with pytest.raises(RetryRefused, match=state.value):
         retry_task("t1", store, lambda: NOW)
+
+
+@pytest.mark.parametrize("state", [TaskState.FAILED, TaskState.AUDITED])
+def test_retry_refuses_a_task_with_no_goal(store, state):
+    put(store, state)
+
+    with pytest.raises(RetryRefused, match="goal"):
+        retry_task("t1", store, lambda: NOW)
