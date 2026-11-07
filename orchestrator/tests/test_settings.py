@@ -1,0 +1,82 @@
+import subprocess
+from pathlib import Path
+
+import pytest
+
+from factory.settings import Settings, SettingsError, load_settings
+
+
+@pytest.fixture
+def repo_dir(tmp_path):
+    repo = (tmp_path / "repo").resolve()
+    repo.mkdir()
+    subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+    return repo
+
+
+def test_defaults_come_from_the_git_toplevel_of_the_cwd(repo_dir):
+    (repo_dir / "sub").mkdir()
+
+    settings = load_settings(None, cwd=repo_dir / "sub")
+
+    assert settings.repo == repo_dir
+    assert settings.state_dir == repo_dir / ".factory"
+    assert settings.worktree_root == repo_dir / ".worktrees"
+    assert settings.project_subdir == "target"
+    assert settings.test_argv == ("uv", "run", "pytest", "-q")
+    assert settings.claude_executable == "claude"
+    assert settings.ledger_path == repo_dir / ".factory" / "ledger.jsonl"
+    assert settings.tasks_dir == repo_dir / ".factory" / "tasks"
+
+
+def test_outside_a_git_repository_without_a_configured_repo_is_an_error(tmp_path):
+    with pytest.raises(SettingsError, match="repo"):
+        load_settings(None, cwd=tmp_path)
+
+
+def test_factory_toml_in_the_cwd_is_used_when_no_path_is_given(repo_dir):
+    (repo_dir / "factory.toml").write_text('cap_usd = 9\nproject_subdir = "app"\n')
+
+    settings = load_settings(None, cwd=repo_dir)
+
+    assert (settings.cap_usd, settings.project_subdir) == (9.0, "app")
+
+
+def test_only_repo_state_and_worktree_paths_resolve_against_the_config_directory(tmp_path, repo_dir):
+    config_dir = tmp_path / "cfg"
+    config_dir.mkdir()
+    (config_dir / "f.toml").write_text(
+        f'repo = "{repo_dir}"\nstate_dir = "state"\nworktree_root = "../wt"\nproject_subdir = "proj"\n'
+    )
+
+    settings = load_settings(config_dir / "f.toml", cwd=tmp_path)
+
+    assert settings.state_dir == config_dir / "state"
+    assert settings.worktree_root == (config_dir / ".." / "wt")
+    assert settings.project_subdir == "proj"
+
+
+def test_an_explicit_missing_config_file_raises(repo_dir):
+    with pytest.raises(SettingsError, match="missing.toml"):
+        load_settings(repo_dir / "missing.toml", cwd=repo_dir)
+
+
+@pytest.mark.parametrize(
+    "line,key",
+    [
+        ("bogus = 1", "bogus"),
+        ('cap_usd = "five"', "cap_usd"),
+        ("max_turns = 1.5", "max_turns"),
+        ("allowed_tools = [1]", "allowed_tools"),
+        ("test_argv = []", "test_argv"),
+        ('project_subdir = "/abs"', "project_subdir"),
+        ('project_subdir = "a/../b"', "project_subdir"),
+        ('project_subdir = ""', "project_subdir"),
+        ("cap_usd = true", "cap_usd"),
+    ],
+)
+def test_bad_settings_are_rejected_with_a_message_naming_the_key(repo_dir, line, key):
+    (repo_dir / "factory.toml").write_text(line + "\n")
+
+    with pytest.raises(SettingsError, match=key):
+        load_settings(None, cwd=repo_dir)
