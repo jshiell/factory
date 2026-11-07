@@ -371,3 +371,35 @@ def test_appending_a_differently_named_test_to_an_existing_test_file_still_passe
     commit_project_edit(repo, "test_calc.py", "def test_x():\n    pass\n\n\ndef test_y():\n    pass\n")
 
     assert gate(repo, base).passed is True
+
+
+def test_failing_tests_hand_back_their_output_when_a_capture_limit_is_given(repo):
+    base = repo_with_project_change(repo)
+
+    result = check_gate(repo, base, "proj", ["sh", "-c", "echo boom; echo bang >&2; exit 1"], timeout_s=10,
+                        capture_limit=500)
+
+    assert result.reason == "tests_failed"
+    assert "boom" in result.output and "bang" in result.output
+
+
+def test_the_output_is_none_without_a_capture_limit_or_for_other_outcomes(repo):
+    base = repo_with_project_change(repo)
+
+    uncaptured = gate(repo, base, test_argv=["sh", "-c", "echo boom; exit 1"])
+    passed = check_gate(repo, base, "proj", ["true"], timeout_s=10, capture_limit=500)
+    timed_out = check_gate(repo, base, "proj", ["sleep", "5"], timeout_s=0.3, capture_limit=500)
+
+    assert (uncaptured.output, passed.output, timed_out.output) == (None, None, None)
+
+
+def test_the_wrapper_s_own_lines_are_part_of_the_captured_output(repo, tmp_path):
+    base = repo_with_project_change(repo)
+    wrapper = tmp_path / "noisy-nono"
+    wrapper.write_text('#!/bin/sh\necho "nono: applying sandbox" >&2\nshift\nexec "$@"\n')
+    wrapper.chmod(wrapper.stat().st_mode | stat.S_IEXEC)
+
+    result = check_gate(repo, base, "proj", ["sh", "-c", "echo boom; exit 1"], timeout_s=10,
+                        test_prefix=(str(wrapper), "--"), capture_limit=500)
+
+    assert "nono: applying sandbox" in result.output and "boom" in result.output

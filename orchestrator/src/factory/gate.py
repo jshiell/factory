@@ -41,6 +41,7 @@ class GateResult:
     passed: bool
     reason: str | None = None
     test_exit_code: int | None = None
+    output: str | None = None
 
 
 def check_gate(
@@ -49,6 +50,7 @@ def check_gate(
     protected_names: tuple[str, ...] = DEFAULT_PROTECTED_NAMES,
     env: dict[str, str] | None = None,
     test_prefix: tuple[str, ...] = (),
+    capture_limit: int | None = None,
 ) -> GateResult:
     project_dir = _resolve_inside(worktree, project_subdir)
     if not _is_ancestor(worktree, base_sha):
@@ -62,13 +64,13 @@ def check_gate(
     ):
         return GateResult(False, "tests_modified")
     try:
-        ran = run_to_exit([*test_prefix, *test_argv], project_dir, env, timeout_s)
+        ran = run_to_exit([*test_prefix, *test_argv], project_dir, env, timeout_s, capture_limit)
     except OSError:  # a missing sandbox wrapper: fail closed, never run the tests unconfined
         return GateResult(False, "sandbox_unavailable")
     if ran.timed_out:
         return GateResult(False, "tests_timeout")
     if ran.exit_code != 0:
-        return GateResult(False, "tests_failed", ran.exit_code)
+        return GateResult(False, "tests_failed", ran.exit_code, ran.tail)
     return GateResult(True)
 
 
