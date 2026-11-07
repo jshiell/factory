@@ -76,3 +76,16 @@ def test_a_nested_repo_under_the_project_fails_the_gate_before_anything_is_commi
 
     assert (task.state, task.failure_reason) == (TaskState.FAILED, "nested_repo")
     assert git(repo, "rev-parse", "HEAD") == head
+
+
+def test_the_gate_runs_its_tests_through_the_sandbox_when_one_is_given(repo, store, tmp_path):
+    from factory.gate_sandbox import GateSandbox
+    marker = tmp_path / "ran-in-sandbox"
+    store.save(agent_done_task(repo))
+    (repo / "proj" / "code.py").write_text("changed by agent")
+    sandbox = lambda task: GateSandbox(  # noqa: E731
+        prefix=("sh", "-c", f'touch {marker}; exec "$@"', "sandbox"), argv=("true",), env={"PATH": "/usr/bin:/bin"})
+
+    task = verify_task("t1", store, project_subdir="proj", test_argv=["false"], gate_timeout_s=10, sandbox=sandbox)
+
+    assert task.state is TaskState.VERIFIED and marker.exists()
