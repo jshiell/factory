@@ -1,7 +1,8 @@
 import json
 import os
 import tempfile
-from dataclasses import asdict
+from dataclasses import asdict, dataclass
+from datetime import datetime
 from pathlib import Path
 
 from factory.ids import InvalidTaskId, require_safe_id
@@ -12,6 +13,20 @@ class TaskNotFound(Exception):
     pass
 
 
+class TaskExists(Exception):
+    pass
+
+
+@dataclass(frozen=True)
+class Listing:
+    tasks: list[Task]
+    skipped: list[str]
+
+
+def new_task_id(now: datetime, suffix: str = "") -> str:
+    return f"{now:%Y%m%d-%H%M%S}" + (f"-{suffix}" if suffix else "")
+
+
 class TaskStore:
     def __init__(self, directory: Path):
         self._directory = directory
@@ -20,6 +35,31 @@ class TaskStore:
         data = asdict(task)
         data["state"] = task.state.value
         self._write_atomically(self._path(task.id), json.dumps(data))
+
+    def create(self, task: Task) -> None:
+        """Save a new task, never overwriting an existing one."""
+        data = asdict(task)
+        data["state"] = task.state.value
+        path = self._path(task.id)
+        fd, temp_name = tempfile.mkstemp(dir=path.parent, suffix=".tmp")
+        try:
+            with os.fdopen(fd, "w") as temp_file:
+                temp_file.write(json.dumps(data))
+            try:
+                os.link(temp_name, path)
+            except FileExistsError:
+                raise TaskExists(task.id) from None
+        finally:
+            Path(temp_name).unlink(missing_ok=True)
+
+    def list(self) -> Listing:
+        tasks, skipped = [], []
+        for path in sorted(self._directory.glob("*.json")):
+            try:
+                tasks.append(self.load(path.stem))
+            except (InvalidTaskId, ValueError, KeyError, TypeError):
+                skipped.append(path.name)
+        return Listing(sorted(tasks, key=lambda t: t.id), skipped)
 
     def load(self, task_id: str) -> Task:
         try:

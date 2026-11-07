@@ -103,3 +103,54 @@ def test_json_saved_without_front_half_fields_still_loads(tmp_path):
     task = TaskStore(tmp_path).load("t1")
 
     assert (task.goal, task.plan, task.plan_risks, task.review_findings) == (None, None, (), ())
+
+
+from datetime import datetime
+
+from factory.store import TaskExists, new_task_id
+
+
+def test_list_returns_tasks_sorted_by_id(tmp_path):
+    store = TaskStore(tmp_path)
+    for task_id in ("b", "a", "c"):
+        store.save(Task(id=task_id, prompt="p"))
+
+    listing = store.list()
+
+    assert [t.id for t in listing.tasks] == ["a", "b", "c"] and listing.skipped == []
+
+
+def test_list_of_an_empty_or_missing_directory_is_empty(tmp_path):
+    assert TaskStore(tmp_path).list().tasks == []
+    assert TaskStore(tmp_path / "missing").list().tasks == []
+
+
+def test_list_skips_temp_files_and_reports_unreadable_or_unsafe_files(tmp_path):
+    store = TaskStore(tmp_path)
+    store.save(Task(id="ok", prompt="p"))
+    (tmp_path / "x.tmp").write_text("{}")
+    (tmp_path / "corrupt.json").write_text("{not json")
+    (tmp_path / "bad id.json").write_text("{}")
+
+    listing = store.list()
+
+    assert [t.id for t in listing.tasks] == ["ok"]
+    assert listing.skipped == ["bad id.json", "corrupt.json"]
+
+
+def test_create_refuses_to_overwrite_an_existing_task(tmp_path):
+    store = TaskStore(tmp_path)
+    store.create(Task(id="t1", prompt="first"))
+
+    with pytest.raises(TaskExists):
+        store.create(Task(id="t1", prompt="second"))
+
+    assert store.load("t1").prompt == "first"
+    assert [p.name for p in tmp_path.iterdir()] == ["t1.json"]
+
+
+def test_new_task_id_is_a_safe_timestamp_with_an_optional_suffix():
+    now = datetime(2026, 11, 7, 9, 5, 3)
+
+    assert new_task_id(now) == "20261107-090503"
+    assert new_task_id(now, "2") == "20261107-090503-2"
