@@ -377,3 +377,12 @@ def test_merge_exits_1_when_another_run_holds_the_lock(ctx, merge_spy):
         code, _, err = run(ctx, "merge", "t1", stdin="y\n")
 
     assert code == 1 and "lock" in err and merge_spy == []
+
+
+@pytest.mark.parametrize("state", [S.MERGED, S.VERIFIED, S.FAILED])
+def test_merge_of_a_task_that_is_not_audited_says_which_state_it_is_in(ctx, merge_spy, state):
+    put(ctx, state, "t2")
+
+    code, _, err = run(ctx, "merge", "t2", stdin="y\n")
+
+    assert code == 1 and f"t2 is {state.value}, not audited" in err and merge_spy == []

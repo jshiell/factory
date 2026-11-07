@@ -221,9 +221,12 @@ def _costs(args, io, ctx) -> int:
 
 
 def _merge(args, io, ctx) -> int:
-    _load(ctx, args.task_id)
+    task = _load(ctx, args.task_id)
     if not io.stdin.isatty():
         print("merge needs an interactive terminal", file=io.stderr)
+        return 1
+    if task.state is not TaskState.AUDITED:
+        print(f"{task.id} is {task.state.value}, not audited", file=io.stderr)
         return 1
     settings = ctx.settings
     try:
