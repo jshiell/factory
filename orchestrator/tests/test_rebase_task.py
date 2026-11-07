@@ -330,3 +330,15 @@ def test_a_conflict_refusal_quotes_the_conflict_line_not_gits_progress_line(audi
     message = str(raised.value)
     assert "CONFLICT (" in message and "Rebasing (" not in message
     assert "factory abandon t1" in message and "factory retry t1" in message
+
+
+def test_a_failure_that_is_not_a_conflict_quotes_gits_reason_and_gives_no_conflict_advice(audited):
+    store, repo, worktree, task = audited
+    store.save(replace(task, base_sha="0" * 40))
+
+    with pytest.raises(RebaseRefused) as raised:
+        rebase_task("t1", store, repo)
+
+    message = str(raised.value)
+    assert "git rebase failed" in message and "no reason given" not in message
+    assert "abandon" not in message

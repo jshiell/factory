@@ -38,10 +38,14 @@ class _Worktree:
 _PROGRESS = re.compile(r"^Rebasing \(\d+/\d+\)")
 
 
-def _failure_reason(error: subprocess.CalledProcessError) -> str:
-    """Quote git's own conflict line; its progress line comes first and says nothing."""
+def _failure_reason(error: subprocess.CalledProcessError) -> tuple[str, bool]:
+    """Git's own words, never a substring match (commit subjects are agent-authored); True when it is a conflict."""
     lines = [_PROGRESS.sub("", line).strip() for line in f"{error.stderr}\n{error.stdout}".splitlines()]
-    return next((line for line in lines if line.startswith("CONFLICT (")), None) or "no reason given"
+    lines = [line for line in lines if line]
+    conflict = next((line for line in lines if line.startswith("CONFLICT (")), None)
+    if conflict:
+        return conflict, True
+    return next((line for line in lines if line.startswith(("error:", "fatal:"))), None) or (lines or ["no reason given"])[0], False
 
 
 def rebase_task(task_id: str, store: TaskStore, repo: Path) -> Rebased:
@@ -54,10 +58,9 @@ def rebase_task(task_id: str, store: TaskStore, repo: Path) -> Rebased:
         worktree.git(*_REBASE, "--onto", main_head, task.base_sha)
     except subprocess.CalledProcessError as error:
         _restore(task, repo, worktree)
-        reason = _failure_reason(error)
-        raise RebaseRefused(
-            f"git rebase failed ({reason}); on a conflict run `factory abandon {task.id}` then `factory retry {task.id}`"
-        ) from error
+        reason, conflict = _failure_reason(error)
+        advice = f"; on a conflict run `factory abandon {task.id}` then `factory retry {task.id}`" if conflict else "; nothing was changed"
+        raise RebaseRefused(f"git rebase failed ({reason}){advice}") from error
     except BaseException:  # a signal (SystemExit, KeyboardInterrupt) must not leave a rebase half done
         _restore(task, repo, worktree)
         raise
