@@ -4,7 +4,7 @@ A personal "agentic software factory": a small Python orchestrator that takes a 
 [Claude Code](https://claude.com/claude-code) agents (`claude -p`) through **plan → review → implement → verify → audit → merge**,
 with a human approving the plan and the merge.
 
-It is a learning project, built plan by plan (`docs/plan-1.md` … `docs/plan-19.md`), test-first. The point is to find out how far you
+It is a learning project, built plan by plan (`docs/plan-1.md` … `docs/plan-20.md`), test-first. The point is to find out how far you
 can trust unattended agents when every step is sandboxed, every result is checked by something that is not the agent, and the
 only things that need a person are the two decisions that matter: *is this the right plan* and *should this land on main*.
 
@@ -180,9 +180,9 @@ flowchart TB
   committed files can influence the result. Git itself is run with `fsmonitor`, hooks and submodule tricks disabled, and a nested
   `.git` anywhere under the project is refused.
 - **Tamper checks.** Existing tests may be added to but not removed, shrunk, renamed or shadowed (a duplicate `def test_x` that
-  disables the first is caught). Protected config (`conftest.py`, `pytest.ini`, `tox.ini`, `setup.cfg`, the pytest table of any
-  `pyproject.toml` from the repo root down to the project) may not change. Every change must be inside the project subdir:
-  anything outside it (root config, `uv.toml`, `sitecustomize.py`, a nested repo) fails the gate as `outside_project`.
+  disables the first is caught). Protected config (`conftest.py`, `pytest.ini`, `tox.ini`, `setup.cfg`, `uv.toml`, `.python-version`, matched case-insensitively; the pytest and `[tool.uv]` tables of any
+  `pyproject.toml` from the repo root down to the project) may not change (reason `tests_modified`). Dependencies and `uv.lock` may. Every change must be inside the project subdir:
+  anything outside it (root config, `sitecustomize.py`, a nested repo) fails the gate as `outside_project`.
 - **Tests run sandboxed too**, with a private per-task `uv` cache and a filtered environment. A failing gate triggers up to
   `fix_rounds` fix rounds; a frozen reference prevents the fixer from rewriting tests it was already judged against.
 - **Audit.** A separate read-only agent reviews the diff against the plan and returns a structured verdict. It is a second opinion,
@@ -220,7 +220,7 @@ Anything that needs a terminal, nono, the network or the home directory is cover
 Recorded per plan in `docs/spike-findings.md`. The main ones:
 
 - A new test file can monkeypatch the code under test at import time; the gate cannot tell.
-- Files *inside* the project that influence a run (`uv.toml`, `.python-version`, `sitecustomize.py`, `.env` under `target/`) are not watched.
+- A new dependency can run code and is not watched; neither are `pytest11` entry points in the project's own package.
   Legitimate edits outside the project (a root README, root config) are refused and need a human.
 - A rebase can change behaviour without a textual conflict; only the tests and the fresh audit catch that.
 - A SIGKILLed driver can leave an orphan agent or a half-done rebase; `abandon`/`recover` and a manual check are the way out.
