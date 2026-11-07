@@ -186,3 +186,26 @@ def test_a_failing_gate_runs_one_confined_fix_round_and_the_tests_then_pass(proj
     assert any(argv[argv.index("--") + 1].endswith("fake-claude") and "--profile" in argv for argv in nono_calls)
     shown = factory(project, "show", "t9").stdout
     assert "verified" in shown and "NEEDS-FIX" not in shown and "fix_rounds_used: 1" in shown
+
+
+def test_a_task_that_kept_its_plan_is_implemented_with_the_approved_prompt_in_a_fresh_worktree(project):
+    from datetime import datetime
+    from factory.approve_plan import build_implementation_prompt
+    from factory.digest import plan_digest
+    from factory.retry_task import retry_with_plan
+    from factory.store import TaskStore
+    from factory.task import Task, TaskState
+    _, _, tmp_path = project
+    (tmp_path / "state" / "tasks").mkdir(parents=True)
+    store = TaskStore(tmp_path / "state" / "tasks")
+    plan = "1. add multiply\n2. test it"
+    store.save(Task(id="t1", prompt=build_implementation_prompt("add multiply", plan), state=TaskState.FAILED,
+                    goal="add multiply", plan=plan, plan_digest=plan_digest(plan), failure_reason="tests_failed"))
+    child = retry_with_plan("t1", store, lambda: datetime(2026, 1, 2, 3, 4, 5), plan_digest(plan))
+
+    factory(project, "advance", child.id)
+
+    (argv, *_) = [json.loads(line) for line in (tmp_path / "argv.log").read_text().splitlines()]
+    assert argv[argv.index("-p") + 1] == build_implementation_prompt("add multiply", plan)
+    (worktree,) = (tmp_path / "wt").iterdir()
+    assert worktree.name == child.id
