@@ -309,6 +309,58 @@ def test_guard_a_uv_toml_in_a_parent_of_a_nested_project_fails_tests_modified(re
     assert check_gate(repo, base, "a/b", ["true"], 5).reason == "tests_modified"
 
 
+BASE_WITH_UV = '[project]\nname = "p"\ndependencies = []\n\n[tool.ruff]\nline-length = 80\n\n[tool.uv]\nexclude-newer = "2000-01-01T00:00:00Z"\n'
+
+
+def pyproject_base(repo, content):
+    (repo / "proj").mkdir()
+    (repo / "proj" / "pyproject.toml").write_text(content)
+    return repo_with_test_file(repo)
+
+
+# Guards (start green): the [tool.uv] comparison.
+def test_guard_editing_the_tool_uv_table_fails_tests_modified(repo):
+    base = pyproject_base(repo, BASE_WITH_UV)
+    commit_project_edit(repo, "pyproject.toml", BASE_WITH_UV.replace("2000", "1999"))
+
+    assert gate(repo, base).reason == "tests_modified"
+
+
+def test_guard_removing_the_tool_uv_table_fails_tests_modified(repo):
+    base = pyproject_base(repo, BASE_WITH_UV)
+    commit_project_edit(repo, "pyproject.toml", BASE_WITH_UV.split("[tool.uv]")[0])
+
+    assert gate(repo, base).reason == "tests_modified"
+
+
+def test_guard_a_root_pyproject_gaining_tool_uv_fails_tests_modified(repo):
+    base = repo_with_test_file(repo)
+    commit_root_file(repo, "pyproject.toml", '[tool.uv]\nexclude-newer = "2000-01-01T00:00:00Z"\n')
+    commit_project_edit(repo, "code.py", "y")
+
+    assert gate(repo, base).reason == "tests_modified"
+
+
+@pytest.mark.parametrize("old,new", [
+    ("dependencies = []", 'dependencies = ["requests"]'),
+    ("line-length = 80", "line-length = 100"),
+])
+def test_guard_changes_beside_an_unchanged_tool_uv_table_pass(repo, old, new):
+    base = pyproject_base(repo, BASE_WITH_UV)
+    commit_project_edit(repo, "pyproject.toml", BASE_WITH_UV.replace(old, new))
+
+    assert gate(repo, base).passed is True
+
+
+def test_guard_changing_uv_lock_passes(repo):
+    (repo / "proj").mkdir()
+    (repo / "proj" / "uv.lock").write_text("a\n")
+    base = repo_with_test_file(repo)
+    commit_project_edit(repo, "uv.lock", "b\n")
+
+    assert gate(repo, base).passed is True
+
+
 def test_tamper_is_reported_before_tests_run(repo, tmp_path):
     base = repo_with_test_file(repo)
     commit_project_edit(repo, "test_calc.py", "a\n")
