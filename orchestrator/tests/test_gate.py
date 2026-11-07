@@ -564,7 +564,7 @@ def test_guard_an_unrelated_root_change_beside_a_project_change_passes(repo):
     base = repo_with_project_change(repo)
     commit_root_file(repo, "README.md", "hello\n")
 
-    assert gate(repo, base).passed is True
+    assert gate(repo, base).reason == "outside_project"
 
 
 def test_guard_the_protected_names_override_applies_repo_wide(repo):
@@ -575,7 +575,7 @@ def test_guard_the_protected_names_override_applies_repo_wide(repo):
 
     git(repo, "reset", "-q", "--hard", "HEAD~1")
     commit_root_file(repo, "pytest.ini", "x\n")
-    assert check_gate(repo, base, "proj", ["true"], 5, **custom).passed is True
+    assert check_gate(repo, base, "proj", ["true"], 5, **custom).reason == "outside_project"
 
 
 ROOT_PYPROJECT = '[project]\nname = "r"\n\n[tool.pytest.ini_options]\naddopts = "-q"\n'
@@ -593,7 +593,7 @@ def test_guard_a_root_pyproject_change_outside_the_pytest_table_passes(repo):
     base = repo_with_project_change(repo)
     commit_root_file(repo, "pyproject.toml", ROOT_PYPROJECT.replace('name = "r"', 'name = "renamed"'))
 
-    assert gate(repo, base).passed is True
+    assert gate(repo, base).reason == "outside_project"
 
 
 def test_a_pytest_table_change_in_a_parent_of_a_nested_project_fails_tests_modified(repo):
@@ -614,7 +614,7 @@ def test_guard_a_pytest_table_change_in_a_sibling_directory_passes(repo):
     base = repo_with_project_change(repo)
     commit_root_file(repo, "c/pyproject.toml", ROOT_PYPROJECT)
 
-    assert gate(repo, base).passed is True
+    assert gate(repo, base).reason == "outside_project"
 
 
 @pytest.mark.parametrize("subdir", ["./proj", "proj/"])

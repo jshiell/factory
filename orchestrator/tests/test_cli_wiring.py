@@ -51,9 +51,6 @@ def project(tmp_path):
     env = {**os.environ, "GIT_CONFIG_GLOBAL": "/dev/null", "GIT_CONFIG_SYSTEM": "/dev/null",
            "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t", "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t",
            "FAKE_CLAUDE_LOG": str(tmp_path / "argv.log"), "FAKE_NONO_LOG": str(tmp_path / "nono.log")}
-    sh("git", "init", "-q", "-b", "main", cwd=repo, env=env)
-    sh("git", "add", "-A", cwd=repo, env=env)
-    sh("git", "commit", "-q", "-m", "init", cwd=repo, env=env)
     fake = tmp_path / "fake-claude"
     fake.write_text(FAKE_CLAUDE)
     fake.chmod(fake.stat().st_mode | stat.S_IEXEC)
@@ -62,6 +59,9 @@ def project(tmp_path):
     nono.chmod(nono.stat().st_mode | stat.S_IEXEC)
     (repo / "factory.toml").write_text(f'claude_executable = "{fake}"\nsandbox_executable = "{nono}"\nstate_dir = "{tmp_path / "state"}"\n'
                                        f'worktree_root = "{tmp_path / "wt"}"\n')
+    sh("git", "init", "-q", "-b", "main", cwd=repo, env=env)
+    sh("git", "add", "-A", cwd=repo, env=env)
+    sh("git", "commit", "-q", "-m", "init", cwd=repo, env=env)
     return repo, env, tmp_path
 
 
@@ -167,6 +167,7 @@ def test_a_failing_gate_runs_one_confined_fix_round_and_the_tests_then_pass(proj
     repo, env, tmp_path = project
     config = repo / "factory.toml"
     config.write_text(config.read_text() + 'test_argv = ["sh", "-c", "echo NEEDS-FIX; test -f fixed"]\n')
+    sh("git", "commit", "-q", "-am", "test_argv", cwd=repo, env=env)
     (repo / "target" / "code.py").write_text("changed by the implementer")
     (tmp_path / "state" / "tasks").mkdir(parents=True)
     base = sh("git", "rev-parse", "HEAD", cwd=repo, env=env).stdout.strip()

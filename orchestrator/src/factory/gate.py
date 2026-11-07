@@ -69,6 +69,8 @@ def check_gate(
             return GateResult(False, "not_descendant")
         if _tests_changed_since(worktree, frozen_sha, project_subdir, test_globs):
             return GateResult(False, "tests_modified")
+    if _changed_outside_project(worktree, base_sha, project_dir):
+        return GateResult(False, "outside_project")
     try:
         ran = run_to_exit([*test_prefix, *test_argv], project_dir, env, timeout_s, capture_limit)
     except OSError:  # a missing sandbox wrapper: fail closed, never run the tests unconfined
@@ -78,6 +80,16 @@ def check_gate(
     if ran.exit_code != 0:
         return GateResult(False, "tests_failed", ran.exit_code, ran.tail)
     return GateResult(True)
+
+
+def _changed_outside_project(worktree: Path, base_sha: str, project_dir: Path) -> bool:
+    """Anything beyond the project (root config, `uv.toml`, `sitecustomize.py`, a gitlink) can change what the tests run."""
+    inside = project_dir.relative_to(worktree.resolve()).as_posix()
+    changed = run_git(
+        worktree, "diff", "--name-only", "--no-renames", "--ignore-submodules=none", base_sha, "HEAD",
+        "--", ".", f":(top,exclude,literal){inside}",
+    )
+    return bool(changed)
 
 
 def _tests_changed_since(worktree: Path, frozen_sha: str, project_subdir: str, test_globs: tuple[str, ...]) -> bool:
