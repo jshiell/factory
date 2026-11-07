@@ -11,6 +11,7 @@ class TaskState(Enum):
     AGENT_DONE = "agent_done"
     VERIFIED = "verified"
     AUDITED = "audited"
+    MERGED = "merged"
     FAILED = "failed"
 
 
@@ -28,6 +29,7 @@ class Event(Enum):
     REVIEW_FAILED = "review_failed"
     APPROVED = "approved"
     HUMAN_REJECTED = "human_rejected"
+    MERGED = "merged"
 
 
 class InvalidTransition(Exception):
@@ -70,6 +72,7 @@ _TRANSITIONS = {
     (TaskState.AGENT_DONE, Event.GATE_FAILED): TaskState.FAILED,
     (TaskState.VERIFIED, Event.AUDIT_PASSED): TaskState.AUDITED,
     (TaskState.VERIFIED, Event.AUDIT_FAILED): TaskState.FAILED,
+    (TaskState.AUDITED, Event.MERGED): TaskState.MERGED,
 }
 
 

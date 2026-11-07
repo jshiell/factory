@@ -126,3 +126,18 @@ def test_front_half_events_are_rejected_from_every_other_state(source, event, ta
 def test_start_is_rejected_before_the_plan_is_approved(state):
     with pytest.raises(InvalidTransition):
         apply(task_in(state), Event.START)
+
+
+def test_merged_moves_audited_to_merged_and_merged_is_terminal():
+    audited = Task(id="t1", prompt="p", state=TaskState.AUDITED)
+
+    merged = apply(audited, Event.MERGED)
+
+    assert merged.state is TaskState.MERGED
+    for event in Event:
+        with pytest.raises(InvalidTransition):
+            apply(merged, event)
+    for state in TaskState:
+        if state is not TaskState.AUDITED:
+            with pytest.raises(InvalidTransition):
+                apply(Task(id="t1", prompt="p", state=state), Event.MERGED)
