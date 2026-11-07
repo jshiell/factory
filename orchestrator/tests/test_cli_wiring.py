@@ -14,11 +14,14 @@ import json, os, sys
 argv = sys.argv[1:]
 with open(os.environ["FAKE_CLAUDE_LOG"], "a") as log:
     log.write(json.dumps(argv) + "\n")
-schema = json.loads(argv[argv.index("--json-schema") + 1])
-if "plan" in schema["properties"]:
-    output = {"plan": "1. add multiply\n2. add tests", "risks": ["none"]}
+if "--json-schema" not in argv:  # the implementer: no structured output
+    output = None
 else:
-    output = {"verdict": "approve", "findings": ["fine"]}
+    schema = json.loads(argv[argv.index("--json-schema") + 1])
+    if "plan" in schema["properties"]:
+        output = {"plan": "1. add multiply\n2. add tests", "risks": ["none"]}
+    else:
+        output = {"verdict": "approve", "findings": ["fine"]}
 print(json.dumps({"type": "result", "subtype": "success", "is_error": False,
                   "total_cost_usd": 0.01, "structured_output": output}))
 '''
@@ -134,3 +137,22 @@ def test_merge_from_a_non_terminal_changes_nothing(project):
 
     assert result.returncode == 1 and "interactive" in result.stderr
     assert "proposed" in factory(project, "show", task_id).stdout
+
+
+def test_the_implement_stage_runs_confined_with_no_shell_and_a_read_only_view_of_the_rest(project):
+    from factory.store import TaskStore
+    from factory.task import Task, TaskState
+    repo, _, tmp_path = project
+    (tmp_path / "state" / "tasks").mkdir(parents=True)
+    TaskStore(tmp_path / "state" / "tasks").save(Task(id="t9", prompt="implement it", state=TaskState.QUEUED))
+
+    factory(project, "advance", "t9")
+
+    (argv,) = [json.loads(line) for line in (tmp_path / "argv.log").read_text().splitlines()]
+    (worktree,) = (tmp_path / "wt").iterdir()
+    assert "--allowedTools" not in argv
+    disallowed = argv[argv.index("--disallowedTools") + 1]
+    assert disallowed == "Bash Bash(git *) Glob NotebookEdit"
+    assert argv[argv.index("--add-dir") + 1] == str(worktree.resolve())
+    (sandbox_argv,) = [json.loads(line) for line in (tmp_path / "nono.log").read_text().splitlines()]
+    assert sandbox_argv[:7] == ["run", "-s", "--profile", "nolabs-ai/claude", "--allow-cwd", "--read", str(worktree.resolve())]
