@@ -501,3 +501,40 @@ def test_clean_exits_1_and_prints_the_problems_when_a_task_could_not_be_cleaned(
     code, out, _ = run(ctx, "clean", stdin="y\n")
 
     assert code == 1 and "worktree kept" in out
+
+
+# --- abandon ------------------------------------------------------------------
+
+def test_abandon_fails_the_task_and_says_clean_removes_the_worktree_and_an_agent_may_live(ctx):
+    put(ctx, S.AGENT_DONE, worktree="/w/t1")
+
+    code, out, _ = run(ctx, "abandon", "t1")
+
+    task = ctx.store.load("t1")
+    assert code == 0 and (task.state, task.failure_reason) == (S.FAILED, "abandoned")
+    assert "factory clean" in out and "may have left an agent running" in out
+
+
+def test_abandon_of_a_refused_task_exits_1_with_the_reason_and_changes_nothing(ctx):
+    put(ctx, S.RUNNING)
+
+    code, _, err = run(ctx, "abandon", "t1")
+
+    assert code == 1 and "recover" in err and ctx.store.load("t1").state is S.RUNNING
+
+
+def test_abandon_exits_1_when_another_run_holds_the_lock_and_changes_nothing(ctx):
+    from factory.lock import state_lock
+    put(ctx, S.QUEUED)
+
+    with state_lock(ctx.settings.state_dir):
+        code, _, err = run(ctx, "abandon", "t1")
+
+    assert code == 1 and "lock" in err and ctx.store.load("t1").state is S.QUEUED
+
+
+@pytest.mark.parametrize("task_id", ["missing", "../evil"])
+def test_abandon_of_an_unknown_or_unsafe_id_exits_2(ctx, task_id):
+    code, _, err = run(ctx, "abandon", task_id)
+
+    assert code == 2 and task_id in err
