@@ -594,3 +594,32 @@ def test_guard_a_root_pyproject_change_outside_the_pytest_table_passes(repo):
     commit_root_file(repo, "pyproject.toml", ROOT_PYPROJECT.replace('name = "r"', 'name = "renamed"'))
 
     assert gate(repo, base).passed is True
+
+
+def test_a_pytest_table_change_in_a_parent_of_a_nested_project_fails_tests_modified(repo):
+    (repo / "a" / "b").mkdir(parents=True)
+    (repo / "a" / "b" / "code.py").write_text("x")
+    git(repo, "add", "-A")
+    git(repo, "commit", "-q", "-m", "nested")
+    base = git(repo, "rev-parse", "HEAD")
+    (repo / "a" / "b" / "code.py").write_text("y")
+    (repo / "a" / "pyproject.toml").write_text(ROOT_PYPROJECT)
+    git(repo, "add", "-A")
+    git(repo, "commit", "-q", "-m", "change")
+
+    assert check_gate(repo, base, "a/b", ["true"], 5).reason == "tests_modified"
+
+
+def test_guard_a_pytest_table_change_in_a_sibling_directory_passes(repo):
+    base = repo_with_project_change(repo)
+    commit_root_file(repo, "c/pyproject.toml", ROOT_PYPROJECT)
+
+    assert gate(repo, base).passed is True
+
+
+@pytest.mark.parametrize("subdir", ["./proj", "proj/"])
+def test_guard_an_unnormalised_project_subdir_still_watches_its_pyproject(repo, subdir):
+    base = repo_with_project_change(repo)
+    commit_root_file(repo, "proj/pyproject.toml", ROOT_PYPROJECT)
+
+    assert check_gate(repo, base, subdir, ["true"], 5).reason == "tests_modified"
