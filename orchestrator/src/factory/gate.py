@@ -1,3 +1,4 @@
+import os
 import subprocess
 import tomllib
 from dataclasses import dataclass
@@ -19,6 +20,14 @@ def commit_all(worktree: Path, message: str) -> bool:
         "commit", "-q", "--no-verify", "-m", message,
     )
     return True
+
+
+def has_nested_repo(worktree: Path, project_subdir: str) -> bool:
+    """A `.git` file or directory anywhere under the project: agent-controlled config git must never read."""
+    for _, dirnames, filenames in os.walk(_resolve_inside(worktree, project_subdir)):
+        if ".git" in dirnames or ".git" in filenames:
+            return True
+    return False
 
 
 class ProjectSubdirEscapes(Exception):

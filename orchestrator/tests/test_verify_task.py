@@ -59,3 +59,20 @@ def test_task_that_is_not_agent_done_is_rejected_without_committing(repo, store)
         verify(store)
 
     assert git(repo, "status", "--porcelain") != ""
+
+
+@pytest.mark.parametrize("form", ["directory", "gitfile"])
+def test_a_nested_repo_under_the_project_fails_the_gate_before_anything_is_committed(repo, store, form):
+    store.save(agent_done_task(repo))
+    head = git(repo, "rev-parse", "HEAD")
+    nested = repo / "proj" / "deep" / "x"
+    nested.mkdir(parents=True)
+    if form == "directory":
+        (nested / ".git").mkdir()
+    else:
+        (nested / ".git").write_text("gitdir: /tmp/elsewhere\n")
+
+    task = verify(store)
+
+    assert (task.state, task.failure_reason) == (TaskState.FAILED, "nested_repo")
+    assert git(repo, "rev-parse", "HEAD") == head
