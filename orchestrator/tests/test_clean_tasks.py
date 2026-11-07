@@ -117,7 +117,7 @@ def test_a_missing_directory_is_pruned_and_the_merged_branch_then_deletes(env):
     assert outcomes[0].problems == []
 
 
-def test_a_merged_branch_is_deleted_and_a_failed_branch_is_kept(env):
+def test_a_merged_branch_is_deleted_and_an_empty_failed_branch_is_deleted_too(env):
     store, repo, _, _, add = env
     add("merged", S.MERGED)
     add("failed", S.FAILED)
@@ -125,7 +125,7 @@ def test_a_merged_branch_is_deleted_and_a_failed_branch_is_kept(env):
     run_clean(env)
 
     assert not git(repo, "branch", "--list", "factory/merged")
-    assert git(repo, "branch", "--list", "factory/failed")
+    assert not git(repo, "branch", "--list", "factory/failed")
 
 
 def test_a_refused_branch_delete_is_reported_and_the_branch_kept(env):
@@ -427,3 +427,85 @@ def test_a_failed_task_without_a_worktree_is_a_candidate_only_for_an_empty_branc
     add("bare", S.FAILED, with_worktree=False)  # nothing left at all
 
     assert ids(clean_candidates(store, repo, root)) == ["empty"]
+
+
+def branch_exists(repo, task_id):
+    return bool(git(repo, "branch", "--list", f"factory/{task_id}"))
+
+
+def test_clean_deletes_an_empty_failed_branch_after_removing_its_worktree(env):
+    store, repo, _, _, add = env
+    path = add("failed", S.FAILED)
+
+    outcomes = run_clean(env)
+
+    assert not path.exists() and not branch_exists(repo, "failed")
+    assert "deleted branch" in outcomes[0].done and outcomes[0].problems == []
+
+
+def test_clean_keeps_a_failed_branch_that_holds_a_commit(env):
+    store, repo, _, _, add = env
+    commit_on(add("failed", S.FAILED))
+
+    outcomes = run_clean(env)
+
+    assert branch_exists(repo, "failed") and outcomes[0].problems == []
+
+
+def test_a_refused_delete_of_an_empty_failed_branch_is_reported_and_the_branch_kept(env):
+    store, repo, _, _, add = env
+    add("failed", S.FAILED)
+    rewritten = git(repo, "commit-tree", "-m", "rewritten main", git(repo, "hash-object", "-t", "tree", "/dev/null"))
+    git(repo, "reset", "-q", "--hard", rewritten)  # the base is no longer an ancestor of main
+
+    outcomes = run_clean(env)
+
+    assert branch_exists(repo, "failed")
+    assert any("factory/failed" in problem for problem in outcomes[0].problems)
+
+
+def test_an_empty_failed_branch_is_kept_when_main_is_not_on_a_branch(env):
+    store, repo, _, _, add = env
+    add("failed", S.FAILED)
+    git(repo, "checkout", "-q", "--detach")
+
+    outcomes = run_clean(env)
+
+    assert branch_exists(repo, "failed")
+    assert any("main is not on a branch" in problem for problem in outcomes[0].problems)
+
+
+def test_a_commit_made_between_the_preview_and_the_clean_keeps_the_branch(env):
+    store, repo, manager, root, add = env
+    path = add("failed", S.FAILED)
+    candidates = clean_candidates(store, repo, root)
+    assert candidates[0].branch_empty
+    commit_on(path)
+
+    outcomes = clean_tasks(candidates, store, manager, repo, root)
+
+    assert branch_exists(repo, "failed") and outcomes[0].problems == []
+
+
+def test_a_branch_deleted_between_the_preview_and_the_clean_is_skipped_quietly(env):
+    store, repo, manager, root, add = env
+    add("failed", S.FAILED)
+    clear_worktree(env, "failed")
+    candidates = clean_candidates(store, repo, root)
+    git(repo, "branch", "-D", "factory/failed")
+
+    outcomes = clean_tasks(candidates, store, manager, repo, root)
+
+    assert outcomes[0].problems == []
+
+
+def test_a_registered_worktree_with_the_task_field_cleared_makes_git_refuse_and_is_reported(env):
+    store, repo, manager, root, add = env
+    add("failed", S.FAILED)
+    task = store.load("failed")
+    store.save(Task(**{**task.__dict__, "worktree": None}))  # git still has the worktree registered
+
+    outcomes = run_clean(env)
+
+    assert branch_exists(repo, "failed")
+    assert any("factory/failed" in problem for problem in outcomes[0].problems)

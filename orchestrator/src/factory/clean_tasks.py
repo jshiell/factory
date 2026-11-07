@@ -100,6 +100,8 @@ def _clean_one(
         return outcome
     if task.state is TaskState.MERGED and candidate.branch_exists:
         _delete_branch(task, repo, outcome)
+    elif task.state is TaskState.FAILED and candidate.branch_empty and _branch_empty(task, repo):  # re-checked now
+        _delete_branch(task, repo, outcome)
     return outcome
 
 
