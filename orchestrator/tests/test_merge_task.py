@@ -127,3 +127,18 @@ def test_merge_removes_the_worktree_and_keeps_the_branch(audited):
 
     assert not worktree.exists()
     assert git(repo, "branch", "--list", "factory/t1")
+
+
+class FailingWorktrees:
+    def remove(self, task_id):
+        raise RuntimeError("cannot remove")
+
+
+def test_a_failed_worktree_removal_after_the_merge_still_ends_merged(audited):
+    store, repo, _, task, _ = audited
+
+    merged = merge_task("t1", store, repo, FailingWorktrees(), shown_sha=task.audited_sha)
+
+    assert merged.state is TaskState.MERGED
+    assert store.load("t1").state is TaskState.MERGED
+    assert git(repo, "rev-parse", "HEAD") == task.audited_sha

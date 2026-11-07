@@ -45,7 +45,12 @@ def merge_task(task_id: str, store: TaskStore, repo: Path, worktrees: WorktreeMa
         raise MergeRefused("the commit shown is not the audited commit")
     preview = merge_preview(task_id, store, repo)
     run_git(repo, "merge", "--ff-only", task.audited_sha)
-    merged = replace(apply(preview.task, Event.MERGED), worktree=None)
+    merged = apply(preview.task, Event.MERGED)
     store.save(merged)
-    worktrees.remove(task_id)
-    return merged
+    try:
+        worktrees.remove(task_id)
+    except Exception:  # the merge is the fact; a leftover worktree stays visible in task.worktree
+        return merged
+    cleaned = replace(merged, worktree=None)
+    store.save(cleaned)
+    return cleaned
