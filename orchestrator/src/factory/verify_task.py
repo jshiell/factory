@@ -69,6 +69,8 @@ def _fix_round(
         return task, f"fix_{called.outcome.kind.value}"
     if run_git(worktree, "rev-parse", "HEAD") != head:
         return task, "fix_moved"
+    if not run_git(worktree, "status", "--porcelain"):
+        return task, "fix_no_changes"  # the same gate would fail the same way: stop spending
     return task, None
 
 

@@ -131,3 +131,129 @@ def test_a_gate_failure_other_than_tests_failed_starts_no_round(repo, store, led
     result = verify(store, ledger, runner)  # nothing changed: no_commits
 
     assert result.failure_reason == "no_commits" and runner.calls == []
+
+
+def test_a_round_the_cap_cannot_afford_raises_leaving_the_task_untouched(repo, store, ledger, task):
+    ledger.append("other", 9.9)
+    runner = FakeRunner(repo)
+
+    with pytest.raises(BudgetCapReached):
+        verify(store, ledger, runner, cap=10.0)
+
+    saved = store.load("t1")
+    assert saved.state is TaskState.AGENT_DONE and saved.fix_rounds_used == 0 and runner.calls == []
+
+
+def test_a_runner_exception_charges_the_assumed_cost_and_fails_fix_runner_error(repo, store, ledger, task):
+    result = verify(store, ledger, FakeRunner(repo, RuntimeError("boom")))
+
+    assert (result.state, result.failure_reason) == (TaskState.FAILED, "fix_runner_error")
+    assert [(e["stage"], e["assumed"], e["cost_usd"]) for e in ledger.entries()] == [("fix", True, 0.6)]
+
+
+def test_a_runner_timeout_fails_fix_timeout(repo, store, ledger, task):
+    result = verify(store, ledger, FakeRunner(repo, timed_out=True))
+
+    assert result.failure_reason == "fix_timeout"
+    assert ledger.entries()[0]["assumed"] is True
+
+
+def test_a_non_success_agent_outcome_fails_with_its_kind(repo, store, ledger, task):
+    errored = json.dumps({"type": "result", "subtype": "error_during_execution", "is_error": True})
+
+    result = verify(store, ledger, FakeRunner(repo, stdout=errored))
+
+    assert result.failure_reason == "fix_error"
+
+
+def test_an_agent_that_moves_head_fails_fix_moved(repo, store, ledger, task):
+    def commit():
+        (repo / "proj" / "fixed").write_text("ok")
+        git(repo, "add", "-A")
+        git(repo, "commit", "-q", "-m", "agent commit")
+
+    result = verify(store, ledger, FakeRunner(repo, commit))
+
+    assert result.failure_reason == "fix_moved"
+
+
+def test_a_nested_repo_created_in_a_round_fails_before_anything_is_committed(repo, store, ledger, task):
+    def plant():
+        (repo / "proj" / "x" / ".git").mkdir(parents=True)
+        (repo / "proj" / "x" / "file").write_text("f")
+
+    runner = FakeRunner(repo, plant)
+    verify(store, ledger, FakeRunner(repo), rounds=0)  # first pass: committed, tests fail
+    store.save(task)
+    head = git(repo, "rev-parse", "HEAD")
+
+    result = verify(store, ledger, runner)
+
+    assert result.failure_reason == "nested_repo"
+    assert git(repo, "rev-parse", "HEAD") == head
+
+
+def test_a_round_that_deletes_a_line_of_an_existing_test_fails_tests_modified(repo, store, ledger):
+    (repo / "proj").mkdir()
+    (repo / "proj" / "test_old.py").write_text("def test_a():\n    pass\n\n\ndef test_b():\n    pass\n")
+    git(repo, "add", "proj")
+    git(repo, "commit", "-q", "-m", "project")
+    store.save(Task(id="t1", prompt="p", state=TaskState.AGENT_DONE, worktree=str(repo),
+                    base_sha=git(repo, "rev-parse", "HEAD")))
+    (repo / "proj" / "test_old.py").write_text("def test_a():\n    pass\n\n\ndef test_b():\n    pass\n\n\ndef test_c():\n    pass\n")
+    weaken = lambda: (repo / "proj" / "test_old.py").write_text("def test_a():\n    pass\n")
+
+    result = verify(store, ledger, FakeRunner(repo, weaken))
+
+    assert result.failure_reason == "tests_modified"
+
+
+def test_a_round_that_changes_nothing_fails_fix_no_changes_without_burning_more_rounds(repo, store, ledger, task):
+    runner = FakeRunner(repo)
+
+    result = verify(store, ledger, runner, rounds=2)
+
+    assert result.failure_reason == "fix_no_changes" and len(runner.calls) == 1
+
+
+def test_the_counter_and_marker_are_saved_before_the_agent_runs(repo, store, ledger, task):
+    seen = []
+    runner = FakeRunner(repo, lambda: seen.append(store.load("t1")), write_fix(repo))
+
+    result = verify(store, ledger, runner)
+
+    assert (seen[0].fix_rounds_used, seen[0].fix_in_flight) == (1, True)
+    assert result.fix_in_flight is False and store.load("t1").fix_in_flight is False
+
+
+def test_a_resumed_task_only_gets_the_remaining_rounds(repo, store, ledger, task):
+    store.save(Task(**{**task.__dict__, "fix_rounds_used": 1}))
+    runner = FakeRunner(repo, lambda: (repo / "proj" / "n").write_text("1"), lambda: (repo / "proj" / "m").write_text("2"))
+
+    result = verify(store, ledger, runner, rounds=2)
+
+    assert len(runner.calls) == 1 and result.failure_reason == "tests_failed" and result.fix_rounds_used == 2
+
+
+def test_a_task_left_with_the_marker_set_fails_fix_interrupted_touching_no_git(repo, store, ledger, task):
+    store.save(Task(**{**task.__dict__, "fix_rounds_used": 1, "fix_in_flight": True}))
+    head = git(repo, "rev-parse", "HEAD")
+    runner = FakeRunner(repo)
+
+    result = verify(store, ledger, runner)
+
+    assert (result.state, result.failure_reason, result.fix_in_flight) == (TaskState.FAILED, "fix_interrupted", False)
+    assert runner.calls == [] and git(repo, "rev-parse", "HEAD") == head
+    assert git(repo, "status", "--porcelain") != ""  # the agent's possibly-live edits stay uncommitted
+    assert [(e["stage"], e["assumed"], e["cost_usd"]) for e in ledger.entries()] == [("fix", True, 0.6)]
+
+
+def test_the_ledger_and_state_are_written_before_any_later_git_call_can_fail(repo, store, ledger, task):
+    import shutil
+    runner = FakeRunner(repo, lambda: shutil.rmtree(repo / ".git"))
+
+    with pytest.raises(Exception):
+        verify(store, ledger, runner)
+
+    assert [e["stage"] for e in ledger.entries()] == ["fix"]
+    assert store.load("t1").fix_in_flight is False
