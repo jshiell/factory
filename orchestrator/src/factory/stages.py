@@ -34,7 +34,8 @@ def implementer_config(settings: Settings) -> RunnerConfig:
         disallowed_tools=("Bash", "Bash(git *)", "Glob", "NotebookEdit"),  # deny wins over any user allow rule
         confine=True,
         max_turns=settings.max_turns,
-        append_system_prompt="You are in a git worktree; the project lives in the current directory. Do not commit.",
+        append_system_prompt="You are in a git worktree; the project lives in the current directory. Do not commit. "
+        "Only change files inside the project directory; changes anywhere else are refused.",
     )
 
 

@@ -166,3 +166,11 @@ def test_the_verify_stage_passes_the_state_and_worktree_dirs_to_the_gate(setup, 
     build_stages(settings, deps)["verify"]("t1")
 
     assert seen["factory_paths"] == (settings.state_dir, settings.worktree_root)
+
+
+def test_the_implementer_is_told_to_stay_inside_the_project(setup):
+    _, _, settings, _, _, _ = setup
+
+    config = implementer_config(settings)
+
+    assert "Only change files inside the project directory" in config.append_system_prompt
