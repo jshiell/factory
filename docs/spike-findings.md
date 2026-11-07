@@ -180,3 +180,16 @@ Command shape: `nono run -s --profile nolabs-ai/claude --allow-cwd --read <resol
 - A worktree-removal failure after a merge leaves the path on the task; no GC command. Branches are never deleted. No rollback command.
 - `merge.verifySignatures=true` makes git refuse the unsigned commits (error surfaced, not overridden).
 - Carried over from plan 6 and earlier: confinement gaps, the implementer unconfined, SIGKILL leaves `running`, orphaned worktrees from rejected plans.
+
+## Plan 8: retry, recover and clean e2e (`spike/housekeeping_e2e.py`, run by the user, $0, synthetic repo)
+- **Confirmed:** all eleven checks passed. `recover` failed the stale running task as `interrupted` and appended an assumed ledger entry. `retry` of a failed and of an audited task each made a proposed task with `retry_of` set (ids `...-123248` and `...-123248-2`). `clean` listed the merged task (branch left), the dirty failed task and the recovered task, and after `y` removed the two worktrees and deleted the merged branch. The failed task's branch and the audited task's worktree and branch were untouched, as was the real repo.
+- **Nits seen:** "1 commits ahead of base" (plural), and "branch left behind" is also printed for failed tasks whose branch is deliberately kept. `recover` printed "last driver pid unknown" because no lock file existed yet (expected in the synthetic repo).
+- Unit suite: 487 passed; target: 1 passed (sniffed toolchain).
+
+## Known gaps after plan 8
+- `recover` cannot prove the agent is dead: a SIGKILLed driver frees the lock while the agent may live. The printed warning and pid are the only control. Ctrl-C, TERM and HUP kill the agent but also leave the task `running`.
+- Work of an interrupted task is uncommitted (commits happen at verify), so `clean` discards the only copy; the preview flags dirty worktrees.
+- Failed-task branches accumulate (manual `git branch -D`). A retried `audited` task keeps its worktree and branch forever. `queued` and `agent_done` tasks stopped by a not-pristine worktree have no command.
+- Worktrees with no task record are not found. Legacy tasks with no goal cannot be retried.
+- The assumed cost on `recover` may overstate what an interrupted run spent.
+- Carried over: merge refuses when main moved (retry is the only way), commits are unsigned until the human signs, confinement gaps, the implementer is unconfined.
