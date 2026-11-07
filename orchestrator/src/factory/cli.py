@@ -17,6 +17,7 @@ from factory.ledger import Ledger
 from factory.lock import AlreadyRunning, state_lock
 from factory.merge_task import MergeRefused, merge_preview, merge_task
 from factory.retry_task import RetryRefused, retry_task
+from factory.recover_task import RecoverRefused, recover_task
 from factory.runner import SubprocessRunner
 from factory.settings import Settings, SettingsError, load_settings
 from factory.stages import Deps, build_stages
@@ -67,7 +68,7 @@ def _parser() -> argparse.ArgumentParser:
     commands = parser.add_subparsers(dest="command", required=True, parser_class=_Parser)
     commands.add_parser("new").add_argument("goal")
     commands.add_parser("list")
-    for name in ("show", "advance", "approve", "reject", "merge", "retry"):
+    for name in ("show", "advance", "approve", "reject", "merge", "retry", "recover"):
         commands.add_parser(name).add_argument("task_id")
     commands.add_parser("costs").add_argument("task_id", nargs="?")
     return parser
@@ -229,6 +230,25 @@ def _retry(args, io, ctx) -> int:
     return 0
 
 
+def _recover(args, io, ctx) -> int:
+    task = _load(ctx, args.task_id)
+    lock_file = ctx.settings.state_dir / "lock"
+    last_driver = lock_file.read_text().strip() if lock_file.exists() else "unknown"  # read before taking the lock
+    try:
+        with state_lock(ctx.settings.state_dir):
+            recover_task(args.task_id, ctx.store, ctx.ledger, ctx.settings.budget_usd)
+    except AlreadyRunning:
+        print("another factory run holds the lock", file=io.stderr)
+        return 1
+    except RecoverRefused as error:
+        print(f"recover refused: {error}", file=io.stderr)
+        return 1
+    print(f"{task.id}: marked failed (interrupted); last driver pid {last_driver}, worktree {task.worktree}", file=io.stdout)
+    print("The agent may still be alive if the driver was killed with SIGKILL: check before cleaning.", file=io.stdout)
+    print("Its work is uncommitted in the worktree; `factory clean` would discard it.", file=io.stdout)
+    return 0
+
+
 def _merge(args, io, ctx) -> int:
     task = _load(ctx, args.task_id)
     if not io.stdin.isatty():
@@ -264,7 +284,7 @@ def _merge(args, io, ctx) -> int:
 
 _COMMANDS = {
     "new": _new, "list": _list, "show": _show, "advance": _advance,
-    "approve": _approve, "reject": _reject, "merge": _merge, "retry": _retry, "costs": _costs,
+    "approve": _approve, "reject": _reject, "merge": _merge, "retry": _retry, "recover": _recover, "costs": _costs,
 }
 
 

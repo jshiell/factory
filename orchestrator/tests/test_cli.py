@@ -411,3 +411,35 @@ def test_show_prints_retry_of(ctx):
     put(ctx, S.PROPOSED, goal="g", retry_of="t0")
 
     assert "retry_of: t0" in run(ctx, "show", "t1")[1]
+
+
+# --- recover ------------------------------------------------------------------
+
+def test_recover_fails_the_running_task_and_warns_about_the_agent_and_lost_work(ctx):
+    put(ctx, S.RUNNING, worktree="/w/t1")
+    (ctx.settings.state_dir).mkdir(parents=True, exist_ok=True)
+    (ctx.settings.state_dir / "lock").write_text("4242")
+
+    code, out, _ = run(ctx, "recover", "t1")
+
+    assert code == 0 and ctx.store.load("t1").failure_reason == "interrupted"
+    assert "4242" in out and "/w/t1" in out and "still be alive" in out and "uncommitted" in out
+
+
+def test_recover_exits_1_when_another_run_holds_the_lock_and_changes_nothing(ctx):
+    from factory.lock import state_lock
+    put(ctx, S.RUNNING)
+
+    with state_lock(ctx.settings.state_dir):
+        code, _, err = run(ctx, "recover", "t1")
+
+    assert code == 1 and "lock" in err
+    assert ctx.store.load("t1").state is S.RUNNING and ctx.ledger.entries() == []
+
+
+def test_recover_of_a_task_that_is_not_running_exits_1_with_the_reason(ctx):
+    put(ctx, S.AUDITED)
+
+    code, _, err = run(ctx, "recover", "t1")
+
+    assert code == 1 and "audited" in err
