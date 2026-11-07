@@ -91,3 +91,17 @@ def test_sandbox_prefix_grants_the_resolved_worktree_read_only_and_ends_with_dou
     assert prefix == [
         "nono", "run", "-s", "--profile", "nolabs-ai/claude", "--allow-cwd", "--read", str(real.resolve()), "--",
     ]
+
+
+def test_confine_defaults_to_false_and_add_dirs_to_nothing():
+    argv, _env = build_command("p", RunnerConfig(model="sonnet"))
+
+    assert RunnerConfig(model="sonnet").confine is False
+    assert "--add-dir" not in argv
+
+
+def test_each_add_dir_is_passed_as_its_own_argument():
+    argv, _env = build_command("p", RunnerConfig(model="sonnet"), add_dirs=("/a b", "/c"))
+
+    pairs = [argv[i : i + 2] for i, arg in enumerate(argv) if arg == "--add-dir"]
+    assert pairs == [["--add-dir", "/a b"], ["--add-dir", "/c"]]

@@ -15,10 +15,11 @@ class RunnerConfig:
     append_system_prompt: str | None = None
     max_turns: int | None = None
     disallowed_tools: tuple[str, ...] = ()
+    confine: bool = False
 
 
 def build_command(
-    prompt: str, config: RunnerConfig, executable: str = "claude"
+    prompt: str, config: RunnerConfig, executable: str = "claude", add_dirs: tuple[str, ...] = ()
 ) -> tuple[list[str], dict[str, str]]:
     if prompt.startswith("-"):
         raise ValueError("prompt must not start with '-'")
@@ -38,6 +39,8 @@ def build_command(
         argv += ["--max-turns", str(config.max_turns)]
     if config.disallowed_tools:
         argv += ["--disallowedTools", " ".join(config.disallowed_tools)]
+    for directory in add_dirs:
+        argv += ["--add-dir", directory]
     return argv, {"CLAUDE_CODE_DISABLE_CLAUDE_MDS": "1"}
 
 
