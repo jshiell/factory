@@ -94,3 +94,18 @@ def test_a_non_string_sandbox_executable_is_rejected_naming_the_key(repo_dir):
 
     with pytest.raises(SettingsError, match="sandbox_executable"):
         load_settings(None, cwd=repo_dir)
+
+
+def test_fix_rounds_defaults_to_two_and_accepts_zero_and_more(repo_dir):
+    assert load_settings(None, cwd=repo_dir).fix_rounds == 2
+    for value in (0, 3):
+        (repo_dir / "factory.toml").write_text(f"fix_rounds = {value}\n")
+        assert load_settings(None, cwd=repo_dir).fix_rounds == value
+
+
+@pytest.mark.parametrize("value", ["-1", "1.5", '"2"', "true"])
+def test_a_bad_fix_rounds_is_rejected_naming_the_key(repo_dir, value):
+    (repo_dir / "factory.toml").write_text(f"fix_rounds = {value}\n")
+
+    with pytest.raises(SettingsError, match="fix_rounds"):
+        load_settings(None, cwd=repo_dir)

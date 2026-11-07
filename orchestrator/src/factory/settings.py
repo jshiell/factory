@@ -24,6 +24,7 @@ class Settings:
     budget_usd: float = 0.5
     allowed_tools: tuple[str, ...] = ()
     max_turns: int = 30
+    fix_rounds: int = 2
 
     @property
     def ledger_path(self) -> Path:
@@ -38,7 +39,7 @@ _PATH_KEYS = ("repo", "state_dir", "worktree_root")
 _STRING_KEYS = ("project_subdir", "claude_executable", "sandbox_executable", "model")
 _FLOAT_KEYS = ("cap_usd", "gate_timeout_s", "runner_timeout_s", "budget_usd")
 _STRING_LIST_KEYS = ("test_argv", "allowed_tools")
-_INT_KEYS = ("max_turns",)
+_INT_KEYS = ("max_turns", "fix_rounds")
 _KNOWN = _PATH_KEYS + _STRING_KEYS + _FLOAT_KEYS + _STRING_LIST_KEYS + _INT_KEYS
 
 
@@ -78,7 +79,7 @@ def _typed(key: str, value):
         if isinstance(value, (int, float)) and not isinstance(value, bool):
             return float(value)
     elif key in _INT_KEYS:
-        if isinstance(value, int) and not isinstance(value, bool):
+        if isinstance(value, int) and not isinstance(value, bool) and (value >= 0 or key == "max_turns"):
             return value
     elif isinstance(value, list) and value and all(isinstance(item, str) for item in value):
         return tuple(value)
