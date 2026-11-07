@@ -59,19 +59,36 @@ def clean_tasks(
 
 
 def _clean_one(candidate: Candidate, store: TaskStore, worktrees: WorktreeManager, repo: Path) -> Outcome:
-    task = candidate.task
-    outcome = Outcome(task.id)
-    if task.worktree:
+    outcome = Outcome(candidate.task.id)
+    task = store.load(candidate.task.id)
+    if task.state not in CLEANABLE:
+        outcome.problems.append(f"skipped: {task.id} is now {task.state.value}")
+        return outcome
+    if candidate.outside_root:
+        outcome.problems.append(f"skipped: worktree {task.worktree} is outside the worktree root")
+        return outcome
+    if task.worktree and not _remove_worktree(task, candidate, store, worktrees, repo, outcome):
+        return outcome
+    if task.state is TaskState.MERGED and candidate.branch_exists:
+        _delete_branch(task, repo, outcome)
+    return outcome
+
+
+def _remove_worktree(
+    task: Task, candidate: Candidate, store: TaskStore, worktrees: WorktreeManager, repo: Path, outcome: Outcome
+) -> bool:
+    try:
         if candidate.directory_exists:
             worktrees.remove(task.id)
             outcome.done.append("removed worktree")
         else:
             run_git(repo, "worktree", "prune")
             outcome.done.append("pruned missing worktree")
-        store.save(replace(task, worktree=None))
-    if task.state is TaskState.MERGED and candidate.branch_exists:
-        _delete_branch(task, repo, outcome)
-    return outcome
+    except subprocess.CalledProcessError as error:
+        outcome.problems.append(f"worktree kept: git failed ({error})")
+        return False
+    store.save(replace(task, worktree=None))
+    return True
 
 
 def _delete_branch(task: Task, repo: Path, outcome: Outcome) -> None:

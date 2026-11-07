@@ -1,4 +1,5 @@
 import shutil
+import subprocess
 
 import pytest
 
@@ -149,3 +150,51 @@ def test_branches_are_not_deleted_while_main_is_not_on_a_branch(env):
 
     assert git(repo, "branch", "--list", "factory/merged")
     assert any("main is not on a branch" in problem for problem in outcomes[0].problems)
+
+
+class FailingFirst:
+    """Fails to remove the first task's worktree, delegates the rest."""
+
+    def __init__(self, manager, failing_id):
+        self._manager, self._failing_id = manager, failing_id
+
+    def remove(self, task_id):
+        if task_id == self._failing_id:
+            raise subprocess.CalledProcessError(1, ["git", "worktree", "remove"])
+        self._manager.remove(task_id)
+
+
+def test_a_removal_failure_is_reported_keeps_that_task_and_the_others_are_still_cleaned(env):
+    store, repo, manager, root, add = env
+    bad = add("bad", S.MERGED)
+    good = add("good", S.FAILED)
+
+    outcomes = clean_tasks(clean_candidates(store, repo, root), store, FailingFirst(manager, "bad"), repo, root)
+
+    by_id = {o.task_id: o for o in outcomes}
+    assert by_id["bad"].problems and not by_id["good"].problems
+    assert store.load("bad").worktree == str(bad) and git(repo, "branch", "--list", "factory/bad")
+    assert not good.exists() and store.load("good").worktree is None
+
+
+def test_a_task_that_is_no_longer_terminal_at_execution_time_is_skipped(env):
+    store, repo, manager, root, add = env
+    path = add("t1", S.FAILED)
+    candidates = clean_candidates(store, repo, root)
+    store.save(Task(id="t1", prompt="", state=S.QUEUED, worktree=str(path), base_sha="x"))
+
+    outcomes = clean_tasks(candidates, store, manager, repo, root)
+
+    assert path.exists() and outcomes[0].problems
+
+
+def test_a_worktree_outside_the_root_is_reported_and_left_alone(env, tmp_path):
+    store, repo, manager, root, add = env
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    store.save(Task(id="t1", prompt="", state=S.FAILED, worktree=str(elsewhere), base_sha="x"))
+
+    outcomes = run_clean(env)
+
+    assert elsewhere.exists() and store.load("t1").worktree == str(elsewhere)
+    assert any("outside" in problem for problem in outcomes[0].problems)
