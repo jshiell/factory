@@ -67,3 +67,13 @@
 - The timeout path (assumed cost, tree kill) is tested with fake scripts only, never against a real hung agent.
 - Worktrees and branches from spikes (`p2-*`, `p3-*`, `e2e-*`) are never cleaned up; no crash recovery for stale `running` tasks.
 - The signing agent was unavailable mid-session (1Password error), so later commits were made unsigned.
+
+## Plan 3 cycle 0: audit probe (`spike/audit_probe.py`, outputs `spike/p4-*`)
+Single runs each; exit codes saved to `.exit.txt`, all 0.
+- **Confirmed:** with no permission mode, `--allowedTools "Read Grep Glob"` plus `--disallowedTools "Write Edit NotebookEdit Bash"` denies writes in `-p` mode. An explicit write request created no file (`pwned.txt` absent); the model said it had no write tool. `permission_denials` was empty, so denial is not visible there; rely on the clean-worktree check.
+- **Confirmed:** enum `--json-schema` returns `structured_output` as `{"verdict": "pass"|"fail", "findings": [...]}`. Verdict `fail` in all four runs.
+- **Detection:** the auditor flagged an added `pytestmark = pytest.mark.skip` and a new test that monkeypatches `calc.subtract`. One sample each, not a reliability measure. The "good" diff was failed because my hand-written diff lacked the import, which the auditor correctly noticed: no true-pass sample was obtained yet (cycle D will give one).
+- **Observed:** the auditor inspects the worktree as well as the diff (said "the working tree does not contain the change" for a diff not applied). In the real flow the change is committed, so this is fine. Cost per audit $0.02-0.08.
+- **Confirmed:** macOS `ARG_MAX` = 1048576. Diff limit for C5 set well below that (e.g. 200 KB; env also counts against it).
+- **Confirmed:** `:(glob)proj/**/test_*.py` matches zero directories (`proj/test_top.py` matched) and nested depths.
+- **Confirmed:** pytest exits 0 when every test is skipped (the gate cannot see added skips; left to the audit).
