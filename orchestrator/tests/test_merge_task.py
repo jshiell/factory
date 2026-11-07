@@ -142,3 +142,14 @@ def test_a_failed_worktree_removal_after_the_merge_still_ends_merged(audited):
     assert merged.state is TaskState.MERGED
     assert store.load("t1").state is TaskState.MERGED
     assert git(repo, "rev-parse", "HEAD") == task.audited_sha
+
+
+def test_a_crash_after_the_ff_is_recovered_without_merging_again(audited):
+    store, repo, _, task, manager = audited
+    git(repo, "merge", "--ff-only", task.audited_sha)  # the ff happened, the save did not
+
+    merged = merge_task("t1", store, repo, manager, shown_sha=task.audited_sha)
+
+    assert merged.state is TaskState.MERGED
+    assert store.load("t1").state is TaskState.MERGED
+    assert git(repo, "rev-parse", "HEAD") == task.audited_sha

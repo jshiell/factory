@@ -43,12 +43,24 @@ def merge_task(task_id: str, store: TaskStore, repo: Path, worktrees: WorktreeMa
     task = store.load(task_id)
     if shown_sha != task.audited_sha:
         raise MergeRefused("the commit shown is not the audited commit")
+    if _already_fast_forwarded(task, repo):
+        return _record_merged(task, store, worktrees)
     preview = merge_preview(task_id, store, repo)
     run_git(repo, "merge", "--ff-only", task.audited_sha)
-    merged = apply(preview.task, Event.MERGED)
+    return _record_merged(preview.task, store, worktrees)
+
+
+def _already_fast_forwarded(task: Task, repo: Path) -> bool:
+    """An ff happened but the save did not (a crash): main and the branch are both at the audited commit."""
+    apply(task, Event.MERGED)
+    return run_git(repo, "rev-parse", "HEAD") == task.audited_sha == run_git(repo, "rev-parse", f"factory/{task.id}")
+
+
+def _record_merged(task: Task, store: TaskStore, worktrees: WorktreeManager) -> Task:
+    merged = apply(task, Event.MERGED)
     store.save(merged)
     try:
-        worktrees.remove(task_id)
+        worktrees.remove(task.id)
     except Exception:  # the merge is the fact; a leftover worktree stays visible in task.worktree
         return merged
     cleaned = replace(merged, worktree=None)
