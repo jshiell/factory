@@ -504,3 +504,20 @@ def test_a_frozen_commit_that_is_not_an_ancestor_fails_not_descendant(repo):
     git(repo, "checkout", "-q", "main")
 
     assert frozen_gate(repo, base, side).reason == "not_descendant"
+
+
+def commit_root_file(repo, name, content):
+    (repo / name).parent.mkdir(parents=True, exist_ok=True)
+    (repo / name).write_text(content)
+    git(repo, "add", "-A")
+    git(repo, "commit", "-q", "-m", f"root {name}")
+
+
+def test_a_change_only_outside_the_project_is_no_changes_not_a_protected_refusal(repo):
+    """Characterisation (starts green): the gate only sees tasks that changed the project."""
+    base = repo_with_project_change(repo)
+    git(repo, "reset", "-q", "--hard", base)
+    commit_root_file(repo, "pytest.ini", "[pytest]\naddopts = --collect-only\n")
+
+    assert gate(repo, base).reason == "no_changes"
+
