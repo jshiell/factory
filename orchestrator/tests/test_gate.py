@@ -527,3 +527,52 @@ def test_a_new_root_pytest_ini_fails_tests_modified(repo):
     commit_root_file(repo, "pytest.ini", "[pytest]\naddopts = --collect-only\n")
 
     assert gate(repo, base).reason == "tests_modified"
+
+
+# Guards: these start green once the pathspec is repo-wide; they pin the intended edges.
+@pytest.mark.parametrize("name", ["conftest.py", ".pytest.ini", "pytest.toml", ".pytest.toml", "tox.ini", "setup.cfg", "docs/tox.ini"])
+def test_guard_a_protected_file_at_the_root_or_beside_the_project_fails(repo, name):
+    base = repo_with_project_change(repo)
+    commit_root_file(repo, name, "x\n")
+
+    assert gate(repo, base).reason == "tests_modified"
+
+
+def test_guard_modifying_and_deleting_a_root_protected_file_fails(repo):
+    commit_root_file(repo, "pytest.ini", "[pytest]\n")
+    base = repo_with_project_change(repo)
+    changed = git(repo, "rev-parse", "HEAD")
+    commit_root_file(repo, "pytest.ini", "[pytest]\naddopts = -q\n")
+    assert gate(repo, base).reason == "tests_modified"
+
+    git(repo, "reset", "-q", "--hard", changed)
+    git(repo, "rm", "-q", "pytest.ini")
+    git(repo, "commit", "-q", "-m", "delete")
+    assert gate(repo, base).reason == "tests_modified"
+
+
+def test_guard_renaming_a_file_onto_a_protected_name_fails(repo):
+    commit_root_file(repo, "settings.ini", "[pytest]\naddopts = --collect-only\n")
+    base = repo_with_project_change(repo)
+    git(repo, "mv", "settings.ini", "pytest.ini")
+    git(repo, "commit", "-q", "-m", "rename")
+
+    assert gate(repo, base).reason == "tests_modified"
+
+
+def test_guard_an_unrelated_root_change_beside_a_project_change_passes(repo):
+    base = repo_with_project_change(repo)
+    commit_root_file(repo, "README.md", "hello\n")
+
+    assert gate(repo, base).passed is True
+
+
+def test_guard_the_protected_names_override_applies_repo_wide(repo):
+    base = repo_with_project_change(repo)
+    commit_root_file(repo, "locked.cfg", "x\n")
+    custom = dict(protected_names=("locked.cfg",))
+    assert check_gate(repo, base, "proj", ["true"], 5, **custom).reason == "tests_modified"
+
+    git(repo, "reset", "-q", "--hard", "HEAD~1")
+    commit_root_file(repo, "pytest.ini", "x\n")
+    assert check_gate(repo, base, "proj", ["true"], 5, **custom).passed is True
