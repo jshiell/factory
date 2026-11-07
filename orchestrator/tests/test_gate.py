@@ -297,3 +297,43 @@ def test_a_gate_timeout_kills_descendants_of_the_test_command(repo, tmp_path):
     finally:
         if _alive(sleeper):
             os.kill(sleeper, signal.SIGKILL)
+
+
+FAKE_WRAPPER = '#!/bin/sh\necho "$@" >> {log}\nwhile [ "$1" != "--" ]; do shift; done\nshift\nexec "$@"\n'
+
+
+def _fake_wrapper(tmp_path):
+    wrapper = tmp_path / "fake-nono"
+    wrapper.write_text(FAKE_WRAPPER.format(log=tmp_path / "wrapper.log"))
+    wrapper.chmod(wrapper.stat().st_mode | stat.S_IEXEC)
+    return wrapper
+
+
+def test_the_tests_run_through_the_wrapper_prefix(repo, tmp_path):
+    base = repo_with_project_change(repo)
+    wrapper = _fake_wrapper(tmp_path)
+
+    result = check_gate(repo, base, "proj", ["true"], timeout_s=10, test_prefix=(str(wrapper), "--allow", "x", "--"))
+
+    assert result.passed is True
+    assert (tmp_path / "wrapper.log").read_text().split() == ["--allow", "x", "--", "true"]
+
+
+def test_a_missing_wrapper_fails_the_gate_without_running_the_tests(repo, tmp_path):
+    base = repo_with_project_change(repo)
+    marker = tmp_path / "ran"
+
+    result = check_gate(repo, base, "proj", ["touch", str(marker)], timeout_s=10,
+                        test_prefix=(str(tmp_path / "no-such-nono"), "--"))
+
+    assert (result.passed, result.reason) == (False, "sandbox_unavailable")
+    assert not marker.exists()
+
+
+def test_the_tests_get_exactly_the_given_environment(repo):
+    base = repo_with_project_change(repo)
+
+    result = check_gate(repo, base, "proj", ["sh", "-c", 'test "$ONLY" = 1 && test -z "$HOME"'], timeout_s=10,
+                        env={"ONLY": "1", "PATH": "/usr/bin:/bin"})
+
+    assert result.passed is True

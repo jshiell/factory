@@ -47,6 +47,7 @@ def check_gate(
     test_globs: tuple[str, ...] = DEFAULT_TEST_GLOBS,
     protected_names: tuple[str, ...] = DEFAULT_PROTECTED_NAMES,
     env: dict[str, str] | None = None,
+    test_prefix: tuple[str, ...] = (),
 ) -> GateResult:
     project_dir = _resolve_inside(worktree, project_subdir)
     if not _is_ancestor(worktree, base_sha):
@@ -59,7 +60,10 @@ def check_gate(
         worktree, base_sha, project_subdir, protected_names
     ):
         return GateResult(False, "tests_modified")
-    exit_code, timed_out = run_to_exit(test_argv, project_dir, env, timeout_s)
+    try:
+        exit_code, timed_out = run_to_exit([*test_prefix, *test_argv], project_dir, env, timeout_s)
+    except OSError:  # a missing sandbox wrapper: fail closed, never run the tests unconfined
+        return GateResult(False, "sandbox_unavailable")
     if timed_out:
         return GateResult(False, "tests_timeout")
     if exit_code != 0:
