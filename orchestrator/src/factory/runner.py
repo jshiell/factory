@@ -4,11 +4,9 @@ import tempfile
 from pathlib import Path
 
 from factory.command import RunnerConfig, build_command, sandbox_prefix
-from factory.process import kill_tree
+from factory.process import STRIPPED_ENV, kill_tree
 from factory.step import RunResult
 from factory.task import Task
-
-_STRIPPED_ENV = ("VIRTUAL_ENV", "GIT_DIR", "GIT_WORK_TREE", "ANTHROPIC_API_KEY")
 
 
 class SubprocessRunner:
@@ -52,5 +50,5 @@ class SubprocessRunner:
 
     @staticmethod
     def _child_env(overlay: dict[str, str]) -> dict[str, str]:
-        inherited = {k: v for k, v in os.environ.items() if k not in _STRIPPED_ENV}
+        inherited = {k: v for k, v in os.environ.items() if k not in STRIPPED_ENV}
         return {**inherited, **overlay}

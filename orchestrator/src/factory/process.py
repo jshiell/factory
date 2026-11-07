@@ -2,6 +2,8 @@ import os
 import signal
 import subprocess
 
+STRIPPED_ENV = ("VIRTUAL_ENV", "GIT_DIR", "GIT_WORK_TREE", "ANTHROPIC_API_KEY")
+
 
 def _kill(pid: int) -> None:
     try:
