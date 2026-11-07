@@ -28,5 +28,7 @@ def merge_preview(task_id: str, store: TaskStore, repo: Path) -> Preview:
         raise MergeRefused("the worktree is not at the audited commit")
     if run_git(Path(task.worktree), "status", "--porcelain"):
         raise MergeRefused("the worktree is dirty")
+    if run_git(repo, "rev-parse", "HEAD") != task.base_sha:
+        raise MergeRefused("main moved since the plan; re-run the task")
     diffstat = run_git(repo, "diff", "--stat=200", task.base_sha, task.audited_sha)
     return Preview(task, branch, diffstat, task.audit_findings)

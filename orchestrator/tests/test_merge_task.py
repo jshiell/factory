@@ -61,3 +61,23 @@ def test_preview_refuses_a_dirty_worktree(audited):
 
     with pytest.raises(MergeRefused, match="dirty"):
         merge_preview("t1", store, repo)
+
+
+def test_preview_refuses_when_main_moved_since_the_plan(audited):
+    store, repo, _, _, _ = audited
+    (repo / "m.txt").write_text("m")
+    git(repo, "add", "-A")
+    git(repo, "commit", "-q", "-m", "main moved")
+
+    with pytest.raises(MergeRefused, match="moved"):
+        merge_preview("t1", store, repo)
+
+
+def test_preview_refuses_when_main_was_reset_backwards(audited):
+    store, repo, _, task, _ = audited
+    git(repo, "commit", "-q", "--allow-empty", "-m", "ahead")
+    store.save(replace(task, base_sha=git(repo, "rev-parse", "HEAD")))
+    git(repo, "reset", "-q", "--hard", "HEAD~1")
+
+    with pytest.raises(MergeRefused, match="moved"):
+        merge_preview("t1", store, repo)
