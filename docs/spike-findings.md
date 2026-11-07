@@ -277,4 +277,5 @@ Command shape: `nono run -s --profile nolabs-ai/claude --allow-cwd --read <resol
 - The preview promises "empty branch will be deleted" only for failed tasks.
 - Mid-rebase `clean`: `clean` force-removes worktrees, so a worktree left mid-rebase (only after SIGKILL) is removed like any dirty one and the branch ref stays at the old tip; not run end to end.
 - `spike/branch_gc_e2e.py` was edited for the new behaviour (rebased branch deleted) and has not been rerun.
-- Known gaps: a merged task's branch is previewed "left behind" though `clean` deletes it (when main is on a branch); the CAS delete leaves `branch.<name>.*` config; the other earlier gaps (root `[tool.uv]` and similar files, an import-time monkeypatching test, orphan agents after SIGKILL).
+- Afterwards: the preview now says a merged task's branch "will be deleted if main is on a branch" (or "if git agrees it is merged" when it has commits ahead of base) instead of "left behind".
+- Known gaps: the CAS delete leaves `branch.<name>.*` config; the other earlier gaps (root `[tool.uv]` and similar files, an import-time monkeypatching test, orphan agents after SIGKILL).

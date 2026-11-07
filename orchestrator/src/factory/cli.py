@@ -275,13 +275,21 @@ def _rebase(args, io, ctx) -> int:
     return 0
 
 
+def _merged_branch_flag(candidate) -> str:
+    """`clean` tries `branch -d`: it needs main on a branch, and git must agree the branch is merged."""
+    if candidate.commits_ahead:
+        return "branch will be deleted if git agrees it is merged"
+    return "branch will be deleted if main is on a branch"
+
+
 def _describe_candidate(candidate) -> str:
     flags = ["worktree present" if candidate.directory_exists else "worktree missing"]
     flags += ["dirty (uncommitted work will be discarded)"] if candidate.dirty else []
     flags += [f"{candidate.commits_ahead} commit{'s' if candidate.commits_ahead != 1 else ''} ahead of base"] if candidate.commits_ahead else []
     will_delete_branch = candidate.branch_empty and not candidate.outside_root and candidate.task.state is TaskState.FAILED  # merged ones use `-d`
     flags += ["empty branch will be deleted"] if will_delete_branch else []
-    flags += ["branch left behind"] if candidate.branch_exists and not will_delete_branch else []
+    if candidate.branch_exists and not will_delete_branch:
+        flags += [_merged_branch_flag(candidate) if candidate.task.state is TaskState.MERGED else "branch left behind"]
     flags += ["worktree path is not <root>/<id>: will be skipped"] if candidate.outside_root else []
     flags += [f"gate cache {candidate.cache_bytes} bytes"] if candidate.cache_bytes is not None else []
     return f"{candidate.task.id}  {candidate.task.state.value}: " + ", ".join(flags)

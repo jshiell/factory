@@ -737,4 +737,24 @@ def test_a_merged_task_with_an_empty_branch_is_not_previewed_as_will_be_deleted(
 
     line = _describe_candidate(Candidate(merged, True, False, 0, True, branch_empty=True))
 
-    assert "will be deleted" not in line
+    assert "empty branch will be deleted" not in line
+
+
+def describe_merged(**fields):
+    from factory.cli import _describe_candidate
+    from factory.clean_tasks import Candidate
+    defaults = dict(directory_exists=True, dirty=False, commits_ahead=0, branch_exists=True)
+    task = Task(id="t1", prompt="", state=S.MERGED, worktree="/w/t1")
+    return _describe_candidate(Candidate(task, **{**defaults, **fields}))
+
+
+def test_a_merged_branch_is_previewed_as_deleted_when_main_is_on_a_branch_not_left_behind():
+    line = describe_merged()
+
+    assert "branch will be deleted if main is on a branch" in line and "left behind" not in line
+
+
+def test_a_merged_branch_with_commits_is_previewed_as_deleted_only_if_git_agrees_it_is_merged():
+    line = describe_merged(commits_ahead=2)
+
+    assert "branch will be deleted if git agrees it is merged" in line and "left behind" not in line
