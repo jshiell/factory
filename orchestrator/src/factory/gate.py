@@ -1,3 +1,4 @@
+import ast
 import os
 import subprocess
 import tomllib
@@ -77,7 +78,26 @@ def _tests_tampered(worktree: Path, base_sha: str, project_subdir: str, test_glo
     if any(line[0] not in "AM" for line in statuses.splitlines()):
         return True
     numstat = run_git(worktree, "diff", "--numstat", "--no-renames", base_sha, "HEAD", "--", *pathspecs)
-    return any(line.split("\t")[1] != "0" for line in numstat.splitlines())
+    if any(line.split("\t")[1] != "0" for line in numstat.splitlines()):
+        return True
+    modified = [line.split("\t", 1)[1] for line in statuses.splitlines() if line[0] == "M"]
+    return any(_defines_a_test_twice(worktree, path) for path in modified)
+
+
+def _defines_a_test_twice(worktree: Path, path: str) -> bool:
+    """A later `def test_x` silently replaces an earlier one: appending it disables an existing test."""
+    shown = subprocess.run(
+        [*HARDENED_GIT, "show", f"HEAD:{path}"], cwd=worktree, capture_output=True, stdin=subprocess.DEVNULL
+    )
+    try:
+        tree = ast.parse(shown.stdout.decode())
+    except (SyntaxError, ValueError):
+        return False  # unparseable: pytest cannot collect it, so the gate fails anyway
+    for scope in (tree, *(n for n in ast.walk(tree) if isinstance(n, ast.ClassDef))):
+        names = [n.name for n in scope.body if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)) and n.name.startswith("test")]
+        if len(names) != len(set(names)):
+            return True
+    return False
 
 
 def _protected_changed(

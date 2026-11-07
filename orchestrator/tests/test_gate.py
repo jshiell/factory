@@ -354,3 +354,20 @@ def test_rewriting_a_test_file_the_agent_itself_added_passes(repo):
     commit_project_edit(repo, "test_new.py", "def test_x():\n    assert True\n")
 
     assert gate(repo, base).passed is True
+
+
+def test_appending_a_same_named_test_to_an_existing_test_file_fails_tests_modified(repo):
+    base = repo_with_test_file(repo, content="def test_x():\n    assert 1 == 2\n")
+    commit_project_edit(repo, "test_calc.py", "def test_x():\n    assert 1 == 2\n\n\ndef test_x():\n    pass\n")
+
+    result = gate(repo, base)
+
+    assert result.passed is False
+    assert result.reason == "tests_modified"
+
+
+def test_appending_a_differently_named_test_to_an_existing_test_file_still_passes(repo):
+    base = repo_with_test_file(repo, content="def test_x():\n    pass\n")
+    commit_project_edit(repo, "test_calc.py", "def test_x():\n    pass\n\n\ndef test_y():\n    pass\n")
+
+    assert gate(repo, base).passed is True
