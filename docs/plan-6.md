@@ -11,7 +11,7 @@ Goal: close the known gap that `Read` (and `Grep`/`Glob`) in the planner, review
 ## Candidate mechanisms (cycle 0 picks one; nothing here is verified yet)
 1. **Permission rules via `--settings` JSON:** `deny` rules for `Read`/`Grep`/`Glob` outside the worktree, or dropping `Read` from `--allowedTools` so headless default rules apply (reads inside cwd only, prompts auto-denied). Cheap, in argv.
 2. **`--add-dir` / working-directory semantics:** rely on the default "cwd and added dirs only" rule.
-3. **OS sandbox** (`sandbox-exec` on macOS, or Claude's own sandbox settings): strongest, platform-specific, more moving parts.
+3. **OS sandbox via nono (0.81.0, installed, Seatbelt on macOS).** Allow-list, kernel-enforced: wrap the `claude -p` argv as `nono run --allow-cwd --read <worktree> ... -- claude -p ...`. Observed so far, from help output only: flags `--read`, `--allow`, `--allow-cwd` (required non-interactively), `--block-net`, `--allow-domain`, `--no-audit`; a `nolabs-ai/claude` pack profile exists. **Not yet tested:** whether a confined `claude -p` can still authenticate (needs `~/.claude` and network to the API), whether symlinks out of the worktree are blocked, whether `Bash` in the implementer is confined too. A nested `nono run` could not be tried from inside the agent's own nono sandbox (audit dir `~/.local/state/nono/audit` not granted; confirmed by `nono why --self`), so the human runs it. If it works it would also confine the implementer, closing that known gap.
 Preference order if several work: 1/2 over 3, because they stay in argv and are testable at $0. If only 3 works, that is a bigger plan and returns to the user.
 
 ## Cycles
