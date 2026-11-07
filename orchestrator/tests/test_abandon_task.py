@@ -41,3 +41,21 @@ def test_a_merged_or_failed_task_is_refused_naming_its_state(store, state):
         abandon_task("t1", store)
 
     assert store.load("t1").state is state
+
+
+def test_a_running_task_is_refused_pointing_at_recover(store):
+    saved(store, TaskState.RUNNING)
+
+    with pytest.raises(AbandonRefused, match="recover"):
+        abandon_task("t1", store)
+
+    assert store.load("t1").state is TaskState.RUNNING
+
+
+def test_an_agent_done_task_with_a_fix_agent_in_flight_is_refused_pointing_at_advance(store):
+    saved(store, TaskState.AGENT_DONE, fix_in_flight=True)
+
+    with pytest.raises(AbandonRefused, match="advance"):
+        abandon_task("t1", store)
+
+    assert store.load("t1").state is TaskState.AGENT_DONE
