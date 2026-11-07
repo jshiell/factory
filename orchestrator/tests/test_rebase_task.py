@@ -242,3 +242,15 @@ def test_guard_signing_and_hooks_configured_in_the_repo_do_not_get_in_the_way(au
     rebase_task("t1", store, repo)
 
     assert store.load("t1").state is TaskState.AGENT_DONE and not marker.exists()
+
+
+def test_guard_accepted_residual_a_merge_union_attribute_resolves_a_conflict_silently(audited):
+    store, repo, worktree, task = audited
+    (repo / ".gitattributes").write_text("b.txt merge=union\n")
+    (repo / "b.txt").write_text("main's b\n")
+    git(repo, "add", "-A")
+    git(repo, "commit", "-q", "-m", "union attributes and a clashing b")
+
+    rebase_task("t1", store, repo)  # re-gate and re-audit are what judge the concatenated result
+
+    assert store.load("t1").state is TaskState.AGENT_DONE
