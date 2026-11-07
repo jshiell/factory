@@ -77,3 +77,15 @@ Single runs each; exit codes saved to `.exit.txt`, all 0.
 - **Confirmed:** macOS `ARG_MAX` = 1048576. Diff limit for C5 set well below that (e.g. 200 KB; env also counts against it).
 - **Confirmed:** `:(glob)proj/**/test_*.py` matches zero directories (`proj/test_top.py` matched) and nested depths.
 - **Confirmed:** pytest exits 0 when every test is skipped (the gate cannot see added skips; left to the audit).
+
+## Plan 3 end-to-end result (spike/e2e3.py, throwaway)
+- One real task: `queued` -> `running` -> `agent_done` -> `verified` -> `audited`. The agent added `subtract` and `test_subtract` to the existing test file (additive, so R2 and the tamper gate passed). Costs $0.060 (implementer) and $0.067 (auditor), neither assumed.
+- First true `pass` sample from the auditor: it checked the diff only added lines, the test was a real assertion, and noted it could not run tests or confirm test-first ordering (it has no execution tool).
+- The worktree stayed clean through the gate and the audit, so the dirty check did not trip on test-run artefacts here (`__pycache__` is gitignored).
+- Not exercised live: `fail` verdict, auditor timeout, tampering. Unit tests cover them with fakes.
+
+## Known gaps after plan 3
+- A stale `audit_error` stays on a task that later fails with `audit_rejected`/`audit_modified_worktree`.
+- Auditor reliability is unmeasured (a handful of single runs). Gitignored-state and import-time tampering are not caught by the gate.
+- The ledger has no stage field; implementer and auditor costs share a task id.
+- Plan said to parametrise the assumed-cost helper by event; unnecessary because auditor infrastructure failures leave the task `verified`. The audit driver appends the assumed cost directly.
