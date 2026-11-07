@@ -166,3 +166,17 @@ Command shape: `nono run -s --profile nolabs-ai/claude --allow-cwd --read <resol
 - `factory advance` from inside an agent's own nono session fails at plan (nested nono denied). Only the human runs the real pipeline.
 - The implementer is not confined.
 - Carried over: approve TTY check is process control; SIGKILL leaves `running`; orphaned worktrees; the auditor judges the plan, not the goal; the audit cannot confirm test-first or a passing run.
+
+## Plan 7: `factory merge` e2e (`spike/merge_e2e.py`, run by the user, $0, synthetic repo)
+- **Confirmed:** all seven checks passed. First merge (user `y`) fast-forwarded main to the audited sha, the task became `merged`, the worktree directory was removed and `factory/t1` was kept. The second merge was refused. The real repo's worktrees were untouched.
+- **Note:** the second-merge refusal reads "merged not allowed from merged" (the raw `InvalidTransition` text); correct but terse.
+- Unit suite: 424 passed; target: 1 passed (sniffed toolchain).
+
+## Known gaps after plan 7
+- Main moving between the plan stage (where `base_sha` is captured) and the merge makes the merge refuse; there is no rebase or re-verify, so the task must be re-run.
+- "Human-only" is process (TTY check), as for approve. Merged commits are unsigned until the human signs them.
+- The auditor reads only the `project_subdir` diff while `commit_all` stages the whole worktree; the merge diffstat covers the whole tree as the check.
+- The implementer could make its own commits (only `Bash(git *)` is denied); the tip and `audited_sha` guards are the check.
+- A worktree-removal failure after a merge leaves the path on the task; no GC command. Branches are never deleted. No rollback command.
+- `merge.verifySignatures=true` makes git refuse the unsigned commits (error surfaced, not overridden).
+- Carried over from plan 6 and earlier: confinement gaps, the implementer unconfined, SIGKILL leaves `running`, orphaned worktrees from rejected plans.
