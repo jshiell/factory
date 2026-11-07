@@ -35,3 +35,13 @@ def test_retry_refuses_a_task_with_no_goal(store, state):
 
     with pytest.raises(RetryRefused, match="goal"):
         retry_task("t1", store, lambda: NOW)
+
+
+def test_retrying_a_failed_task_creates_a_proposed_task_with_the_goal_and_leaves_the_old_one(store):
+    old = put(store, TaskState.FAILED, goal="add multiply", failure_reason="tests_failed")
+
+    new = retry_task("t1", store, lambda: NOW)
+
+    assert (new.state, new.goal, new.retry_of) == (TaskState.PROPOSED, "add multiply", "t1")
+    assert new.id == "20260102-030405"
+    assert store.load(new.id) == new and store.load("t1") == old

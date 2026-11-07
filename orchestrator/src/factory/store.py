@@ -2,6 +2,7 @@ import json
 import os
 import tempfile
 from dataclasses import asdict, dataclass
+from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
 
@@ -25,6 +26,18 @@ class Listing:
 
 def new_task_id(now: datetime, suffix: str = "") -> str:
     return f"{now:%Y%m%d-%H%M%S}" + (f"-{suffix}" if suffix else "")
+
+
+def create_with_fresh_id(store: "TaskStore", clock: Callable[[], datetime], build: Callable[[str], Task]) -> Task:
+    """Create the task `build(id)` under a timestamp id, adding a numeric suffix if the id is taken."""
+    suffix = 1
+    while True:
+        task = build(new_task_id(clock(), "" if suffix == 1 else str(suffix)))
+        try:
+            store.create(task)
+            return task
+        except TaskExists:
+            suffix += 1
 
 
 class TaskStore:

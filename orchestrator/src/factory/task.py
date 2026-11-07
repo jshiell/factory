@@ -56,6 +56,7 @@ class Task:
     plan_error: str | None = None
     review_findings: tuple[str, ...] = ()
     review_error: str | None = None
+    retry_of: str | None = None
 
 
 _TRANSITIONS = {

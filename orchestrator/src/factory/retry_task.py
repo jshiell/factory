@@ -1,7 +1,7 @@
 from datetime import datetime
 from collections.abc import Callable
 
-from factory.store import TaskStore
+from factory.store import TaskStore, create_with_fresh_id
 from factory.task import Task, TaskState
 
 RETRYABLE = (TaskState.FAILED, TaskState.AUDITED)
@@ -17,4 +17,6 @@ def retry_task(task_id: str, store: TaskStore, clock: Callable[[], datetime]) ->
         raise RetryRefused(f"{task.id} is {task.state.value}; only failed or audited tasks can be retried")
     if not task.goal:
         raise RetryRefused(f"{task.id} has no goal to retry")
-    raise NotImplementedError
+    return create_with_fresh_id(
+        store, clock, lambda new_id: Task(id=new_id, prompt="", state=TaskState.PROPOSED, goal=task.goal, retry_of=task.id)
+    )
