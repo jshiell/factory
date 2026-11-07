@@ -20,7 +20,7 @@ from factory.ids import InvalidTaskId
 from factory.ledger import Ledger
 from factory.lock import AlreadyRunning, state_lock
 from factory.merge_task import MergeRefused, merge_preview, merge_task
-from factory.retry_task import RetryRefused, retry_task
+from factory.retry_task import RetryRefused, require_keepable_plan, retry_task, retry_with_plan
 from factory.recover_task import RecoverRefused, recover_task
 from factory.runner import SubprocessRunner
 from factory.settings import Settings, SettingsError, load_settings
@@ -60,8 +60,11 @@ def _parser() -> argparse.ArgumentParser:
     commands = parser.add_subparsers(dest="command", required=True, parser_class=_Parser)
     commands.add_parser("new").add_argument("goal")
     commands.add_parser("list")
-    for name in ("show", "advance", "approve", "reject", "merge", "retry", "recover", "abandon", "rebase"):
+    for name in ("show", "advance", "approve", "reject", "merge", "recover", "abandon", "rebase"):
         commands.add_parser(name).add_argument("task_id")
+    retry = commands.add_parser("retry")
+    retry.add_argument("task_id")
+    retry.add_argument("--keep-plan", action="store_true")
     commands.add_parser("clean")
     commands.add_parser("costs").add_argument("task_id", nargs="?")
     return parser
@@ -215,13 +218,48 @@ def _costs(args, io, ctx) -> int:
 
 
 def _retry(args, io, ctx) -> int:
-    _load(ctx, args.task_id)
+    task = _load(ctx, args.task_id)
+    if args.keep_plan:
+        return _retry_keeping_plan(task, io, ctx)
     try:
         new = retry_task(args.task_id, ctx.store, ctx.clock)
     except RetryRefused as error:
         print(f"retry refused: {error}", file=io.stderr)
         return 1
     print(new.id, file=io.stdout)
+    return 0
+
+
+def _retry_keeping_plan(task: Task, io, ctx) -> int:
+    if not io.stdin.isatty():
+        print("keeping a plan needs an interactive terminal", file=io.stderr)
+        return 1
+    try:
+        require_keepable_plan(task, plan_digest(task.plan or ""))
+    except RetryRefused as error:
+        print(f"retry refused: {error}", file=io.stderr)
+        return 1
+    lines = [
+        f"RETRY of {task.id} ({task.state.value}), keeping its approved plan", f"GOAL:\n{task.goal}", f"PLAN:\n{task.plan}", "RISKS:",
+        *(f"  - {r}" for r in task.plan_risks), "REVIEW FINDINGS:", *(f"  - {f}" for f in task.review_findings),
+    ]
+    if task.failure_reason:
+        lines.append(f"FAILED BECAUSE: {task.failure_reason}")
+    if task.state is TaskState.AUDITED:
+        lines += ["AUDIT FINDINGS:", *(f"  - {f}" for f in task.audit_findings),
+                  f"{task.id} is audited and still mergeable; abandon it if you take this retry"]
+    print(escape_control("\n".join(lines)), file=io.stdout)
+    print(f"Queue this plan again as a new task (retry of {task.id})? [y/N] ", end="", file=io.stdout)
+    io.stdout.flush()
+    if io.stdin.readline().strip() != "y":
+        print("not queued", file=io.stdout)
+        return 1
+    try:
+        new = retry_with_plan(task.id, ctx.store, ctx.clock, plan_digest(task.plan))
+    except RetryRefused:
+        print("plan changed since display; nothing queued", file=io.stderr)
+        return 1
+    print(f"{new.id}: queued with the approved plan; run: factory advance {new.id}", file=io.stdout)
     return 0
 
 

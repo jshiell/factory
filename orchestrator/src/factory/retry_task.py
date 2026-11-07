@@ -27,7 +27,7 @@ def retry_task(task_id: str, store: TaskStore, clock: Callable[[], datetime]) ->
 def retry_with_plan(task_id: str, store: TaskStore, clock: Callable[[], datetime], shown_digest: str) -> Task:
     """Queue a new task with the plan a human already approved for `task_id` (the caller confirmed it with the human)."""
     task = store.load(task_id)
-    _require_an_approved_plan(task, shown_digest)
+    require_keepable_plan(task, shown_digest)
     return create_with_fresh_id(
         store, clock,
         lambda new_id: Task(
@@ -38,7 +38,7 @@ def retry_with_plan(task_id: str, store: TaskStore, clock: Callable[[], datetime
     )
 
 
-def _require_an_approved_plan(task: Task, shown_digest: str) -> None:
+def require_keepable_plan(task: Task, shown_digest: str) -> None:
     if task.state not in RETRYABLE:
         raise RetryRefused(f"{task.id} is {task.state.value}; only failed or audited tasks can be retried")
     if not task.goal:

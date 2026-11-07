@@ -758,3 +758,108 @@ def test_a_merged_branch_with_commits_is_previewed_as_deleted_only_if_git_agrees
     line = describe_merged(commits_ahead=2)
 
     assert "branch will be deleted if git agrees it is merged" in line and "left behind" not in line
+
+
+# --- retry --keep-plan --------------------------------------------------------
+
+KEPT = "1. add it\n2. test it"
+
+
+def approved_failure(ctx, state=S.FAILED, plan=KEPT, **fields):
+    from factory.approve_plan import build_implementation_prompt
+    ctx.settings.tasks_dir.mkdir(parents=True, exist_ok=True)
+    fields = {"goal": "add multiply", "plan": plan, "plan_digest": plan_digest(plan), "plan_risks": ("risky",),
+              "review_findings": ("looks fine",), "failure_reason": "tests_failed", **fields}
+    ctx.store.save(Task(id="t1", prompt=build_implementation_prompt(fields["goal"], plan), state=state, **fields))
+
+
+@pytest.fixture
+def keep_spy(monkeypatch):
+    calls = []
+    monkeypatch.setattr("factory.cli.retry_with_plan", lambda *a, **k: calls.append(a) or Task(id="new", prompt=""))
+    return calls
+
+
+@pytest.mark.parametrize("command", [["advance", "t1", "--keep-plan"], ["approve", "t1", "--keep-plan"], ["new", "g", "--keep-plan"]])
+def test_keep_plan_is_only_a_flag_of_retry(ctx, command):
+    code, _, err = run(ctx, *command)
+
+    assert code == 2 and "usage error" in err
+
+
+def test_keeping_the_plan_refuses_without_an_interactive_terminal_and_creates_nothing(ctx, keep_spy):
+    approved_failure(ctx)
+
+    code, _, err = run(ctx, "retry", "t1", "--keep-plan", stdin="y\n", tty=False)
+
+    assert code == 1 and "interactive" in err and keep_spy == []
+    assert [p.stem for p in ctx.settings.tasks_dir.iterdir()] == ["t1"]
+
+
+def test_keeping_the_plan_of_an_unapproved_task_exits_1_without_asking(ctx, keep_spy):
+    approved_failure(ctx)
+    ctx.store.save(replace(ctx.store.load("t1"), prompt=""))
+
+    code, out, err = run(ctx, "retry", "t1", "--keep-plan", stdin="y\n")
+
+    assert code == 1 and "never approved" in err and keep_spy == [] and "Queue" not in out
+
+
+def test_keeping_the_plan_of_a_task_with_no_plan_exits_1_without_crashing(ctx, keep_spy):
+    put(ctx, S.FAILED, goal="g", failure_reason="plan_failed")
+
+    code, _, err = run(ctx, "retry", "t1", "--keep-plan", stdin="y\n")
+
+    assert code == 1 and "plan" in err and keep_spy == []
+
+
+def test_keeping_the_plan_shows_the_plan_and_context_then_creates_a_queued_task_on_y(ctx):
+    approved_failure(ctx, failure_reason="tests_failed")
+
+    code, out, _ = run(ctx, "retry", "t1", "--keep-plan", stdin=" y \n")
+
+    assert code == 0
+    for text in ("add multiply", KEPT, "risky", "looks fine", "retry of t1", "tests_failed"):
+        assert text in out
+    new = ctx.store.load("20260102-030405")
+    assert new.state is S.QUEUED and new.retry_of == "t1" and new.plan == KEPT
+    assert "20260102-030405" in out and "factory advance 20260102-030405" in out
+
+
+@pytest.mark.parametrize("answer", ["n\n", "\n", "yes\n", "", "Y y\n"])
+def test_anything_but_y_does_not_keep_the_plan(ctx, keep_spy, answer):
+    approved_failure(ctx)
+
+    code, _, _ = run(ctx, "retry", "t1", "--keep-plan", stdin=answer)
+
+    assert code == 1 and keep_spy == []
+
+
+def test_the_confirmation_binds_to_the_digest_of_the_plan_shown(ctx, keep_spy):
+    approved_failure(ctx, plan="step\x1b[8m hidden")
+
+    code, out, _ = run(ctx, "retry", "t1", "--keep-plan", stdin="y\n")
+
+    assert "\x1b" not in out and keep_spy[0][3] == plan_digest("step\x1b[8m hidden")
+
+
+def test_a_plan_that_changed_after_it_was_shown_creates_nothing(ctx, monkeypatch):
+    from factory.retry_task import RetryRefused
+    approved_failure(ctx)
+
+    def mismatch(*a):
+        raise RetryRefused("plan digest mismatch for t1")
+
+    monkeypatch.setattr("factory.cli.retry_with_plan", mismatch)
+
+    code, _, err = run(ctx, "retry", "t1", "--keep-plan", stdin="y\n")
+
+    assert code == 1 and "plan changed since display" in err
+
+
+def test_an_audited_source_is_shown_with_its_findings_and_a_mergeable_warning(ctx):
+    approved_failure(ctx, S.AUDITED, failure_reason=None, audit_findings=("naming is odd",), audited_sha="abc")
+
+    _, out, _ = run(ctx, "retry", "t1", "--keep-plan", stdin="n\n")
+
+    assert "naming is odd" in out and "still mergeable" in out
