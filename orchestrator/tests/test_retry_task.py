@@ -2,7 +2,9 @@ from datetime import datetime
 
 import pytest
 
-from factory.retry_task import RetryRefused, retry_task
+from factory.approve_plan import build_implementation_prompt
+from factory.digest import plan_digest
+from factory.retry_task import RetryRefused, retry_task, retry_with_plan
 from factory.store import TaskStore
 from factory.task import Task, TaskState
 
@@ -60,3 +62,28 @@ def test_two_retries_in_the_same_second_get_distinct_ids(store):
     second = retry_task("t1", store, lambda: NOW)
 
     assert (first.id, second.id) == ("20260102-030405", "20260102-030405-2")
+
+
+PLAN = "1. add it"
+
+
+def put_approved(store, state=TaskState.FAILED, task_id="t1", **fields):
+    """What approve_plan leaves behind: plan, digest, review and the approved prompt."""
+    fields = {"goal": "add power", "plan": PLAN, "plan_digest": plan_digest(PLAN), "plan_risks": ("r",),
+              "review_findings": ("f",), **fields}
+    task = Task(id=task_id, prompt=build_implementation_prompt(fields["goal"], fields["plan"]), state=state, **fields)
+    store.save(task)
+    return task
+
+
+def test_keeping_the_plan_queues_a_new_task_with_the_approved_plan_and_leaves_the_old_one(store):
+    old = put_approved(store, failure_reason="tests_failed", worktree="/w", base_sha="abc", fix_rounds_used=2)
+
+    new = retry_with_plan("t1", store, lambda: NOW, plan_digest(PLAN))
+
+    assert new.state is TaskState.QUEUED and new.retry_of == "t1" and new.id == "20260102-030405"
+    assert (new.goal, new.plan, new.plan_risks, new.plan_digest, new.review_findings) == (
+        "add power", PLAN, ("r",), plan_digest(PLAN), ("f",))
+    assert new.prompt == build_implementation_prompt("add power", PLAN)
+    assert (new.worktree, new.base_sha, new.failure_reason, new.fix_rounds_used) == (None, None, None, 0)
+    assert store.load(new.id) == new and store.load("t1") == old

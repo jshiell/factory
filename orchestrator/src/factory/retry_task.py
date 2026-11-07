@@ -1,6 +1,7 @@
 from datetime import datetime
 from collections.abc import Callable
 
+from factory.approve_plan import build_implementation_prompt
 from factory.store import TaskStore, create_with_fresh_id
 from factory.task import Task, TaskState
 
@@ -19,4 +20,17 @@ def retry_task(task_id: str, store: TaskStore, clock: Callable[[], datetime]) ->
         raise RetryRefused(f"{task.id} has no goal to retry")
     return create_with_fresh_id(
         store, clock, lambda new_id: Task(id=new_id, prompt="", state=TaskState.PROPOSED, goal=task.goal, retry_of=task.id)
+    )
+
+
+def retry_with_plan(task_id: str, store: TaskStore, clock: Callable[[], datetime], shown_digest: str) -> Task:
+    """Queue a new task with the plan a human already approved for `task_id` (the caller confirmed it with the human)."""
+    task = store.load(task_id)
+    return create_with_fresh_id(
+        store, clock,
+        lambda new_id: Task(
+            id=new_id, prompt=build_implementation_prompt(task.goal, task.plan), state=TaskState.QUEUED, goal=task.goal,
+            plan=task.plan, plan_risks=task.plan_risks, plan_digest=task.plan_digest,
+            review_findings=task.review_findings, retry_of=task.id,
+        ),
     )
