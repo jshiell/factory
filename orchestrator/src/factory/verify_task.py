@@ -95,9 +95,13 @@ def _gate_once(
         return GateResult(False, "nested_repo")
     commit_all(worktree, f"Task {task.id}")
     if sandbox is None:
-        return check_gate(worktree, task.base_sha, project_subdir, test_argv, gate_timeout_s, capture_limit=capture_limit)
+        return check_gate(
+            worktree, task.base_sha, project_subdir, test_argv, gate_timeout_s,
+            capture_limit=capture_limit, frozen_sha=task.fix_frozen_sha,
+        )
     confined = sandbox(task)
     return check_gate(
         worktree, task.base_sha, project_subdir, list(confined.argv), gate_timeout_s,
         env=confined.env, test_prefix=confined.prefix, capture_limit=capture_limit,
+        frozen_sha=task.fix_frozen_sha,
     )

@@ -267,3 +267,52 @@ def test_the_pre_round_head_is_saved_on_the_task_before_the_agent_runs(repo, sto
 
     # the implementer's work is committed by the first gate run, so the pre-round HEAD is that commit
     assert seen[0].fix_frozen_sha == git(repo, "rev-list", "--max-count=1", "--grep=Task t1", "HEAD")
+
+
+def implementer_test(repo):
+    (repo / "proj" / "test_new.py").write_text("def test_n():\n    assert False\n")
+
+
+def test_a_round_that_rewrites_a_test_the_implementer_added_fails_tests_modified(repo, store, ledger, task):
+    implementer_test(repo)
+    rewrite = lambda: ((repo / "proj" / "test_new.py").write_text("def test_n():\n    assert True\n"), write_fix(repo)())
+    runner = FakeRunner(repo, rewrite)
+
+    result = verify(store, ledger, runner)
+
+    assert (result.state, result.failure_reason, result.fix_rounds_used) == (TaskState.FAILED, "tests_modified", 1)
+    assert len(runner.calls) == 1
+
+
+def test_a_round_that_deletes_a_test_the_implementer_added_fails_tests_modified(repo, store, ledger, task):
+    implementer_test(repo)
+    runner = FakeRunner(repo, lambda: ((repo / "proj" / "test_new.py").unlink(), write_fix(repo)()))
+
+    result = verify(store, ledger, runner)
+
+    assert (result.state, result.failure_reason) == (TaskState.FAILED, "tests_modified")
+
+
+def test_a_round_that_only_adds_a_new_test_file_still_reaches_the_gate_result(repo, store, ledger, task):
+    implementer_test(repo)
+    add = lambda: ((repo / "proj" / "test_extra.py").write_text("def test_e():\n    pass\n"), write_fix(repo)())
+    runner = FakeRunner(repo, add)
+
+    result = verify(store, ledger, runner, test_argv=["sh", "-c", "test -f fixed"])
+
+    assert result.state == TaskState.VERIFIED
+
+
+def test_a_resumed_task_is_still_frozen_against_its_stored_pre_round_head(repo, store, ledger, task):
+    implementer_test(repo)
+    git(repo, "add", "-A")
+    git(repo, "commit", "-q", "-m", "Task t1")
+    frozen = git(repo, "rev-parse", "HEAD")
+    store.save(Task(**{**task.__dict__, "fix_rounds_used": 1, "fix_frozen_sha": frozen}))
+    (repo / "proj" / "test_new.py").write_text("def test_n():\n    assert True\n")  # the round's edit, uncommitted
+    runner = FakeRunner(repo)
+
+    result = verify(store, ledger, runner, test_argv=["true"])
+
+    assert (result.state, result.failure_reason) == (TaskState.FAILED, "tests_modified")
+    assert runner.calls == []
