@@ -337,3 +337,20 @@ def test_the_tests_get_exactly_the_given_environment(repo):
                         env={"ONLY": "1", "PATH": "/usr/bin:/bin"})
 
     assert result.passed is True
+
+
+def test_the_tamper_check_sees_the_cumulative_diff_over_several_commits(repo):
+    base = repo_with_test_file(repo)
+    commit_project_edit(repo, "test_calc.py", "a\nb\nc\n")
+    commit_project_edit(repo, "test_calc.py", "a\n")
+
+    assert gate(repo, base).reason == "tests_modified"
+
+
+def test_rewriting_a_test_file_the_agent_itself_added_passes(repo):
+    (repo / "proj").mkdir()
+    base = git(repo, "rev-parse", "HEAD")
+    commit_project_edit(repo, "test_new.py", "def test_x():\n    assert False\n")
+    commit_project_edit(repo, "test_new.py", "def test_x():\n    assert True\n")
+
+    assert gate(repo, base).passed is True
