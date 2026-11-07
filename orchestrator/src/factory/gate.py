@@ -8,7 +8,7 @@ from pathlib import Path
 from factory.process import run_to_exit
 from factory.worktrees import HARDENED_GIT, run_git
 
-DEFAULT_PROTECTED_NAMES = ("conftest.py", "pytest.ini", ".pytest.ini", "pytest.toml", ".pytest.toml", "tox.ini", "setup.cfg", "uv.toml")
+DEFAULT_PROTECTED_NAMES = ("conftest.py", "pytest.ini", ".pytest.ini", "pytest.toml", ".pytest.toml", "tox.ini", "setup.cfg", "uv.toml", ".python-version", ".python-versions")
 DEFAULT_TEST_GLOBS = ("test_*.py", "*_test.py")
 _FACTORY_IDENTITY = ("-c", "user.name=factory", "-c", "user.email=factory@localhost")
 
