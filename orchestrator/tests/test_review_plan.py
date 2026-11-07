@@ -56,8 +56,9 @@ def test_the_review_prompt_has_goal_and_plan_with_the_plan_marked_untrusted():
 
 
 def test_the_review_config_is_read_only_with_an_approve_or_revise_schema():
-    assert REVIEW_CONFIG.allowed_tools == ("Read", "Grep", "Glob")
-    assert set(REVIEW_CONFIG.disallowed_tools) == {"Write", "Edit", "NotebookEdit", "Bash"}
+    assert REVIEW_CONFIG.allowed_tools == ()
+    assert REVIEW_CONFIG.confine is True
+    assert set(REVIEW_CONFIG.disallowed_tools) == {"Write", "Edit", "NotebookEdit", "Bash", "Glob"}
     assert REVIEW_CONFIG.permission_mode is None
     assert REVIEW_SCHEMA["properties"]["verdict"]["enum"] == ["approve", "revise"]
     assert REVIEW_CONFIG.max_turns and 0 < REVIEW_CONFIG.budget_usd < 0.5

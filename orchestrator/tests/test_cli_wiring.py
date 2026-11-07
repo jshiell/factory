@@ -24,6 +24,16 @@ print(json.dumps({"type": "result", "subtype": "success", "is_error": False,
 '''
 
 
+FAKE_NONO = r'''#!/usr/bin/env python3
+import json, os, sys
+argv = sys.argv[1:]
+with open(os.environ["FAKE_NONO_LOG"], "a") as log:
+    log.write(json.dumps(argv) + "\n")
+rest = argv[argv.index("--") + 1:]
+os.execv(rest[0], rest)
+'''
+
+
 def sh(*args, cwd, env=None, stdin=subprocess.DEVNULL):
     return subprocess.run(args, cwd=cwd, env=env, capture_output=True, text=True, stdin=stdin)
 
@@ -35,14 +45,17 @@ def project(tmp_path):
     (repo / "target" / "code.py").write_text("x")
     env = {**os.environ, "GIT_CONFIG_GLOBAL": "/dev/null", "GIT_CONFIG_SYSTEM": "/dev/null",
            "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t", "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t",
-           "FAKE_CLAUDE_LOG": str(tmp_path / "argv.log")}
+           "FAKE_CLAUDE_LOG": str(tmp_path / "argv.log"), "FAKE_NONO_LOG": str(tmp_path / "nono.log")}
     sh("git", "init", "-q", "-b", "main", cwd=repo, env=env)
     sh("git", "add", "-A", cwd=repo, env=env)
     sh("git", "commit", "-q", "-m", "init", cwd=repo, env=env)
     fake = tmp_path / "fake-claude"
     fake.write_text(FAKE_CLAUDE)
     fake.chmod(fake.stat().st_mode | stat.S_IEXEC)
-    (repo / "factory.toml").write_text(f'claude_executable = "{fake}"\nstate_dir = "{tmp_path / "state"}"\n'
+    nono = tmp_path / "fake-nono"
+    nono.write_text(FAKE_NONO)
+    nono.chmod(nono.stat().st_mode | stat.S_IEXEC)
+    (repo / "factory.toml").write_text(f'claude_executable = "{fake}"\nsandbox_executable = "{nono}"\nstate_dir = "{tmp_path / "state"}"\n'
                                        f'worktree_root = "{tmp_path / "wt"}"\n')
     return repo, env, tmp_path
 
@@ -80,10 +93,17 @@ def test_advance_plans_and_reviews_with_read_only_tools_and_stops_at_reviewed(pr
     assert f"factory approve {task_id}" in result.stdout
     calls = [json.loads(line) for line in (tmp_path / "argv.log").read_text().splitlines()]
     assert len(calls) == 2
+    (worktree,) = (tmp_path / "wt").iterdir()
+    worktree = worktree.resolve()
     for argv in calls:
-        assert argv[argv.index("--allowedTools") + 1] == "Read Grep Glob"
-        assert "Write" in argv[argv.index("--disallowedTools") + 1]
+        assert "--allowedTools" not in argv
+        assert {"Write", "Glob"} <= set(argv[argv.index("--disallowedTools") + 1].split())
         assert "--permission-mode" not in argv
+        assert argv[argv.index("--add-dir") + 1] == str(worktree)
+    sandbox_calls = [json.loads(line) for line in (tmp_path / "nono.log").read_text().splitlines()]
+    assert len(sandbox_calls) == 2
+    for argv in sandbox_calls:
+        assert argv[:7] == ["run", "-s", "--profile", "nolabs-ai/claude", "--allow-cwd", "--read", str(worktree)]
     shown = factory(project, "show", task_id).stdout
     assert "reviewed" in shown and "1. add multiply" in shown
 

@@ -68,6 +68,11 @@ def test_the_implementer_config_is_the_only_one_with_write_tools_and_no_git(setu
         assert not {"Write", "Edit"} & set(readonly.allowed_tools)
 
 
+def test_only_the_read_only_stage_configs_are_confined(setup):
+    assert implementer_config(setup[2]).confine is False
+    assert all(config.confine for config in (PLAN_CONFIG, REVIEW_CONFIG, AUDIT_CONFIG))
+
+
 @pytest.mark.parametrize(
     "stage,state,expected",
     [

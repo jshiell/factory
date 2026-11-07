@@ -12,8 +12,9 @@ def test_audit_prompt_contains_the_task_prompt_and_the_diff_marked_untrusted():
 
 
 def test_audit_config_is_read_only_with_a_verdict_schema_and_a_modest_budget():
-    assert AUDIT_CONFIG.allowed_tools == ("Read", "Grep", "Glob")
-    assert set(AUDIT_CONFIG.disallowed_tools) == {"Write", "Edit", "NotebookEdit", "Bash"}
+    assert AUDIT_CONFIG.allowed_tools == ()
+    assert AUDIT_CONFIG.confine is True
+    assert set(AUDIT_CONFIG.disallowed_tools) == {"Write", "Edit", "NotebookEdit", "Bash", "Glob"}
     assert AUDIT_CONFIG.permission_mode is None
     assert AUDIT_CONFIG.json_schema["properties"]["verdict"]["enum"] == ["pass", "fail"]
     assert AUDIT_CONFIG.max_turns is not None

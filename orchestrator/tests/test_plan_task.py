@@ -67,8 +67,9 @@ def test_the_plan_prompt_carries_the_goal_and_never_starts_with_a_dash():
 
 
 def test_the_plan_config_is_read_only_with_a_plan_schema():
-    assert PLAN_CONFIG.allowed_tools == ("Read", "Grep", "Glob")
-    assert set(PLAN_CONFIG.disallowed_tools) == {"Write", "Edit", "NotebookEdit", "Bash"}
+    assert PLAN_CONFIG.allowed_tools == ()
+    assert PLAN_CONFIG.confine is True
+    assert set(PLAN_CONFIG.disallowed_tools) == {"Write", "Edit", "NotebookEdit", "Bash", "Glob"}
     assert PLAN_CONFIG.permission_mode is None
     assert PLAN_SCHEMA["required"] == ["plan", "risks"]
     assert PLAN_CONFIG.max_turns and 0 < PLAN_CONFIG.budget_usd < 0.5
