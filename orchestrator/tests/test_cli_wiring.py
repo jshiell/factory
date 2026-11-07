@@ -125,3 +125,12 @@ def test_a_bad_config_file_exits_2_naming_the_key(project):
     result = factory(project, "list")
 
     assert result.returncode == 2 and "bogus" in result.stderr
+
+
+def test_merge_from_a_non_terminal_changes_nothing(project):
+    task_id = factory(project, "new", "add multiply").stdout.strip()
+
+    result = factory(project, "merge", task_id, stdin=subprocess.PIPE)
+
+    assert result.returncode == 1 and "interactive" in result.stderr
+    assert "proposed" in factory(project, "show", task_id).stdout
