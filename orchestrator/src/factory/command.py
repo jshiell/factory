@@ -44,6 +44,15 @@ def build_command(
     return argv, {"CLAUDE_CODE_DISABLE_CLAUDE_MDS": "1"}
 
 
-def sandbox_prefix(executable: str, worktree: str | Path) -> list[str]:
-    return [executable, "run", "-s", "--profile", SANDBOX_PROFILE, "--allow-cwd",
-            "--read", str(Path(worktree).resolve()), "--"]
+def sandbox_prefix(
+    executable: str, worktree: str | Path, profile: str | None = SANDBOX_PROFILE,
+    allow: tuple[str, ...] = (), read: tuple[str, ...] = (),
+) -> list[str]:
+    """nono prefix; without a profile `--allow-cwd` is read-only, so write access is granted via `allow`."""
+    prefix = [executable, "run", "-s"] + (["--profile", profile] if profile else [])
+    prefix += ["--allow-cwd", "--read", str(Path(worktree).resolve())]
+    for directory in allow:
+        prefix += ["--allow", directory]
+    for directory in read:
+        prefix += ["--read", directory]
+    return prefix + ["--"]

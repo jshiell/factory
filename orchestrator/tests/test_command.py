@@ -105,3 +105,14 @@ def test_each_add_dir_is_passed_as_its_own_argument():
 
     pairs = [argv[i : i + 2] for i, arg in enumerate(argv) if arg == "--add-dir"]
     assert pairs == [["--add-dir", "/a b"], ["--add-dir", "/c"]]
+
+
+def test_a_profile_less_sandbox_prefix_grants_write_to_the_given_dirs_and_read_to_the_others(tmp_path):
+    prefix = sandbox_prefix("nono", tmp_path, profile=None, allow=("/p/target", "/p/cache"), read=("/py", "/uvpy"))
+
+    assert "--profile" not in prefix
+    assert prefix[:5] == ["nono", "run", "-s", "--allow-cwd", "--read"]
+    assert prefix[-1] == "--"
+    pairs = list(zip(prefix, prefix[1:]))
+    assert [b for a, b in pairs if a == "--allow"] == ["/p/target", "/p/cache"]
+    assert [b for a, b in pairs if a == "--read"] == [str(tmp_path.resolve()), "/py", "/uvpy"]
