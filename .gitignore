@@ -10,3 +10,4 @@ spike/e2e4-state/
 spike/cli_probe/.venv/
 .factory/
 spike/nono-probe-out/
+spike/nono-impl-out/
