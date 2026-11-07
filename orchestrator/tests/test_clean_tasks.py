@@ -409,3 +409,21 @@ def test_an_unset_base_or_a_missing_branch_is_never_empty(env):
 
     assert candidate(env, "nobase").branch_empty is False
     assert [c for c in clean_candidates(store, repo, root) if c.task.id == "nobranch"][0].branch_empty is False
+
+
+def clear_worktree(env, task_id):
+    store, repo, manager, _, add = env
+    task = store.load(task_id)
+    manager.remove(task_id)
+    store.save(Task(**{**task.__dict__, "worktree": None}))
+
+
+def test_a_failed_task_without_a_worktree_is_a_candidate_only_for_an_empty_branch(env):
+    store, repo, manager, root, add = env
+    add("empty", S.FAILED)
+    clear_worktree(env, "empty")
+    commit_on(add("work", S.FAILED))
+    clear_worktree(env, "work")
+    add("bare", S.FAILED, with_worktree=False)  # nothing left at all
+
+    assert ids(clean_candidates(store, repo, root)) == ["empty"]

@@ -31,6 +31,7 @@ def clean_candidates(
     return [
         c for c in candidates
         if c.task.worktree or (c.task.state is TaskState.MERGED and c.branch_exists) or c.cache_bytes is not None
+        or (c.task.state is TaskState.FAILED and c.branch_empty)
     ]
 
 
