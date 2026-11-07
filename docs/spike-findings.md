@@ -240,3 +240,10 @@ Command shape: `nono run -s --profile nolabs-ai/claude --allow-cwd --read <resol
 - A fix round's rewrite or delete of an implementer-added test is invisible to the base comparison and caught by the frozen comparison (pre-round HEAD stored on the task as `fix_frozen_sha`, saved before the agent runs, so a resumed task stays frozen).
 - `pytest.toml`, `.pytest.toml`, `.pytest.ini` (also under `sub/`) and a `[tool.pytest]` table in pyproject now fail `tests_modified`. git `:(glob)` matches dotfiles at both depths.
 - Known gaps: gitignored `conftest.py`/`test_*.py` written by the agent are skipped by `git add -A` but loaded by pytest in the worktree (a clean-checkout gate is the real fix, plan 13 candidate); a new test file can monkeypatch the code under test at import time; config files in directories above the project subdir are unwatched.
+
+## Plan 13: the gate runs only committed files (e2e, `spike/clean_gate_e2e.py`, real nono and uv, 7 checks PASS)
+- `clean_worktree` (`git clean -ffdx`, after a guard, with a postcondition) runs after `commit_all` and before the sandbox is built, so every gate run, including each fix round, sees only tracked files.
+- A gitignored `conftest.py` that turns failures into passes is removed (the failing test fails the gate as `tests_failed`); a `.pth` planted in the ignored `.venv` did not run.
+- A gate run including the venv rebuild took 0.9s against the 120s timeout (warm private uv cache).
+- Guard refuses (`worktree_mismatch`) a redirected root `.git` or `state_dir`/`worktree_root` inside the worktree; a clean that leaves anything untracked or ignored gives `worktree_not_clean`.
+- Known gaps: submodule directories are skipped by clean; tracked config above the project subdir is still unwatched; a project whose tests need a gitignored local file now fails the gate; a new test file can still monkeypatch the code under test at import time; whether Claude Code or nono refuse writes to the root `.git` is unverified (the guard covers it either way); the guard allows a main working tree whose `.git` directory is real, which production never uses.
