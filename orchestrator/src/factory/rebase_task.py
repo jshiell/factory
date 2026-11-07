@@ -82,6 +82,9 @@ def rebase_task(task_id: str, store: TaskStore, repo: Path) -> Rebased:
         raise RebaseRefused(
             f"git rebase failed ({reason.strip()}); on a conflict run `factory abandon {task.id}` then `factory retry {task.id}`"
         ) from error
+    except BaseException:  # a signal (SystemExit, KeyboardInterrupt) must not leave a rebase half done
+        _restore(task, repo, worktree)
+        raise
     rebased = replace(
         apply(task, Event.REBASED), base_sha=main_head, audited_sha=None, audit_findings=(), audit_error=None,
         fix_rounds_used=0, fix_in_flight=False, fix_frozen_sha=None,

@@ -134,3 +134,37 @@ def test_a_conflict_is_refused_the_rebase_aborted_and_the_old_state_left_intact(
     assert store.load("t1") == stored_before
     assert git(worktree, "rev-parse", "HEAD") == git(repo, "rev-parse", "factory/t1") == task.audited_sha
     assert git(worktree, "status", "--porcelain") == "" and not in_progress(worktree)
+
+
+def test_an_interrupt_during_the_rebase_aborts_it_restores_the_old_tip_and_propagates(audited, monkeypatch):
+    import subprocess
+    from factory import rebase_task as module
+    store, repo, worktree, task = audited
+    conflict_on_main(repo)
+    real = module.run_git
+
+    def interrupted_mid_rebase(cwd, *args):
+        if "--onto" in args:
+            with pytest.raises(subprocess.CalledProcessError):
+                real(cwd, *args)  # leaves the rebase stopped on the conflict, as a signal would
+            raise KeyboardInterrupt
+        return real(cwd, *args)
+
+    monkeypatch.setattr(module, "run_git", interrupted_mid_rebase)
+
+    with pytest.raises(KeyboardInterrupt):
+        rebase_task("t1", store, repo)
+
+    assert git(worktree, "rev-parse", "HEAD") == git(repo, "rev-parse", "factory/t1") == task.audited_sha
+    assert git(worktree, "status", "--porcelain") == "" and not in_progress(worktree)
+    assert store.load("t1") == task
+
+
+def test_guard_a_failure_before_the_rebase_starts_reports_gits_reason_without_an_abort_alarm(audited):
+    store, repo, worktree, task = audited
+    store.save(replace(task, base_sha="0" * 40))
+
+    with pytest.raises(RebaseRefused) as raised:
+        rebase_task("t1", store, repo)
+
+    assert "could not be restored" not in str(raised.value) and "git rebase failed" in str(raised.value)
