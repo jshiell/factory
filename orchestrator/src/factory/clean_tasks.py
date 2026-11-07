@@ -1,10 +1,10 @@
 import subprocess
-from dataclasses import dataclass
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 from factory.store import TaskStore
 from factory.task import Task, TaskState
-from factory.worktrees import run_git
+from factory.worktrees import WorktreeManager, run_git
 
 CLEANABLE = (TaskState.MERGED, TaskState.FAILED)
 
@@ -43,3 +43,33 @@ def _commits_ahead(task: Task, branch: str, branch_exists: bool, repo: Path) -> 
         return int(run_git(repo, "rev-list", "--count", f"{task.base_sha}..{branch}"))
     except subprocess.CalledProcessError:  # an unknown base commit must not break the preview
         return 0
+
+
+@dataclass
+class Outcome:
+    task_id: str
+    done: list[str] = field(default_factory=list)
+    problems: list[str] = field(default_factory=list)
+
+
+def clean_tasks(
+    candidates: list[Candidate], store: TaskStore, worktrees: WorktreeManager, repo: Path, worktree_root: Path
+) -> list[Outcome]:
+    return [_clean_one(candidate, store, worktrees, repo) for candidate in candidates]
+
+
+def _clean_one(candidate: Candidate, store: TaskStore, worktrees: WorktreeManager, repo: Path) -> Outcome:
+    task = candidate.task
+    outcome = Outcome(task.id)
+    if task.worktree:
+        if candidate.directory_exists:
+            worktrees.remove(task.id)
+            outcome.done.append("removed worktree")
+        else:
+            run_git(repo, "worktree", "prune")
+            outcome.done.append("pruned missing worktree")
+        store.save(replace(task, worktree=None))
+    if task.state is TaskState.MERGED and candidate.branch_exists:
+        run_git(repo, "branch", "-d", f"factory/{task.id}")
+        outcome.done.append("deleted branch")
+    return outcome

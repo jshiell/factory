@@ -1,8 +1,10 @@
+import shutil
+
 import pytest
 
 from gitutil import git
 
-from factory.clean_tasks import clean_candidates
+from factory.clean_tasks import clean_candidates, clean_tasks
 from factory.store import TaskStore
 from factory.task import Task, TaskState
 from factory.worktrees import WorktreeManager
@@ -86,3 +88,40 @@ def test_a_worktree_outside_the_worktree_root_is_flagged_not_cleaned(env, tmp_pa
 
     assert candidate(env, "t1").outside_root is True
     assert candidate(env, "t1").directory_exists is False
+
+
+def run_clean(env):
+    store, repo, manager, root, _ = env
+    return clean_tasks(clean_candidates(store, repo, root), store, manager, repo, root)
+
+
+def test_clean_removes_the_worktree_and_clears_the_field(env):
+    store, _, _, _, add = env
+    path = add("failed", S.FAILED)
+
+    run_clean(env)
+
+    assert not path.exists() and store.load("failed").worktree is None
+
+
+def test_a_missing_directory_is_pruned_and_the_merged_branch_then_deletes(env):
+    store, repo, _, _, add = env
+    path = add("merged", S.MERGED)
+    shutil.rmtree(path)  # the directory is gone but git still has the worktree registered
+
+    outcomes = run_clean(env)
+
+    assert store.load("merged").worktree is None
+    assert not git(repo, "branch", "--list", "factory/merged")
+    assert outcomes[0].problems == []
+
+
+def test_a_merged_branch_is_deleted_and_a_failed_branch_is_kept(env):
+    store, repo, _, _, add = env
+    add("merged", S.MERGED)
+    add("failed", S.FAILED)
+
+    run_clean(env)
+
+    assert not git(repo, "branch", "--list", "factory/merged")
+    assert git(repo, "branch", "--list", "factory/failed")
