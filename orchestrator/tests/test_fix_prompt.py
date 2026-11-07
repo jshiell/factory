@@ -63,3 +63,9 @@ def test_a_task_without_goal_or_plan_falls_back_to_its_stored_prompt():
     prompt = build_fix_prompt(Task(id="t1", prompt="the stored prompt"), "out")
 
     assert "the stored prompt" in prompt
+
+
+def test_the_prompt_tells_the_fixer_to_stay_inside_the_project():
+    prompt = build_fix_prompt(task(), "FAILED test_x")
+
+    assert "Only change files inside the project directory" in prompt
