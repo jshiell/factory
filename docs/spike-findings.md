@@ -150,3 +150,19 @@ Command shape: `nono run -s --profile nolabs-ai/claude --allow-cwd --read <resol
 - **Confirmed (Glob):** unsandboxed, Glob works and reaches every canary (so it is not confined by claude's own rules when allowed); under nono it returned nothing in every configuration, including the control file in the cwd. Cause not diagnosed. Treated as unavailable.
 - **Confirmed (derived profile):** the nono profile guide says inherited filesystem paths cannot be removed (only groups can be excluded), so the temp grant cannot be dropped with a derived profile without excluding a whole system group (not tried).
 - **Not tested:** the default-rule layer without nono (so nono's marginal value on top of it is unmeasured); Glob's cause; behaviour of the real plan, review and audit prompts with no allow list.
+
+## Plan 6 cycle D: e2e under nono (run by the user in a real terminal, task 20261107-112109, $0.3162)
+- **Confirmed:** the goal asked the planner to quote canaries at the repo root and under `$HOME`. Both reads were refused ("could not resolve where the path leads on disk"). The reviewer reported the same. `factory show | grep -c -E "ROOT-|HOME-"` gave 0.
+- **Confirmed:** the real plan, review and audit prompts work with an empty allow list and no Glob. The pipeline went plan, review, approve (user `y`), implement, verify, audit and ended `audited`. Confined stages cost: plan $0.1259, review $0.1309, audit $0.0962.
+- **Note:** the refusal text is the symlink-resolution error, not a plain permission denial. The planner could not read the files. It did not say what blocked the read, so the boundary is shown by the token being absent, not by the message.
+- Unit suite: 391 passed; target: 1 passed (sniffed toolchain, no declared gate).
+
+## Known gaps after plan 6
+- Read-only agents (plan, review, audit) read the worktree only at the tool level (e2e canaries absent). nono still grants `$TMPDIR`, `~/.claude` (r+w), `~/.claude.json` and Keychain files at the OS level. This is defence in depth, not a clean boundary.
+- Tool-level confinement depends on claude's default headless rules. A claude upgrade could change them. Fallback is `--settings` deny rules. The e2e canary run is the regression check.
+- The workdir is OS-writable; write protection of read-only stages rests on the tool disallow list and the post-run dirty/HEAD check.
+- `Glob` is unavailable to confined agents (empty results under nono, cause undiagnosed).
+- nono stderr is discarded; a profile or sandbox error appears only as an empty-output infrastructure failure.
+- `factory advance` from inside an agent's own nono session fails at plan (nested nono denied). Only the human runs the real pipeline.
+- The implementer is not confined.
+- Carried over: approve TTY check is process control; SIGKILL leaves `running`; orphaned worktrees; the auditor judges the plan, not the goal; the audit cannot confirm test-first or a passing run.
