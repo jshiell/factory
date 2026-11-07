@@ -9,6 +9,7 @@ from factory.process import run_to_exit
 from factory.worktrees import HARDENED_GIT, run_git
 
 DEFAULT_PROTECTED_NAMES = ("conftest.py", "pytest.ini", ".pytest.ini", "pytest.toml", ".pytest.toml", "tox.ini", "setup.cfg", "uv.toml", ".python-version", ".python-versions")
+WATCHED_TOOL_TABLES = ("pytest", "uv")
 DEFAULT_TEST_GLOBS = ("test_*.py", "*_test.py")
 _FACTORY_IDENTITY = ("-c", "user.name=factory", "-c", "user.email=factory@localhost")
 
@@ -136,12 +137,13 @@ def _protected_changed(
     project = _resolve_inside(worktree, project_subdir).relative_to(worktree.resolve())
     pyprojects = [(directory / "pyproject.toml").as_posix() for directory in (project, *project.parents)]
     return any(
-        _pytest_table(worktree, base_sha, pyproject) != _pytest_table(worktree, "HEAD", pyproject)
+        _config_tables(worktree, base_sha, pyproject) != _config_tables(worktree, "HEAD", pyproject)
         for pyproject in pyprojects
     )
 
 
-def _pytest_table(worktree: Path, revision: str, path: str) -> dict | None:
+def _config_tables(worktree: Path, revision: str, path: str) -> tuple | None:
+    """The `[tool.pytest]` and `[tool.uv]` tables: the parts of a pyproject that change how the tests run."""
     shown = subprocess.run(
         [*HARDENED_GIT, "show", f"{revision}:{path}"], cwd=worktree, capture_output=True, stdin=subprocess.DEVNULL
     )
@@ -150,9 +152,14 @@ def _pytest_table(worktree: Path, revision: str, path: str) -> dict | None:
     try:
         document = tomllib.loads(shown.stdout.decode())
     except (tomllib.TOMLDecodeError, UnicodeDecodeError):
-        return {"unparseable": True}
+        return ({"unparseable": True},)
     tool = document.get("tool", {})
-    table = tool.get("pytest") if isinstance(tool, dict) else {"unparseable": True}
+    if not isinstance(tool, dict):
+        return ({"unparseable": True},)
+    return tuple(_table_or_unparseable(tool.get(name)) for name in WATCHED_TOOL_TABLES)
+
+
+def _table_or_unparseable(table):
     return table if table is None or isinstance(table, dict) else {"unparseable": True}
 
 

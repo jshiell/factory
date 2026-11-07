@@ -256,6 +256,15 @@ def test_adding_a_dependency_to_pyproject_passes(repo):
     assert gate(repo, base).passed is True
 
 
+def test_adding_a_tool_uv_table_to_pyproject_fails_tests_modified(repo):
+    (repo / "proj").mkdir()
+    (repo / "proj" / "pyproject.toml").write_text('[project]\nname = "p"\ndependencies = []\n')
+    base = repo_with_test_file(repo)
+    commit_project_edit(repo, "pyproject.toml", '[project]\nname = "p"\ndependencies = []\n\n[tool.uv]\nexclude-newer = "2000-01-01T00:00:00Z"\n')
+
+    assert gate(repo, base).reason == "tests_modified"
+
+
 # Guards (start green): uv config files are protected wherever they sit under the repo.
 @pytest.mark.parametrize("name", ["uv.toml", ".python-version", ".python-versions"])
 def test_guard_editing_a_uv_config_file_fails_tests_modified(repo, name):
