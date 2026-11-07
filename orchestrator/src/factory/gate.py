@@ -3,7 +3,7 @@ import tomllib
 from dataclasses import dataclass
 from pathlib import Path
 
-from factory.worktrees import run_git
+from factory.worktrees import HARDENED_GIT, run_git
 
 DEFAULT_PROTECTED_NAMES = ("conftest.py", "pytest.ini", "tox.ini", "setup.cfg")
 DEFAULT_TEST_GLOBS = ("test_*.py", "*_test.py")
@@ -85,7 +85,7 @@ def _protected_changed(
 
 def _pytest_table(worktree: Path, revision: str, path: str) -> dict | None:
     shown = subprocess.run(
-        ["git", "show", f"{revision}:{path}"], cwd=worktree, capture_output=True, stdin=subprocess.DEVNULL
+        [*HARDENED_GIT, "show", f"{revision}:{path}"], cwd=worktree, capture_output=True, stdin=subprocess.DEVNULL
     )
     if shown.returncode != 0:
         return None
@@ -98,7 +98,7 @@ def _pytest_table(worktree: Path, revision: str, path: str) -> dict | None:
 
 def _is_ancestor(worktree: Path, base_sha: str) -> bool:
     completed = subprocess.run(
-        ["git", "merge-base", "--is-ancestor", base_sha, "HEAD"],
+        [*HARDENED_GIT, "merge-base", "--is-ancestor", base_sha, "HEAD"],
         cwd=worktree, capture_output=True, stdin=subprocess.DEVNULL,
     )
     return completed.returncode == 0

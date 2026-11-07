@@ -4,9 +4,13 @@ from pathlib import Path
 from factory.ids import require_safe_id
 
 
+# The worktree is agent-controlled: never let its config run commands (fsmonitor, hooks) in the factory's git.
+HARDENED_GIT = ("git", "-c", "core.fsmonitor=false", "-c", "core.hooksPath=/dev/null", "-c", "diff.ignoreSubmodules=all")
+
+
 def run_git(cwd: Path, *args: str) -> str:
     result = subprocess.run(
-        ["git", *args], cwd=cwd, capture_output=True, text=True, check=True, stdin=subprocess.DEVNULL
+        [*HARDENED_GIT, *args], cwd=cwd, capture_output=True, text=True, check=True, stdin=subprocess.DEVNULL
     )
     return result.stdout.strip()
 
