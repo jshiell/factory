@@ -208,3 +208,18 @@ Command shape: `nono run -s --profile nolabs-ai/claude --allow-cwd --read <resol
 - `.factory/gate-cache/<id>` dirs accumulate; `clean` does not remove them.
 - With no shell the implementer cannot run tests, so first-try success drops until plan 10 (factory-run tests between agent turns, fresh `claude -p` with truncated failure text, max 2 rounds).
 - Carried over: re-planning on a moved main, no `abandon` command.
+
+## Plan 10: test-feedback loop e2e (user, real terminal, about $0.23 for the task)
+- **Confirmed:** with the implementer given the deliberate-bug goal, the first gate failed on `tests_failed`, one fix round ran (`fix_rounds_used: 1`, `costs` lists a `fix` stage at $0.0414), the re-run gate passed and the task reached `audited`. `show` and `list` contain no test output. The auditor could only see the final state, so it cannot say whether the first attempt was buggy; the `fix` ledger entry is the evidence the loop ran.
+- **Not run by hand:** the `fix_rounds = 0` variant and the SIGKILL-mid-round check (`fix_interrupted`); both are covered by unit tests only.
+- Unit suite: 552 passed; target: 1 passed (sniffed toolchain).
+
+## Known gaps after plan 10
+- The fix agent can rewrite or delete its own new tests (additions); the auditor and the human at merge are the control. Existing tests and same-name shadowing are blocked.
+- pytest config files outside the protected list (`pytest.toml`, `.pytest.ini`, a `[tool.pytest]` table) were not verified as covered.
+- `tests_failed` caused by tooling (no network for uv) burns the rounds; bounded by `fix_rounds` times the budget and the cap.
+- Test output (plus nono and uv lines) is model input; secrets in the inherited environment could appear in it. A runaway print can fill the temp directory until the gate timeout.
+- A SIGKILLed driver may leave an orphan agent alive; `fix_interrupted` only reports it.
+- `fix_no_changes` is best effort: non-ignored test artifacts make the worktree look changed. Denials from fix rounds are merged but untested.
+- Plan 9 residuals stay, including `uv python find` running unconfined once per gate run.
+- Carried over: `gate-cache` dirs accumulate, no `abandon`, re-planning on a moved main.
