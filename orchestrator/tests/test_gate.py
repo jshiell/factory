@@ -631,3 +631,55 @@ def test_a_gitlink_added_outside_the_project_fails_outside_project(repo):
     git(repo, "commit", "-q", "-m", "gitlink")
 
     assert gate(repo, base).reason == "outside_project"
+
+
+# Guards (start green): the outside-project boundary.
+@pytest.mark.parametrize("path", ["proj2/x.py", "proj.txt", "docs/note.md", "sitecustomize.py", "uv.toml", ".python-version", ".env"])
+def test_guard_any_path_outside_the_project_fails_outside_project(repo, path):
+    base = repo_with_project_change(repo)
+    commit_root_file(repo, path, "x\n")
+
+    assert gate(repo, base).reason == "outside_project"
+
+
+def test_guard_moving_a_file_out_of_the_project_fails_outside_project(repo):
+    base = repo_with_project_change(repo)
+    git(repo, "mv", "proj/code.py", "moved.py")
+    commit_project_edit(repo, "other.py", "z")
+
+    assert gate(repo, base).reason == "outside_project"
+
+
+def test_guard_deleting_a_file_outside_the_project_fails_outside_project(repo):
+    commit_root_file(repo, "notes.txt", "x\n")
+    base = repo_with_project_change(repo)
+    git(repo, "rm", "-q", "notes.txt")
+    git(repo, "commit", "-q", "-m", "delete")
+
+    assert gate(repo, base).reason == "outside_project"
+
+
+@pytest.mark.parametrize("subdir", ["./proj", "proj/"])
+def test_guard_an_unnormalised_subdir_still_allows_project_only_changes_and_refuses_others(repo, subdir):
+    base = repo_with_project_change(repo)
+    assert check_gate(repo, base, subdir, ["true"], 5).passed is True
+
+    commit_root_file(repo, "README.md", "x\n")
+    assert check_gate(repo, base, subdir, ["true"], 5).reason == "outside_project"
+
+
+def test_guard_a_nested_project_refuses_a_change_beside_it(repo):
+    (repo / "a" / "b").mkdir(parents=True)
+    (repo / "a" / "b" / "code.py").write_text("x")
+    git(repo, "add", "-A")
+    git(repo, "commit", "-q", "-m", "nested")
+    base = git(repo, "rev-parse", "HEAD")
+    (repo / "a" / "b" / "code.py").write_text("y")
+    git(repo, "add", "-A")
+    git(repo, "commit", "-q", "-m", "inside")
+    assert check_gate(repo, base, "a/b", ["true"], 5).passed is True
+
+    (repo / "a" / "other.py").write_text("z")
+    git(repo, "add", "-A")
+    git(repo, "commit", "-q", "-m", "beside")
+    assert check_gate(repo, base, "a/b", ["true"], 5).reason == "outside_project"
