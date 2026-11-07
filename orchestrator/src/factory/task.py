@@ -31,6 +31,7 @@ class Event(Enum):
     HUMAN_REJECTED = "human_rejected"
     MERGED = "merged"
     ABANDONED = "abandoned"
+    REBASED = "rebased"
 
 
 class InvalidTransition(Exception):
@@ -78,6 +79,7 @@ _TRANSITIONS = {
     (TaskState.VERIFIED, Event.AUDIT_PASSED): TaskState.AUDITED,
     (TaskState.VERIFIED, Event.AUDIT_FAILED): TaskState.FAILED,
     (TaskState.AUDITED, Event.MERGED): TaskState.MERGED,
+    (TaskState.AUDITED, Event.REBASED): TaskState.AGENT_DONE,
     **{(state, Event.ABANDONED): TaskState.FAILED for state in (
         TaskState.PROPOSED, TaskState.PLANNED, TaskState.REVIEWED, TaskState.QUEUED,
         TaskState.AGENT_DONE, TaskState.VERIFIED, TaskState.AUDITED)},

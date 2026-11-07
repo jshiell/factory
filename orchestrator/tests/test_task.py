@@ -158,3 +158,15 @@ def test_abandoned_fails_every_non_terminal_state_except_running(state):
 def test_abandoned_is_refused_from_running_and_the_terminal_states(state):
     with pytest.raises(InvalidTransition):
         apply(task_in(state), Event.ABANDONED, "abandoned")
+
+
+def test_rebased_sends_an_audited_task_back_to_agent_done():
+    task = apply(task_in(TaskState.AUDITED), Event.REBASED)
+
+    assert task.state is TaskState.AGENT_DONE and task.failure_reason is None
+
+
+@pytest.mark.parametrize("state", [state for state in TaskState if state is not TaskState.AUDITED])
+def test_rebased_is_refused_from_every_state_but_audited(state):
+    with pytest.raises(InvalidTransition):
+        apply(task_in(state), Event.REBASED)
