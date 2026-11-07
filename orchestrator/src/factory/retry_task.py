@@ -2,6 +2,7 @@ from datetime import datetime
 from collections.abc import Callable
 
 from factory.approve_plan import build_implementation_prompt
+from factory.digest import plan_digest
 from factory.store import TaskStore, create_with_fresh_id
 from factory.task import Task, TaskState
 
@@ -26,6 +27,7 @@ def retry_task(task_id: str, store: TaskStore, clock: Callable[[], datetime]) ->
 def retry_with_plan(task_id: str, store: TaskStore, clock: Callable[[], datetime], shown_digest: str) -> Task:
     """Queue a new task with the plan a human already approved for `task_id` (the caller confirmed it with the human)."""
     task = store.load(task_id)
+    _require_an_approved_plan(task, shown_digest)
     return create_with_fresh_id(
         store, clock,
         lambda new_id: Task(
@@ -34,3 +36,16 @@ def retry_with_plan(task_id: str, store: TaskStore, clock: Callable[[], datetime
             review_findings=task.review_findings, retry_of=task.id,
         ),
     )
+
+
+def _require_an_approved_plan(task: Task, shown_digest: str) -> None:
+    if task.state not in RETRYABLE:
+        raise RetryRefused(f"{task.id} is {task.state.value}; only failed or audited tasks can be retried")
+    if not task.goal:
+        raise RetryRefused(f"{task.id} has no goal to retry")
+    if not task.plan:
+        raise RetryRefused(f"{task.id} has no plan to keep")
+    if not (plan_digest(task.plan) == shown_digest == task.plan_digest):
+        raise RetryRefused(f"plan digest mismatch for {task.id}")
+    if not task.prompt:  # only approve_plan persists a prompt on a task that has a plan
+        raise RetryRefused(f"{task.id}: its plan was never approved; use retry without --keep-plan")

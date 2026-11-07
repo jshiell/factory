@@ -87,3 +87,49 @@ def test_keeping_the_plan_queues_a_new_task_with_the_approved_plan_and_leaves_th
     assert new.prompt == build_implementation_prompt("add power", PLAN)
     assert (new.worktree, new.base_sha, new.failure_reason, new.fix_rounds_used) == (None, None, None, 0)
     assert store.load(new.id) == new and store.load("t1") == old
+
+
+def refused_keeping_the_plan(store, shown=None, match=None):
+    before = sorted(store._directory.iterdir())
+    with pytest.raises(RetryRefused, match=match):
+        retry_with_plan("t1", store, lambda: NOW, shown or plan_digest(PLAN))
+    assert sorted(store._directory.iterdir()) == before
+
+
+@pytest.mark.parametrize("state", [s for s in TaskState if s not in (TaskState.FAILED, TaskState.AUDITED)])
+def test_keeping_the_plan_refuses_a_task_that_is_not_failed_or_audited(store, state):
+    put_approved(store, state)
+
+    refused_keeping_the_plan(store, match=state.value)
+
+
+def test_keeping_the_plan_refuses_a_task_with_no_goal(store):
+    put_approved(store, goal=None)
+
+    refused_keeping_the_plan(store, match="goal")
+
+
+def test_keeping_the_plan_refuses_a_task_that_failed_before_it_had_a_plan(store):
+    put(store, TaskState.FAILED, goal="g", failure_reason="plan_failed")
+
+    refused_keeping_the_plan(store, match="plan")
+
+
+def test_keeping_the_plan_refuses_a_stored_digest_that_does_not_match_the_plan(store):
+    put_approved(store, plan_digest="0" * 64)
+
+    refused_keeping_the_plan(store, match="digest")
+
+
+def test_keeping_the_plan_refuses_a_shown_digest_that_does_not_match(store):
+    put_approved(store)
+
+    refused_keeping_the_plan(store, shown="f" * 64, match="digest")
+
+
+@pytest.mark.parametrize("reason", ["review_rejected", "plan_rejected_by_human"])
+def test_keeping_the_plan_refuses_a_plan_that_was_never_approved(store, reason):
+    task = put_approved(store, failure_reason=reason)
+    store.save(Task(**{**task.__dict__, "prompt": ""}))  # approve_plan is the only writer of a non-empty prompt
+
+    refused_keeping_the_plan(store, match="never approved")
