@@ -67,3 +67,14 @@ def test_it_removes_a_symlink_without_touching_its_target(wt, tmp_path):
 
     assert not (wt / "proj" / "link").exists() and not (wt / "proj" / "link").is_symlink()
     assert (outside / "keep").read_text() == "keep"
+
+
+def test_a_directory_that_cannot_be_emptied_gives_worktree_not_clean_instead_of_raising(wt):
+    stuck = wt / "ignored_dir"
+    stuck.mkdir()
+    (stuck / "f").write_text("i")
+    stuck.chmod(0o555)
+    try:
+        assert clean_worktree(wt) == "worktree_not_clean"
+    finally:
+        stuck.chmod(0o755)
