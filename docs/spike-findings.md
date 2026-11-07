@@ -223,3 +223,15 @@ Command shape: `nono run -s --profile nolabs-ai/claude --allow-cwd --read <resol
 - `fix_no_changes` is best effort: non-ignored test artifacts make the worktree look changed. Denials from fix rounds are merged but untested.
 - Plan 9 residuals stay, including `uv python find` running unconfined once per gate run.
 - Carried over: `gate-cache` dirs accumulate, no `abandon`, re-planning on a moved main.
+
+## Plan 11: abandon and gate-cache cleanup e2e (`spike/abandon_clean_e2e.py`, run by the user, $0, synthetic repo)
+- **Confirmed:** all twelve checks passed. `abandon` failed q1, d1, v1 and u1 as `abandoned`; it refused the running task (naming `recover`) and the merged one. `clean` listed the abandoned tasks, the merged task's cache, an orphan and the skipped symlink entry; after `y` it removed their worktrees, the caches (including a real 13.6 MB uv cache filled by an actual `uv` run, so `rmtree` copes with real uv cache contents), the orphan, and the merged task's branch. The abandoned tasks' branches, the running task, the symlink entry and its target, and the real repo were untouched. Exit 1 as designed (the skipped entry).
+- **Nit seen:** "1 commits ahead of base" (plural), as in plan 8.
+- Unit suite: 613 passed; target: 1 passed (sniffed toolchain).
+
+## Known gaps after plan 11
+- After a SIGKILLed driver, a plan, review or audit agent (states proposed, planned, verified) or the gate's test process (agent_done) may still run against a task `abandon` accepts; `queued` never has a live agent. Unledgered spend of orphaned read-only agents is a pre-existing gap.
+- An abandoned `audited` task's commits stay on its kept branch (failed-task branches are never deleted); `clean` discards a dirty worktree after showing the flag.
+- Gate code writes the cache dir, so removal never follows symlinks and is limited to real directories directly under `gate-cache`; a hostile read-only tree would make a removal fail (reported as partially removed).
+- A cache dir of a task whose record was deleted by hand is removed as an orphan; sizes walk the tree, so a huge cache slows the preview.
+- Carried over: re-planning on a moved main, the fix agent can weaken its own new tests, pytest config files outside the protected list are unverified.
