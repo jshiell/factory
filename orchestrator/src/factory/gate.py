@@ -121,8 +121,10 @@ def _protected_changed(
     pathspecs = [f":(glob)**/{name}" for name in protected_names]  # pytest reads ini files above the project too
     if run_git(worktree, "diff", "--name-only", "--no-renames", base_sha, "HEAD", "--", *pathspecs):
         return True
-    pyproject = f"{project_subdir}/pyproject.toml"
-    return _pytest_table(worktree, base_sha, pyproject) != _pytest_table(worktree, "HEAD", pyproject)
+    return any(
+        _pytest_table(worktree, base_sha, pyproject) != _pytest_table(worktree, "HEAD", pyproject)
+        for pyproject in ("pyproject.toml", f"{project_subdir}/pyproject.toml")
+    )
 
 
 def _pytest_table(worktree: Path, revision: str, path: str) -> dict | None:

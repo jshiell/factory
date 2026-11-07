@@ -576,3 +576,21 @@ def test_guard_the_protected_names_override_applies_repo_wide(repo):
     git(repo, "reset", "-q", "--hard", "HEAD~1")
     commit_root_file(repo, "pytest.ini", "x\n")
     assert check_gate(repo, base, "proj", ["true"], 5, **custom).passed is True
+
+
+ROOT_PYPROJECT = '[project]\nname = "r"\n\n[tool.pytest.ini_options]\naddopts = "-q"\n'
+
+
+def test_a_new_root_pyproject_pytest_table_fails_tests_modified(repo):
+    base = repo_with_project_change(repo)
+    commit_root_file(repo, "pyproject.toml", ROOT_PYPROJECT)
+
+    assert gate(repo, base).reason == "tests_modified"
+
+
+def test_guard_a_root_pyproject_change_outside_the_pytest_table_passes(repo):
+    commit_root_file(repo, "pyproject.toml", ROOT_PYPROJECT)
+    base = repo_with_project_change(repo)
+    commit_root_file(repo, "pyproject.toml", ROOT_PYPROJECT.replace('name = "r"', 'name = "renamed"'))
+
+    assert gate(repo, base).passed is True
