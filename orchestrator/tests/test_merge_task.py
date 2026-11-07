@@ -43,3 +43,13 @@ def test_preview_refuses_a_task_that_is_not_audited(audited):
 
     with pytest.raises(InvalidTransition):
         merge_preview("t1", store, repo)
+
+
+def test_preview_refuses_when_the_branch_tip_is_not_the_audited_sha(audited):
+    store, repo, worktree, _, _ = audited
+    (worktree / "c.txt").write_text("c")
+    git(worktree, "add", "-A")
+    git(worktree, "commit", "-q", "-m", "extra")
+
+    with pytest.raises(MergeRefused, match="audited"):
+        merge_preview("t1", store, repo)

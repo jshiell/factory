@@ -21,5 +21,10 @@ class Preview:
 def merge_preview(task_id: str, store: TaskStore, repo: Path) -> Preview:
     task = store.load(task_id)
     apply(task, Event.MERGED)
+    branch = f"factory/{task.id}"
+    if run_git(repo, "rev-parse", branch) != task.audited_sha:
+        raise MergeRefused(f"{branch} is not at the audited commit")
+    if run_git(Path(task.worktree), "rev-parse", "HEAD") != task.audited_sha:
+        raise MergeRefused("the worktree is not at the audited commit")
     diffstat = run_git(repo, "diff", "--stat=200", task.base_sha, task.audited_sha)
-    return Preview(task, f"factory/{task.id}", diffstat, task.audit_findings)
+    return Preview(task, branch, diffstat, task.audit_findings)
