@@ -96,3 +96,9 @@ def test_the_implementation_prompt_says_the_agent_cannot_run_commands_and_the_fa
     prompt = build_implementation_prompt("g", "p")
 
     assert "cannot run commands" in prompt and "factory will run the tests" in prompt
+
+
+def test_the_implementation_prompt_says_failing_tests_may_be_sent_back():
+    from factory.approve_plan import build_implementation_prompt
+
+    assert "may send back test failures" in build_implementation_prompt("g", "p")

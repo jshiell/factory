@@ -10,7 +10,7 @@ def build_implementation_prompt(goal: str, plan: str) -> str:
         f"Implement this goal by following the approved plan.\n\nGOAL: {goal}\n\nPLAN:\n{plan}\n\n"
         "Rules: write the failing test first, then the implementation. Only add tests; never edit or "
         "remove existing tests, and do not change test configuration (conftest.py, pytest settings). "
-        "You cannot run commands: the factory will run the tests after you finish, so write code you are confident is correct. "
+        "You cannot run commands: the factory will run the tests after you finish and may send back test failures to fix, so write code you are confident is correct. "
         "Do not use git; do not commit."
     )
 
