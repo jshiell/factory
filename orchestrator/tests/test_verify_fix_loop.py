@@ -363,3 +363,24 @@ def test_a_fix_round_that_plants_an_ignored_file_alongside_a_real_change_is_clea
     result = verify(store, ledger, runner, test_argv=["sh", "-c", "test -f fixed && test ! -e conftest.py && test ! -e .venv/x.pth"])
 
     assert result.state == TaskState.VERIFIED
+
+
+def test_a_change_outside_the_project_fails_outside_project_without_a_fix_round(repo, store, ledger, task, tmp_path):
+    (repo / "README.md").write_text("edited by the agent")
+    sentinel = tmp_path / "tests-ran"
+    runner = FakeRunner(repo)
+
+    result = verify(store, ledger, runner, rounds=1, test_argv=["touch", str(sentinel)])
+
+    assert result.state is TaskState.FAILED and result.failure_reason == "outside_project"
+    assert runner.calls == [] and result.fix_rounds_used == 0 and not sentinel.exists()
+    assert ledger.entries() == []
+
+
+def test_a_fix_round_that_edits_outside_the_project_fails_outside_project(repo, store, ledger, task):
+    runner = FakeRunner(repo, lambda: (repo / "README.md").write_text("edited by the fixer"))
+
+    result = verify(store, ledger, runner, rounds=2)
+
+    assert result.state is TaskState.FAILED and result.failure_reason == "outside_project"
+    assert len(runner.calls) == 1 and result.fix_rounds_used == 1
