@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 import pytest
@@ -61,16 +61,26 @@ def test_the_implementer_config_is_the_only_one_with_write_tools_and_no_git(setu
     settings = setup[2]
     config = implementer_config(settings)
 
-    assert {"Write", "Edit"} <= set(config.allowed_tools)
     assert "Bash(git *)" in config.disallowed_tools
     assert (config.budget_usd, config.max_turns, config.model) == (0.4, 30, "sonnet")
     for readonly in (PLAN_CONFIG, REVIEW_CONFIG, AUDIT_CONFIG):
         assert not {"Write", "Edit"} & set(readonly.allowed_tools)
 
 
-def test_only_the_read_only_stage_configs_are_confined(setup):
-    assert implementer_config(setup[2]).confine is False
-    assert all(config.confine for config in (PLAN_CONFIG, REVIEW_CONFIG, AUDIT_CONFIG))
+def test_all_four_agent_configs_are_confined(setup):
+    assert all(config.confine for config in (implementer_config(setup[2]), PLAN_CONFIG, REVIEW_CONFIG, AUDIT_CONFIG))
+
+
+def test_the_implementer_cannot_run_commands_whatever_the_settings_allow(setup):
+    settings = replace(setup[2], allowed_tools=("Bash(uv run pytest*)", "Write"))
+
+    config = implementer_config(settings)
+
+    assert {"Bash", "Bash(git *)", "Glob", "NotebookEdit"} <= set(config.disallowed_tools)
+
+
+def test_the_default_implementer_allow_list_is_empty_so_default_rules_confine_reads(setup):
+    assert implementer_config(setup[2]).allowed_tools == ()
 
 
 @pytest.mark.parametrize(

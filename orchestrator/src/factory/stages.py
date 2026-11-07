@@ -28,7 +28,8 @@ def implementer_config(settings: Settings) -> RunnerConfig:
         budget_usd=settings.budget_usd,
         permission_mode="acceptEdits",
         allowed_tools=settings.allowed_tools,
-        disallowed_tools=("Bash(git *)",),
+        disallowed_tools=("Bash", "Bash(git *)", "Glob", "NotebookEdit"),  # deny wins over any user allow rule
+        confine=True,
         max_turns=settings.max_turns,
         append_system_prompt="You are in a git worktree; the project lives in the current directory. Do not commit.",
     )
