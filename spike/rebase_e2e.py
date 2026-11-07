@@ -52,6 +52,7 @@ def main():
     git(repo, "init", "-q", "-b", "main")
     (repo / "target" / "calc.py").write_text("def add(a, b):\n    return a + b\n")
     (repo / "target" / "test_calc.py").write_text("from calc import add\n\n\ndef test_add():\n    assert add(1, 2) == 3\n")
+    (repo / ".gitignore").write_text("__pycache__/\n.pytest_cache/\n")
     git(repo, "add", "-A")
     git(repo, "commit", "-q", "-m", "init")
     test_argv = [sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider"]
@@ -112,6 +113,7 @@ def main():
     verified = verify_task("a1", store, project_subdir="target", test_argv=test_argv, gate_timeout_s=120)
     print(f"gate: {verified.state.value} {verified.failure_reason}")
     audit_result = audit_task("a1", store, ledger, PassingAudit(), AUDIT_CONFIG, cap_usd=10, project_subdir="target")
+    print(f"audit: {audit_result.state.value} reason={audit_result.failure_reason} error={audit_result.audit_error}")
     new_head = git(a_path, "rev-parse", "HEAD")
     preview_ok = False
     try:
