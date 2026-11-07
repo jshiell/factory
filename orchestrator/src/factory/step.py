@@ -35,11 +35,15 @@ def preflight(
 ) -> Task:
     """Return the task as it would be once running; raise if it must not run."""
     running = apply(store.load(task_id), Event.START)
+    check_budget(task_id, ledger, config, cap_usd)
+    return running
+
+
+def check_budget(task_id: str, ledger: Ledger, config: RunnerConfig, cap_usd: float) -> None:
     if config.budget_usd is None:
         raise MissingBudget(task_id)
     if ledger.would_exceed(cap_usd, config.budget_usd):
         raise BudgetCapReached(task_id)
-    return running
 
 
 def step(
