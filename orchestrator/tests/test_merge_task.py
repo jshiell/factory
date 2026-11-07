@@ -153,3 +153,17 @@ def test_a_crash_after_the_ff_is_recovered_without_merging_again(audited):
     assert merged.state is TaskState.MERGED
     assert store.load("t1").state is TaskState.MERGED
     assert git(repo, "rev-parse", "HEAD") == task.audited_sha
+
+
+def test_merge_does_not_run_hooks_from_the_repository(audited):
+    store, repo, _, task, manager = audited
+    hooks = repo / "hooks"
+    hooks.mkdir()
+    hook = hooks / "post-merge"
+    hook.write_text(f"#!/bin/sh\ntouch {repo}/../hook-ran\n")
+    hook.chmod(0o755)
+    git(repo, "config", "core.hooksPath", str(hooks))
+
+    merge_task("t1", store, repo, manager, shown_sha=task.audited_sha)
+
+    assert not (repo.parent / "hook-ran").exists()
