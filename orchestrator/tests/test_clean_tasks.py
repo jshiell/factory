@@ -452,16 +452,16 @@ def test_clean_keeps_a_failed_branch_that_holds_a_commit(env):
     assert branch_exists(repo, "failed") and outcomes[0].problems == []
 
 
-def test_a_refused_delete_of_an_empty_failed_branch_is_reported_and_the_branch_kept(env):
+def test_an_empty_failed_branch_is_deleted_even_when_the_base_is_no_longer_an_ancestor_of_main(env):
     store, repo, _, _, add = env
     add("failed", S.FAILED)
     rewritten = git(repo, "commit-tree", "-m", "rewritten main", git(repo, "hash-object", "-t", "tree", "/dev/null"))
-    git(repo, "reset", "-q", "--hard", rewritten)  # the base is no longer an ancestor of main
+    git(repo, "reset", "-q", "--hard", rewritten)  # `branch -d` refuses this; the branch holds nothing
 
     outcomes = run_clean(env)
 
-    assert branch_exists(repo, "failed")
-    assert any("factory/failed" in problem for problem in outcomes[0].problems)
+    assert not branch_exists(repo, "failed")
+    assert "deleted branch" in outcomes[0].done and outcomes[0].problems == []
 
 
 def test_an_empty_failed_branch_is_kept_when_main_is_not_on_a_branch(env):
@@ -524,10 +524,8 @@ def test_a_refusal_for_a_registered_worktree_quotes_git_and_does_not_claim_unmer
 
 def test_a_refusal_for_an_unmerged_branch_quotes_git(env):
     store, repo, _, _, add = env
-    add("failed", S.FAILED)
-    rewritten = git(repo, "commit-tree", "-m", "rewritten main", git(repo, "hash-object", "-t", "tree", "/dev/null"))
-    git(repo, "reset", "-q", "--hard", rewritten)
+    commit_on(add("merged", S.MERGED))  # a merged task whose branch still holds a commit main lacks: `branch -d` refuses
 
-    problem = next(p for p in run_clean(env)[0].problems if "factory/failed" in p)
+    problem = next(p for p in run_clean(env)[0].problems if "factory/merged" in p)
 
     assert "not fully merged" in problem

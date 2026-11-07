@@ -101,7 +101,7 @@ def _clean_one(
     if task.state is TaskState.MERGED and candidate.branch_exists:
         _delete_branch(task, repo, outcome)
     elif task.state is TaskState.FAILED and candidate.branch_empty and _branch_empty(task, repo):  # re-checked now
-        _delete_branch(task, repo, outcome)
+        _delete_empty_branch(task, repo, outcome)
     return outcome
 
 
@@ -131,6 +131,24 @@ def _delete_branch(task: Task, repo: Path, outcome: Outcome) -> None:
         run_git(repo, "branch", "-d", f"factory/{task.id}")
     except subprocess.CalledProcessError as error:
         reason = ((error.stderr or "").strip().splitlines() or ["no reason given"])[0]  # git's own words, not a guess
+        outcome.problems.append(f"branch factory/{task.id} kept: git refused to delete it ({reason})")
+        return
+    outcome.done.append("deleted branch")
+
+
+def _delete_empty_branch(task: Task, repo: Path, outcome: Outcome) -> None:
+    """The tip is exactly the base commit, so nothing is lost; `update-ref -d <ref> <base>` deletes only if it still is."""
+    ref = f"refs/heads/factory/{task.id}"
+    if not run_git(repo, "branch", "--show-current"):
+        outcome.problems.append(f"branch factory/{task.id} kept: main is not on a branch")
+        return
+    if f"branch {ref}" in run_git(repo, "worktree", "list", "--porcelain").splitlines():  # update-ref would not refuse
+        outcome.problems.append(f"branch factory/{task.id} kept: it is checked out in a worktree")
+        return
+    try:
+        run_git(repo, "update-ref", "-d", ref, task.base_sha)
+    except subprocess.CalledProcessError as error:
+        reason = ((error.stderr or "").strip().splitlines() or ["no reason given"])[0]
         outcome.problems.append(f"branch factory/{task.id} kept: git refused to delete it ({reason})")
         return
     outcome.done.append("deleted branch")
