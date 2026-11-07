@@ -80,3 +80,17 @@ def test_bad_settings_are_rejected_with_a_message_naming_the_key(repo_dir, line,
 
     with pytest.raises(SettingsError, match=key):
         load_settings(None, cwd=repo_dir)
+
+
+def test_sandbox_executable_defaults_to_nono_and_can_be_set(repo_dir):
+    assert load_settings(None, cwd=repo_dir).sandbox_executable == "nono"
+    (repo_dir / "factory.toml").write_text('sandbox_executable = "/opt/fake-nono"\n')
+
+    assert load_settings(None, cwd=repo_dir).sandbox_executable == "/opt/fake-nono"
+
+
+def test_a_non_string_sandbox_executable_is_rejected_naming_the_key(repo_dir):
+    (repo_dir / "factory.toml").write_text("sandbox_executable = 3\n")
+
+    with pytest.raises(SettingsError, match="sandbox_executable"):
+        load_settings(None, cwd=repo_dir)

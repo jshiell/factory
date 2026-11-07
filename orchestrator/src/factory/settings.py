@@ -19,6 +19,7 @@ class Settings:
     gate_timeout_s: float = 120.0
     runner_timeout_s: float = 300.0
     claude_executable: str = "claude"
+    sandbox_executable: str = "nono"
     model: str = "sonnet"
     budget_usd: float = 0.5
     allowed_tools: tuple[str, ...] = ("Read", "Write", "Edit", "Glob", "Grep", "Bash(uv run pytest*)")
@@ -34,7 +35,7 @@ class Settings:
 
 
 _PATH_KEYS = ("repo", "state_dir", "worktree_root")
-_STRING_KEYS = ("project_subdir", "claude_executable", "model")
+_STRING_KEYS = ("project_subdir", "claude_executable", "sandbox_executable", "model")
 _FLOAT_KEYS = ("cap_usd", "gate_timeout_s", "runner_timeout_s", "budget_usd")
 _STRING_LIST_KEYS = ("test_argv", "allowed_tools")
 _INT_KEYS = ("max_turns",)
