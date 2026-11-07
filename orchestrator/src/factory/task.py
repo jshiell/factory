@@ -57,6 +57,8 @@ class Task:
     review_findings: tuple[str, ...] = ()
     review_error: str | None = None
     retry_of: str | None = None
+    fix_rounds_used: int = 0
+    fix_in_flight: bool = False
 
 
 _TRANSITIONS = {
