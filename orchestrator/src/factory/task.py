@@ -60,6 +60,7 @@ class Task:
     retry_of: str | None = None
     fix_rounds_used: int = 0
     fix_in_flight: bool = False
+    fix_frozen_sha: str | None = None
 
 
 _TRANSITIONS = {

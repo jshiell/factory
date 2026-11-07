@@ -56,7 +56,7 @@ def _fix_round(
     check_budget(task.id, ledger, config, cap_usd)  # raises with the task untouched: raise the cap and re-advance
     worktree = Path(task.worktree)
     head = run_git(worktree, "rev-parse", "HEAD")
-    task = replace(task, fix_rounds_used=task.fix_rounds_used + 1, fix_in_flight=True)
+    task = replace(task, fix_rounds_used=task.fix_rounds_used + 1, fix_in_flight=True, fix_frozen_sha=head)
     store.save(task)  # before the run: a crash cannot reset the counter, and the marker flags a possible orphan
     called = call_agent(task, build_fix_prompt(task, test_output), runner, config, ledger, FIX_STAGE)
     task = replace(task, fix_in_flight=False)

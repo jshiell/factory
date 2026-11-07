@@ -257,3 +257,13 @@ def test_the_ledger_and_state_are_written_before_any_later_git_call_can_fail(rep
 
     assert [e["stage"] for e in ledger.entries()] == ["fix"]
     assert store.load("t1").fix_in_flight is False
+
+
+def test_the_pre_round_head_is_saved_on_the_task_before_the_agent_runs(repo, store, ledger, task):
+    seen = []
+    runner = FakeRunner(repo, lambda: seen.append(store.load("t1")), write_fix(repo))
+
+    verify(store, ledger, runner)
+
+    # the implementer's work is committed by the first gate run, so the pre-round HEAD is that commit
+    assert seen[0].fix_frozen_sha == git(repo, "rev-list", "--max-count=1", "--grep=Task t1", "HEAD")
