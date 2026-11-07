@@ -89,3 +89,40 @@ def test_audit_failed_moves_verified_to_failed_with_reason():
 def test_audit_events_are_invalid_before_verified(event, state):
     with pytest.raises(InvalidTransition):
         apply(Task(id="t1", prompt="p", state=state), event)
+
+
+def task_in(state: TaskState) -> Task:
+    return Task(id="t1", prompt="", state=state)
+
+
+FRONT_HALF = [
+    (TaskState.PROPOSED, Event.PLAN_DONE, TaskState.PLANNED, None),
+    (TaskState.PROPOSED, Event.PLAN_FAILED, TaskState.FAILED, "plan_modified_worktree"),
+    (TaskState.PLANNED, Event.REVIEW_PASSED, TaskState.REVIEWED, None),
+    (TaskState.PLANNED, Event.REVIEW_FAILED, TaskState.FAILED, "plan_rejected"),
+    (TaskState.REVIEWED, Event.APPROVED, TaskState.QUEUED, None),
+    (TaskState.REVIEWED, Event.HUMAN_REJECTED, TaskState.FAILED, "plan_rejected_by_human"),
+]
+
+
+@pytest.mark.parametrize("source,event,target,reason", FRONT_HALF)
+def test_front_half_transitions(source, event, target, reason):
+    task = apply(task_in(source), event, reason)
+
+    assert task.state is target
+    assert task.failure_reason == reason
+
+
+@pytest.mark.parametrize("source,event,target,reason", FRONT_HALF)
+@pytest.mark.parametrize("state", list(TaskState))
+def test_front_half_events_are_rejected_from_every_other_state(source, event, target, reason, state):
+    if state is source:
+        return
+    with pytest.raises(InvalidTransition):
+        apply(task_in(state), event, reason)
+
+
+@pytest.mark.parametrize("state", [TaskState.PROPOSED, TaskState.PLANNED, TaskState.REVIEWED])
+def test_start_is_rejected_before_the_plan_is_approved(state):
+    with pytest.raises(InvalidTransition):
+        apply(task_in(state), Event.START)

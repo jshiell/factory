@@ -28,7 +28,8 @@ class TaskStore:
             raise TaskNotFound(task_id) from None
         data["state"] = TaskState(data["state"])
         data["denials"] = tuple(data["denials"])
-        data["audit_findings"] = tuple(data.get("audit_findings", ()))
+        for field in ("audit_findings", "plan_risks", "review_findings"):
+            data[field] = tuple(data.get(field, ()))
         return Task(**data)
 
     def _path(self, task_id: str) -> Path:

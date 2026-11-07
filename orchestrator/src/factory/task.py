@@ -3,6 +3,9 @@ from enum import Enum
 
 
 class TaskState(Enum):
+    PROPOSED = "proposed"
+    PLANNED = "planned"
+    REVIEWED = "reviewed"
     QUEUED = "queued"
     RUNNING = "running"
     AGENT_DONE = "agent_done"
@@ -19,6 +22,12 @@ class Event(Enum):
     GATE_FAILED = "gate_failed"
     AUDIT_PASSED = "audit_passed"
     AUDIT_FAILED = "audit_failed"
+    PLAN_DONE = "plan_done"
+    PLAN_FAILED = "plan_failed"
+    REVIEW_PASSED = "review_passed"
+    REVIEW_FAILED = "review_failed"
+    APPROVED = "approved"
+    HUMAN_REJECTED = "human_rejected"
 
 
 class InvalidTransition(Exception):
@@ -38,9 +47,22 @@ class Task:
     audit_findings: tuple[str, ...] = ()
     audited_sha: str | None = None
     audit_error: str | None = None
+    goal: str | None = None
+    plan: str | None = None
+    plan_risks: tuple[str, ...] = ()
+    plan_digest: str | None = None
+    plan_error: str | None = None
+    review_findings: tuple[str, ...] = ()
+    review_error: str | None = None
 
 
 _TRANSITIONS = {
+    (TaskState.PROPOSED, Event.PLAN_DONE): TaskState.PLANNED,
+    (TaskState.PROPOSED, Event.PLAN_FAILED): TaskState.FAILED,
+    (TaskState.PLANNED, Event.REVIEW_PASSED): TaskState.REVIEWED,
+    (TaskState.PLANNED, Event.REVIEW_FAILED): TaskState.FAILED,
+    (TaskState.REVIEWED, Event.APPROVED): TaskState.QUEUED,
+    (TaskState.REVIEWED, Event.HUMAN_REJECTED): TaskState.FAILED,
     (TaskState.QUEUED, Event.START): TaskState.RUNNING,
     (TaskState.RUNNING, Event.SUCCEEDED): TaskState.AGENT_DONE,
     (TaskState.RUNNING, Event.FAILED): TaskState.FAILED,

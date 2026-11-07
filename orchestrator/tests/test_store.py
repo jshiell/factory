@@ -82,3 +82,24 @@ def test_json_saved_without_audit_fields_still_loads(tmp_path):
 
     assert task.audit_findings == ()
     assert task.audited_sha is None
+
+
+def test_front_half_fields_round_trip_with_tuples_restored(tmp_path):
+    store = TaskStore(tmp_path)
+    task = Task(
+        id="t1", prompt="", state=TaskState.REVIEWED, goal="add x", plan="do it", plan_risks=("r1",),
+        plan_digest="d", plan_error="timeout", review_findings=("f1", "f2"), review_error="timeout",
+    )
+    store.save(task)
+
+    assert store.load("t1") == task
+
+
+def test_json_saved_without_front_half_fields_still_loads(tmp_path):
+    (tmp_path / "t1.json").write_text(
+        '{"id": "t1", "prompt": "p", "state": "queued", "attempts": 0, "failure_reason": null, "denials": []}'
+    )
+
+    task = TaskStore(tmp_path).load("t1")
+
+    assert (task.goal, task.plan, task.plan_risks, task.review_findings) == (None, None, (), ())
