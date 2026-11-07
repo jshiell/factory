@@ -7,3 +7,4 @@ spike/*.stderr.txt
 spike/e2e-state/
 spike/e2e3-state/
 spike/e2e4-state/
+spike/cli_probe/.venv/
