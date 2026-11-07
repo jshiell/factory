@@ -64,3 +64,28 @@ def test_gate_failed_moves_agent_done_to_failed_with_reason():
 def test_gate_events_are_invalid_before_the_agent_is_done(event):
     with pytest.raises(InvalidTransition):
         apply(apply(queued_task(), Event.START), event)
+
+
+def verified_task() -> Task:
+    return Task(id="t1", prompt="do it", state=TaskState.VERIFIED)
+
+
+def test_audit_passed_moves_verified_to_audited():
+    task = apply(verified_task(), Event.AUDIT_PASSED)
+
+    assert task.state is TaskState.AUDITED
+    assert task.failure_reason is None
+
+
+def test_audit_failed_moves_verified_to_failed_with_reason():
+    task = apply(verified_task(), Event.AUDIT_FAILED, "audit_rejected")
+
+    assert task.state is TaskState.FAILED
+    assert task.failure_reason == "audit_rejected"
+
+
+@pytest.mark.parametrize("event", [Event.AUDIT_PASSED, Event.AUDIT_FAILED])
+@pytest.mark.parametrize("state", [TaskState.QUEUED, TaskState.RUNNING, TaskState.AGENT_DONE])
+def test_audit_events_are_invalid_before_verified(event, state):
+    with pytest.raises(InvalidTransition):
+        apply(Task(id="t1", prompt="p", state=state), event)

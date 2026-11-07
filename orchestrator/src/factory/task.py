@@ -7,6 +7,7 @@ class TaskState(Enum):
     RUNNING = "running"
     AGENT_DONE = "agent_done"
     VERIFIED = "verified"
+    AUDITED = "audited"
     FAILED = "failed"
 
 
@@ -16,6 +17,8 @@ class Event(Enum):
     FAILED = "failed"
     GATE_PASSED = "gate_passed"
     GATE_FAILED = "gate_failed"
+    AUDIT_PASSED = "audit_passed"
+    AUDIT_FAILED = "audit_failed"
 
 
 class InvalidTransition(Exception):
@@ -32,6 +35,8 @@ class Task:
     denials: tuple[dict, ...] = ()
     worktree: str | None = None
     base_sha: str | None = None
+    audit_findings: tuple[str, ...] = ()
+    audited_sha: str | None = None
 
 
 _TRANSITIONS = {
@@ -40,6 +45,8 @@ _TRANSITIONS = {
     (TaskState.RUNNING, Event.FAILED): TaskState.FAILED,
     (TaskState.AGENT_DONE, Event.GATE_PASSED): TaskState.VERIFIED,
     (TaskState.AGENT_DONE, Event.GATE_FAILED): TaskState.FAILED,
+    (TaskState.VERIFIED, Event.AUDIT_PASSED): TaskState.AUDITED,
+    (TaskState.VERIFIED, Event.AUDIT_FAILED): TaskState.FAILED,
 }
 
 

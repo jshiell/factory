@@ -63,3 +63,22 @@ def test_json_saved_without_worktree_fields_still_loads(tmp_path):
 
     assert task.worktree is None
     assert task.base_sha is None
+
+
+def test_audit_fields_round_trip(tmp_path):
+    store = TaskStore(tmp_path)
+    task = Task(id="t1", prompt="p", state=TaskState.AUDITED, audit_findings=("a", "b"), audited_sha="abc")
+    store.save(task)
+
+    assert store.load("t1") == task
+
+
+def test_json_saved_without_audit_fields_still_loads(tmp_path):
+    (tmp_path / "t1.json").write_text(
+        '{"id": "t1", "prompt": "p", "state": "verified", "attempts": 1, "failure_reason": null, "denials": []}'
+    )
+
+    task = TaskStore(tmp_path).load("t1")
+
+    assert task.audit_findings == ()
+    assert task.audited_sha is None
