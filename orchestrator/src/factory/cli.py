@@ -12,6 +12,7 @@ from factory.textsafe import escape_control  # noqa: F401  (re-exported)
 from factory.advance import advance
 from factory.approve_plan import approve_plan, reject_plan
 from factory.abandon_task import AbandonRefused, abandon_task
+from factory.rebase_task import RebaseRefused, rebase_task
 from factory.clean_tasks import clean_candidates, clean_tasks, remove_orphan_caches
 from factory.gate_cache import orphan_caches
 from factory.digest import plan_digest
@@ -59,7 +60,7 @@ def _parser() -> argparse.ArgumentParser:
     commands = parser.add_subparsers(dest="command", required=True, parser_class=_Parser)
     commands.add_parser("new").add_argument("goal")
     commands.add_parser("list")
-    for name in ("show", "advance", "approve", "reject", "merge", "retry", "recover", "abandon"):
+    for name in ("show", "advance", "approve", "reject", "merge", "retry", "recover", "abandon", "rebase"):
         commands.add_parser(name).add_argument("task_id")
     commands.add_parser("clean")
     commands.add_parser("costs").add_argument("task_id", nargs="?")
@@ -258,6 +259,22 @@ def _abandon(args, io, ctx) -> int:
     return 0
 
 
+def _rebase(args, io, ctx) -> int:
+    _load(ctx, args.task_id)
+    try:
+        with state_lock(ctx.settings.state_dir):
+            rebased = rebase_task(args.task_id, ctx.store, ctx.settings.repo)
+    except AlreadyRunning:
+        print("another factory run holds the lock", file=io.stderr)
+        return 1
+    except (RebaseRefused, InvalidTransition, subprocess.CalledProcessError) as error:
+        print(f"rebase refused: {error}", file=io.stderr)
+        return 1
+    print(f"{args.task_id}: rebased onto main, back to agent_done; run `factory advance {args.task_id}` to re-verify and re-audit", file=io.stdout)
+    print(f"the previously audited commit was {rebased.old_audited_sha}; it is unreachable once the branch is cleaned", file=io.stdout)
+    return 0
+
+
 def _describe_candidate(candidate) -> str:
     flags = ["worktree present" if candidate.directory_exists else "worktree missing"]
     flags += ["dirty (uncommitted work will be discarded)"] if candidate.dirty else []
@@ -341,7 +358,7 @@ def _merge(args, io, ctx) -> int:
 
 _COMMANDS = {
     "new": _new, "list": _list, "show": _show, "advance": _advance,
-    "approve": _approve, "reject": _reject, "merge": _merge, "retry": _retry, "recover": _recover, "abandon": _abandon, "clean": _clean, "costs": _costs,
+    "approve": _approve, "reject": _reject, "merge": _merge, "retry": _retry, "recover": _recover, "abandon": _abandon, "rebase": _rebase, "clean": _clean, "costs": _costs,
 }
 
 

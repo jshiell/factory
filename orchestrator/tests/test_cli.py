@@ -631,3 +631,60 @@ def test_an_outside_root_task_does_not_promise_a_branch_deletion():
 
 def test_one_commit_is_singular():
     assert "1 commit ahead of base" in describe(commits_ahead=1) and "1 commits" not in describe(commits_ahead=1)
+
+
+# --- rebase -------------------------------------------------------------------
+
+def audited_with_main_moved(ctx):
+    from gitutil import git
+    from factory.worktrees import WorktreeManager
+    repo = ctx.settings.repo
+    git_repo(ctx)
+    (repo / "a.txt").write_text("a")
+    git(repo, "add", "a.txt")
+    git(repo, "commit", "-q", "-m", "init")
+    worktree, base = WorktreeManager(repo, ctx.settings.worktree_root).create("t1")
+    (worktree / "b.txt").write_text("b")
+    git(worktree, "add", "-A")
+    git(worktree, "commit", "-q", "-m", "Task t1")
+    tip = git(worktree, "rev-parse", "HEAD")
+    put(ctx, S.AUDITED, worktree=str(worktree), base_sha=base, audited_sha=tip, goal="g")
+    (repo / "m.txt").write_text("m")
+    git(repo, "add", "m.txt")
+    git(repo, "commit", "-q", "-m", "main moved")
+    return tip
+
+
+def test_rebase_sends_the_task_back_to_agent_done_names_the_old_commit_and_needs_no_tty(ctx):
+    old = audited_with_main_moved(ctx)
+
+    code, out, _ = run(ctx, "rebase", "t1", tty=False)
+
+    task = ctx.store.load("t1")
+    assert code == 0 and task.state is S.AGENT_DONE and task.audited_sha is None
+    assert old in out and "factory advance" in out
+
+
+def test_rebase_of_a_refused_task_exits_1_with_the_reason_and_changes_nothing(ctx):
+    put(ctx, S.AUDITED, worktree=None)
+
+    code, _, err = run(ctx, "rebase", "t1")
+
+    assert code == 1 and "no worktree" in err and ctx.store.load("t1").state is S.AUDITED
+
+
+def test_rebase_exits_1_when_another_run_holds_the_lock_and_changes_nothing(ctx):
+    from factory.lock import state_lock
+    audited_with_main_moved(ctx)
+
+    with state_lock(ctx.settings.state_dir):
+        code, _, err = run(ctx, "rebase", "t1")
+
+    assert code == 1 and "lock" in err and ctx.store.load("t1").state is S.AUDITED
+
+
+@pytest.mark.parametrize("task_id", ["missing", "../evil"])
+def test_rebase_of_an_unknown_or_unsafe_id_exits_2(ctx, task_id):
+    code, _, err = run(ctx, "rebase", task_id)
+
+    assert code == 2 and task_id in err

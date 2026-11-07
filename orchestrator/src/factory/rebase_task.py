@@ -38,8 +38,8 @@ def rebase_task(task_id: str, store: TaskStore, repo: Path) -> Rebased:
     """Human-only by process: replay an audited task on the current main, then send it back through verify and audit."""
     task = store.load(task_id)
     apply(task, Event.REBASED)
+    worktree = _require_rebasable(task, repo)
     main_head = run_git(repo, "rev-parse", "HEAD")
-    worktree = _require_rebasable(task, repo, main_head)
     try:
         worktree.git(*_REBASE, "--onto", main_head, task.base_sha)
     except subprocess.CalledProcessError as error:
@@ -59,7 +59,7 @@ def rebase_task(task_id: str, store: TaskStore, repo: Path) -> Rebased:
     return Rebased(rebased, task.audited_sha)
 
 
-def _require_rebasable(task: Task, repo: Path, main_head: str) -> _Worktree:
+def _require_rebasable(task: Task, repo: Path) -> _Worktree:
     branch = f"factory/{task.id}"
     if task.fix_in_flight:
         raise RebaseRefused(f"{task.id} has a fix agent that may still be alive: run `factory advance` first")
@@ -74,6 +74,7 @@ def _require_rebasable(task: Task, repo: Path, main_head: str) -> _Worktree:
         raise RebaseRefused("the worktree is not at the audited commit")
     if run_git(repo, "rev-parse", branch) != task.audited_sha:
         raise RebaseRefused(f"{branch} is not at the audited commit")
+    main_head = run_git(repo, "rev-parse", "HEAD")
     if main_head == task.base_sha:
         raise RebaseRefused("main has not moved: use `factory merge`")
     if _is_ancestor(repo, task.audited_sha, main_head):
