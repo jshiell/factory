@@ -44,3 +44,13 @@ def test_a_task_that_is_not_merged_or_failed_is_never_a_candidate(env, state):
     add("t1", state)
 
     assert clean_candidates(store, repo, root) == []
+
+
+def test_a_merged_task_without_a_worktree_but_with_a_live_branch_is_a_candidate(env):
+    store, repo, manager, root, add = env
+    path = add("merged", S.MERGED)
+    manager.remove("merged")
+    store.save(Task(id="merged", prompt="", state=S.MERGED))  # worktree cleared, as after a merge
+    add("bare", S.MERGED, with_worktree=False)  # no worktree and no branch
+
+    assert ids(clean_candidates(store, repo, root)) == ["merged"]
