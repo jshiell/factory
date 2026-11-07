@@ -43,7 +43,6 @@ def make_canary(directory: Path, tag: str) -> tuple[Path, str]:
 
 # ---- fixture ---------------------------------------------------------------
 BASE = HOME / f"nono-probe-{PID}"
-REPO = (BASE / "repo").resolve() if BASE.exists() else None
 BASE.mkdir()
 REPO = (BASE / "repo").resolve()
 REPO.mkdir()
