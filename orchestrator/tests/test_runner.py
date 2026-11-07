@@ -3,6 +3,7 @@ import signal
 import stat
 import subprocess
 import time
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -145,3 +146,45 @@ def test_an_interruption_while_waiting_kills_the_whole_tree_and_re_raises(tmp_pa
         for pid in (started[0], grandchild):
             if pid_is_alive(pid):
                 os.kill(pid, signal.SIGKILL)
+
+
+def fake_wrapper(tmp_path: Path, log: Path) -> str:
+    script = tmp_path / "fake-nono"
+    script.write_text(
+        "#!/bin/sh\n"
+        f'for a in "$@"; do printf \'%s\\n\' "$a" >> {log}; done\n'
+        'while [ "$1" != "--" ]; do shift; done\nshift\nexec "$@"\n'
+    )
+    script.chmod(script.stat().st_mode | stat.S_IEXEC)
+    return str(script)
+
+
+def test_a_confined_config_runs_claude_through_the_sandbox_wrapper_with_the_worktree_granted(tmp_path, task):
+    log = tmp_path / "wrapper.log"
+    claude = fake_claude(tmp_path, 'echo "ran $1"')
+    runner = SubprocessRunner(
+        claude, project_subdir="proj", timeout_s=10, sandbox_executable=fake_wrapper(tmp_path, log)
+    )
+    worktree = str(Path(task.worktree).resolve())
+
+    result = runner.run(task, replace(CONFIG, confine=True))
+
+    lines = log.read_text().splitlines()
+    assert result.stdout.strip() == "ran -p"
+    assert lines[lines.index("--read") + 1] == worktree
+    assert lines[lines.index("--") + 1] == claude
+    assert lines[lines.index("--add-dir") + 1] == worktree
+    assert lines.index("--") < lines.index("--add-dir")
+
+
+def test_an_unconfined_config_does_not_touch_the_wrapper(tmp_path, task):
+    log = tmp_path / "wrapper.log"
+    runner = SubprocessRunner(
+        fake_claude(tmp_path, "echo direct"), project_subdir="proj", timeout_s=10,
+        sandbox_executable=fake_wrapper(tmp_path, log),
+    )
+
+    result = runner.run(task, CONFIG)
+
+    assert result.stdout.strip() == "direct"
+    assert not log.exists()

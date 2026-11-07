@@ -4,7 +4,7 @@ import subprocess
 import tempfile
 from pathlib import Path
 
-from factory.command import RunnerConfig, build_command
+from factory.command import RunnerConfig, build_command, sandbox_prefix
 from factory.step import RunResult
 from factory.task import Task
 
@@ -19,13 +19,18 @@ def _kill(pid: int) -> None:
 
 
 class SubprocessRunner:
-    def __init__(self, executable: str, project_subdir: str, timeout_s: float):
+    def __init__(self, executable: str, project_subdir: str, timeout_s: float, sandbox_executable: str = "nono"):
         self._executable = executable
         self._project_subdir = project_subdir
         self._timeout_s = timeout_s
+        self._sandbox_executable = sandbox_executable
 
     def run(self, task: Task, config: RunnerConfig) -> RunResult:
-        argv, env_overlay = build_command(task.prompt, config, executable=self._executable)
+        worktree = str(Path(task.worktree).resolve())
+        add_dirs = (worktree,) if config.confine else ()
+        argv, env_overlay = build_command(task.prompt, config, executable=self._executable, add_dirs=add_dirs)
+        if config.confine:
+            argv = sandbox_prefix(self._sandbox_executable, worktree) + argv
         cwd = Path(task.worktree) / self._project_subdir
         with tempfile.TemporaryFile("w+") as stdout_file:
             process = subprocess.Popen(
