@@ -1,3 +1,4 @@
+import os
 import subprocess
 from dataclasses import dataclass, replace
 from pathlib import Path
@@ -7,6 +8,10 @@ from factory.task import Event, Task, apply
 from factory.worktrees import run_git
 
 _IDENTITY = ("-c", "user.name=factory", "-c", "user.email=factory@localhost")
+# The user's own git config (filters, rerere, rebase.updateRefs, signing) must not steer a rebase in an agent's tree.
+_NO_USER_CONFIG = {**os.environ, "GIT_CONFIG_GLOBAL": "/dev/null", "GIT_CONFIG_NOSYSTEM": "1"}
+_REBASE = ("-c", "commit.gpgsign=false", "-c", "rerere.enabled=false", *_IDENTITY, "rebase",
+           "--no-verify", "--no-autostash", "--no-update-refs", "--no-gpg-sign")
 
 
 class RebaseRefused(Exception):
@@ -26,7 +31,7 @@ class _Worktree:
     git_dir: Path
 
     def git(self, *args: str) -> str:
-        return run_git(self.path, f"--git-dir={self.git_dir}", f"--work-tree={self.path}", *args)
+        return run_git(self.path, f"--git-dir={self.git_dir}", f"--work-tree={self.path}", *args, env=_NO_USER_CONFIG)
 
 
 def rebase_task(task_id: str, store: TaskStore, repo: Path) -> Rebased:
@@ -36,7 +41,7 @@ def rebase_task(task_id: str, store: TaskStore, repo: Path) -> Rebased:
     main_head = run_git(repo, "rev-parse", "HEAD")
     worktree = _require_rebasable(task, repo, main_head)
     try:
-        worktree.git("-c", "commit.gpgsign=false", *_IDENTITY, "rebase", "--onto", main_head, task.base_sha)
+        worktree.git(*_REBASE, "--onto", main_head, task.base_sha)
     except subprocess.CalledProcessError as error:
         _restore(task, repo, worktree)
         reason = next((line for line in f"{error.stderr}\n{error.stdout}".splitlines() if line.strip()), "no reason given")

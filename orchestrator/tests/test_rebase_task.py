@@ -143,12 +143,12 @@ def test_an_interrupt_during_the_rebase_aborts_it_restores_the_old_tip_and_propa
     conflict_on_main(repo)
     real = module.run_git
 
-    def interrupted_mid_rebase(cwd, *args):
+    def interrupted_mid_rebase(cwd, *args, **kwargs):
         if "--onto" in args:
             with pytest.raises(subprocess.CalledProcessError):
-                real(cwd, *args)  # leaves the rebase stopped on the conflict, as a signal would
+                real(cwd, *args, **kwargs)  # leaves the rebase stopped on the conflict, as a signal would
             raise KeyboardInterrupt
-        return real(cwd, *args)
+        return real(cwd, *args, **kwargs)
 
     monkeypatch.setattr(module, "run_git", interrupted_mid_rebase)
 
@@ -190,3 +190,55 @@ def test_a_dot_git_directory_in_the_worktree_is_refused(audited):
 
     with pytest.raises(RebaseRefused, match="gitdir"):
         rebase_task("t1", store, repo)
+
+
+def test_the_users_global_rebase_update_refs_does_not_move_other_branches(audited, tmp_path, monkeypatch):
+    store, repo, worktree, task = audited
+    (worktree / "c.txt").write_text("c")
+    git(worktree, "add", "-A")
+    git(worktree, "commit", "-q", "-m", "second")
+    tip = git(worktree, "rev-parse", "HEAD")
+    store.save(replace(task, audited_sha=tip))
+    git(repo, "branch", "side", task.audited_sha)  # stacked on the first task commit
+    glob = tmp_path / "global.gitconfig"
+    glob.write_text("[rebase]\n\tupdateRefs = true\n")
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(glob))
+
+    rebase_task("t1", store, repo)
+
+    assert git(repo, "rev-parse", "side") == task.audited_sha
+
+
+def test_a_filter_from_the_users_global_config_does_not_run_during_the_rebase(audited, tmp_path, monkeypatch):
+    store, repo, worktree, task = audited
+    marker = tmp_path / "filter-ran"
+    (repo / ".gitattributes").write_text("m.txt filter=mark\n")
+    git(repo, "add", "-A")
+    git(repo, "commit", "-q", "-m", "attributes")
+    smudge = tmp_path / "smudge.sh"
+    smudge.write_text(f"#!/bin/sh\ntouch {marker}\ncat\n")
+    smudge.chmod(0o755)
+    glob = tmp_path / "global.gitconfig"
+    glob.write_text(f"[filter \"mark\"]\n\tsmudge = {smudge}\n\tclean = cat\n")
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(glob))
+
+    rebase_task("t1", store, repo)
+
+    assert not marker.exists()
+
+
+def test_guard_signing_and_hooks_configured_in_the_repo_do_not_get_in_the_way(audited, tmp_path):
+    store, repo, worktree, task = audited
+    marker = tmp_path / "hook-ran"
+    git(repo, "config", "commit.gpgsign", "true")
+    git(repo, "config", "gpg.program", "false")  # signing fails for certain unless switched off
+    hooks = tmp_path / "hooks"
+    hooks.mkdir()
+    git(repo, "config", "core.hooksPath", str(hooks))
+    for name in ("pre-rebase", "post-checkout", "post-commit", "post-rewrite", "prepare-commit-msg"):
+        (hooks / name).write_text(f"#!/bin/sh\ntouch {marker}\n")
+        (hooks / name).chmod(0o755)
+
+    rebase_task("t1", store, repo)
+
+    assert store.load("t1").state is TaskState.AGENT_DONE and not marker.exists()

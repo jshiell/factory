@@ -8,9 +8,9 @@ from factory.ids import require_safe_id
 HARDENED_GIT = ("git", "-c", "core.fsmonitor=false", "-c", "core.hooksPath=/dev/null", "-c", "diff.ignoreSubmodules=all")
 
 
-def run_git(cwd: Path, *args: str) -> str:
+def run_git(cwd: Path, *args: str, env: dict[str, str] | None = None) -> str:
     result = subprocess.run(
-        [*HARDENED_GIT, *args], cwd=cwd, capture_output=True, text=True, check=True, stdin=subprocess.DEVNULL
+        [*HARDENED_GIT, *args], cwd=cwd, capture_output=True, text=True, check=True, stdin=subprocess.DEVNULL, env=env
     )
     return result.stdout.strip()
 
