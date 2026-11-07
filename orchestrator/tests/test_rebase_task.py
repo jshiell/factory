@@ -1,9 +1,12 @@
+import json
 from dataclasses import replace
+from pathlib import Path
 
 import pytest
 
 from gitutil import git
 
+from factory.step import RunResult
 from factory.rebase_task import RebaseRefused, rebase_task
 from factory.store import TaskStore
 from factory.task import Task, TaskState
@@ -254,3 +257,64 @@ def test_guard_accepted_residual_a_merge_union_attribute_resolves_a_conflict_sil
     rebase_task("t1", store, repo)  # re-gate and re-audit are what judge the concatenated result
 
     assert store.load("t1").state is TaskState.AGENT_DONE
+
+
+# --- wiring: a rebased task must pass the real gate and audit again before main will take it -----------
+
+@pytest.fixture
+def audited_with_fix_history(tmp_path, repo):
+    """Audited t1 in project `proj`: two task commits, a fix round that froze the first, then main moves."""
+    (repo / "proj").mkdir()
+    (repo / "proj" / "code.py").write_text("x")
+    git(repo, "add", "-A")
+    git(repo, "commit", "-q", "-m", "project")
+    (tmp_path / "tasks").mkdir()
+    store = TaskStore(tmp_path / "tasks")
+    worktree, base = WorktreeManager(repo, tmp_path / "wt").create("t1")
+    (worktree / "proj" / "code.py").write_text("y")
+    git(worktree, "add", "-A")
+    git(worktree, "commit", "-q", "-m", "first")
+    frozen = git(worktree, "rev-parse", "HEAD")
+    (worktree / "proj" / "more.py").write_text("z")
+    git(worktree, "add", "-A")
+    git(worktree, "commit", "-q", "-m", "fix round")
+    tip = git(worktree, "rev-parse", "HEAD")
+    store.save(Task(id="t1", prompt="make y", state=TaskState.AUDITED, worktree=str(worktree), base_sha=base,
+                    goal="g", audited_sha=tip, audit_findings=("fine",), fix_rounds_used=1, fix_frozen_sha=frozen))
+    (repo / "m.txt").write_text("m")
+    git(repo, "add", "-A")
+    git(repo, "commit", "-q", "-m", "main moved")
+    return store, repo, tip, tmp_path
+
+
+class PassingAudit:
+    def run(self, task, config):
+        payload = {"type": "result", "subtype": "success", "is_error": False, "total_cost_usd": 0.01,
+                   "structured_output": {"verdict": "pass", "findings": ["still fine"]}}
+        return RunResult(json.dumps(payload), 0, False)
+
+
+def test_a_rebased_task_is_unmergeable_until_the_gate_and_audit_pass_again_and_then_merges(audited_with_fix_history):
+    from factory.audit_task import AUDIT_CONFIG, audit_task
+    from factory.ledger import Ledger
+    from factory.merge_task import MergeRefused, merge_preview, merge_task
+    from factory.task import InvalidTransition
+    from factory.verify_task import verify_task
+    store, repo, old_tip, tmp_path = audited_with_fix_history
+    manager = WorktreeManager(repo, tmp_path / "wt")
+
+    rebase_task("t1", store, repo)
+
+    new_head = git(Path(store.load("t1").worktree), "rev-parse", "HEAD")
+    with pytest.raises((MergeRefused, InvalidTransition)):
+        merge_preview("t1", store, repo)
+    for shown in (old_tip, new_head):
+        with pytest.raises((MergeRefused, InvalidTransition)):
+            merge_task("t1", store, repo, manager, shown_sha=shown)
+    verified = verify_task("t1", store, project_subdir="proj", test_argv=["true"], gate_timeout_s=10)
+    assert verified.state is TaskState.VERIFIED, verified.failure_reason  # the stale freeze reference was cleared
+    audited = audit_task("t1", store, Ledger(tmp_path / "ledger.jsonl"), PassingAudit(), AUDIT_CONFIG,
+                         cap_usd=10, project_subdir="proj")
+    assert audited.state is TaskState.AUDITED and audited.audited_sha == new_head != old_tip
+    assert merge_preview("t1", store, repo).task.audited_sha == new_head
+    assert merge_task("t1", store, repo, manager, shown_sha=new_head).state is TaskState.MERGED
