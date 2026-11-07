@@ -538,3 +538,68 @@ def test_abandon_of_an_unknown_or_unsafe_id_exits_2(ctx, task_id):
     code, _, err = run(ctx, "abandon", task_id)
 
     assert code == 2 and task_id in err
+
+
+# --- clean: gate caches -------------------------------------------------------
+
+def git_repo(ctx):
+    from gitutil import git
+    git(ctx.settings.repo, "init", "-q", "-b", "main")
+
+
+def make_gate_cache(ctx, name, content="abc"):
+    directory = ctx.settings.gate_cache_dir / name
+    directory.mkdir(parents=True)
+    (directory / "f").write_text(content)
+    return directory
+
+
+def test_clean_lists_a_terminal_tasks_cache_and_an_orphan_with_sizes_and_removes_both_on_y(ctx):
+    git_repo(ctx)
+    put(ctx, S.FAILED, "t1")
+    mine = make_gate_cache(ctx, "t1")
+    orphan = make_gate_cache(ctx, "gone")
+    live = make_gate_cache(ctx, "t2")
+    put(ctx, S.AUDITED, "t2")
+
+    code, out, _ = run(ctx, "clean", stdin="y\n")
+
+    assert code == 0 and "t1" in out and "gate cache" in out and "orphan gate cache gone" in out
+    assert not mine.exists() and not orphan.exists() and live.exists()
+
+
+def test_clean_does_not_touch_the_caches_unless_the_answer_is_y(ctx):
+    git_repo(ctx)
+    put(ctx, S.FAILED, "t1")
+    mine = make_gate_cache(ctx, "t1")
+    orphan = make_gate_cache(ctx, "gone")
+
+    code, _, _ = run(ctx, "clean", stdin="n\n")
+
+    assert code == 1 and mine.exists() and orphan.exists()
+
+
+def test_clean_with_only_skipped_cache_entries_lists_them_and_exits_1_without_asking(ctx):
+    import os
+    ctx.settings.gate_cache_dir.mkdir(parents=True)
+    os.symlink(ctx.settings.state_dir, ctx.settings.gate_cache_dir / "linked")
+
+    code, out, _ = run(ctx, "clean", stdin="y\n")
+
+    assert code == 1 and "skipped cache entry linked" in out and "Clean these?" not in out
+
+
+def test_clean_with_no_worktrees_branches_or_caches_says_nothing_to_clean(ctx):
+    code, out, _ = run(ctx, "clean", stdin="y\n")
+
+    assert code == 0 and "nothing to clean" in out
+
+
+def test_clean_holding_the_lock_leaves_the_caches_alone(ctx):
+    from factory.lock import state_lock
+    orphan = make_gate_cache(ctx, "gone")
+
+    with state_lock(ctx.settings.state_dir):
+        code, _, err = run(ctx, "clean", stdin="y\n")
+
+    assert code == 1 and "lock" in err and orphan.exists()

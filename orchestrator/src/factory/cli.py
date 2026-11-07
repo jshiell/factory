@@ -12,7 +12,8 @@ from factory.textsafe import escape_control  # noqa: F401  (re-exported)
 from factory.advance import advance
 from factory.approve_plan import approve_plan, reject_plan
 from factory.abandon_task import AbandonRefused, abandon_task
-from factory.clean_tasks import clean_candidates, clean_tasks
+from factory.clean_tasks import clean_candidates, clean_tasks, remove_orphan_caches
+from factory.gate_cache import orphan_caches
 from factory.digest import plan_digest
 from factory.ids import InvalidTaskId
 from factory.ledger import Ledger
@@ -263,6 +264,7 @@ def _describe_candidate(candidate) -> str:
     flags += [f"{candidate.commits_ahead} commits ahead of base"] if candidate.commits_ahead else []
     flags += ["branch left behind"] if candidate.branch_exists else []
     flags += ["worktree path is not <root>/<id>: will be skipped"] if candidate.outside_root else []
+    flags += [f"gate cache {candidate.cache_bytes} bytes"] if candidate.cache_bytes is not None else []
     return f"{candidate.task.id}  {candidate.task.state.value}: " + ", ".join(flags)
 
 
@@ -271,27 +273,35 @@ def _clean(args, io, ctx) -> int:
         print("clean needs an interactive terminal", file=io.stderr)
         return 1
     settings = ctx.settings
+    cache_root = settings.gate_cache_dir
     try:
         with state_lock(settings.state_dir):
-            candidates = clean_candidates(ctx.store, settings.repo, settings.worktree_root)
-            if not candidates:
+            candidates = clean_candidates(ctx.store, settings.repo, settings.worktree_root, cache_root)
+            scan = orphan_caches(ctx.store, cache_root)
+            if not (candidates or scan.orphans or scan.skipped):
                 print("nothing to clean", file=io.stdout)
                 return 0
-            print(escape_control("\n".join(_describe_candidate(c) for c in candidates)), file=io.stdout)
+            lines = [_describe_candidate(c) for c in candidates]
+            lines += [f"orphan gate cache {o.name}: {o.size} bytes, no task record" for o in scan.orphans]
+            lines += [f"skipped cache entry {name}: not a plain directory with a readable task record" for name in scan.skipped]
+            print(escape_control("\n".join(lines)), file=io.stdout)
+            if not (candidates or scan.orphans):
+                return 1
             print("Clean these? [y/N] ", end="", file=io.stdout)
             io.stdout.flush()
             if io.stdin.readline().strip() != "y":
                 print("not cleaned", file=io.stdout)
                 return 1
             worktrees = WorktreeManager(settings.repo, settings.worktree_root)
-            outcomes = clean_tasks(candidates, ctx.store, worktrees, settings.repo, settings.worktree_root)
+            outcomes = clean_tasks(candidates, ctx.store, worktrees, settings.repo, settings.worktree_root, cache_root)
+            outcomes += remove_orphan_caches(ctx.store, cache_root, scan.orphans)
     except AlreadyRunning:
         print("another factory run holds the lock", file=io.stderr)
         return 1
     for outcome in outcomes:
         for line in outcome.done + outcome.problems:
             print(escape_control(f"{outcome.task_id}: {line}"), file=io.stdout)
-    return 1 if any(o.problems for o in outcomes) else 0
+    return 1 if scan.skipped or any(o.problems for o in outcomes) else 0
 
 
 def _merge(args, io, ctx) -> int:
