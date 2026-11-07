@@ -1,0 +1,218 @@
+import argparse
+import unicodedata
+from collections import defaultdict
+from collections.abc import Callable
+from dataclasses import dataclass
+from datetime import datetime
+
+from factory.advance import advance
+from factory.approve_plan import approve_plan, reject_plan
+from factory.digest import plan_digest
+from factory.ids import InvalidTaskId
+from factory.ledger import Ledger
+from factory.lock import AlreadyRunning, state_lock
+from factory.settings import Settings
+from factory.store import TaskExists, TaskNotFound, TaskStore, new_task_id
+from factory.task import InvalidTransition, Task, TaskState
+
+
+@dataclass
+class IO:
+    stdin: object
+    stdout: object
+    stderr: object
+
+
+@dataclass
+class Context:
+    settings: Settings
+    store: TaskStore
+    ledger: Ledger
+    stages: dict
+    clock: Callable[[], datetime] = datetime.now
+
+
+class _UsageError(Exception):
+    pass
+
+
+class _Parser(argparse.ArgumentParser):
+    def error(self, message):
+        raise _UsageError(message)
+
+
+def escape_control(text: str) -> str:
+    """Make agent-written text safe to show: escape control and invisible format characters."""
+    out = []
+    for char in text:
+        if char not in "\n\t" and unicodedata.category(char) in ("Cc", "Cf"):
+            code = ord(char)
+            out.append(f"\\x{code:02x}" if code < 0x100 else f"\\u{code:04x}" if code < 0x10000 else f"\\U{code:08x}")
+        else:
+            out.append(char)
+    return "".join(out)
+
+
+def _parser() -> argparse.ArgumentParser:
+    parser = _Parser(prog="factory")
+    commands = parser.add_subparsers(dest="command", required=True, parser_class=_Parser)
+    commands.add_parser("new").add_argument("goal")
+    commands.add_parser("list")
+    for name in ("show", "advance", "approve", "reject"):
+        commands.add_parser(name).add_argument("task_id")
+    commands.add_parser("costs").add_argument("task_id", nargs="?")
+    return parser
+
+
+def main(argv: list[str], io: IO, ctx: Context) -> int:
+    try:
+        args = _parser().parse_args(argv)
+    except _UsageError as error:
+        print(f"usage error: {error}", file=io.stderr)
+        return 2
+    except SystemExit as exit_:
+        return exit_.code or 0
+    handler = _COMMANDS[args.command]
+    try:
+        return handler(args, io, ctx)
+    except (TaskNotFound, InvalidTaskId) as error:
+        print(f"unknown task: {error}", file=io.stderr)
+        return 2
+
+
+def _load(ctx: Context, task_id: str) -> Task:
+    return ctx.store.load(task_id)
+
+
+def _new(args, io, ctx) -> int:
+    ctx.settings.tasks_dir.mkdir(parents=True, exist_ok=True)
+    suffix = 1
+    while True:
+        task_id = new_task_id(ctx.clock(), "" if suffix == 1 else str(suffix))
+        try:
+            ctx.store.create(Task(id=task_id, prompt="", state=TaskState.PROPOSED, goal=args.goal))
+            break
+        except TaskExists:
+            suffix += 1
+    print(task_id, file=io.stdout)
+    return 0
+
+
+def _list(args, io, ctx) -> int:
+    listing = ctx.store.list()
+    for task in listing.tasks:
+        reason = f"  {task.failure_reason}" if task.failure_reason else ""
+        print(f"{task.id}  {task.state.value}{reason}", file=io.stdout)
+    for name in listing.skipped:
+        print(f"skipped: {name}", file=io.stdout)
+    return 0
+
+
+def _describe(task: Task) -> list[str]:
+    lines = [f"id: {task.id}", f"state: {task.state.value}", f"goal: {task.goal}"]
+    if task.failure_reason:
+        lines.append(f"failure: {task.failure_reason}")
+    lines += [f"plan:\n{task.plan}"] if task.plan else []
+    for label, items in (("risks", task.plan_risks), ("review findings", task.review_findings),
+                         ("audit findings", task.audit_findings)):
+        lines += [f"{label}:"] + [f"  - {item}" for item in items] if items else []
+    for label, value in (("plan_error", task.plan_error), ("review_error", task.review_error),
+                         ("audit_error", task.audit_error)):
+        if value:
+            lines.append(f"{label}: {value}")
+    if task.worktree:
+        lines += [f"worktree: {task.worktree}", f"branch: factory/{task.id}"]
+    return lines
+
+
+def _show(args, io, ctx) -> int:
+    print(escape_control("\n".join(_describe(_load(ctx, args.task_id)))), file=io.stdout)
+    return 0
+
+
+def _advance(args, io, ctx) -> int:
+    _load(ctx, args.task_id)
+    try:
+        with state_lock(ctx.settings.state_dir):
+            result = advance(args.task_id, ctx.store, ctx.stages)
+    except AlreadyRunning:
+        print("another factory run holds the lock", file=io.stderr)
+        return 1
+    for step in result.steps:
+        print(f"{step.stage} -> {step.state.value}", file=io.stdout)
+    task = result.task
+    print(f"state: {task.state.value}" + (f" ({task.failure_reason})" if task.failure_reason else ""), file=io.stdout)
+    if result.stopped:
+        print(f"stopped: {result.stopped}", file=io.stdout)
+        return 1
+    if task.state is TaskState.REVIEWED:
+        print(f"review passed; run: factory approve {task.id}", file=io.stdout)
+    return 1 if task.state is TaskState.FAILED else 0
+
+
+def _not_reviewed(task: Task, io) -> int:
+    print(f"{task.id} is {task.state.value}, not reviewed", file=io.stderr)
+    return 1
+
+
+def _reject(args, io, ctx) -> int:
+    task = _load(ctx, args.task_id)
+    if task.state is not TaskState.REVIEWED:
+        return _not_reviewed(task, io)
+    reject_plan(args.task_id, ctx.store)
+    print(f"{task.id}: plan rejected", file=io.stdout)
+    return 0
+
+
+def _approve(args, io, ctx) -> int:
+    task = _load(ctx, args.task_id)
+    if not io.stdin.isatty():
+        print("approval needs an interactive terminal", file=io.stderr)
+        return 1
+    if task.state is not TaskState.REVIEWED:
+        return _not_reviewed(task, io)
+    shown = "\n".join(
+        [f"GOAL:\n{task.goal}", f"PLAN:\n{task.plan}", "RISKS:"] + [f"  - {r}" for r in task.plan_risks]
+        + ["REVIEW FINDINGS:"] + [f"  - {f}" for f in task.review_findings]
+    )
+    print(escape_control(shown), file=io.stdout)
+    print("Approve this plan? [y/N] ", end="", file=io.stdout)
+    io.stdout.flush()
+    if io.stdin.readline().strip() != "y":
+        print("not approved", file=io.stdout)
+        return 1
+    try:
+        approve_plan(task.id, ctx.store, plan_digest(task.plan))
+    except ValueError:
+        print("plan changed since display; nothing approved", file=io.stderr)
+        return 1
+    except InvalidTransition:
+        return _not_reviewed(ctx.store.load(task.id), io)
+    print(f"{task.id}: approved and queued; run: factory advance {task.id}", file=io.stdout)
+    return 0
+
+
+def _costs(args, io, ctx) -> int:
+    if args.task_id is not None:
+        _load(ctx, args.task_id)
+    entries = [e for e in ctx.ledger.entries() if args.task_id in (None, e["task_id"])]
+    by_stage, by_task = defaultdict(float), defaultdict(float)
+    for entry in entries:
+        by_stage[entry.get("stage", "unknown")] += entry["cost_usd"]
+        by_task[entry["task_id"]] += entry["cost_usd"]
+    print("by stage:", file=io.stdout)
+    for stage, cost in sorted(by_stage.items()):
+        print(f"  {stage}  ${cost:.4f}", file=io.stdout)
+    print("by task:", file=io.stdout)
+    for task_id, cost in sorted(by_task.items()):
+        print(f"  {task_id}  ${cost:.4f}", file=io.stdout)
+    assumed = sum(e["cost_usd"] for e in entries if e.get("assumed"))
+    print(f"assumed: ${assumed:.4f}", file=io.stdout)
+    print(f"total: ${sum(e['cost_usd'] for e in entries):.4f}", file=io.stdout)
+    return 0
+
+
+_COMMANDS = {
+    "new": _new, "list": _list, "show": _show, "advance": _advance,
+    "approve": _approve, "reject": _reject, "costs": _costs,
+}

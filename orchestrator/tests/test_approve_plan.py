@@ -74,14 +74,19 @@ def test_rejecting_fails_the_task_as_plan_rejected_by_human(store):
     assert store.load("t1") == task
 
 
-def test_tripwire_approval_is_only_wired_in_approve_plan():
-    """A tripwire, not a guarantee: 'human-only' is enforced by process (see plan 4)."""
+def test_tripwire_approval_is_only_wired_in_approve_plan_and_exactly_once_in_the_cli():
+    """A tripwire, not a guarantee: 'human-only' is enforced by process (see plans 4 and 5)."""
     source = Path(__file__).parent.parent / "src" / "factory"
-    offenders = [
-        path.name
-        for path in source.glob("*.py")
-        if path.name not in ("approve_plan.py", "task.py")
-        and re.search(r"Event\.APPROVED|approve_plan\(", path.read_text())
+    calls = {
+        str(path.relative_to(source)): len(re.findall(r"approve_plan\(", path.read_text()))
+        for path in source.rglob("*.py")
+        if path.name != "approve_plan.py"
+    }
+    event_users = [
+        str(path.relative_to(source))
+        for path in source.rglob("*.py")
+        if path.name not in ("approve_plan.py", "task.py") and "Event.APPROVED" in path.read_text()
     ]
 
-    assert offenders == []
+    assert {name: count for name, count in calls.items() if count} == {"cli.py": 1}
+    assert event_users == []
