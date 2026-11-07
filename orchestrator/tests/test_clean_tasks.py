@@ -77,3 +77,12 @@ def test_the_flags_show_a_missing_directory_dirty_state_and_commits_ahead_of_bas
     assert (clean.directory_exists, clean.dirty, clean.commits_ahead) == (True, False, 0)
     assert (dirty.directory_exists, dirty.dirty, dirty.commits_ahead) == (True, True, 1)
     assert (gone.directory_exists, gone.dirty, gone.commits_ahead) == (False, False, 0)
+
+
+def test_a_worktree_outside_the_worktree_root_is_flagged_not_cleaned(env, tmp_path):
+    store, repo, _, root, add = env
+    add("t1", S.FAILED)
+    store.save(Task(id="t1", prompt="", state=S.FAILED, worktree=str(tmp_path / "elsewhere"), base_sha="x"))
+
+    assert candidate(env, "t1").outside_root is True
+    assert candidate(env, "t1").directory_exists is False
