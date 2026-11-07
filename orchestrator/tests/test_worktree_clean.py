@@ -78,3 +78,38 @@ def test_a_directory_that_cannot_be_emptied_gives_worktree_not_clean_instead_of_
         assert clean_worktree(wt) == "worktree_not_clean"
     finally:
         stuck.chmod(0o755)
+
+
+def test_a_rewritten_dot_git_pointing_at_a_planted_gitdir_is_refused_and_nothing_is_deleted(wt, tmp_path):
+    victim = tmp_path / "victim"
+    victim.mkdir()
+    (victim / "precious").write_text("p")
+    git(tmp_path, "init", "-q", "--bare", str(wt / ".evil"))
+    git(wt / ".evil", "config", "core.worktree", str(victim))
+    (wt / ".git").write_text("gitdir: .evil\n")
+
+    assert clean_worktree(wt) == "worktree_mismatch"
+
+    assert (victim / "precious").read_text() == "p"
+
+
+def test_a_main_working_tree_with_a_real_dot_git_directory_is_allowed(repo):
+    (repo / "junk.txt").write_text("j")
+
+    assert clean_worktree(repo) is None
+    assert not (repo / "junk.txt").exists()
+
+
+@pytest.mark.parametrize("inside", [".factory", ".worktrees/other", ""])
+def test_factory_state_inside_the_worktree_is_refused_and_survives(wt, inside):
+    state = wt / inside if inside else wt
+    state.mkdir(parents=True, exist_ok=True)
+    (state / "ledger.jsonl").write_text("l")
+
+    assert clean_worktree(wt, factory_paths=(state,)) == "worktree_mismatch"
+
+    assert (state / "ledger.jsonl").exists()
+
+
+def test_factory_paths_outside_the_worktree_do_not_block_the_clean(wt, tmp_path):
+    assert clean_worktree(wt, factory_paths=(tmp_path / "state", tmp_path / "other")) is None
