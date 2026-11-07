@@ -90,9 +90,9 @@ def main():
     make("rebased", S.FAILED)
     empty_tree = git(repo, "hash-object", "-t", "tree", "/dev/null")
     git(repo, "reset", "-q", "--hard", git(repo, "commit-tree", "-m", "rewritten main", empty_tree))
-    print("\n--- clean 2 (main rewritten): expect 'rebased' is refused and reported; answer y ---")
+    print("\n--- clean 2 (main rewritten): expect 'rebased' is deleted (plan 17) and 'reg' still refused; answer y ---")
     second = factory("clean").returncode
-    checks["clean 2 exit 1, rebased empty branch kept"] = second == 1 and branch("rebased")
+    checks["clean 2 exit 1 (reg still refused), rebased empty branch now deleted (plan 17: compare-and-swap)"] = second == 1 and not branch("rebased")
     checks["real repo worktrees and branches untouched"] = (git(ROOT, "worktree", "list"), git(ROOT, "branch", "--list")) == real_before
     for name, ok in checks.items():
         print(f"{'PASS' if ok else 'FAIL'}  {name}")
