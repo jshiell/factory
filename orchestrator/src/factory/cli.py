@@ -279,7 +279,7 @@ def _describe_candidate(candidate) -> str:
     flags = ["worktree present" if candidate.directory_exists else "worktree missing"]
     flags += ["dirty (uncommitted work will be discarded)"] if candidate.dirty else []
     flags += [f"{candidate.commits_ahead} commit{'s' if candidate.commits_ahead != 1 else ''} ahead of base"] if candidate.commits_ahead else []
-    will_delete_branch = candidate.branch_empty and not candidate.outside_root
+    will_delete_branch = candidate.branch_empty and not candidate.outside_root and candidate.task.state is TaskState.FAILED  # merged ones use `-d`
     flags += ["empty branch will be deleted"] if will_delete_branch else []
     flags += ["branch left behind"] if candidate.branch_exists and not will_delete_branch else []
     flags += ["worktree path is not <root>/<id>: will be skipped"] if candidate.outside_root else []

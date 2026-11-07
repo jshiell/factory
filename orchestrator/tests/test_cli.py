@@ -703,3 +703,38 @@ def test_rebase_refusal_escapes_control_characters_from_the_quoted_git_line(ctx,
     code, _, err = run(ctx, "rebase", "t1")
 
     assert code == 1 and "\x1b" not in err and "evil" in err
+
+
+def failed_with_empty_branch_after_main_was_rewritten(ctx):
+    from gitutil import git
+    from factory.worktrees import WorktreeManager
+    repo = ctx.settings.repo
+    git_repo(ctx)
+    (repo / "a.txt").write_text("a")
+    git(repo, "add", "a.txt")
+    git(repo, "commit", "-q", "-m", "init")
+    worktree, base = WorktreeManager(repo, ctx.settings.worktree_root).create("t1")
+    put(ctx, S.FAILED, worktree=str(worktree), base_sha=base)
+    rewritten = git(repo, "commit-tree", "-m", "rewritten main", git(repo, "hash-object", "-t", "tree", "/dev/null"))
+    git(repo, "reset", "-q", "--hard", rewritten)  # the base is no longer an ancestor of main: `branch -d` would refuse
+
+
+def test_clean_exits_0_after_deleting_an_empty_failed_branch_that_git_branch_d_would_refuse(ctx):
+    """Real git through the CLI (the spy tests above cannot show this). Starts green: R2 already fixed the behaviour."""
+    from gitutil import git
+    failed_with_empty_branch_after_main_was_rewritten(ctx)
+
+    code, out, _ = run(ctx, "clean", stdin="y\n")
+
+    assert code == 0 and "deleted branch" in out
+    assert git(ctx.settings.repo, "branch", "--list", "factory/t1") == ""
+
+
+def test_a_merged_task_with_an_empty_branch_is_not_previewed_as_will_be_deleted(ctx):
+    from factory.clean_tasks import Candidate
+    from factory.cli import _describe_candidate
+    merged = Task(id="t1", prompt="", state=S.MERGED, base_sha="b")
+
+    line = _describe_candidate(Candidate(merged, True, False, 0, True, branch_empty=True))
+
+    assert "will be deleted" not in line
