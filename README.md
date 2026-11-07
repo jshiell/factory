@@ -4,7 +4,7 @@ A personal "agentic software factory": a small Python orchestrator that takes a 
 [Claude Code](https://claude.com/claude-code) agents (`claude -p`) through **plan → review → implement → verify → audit → merge**,
 with a human approving the plan and the merge.
 
-It is a learning project, built plan by plan (`docs/plan-1.md` … `docs/plan-18.md`), test-first. The point is to find out how far you
+It is a learning project, built plan by plan (`docs/plan-1.md` … `docs/plan-19.md`), test-first. The point is to find out how far you
 can trust unattended agents when every step is sandboxed, every result is checked by something that is not the agent, and the
 only things that need a person are the two decisions that matter: *is this the right plan* and *should this land on main*.
 
@@ -49,6 +49,7 @@ or its step cap. Agent spend is capped (see `cap_usd`) and every call is recorde
 | `approve <id>` / `reject <id>` | Accept or reject a reviewed plan. `approve` needs a TTY and binds to a digest of the plan you saw |
 | `merge <id>` | Fast-forward `main` to the audited commit. Needs a TTY; shows what will land first |
 | `retry <id>` | Start a fresh task from a failed or audited one (new id, `retry_of` set) |
+| `retry <id> --keep-plan` | Same, but queue it with the plan you already approved, skipping plan and review. Needs a TTY: shows the plan and asks `y` |
 | `rebase <id>` | An audited task whose merge was refused because `main` moved: replay it on the new `main` and send it back through verify and audit |
 | `abandon <id>` | Fail a task that is not running (for example one stuck mid-rebase) |
 | `recover <id>` | Mark a task whose driver died (`running`) as failed, charging an assumed cost |
@@ -69,7 +70,7 @@ project_subdir = "target"      # where the agent works and the tests run
 test_argv = ["uv", "run", "pytest", "-q"]
 model = "sonnet"
 budget_usd = 0.5               # per implementer call
-cap_usd = 5.0                  # total spend cap for a task
+cap_usd = 5.0                  # spend cap across all tasks (the whole ledger)
 max_turns = 30
 fix_rounds = 2                 # how many times the implementer may be asked to fix a failing gate
 gate_timeout_s = 120
@@ -191,7 +192,7 @@ flowchart TB
 - **Moved main.** `merge` never merges; if `main` moved it refuses. `rebase` replays the audited commits and returns the task to
   `agent_done`, so it must pass the gate and a fresh audit again before `merge` will accept it. `rebase` grants no authority,
   so it needs no TTY, but it is never called by `advance`.
-- **Money.** Every call is metered into `ledger.jsonl`; a per-task cap stops further calls. Interrupted calls are charged an
+- **Money.** Every call is metered into `ledger.jsonl`; a global cap (the sum over every task) stops further calls. Interrupted calls are charged an
   assumed cost so a crash cannot hide spend.
 - **One driver at a time.** A lock in the state directory stops two factory processes mutating tasks concurrently; killing the
   driver kills the agent tree.
