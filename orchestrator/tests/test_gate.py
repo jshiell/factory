@@ -417,3 +417,25 @@ def test_adding_any_other_pytest_config_file_fails_tests_modified(repo, name):
     git(repo, "commit", "-q", "-m", "config")
 
     assert gate(repo, base).reason == "tests_modified"
+
+
+NATIVE_TABLE = '[project]\nname = "p"\ndependencies = []\n\n[tool.pytest]\naddopts = ["-q"]\n'
+
+
+def test_changing_the_native_pytest_table_of_pyproject_fails_tests_modified(repo):
+    base = repo_with_test_file(repo)
+    (repo / "proj" / "pyproject.toml").write_text(NATIVE_TABLE)
+    git(repo, "add", "-A")
+    git(repo, "commit", "-q", "-m", "add native table")
+
+    assert gate(repo, base).reason == "tests_modified"
+
+
+@pytest.mark.parametrize("tool", ["tool = 1\n", "[tool]\npytest = 1\n"])
+def test_a_malformed_tool_table_in_pyproject_fails_tests_modified_without_crashing(repo, tool):
+    (repo / "proj").mkdir()
+    (repo / "proj" / "pyproject.toml").write_text(PYPROJECT)
+    base = repo_with_test_file(repo)
+    commit_project_edit(repo, "pyproject.toml", tool)
+
+    assert gate(repo, base).reason == "tests_modified"

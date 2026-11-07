@@ -122,7 +122,9 @@ def _pytest_table(worktree: Path, revision: str, path: str) -> dict | None:
         document = tomllib.loads(shown.stdout.decode())
     except (tomllib.TOMLDecodeError, UnicodeDecodeError):
         return {"unparseable": True}
-    return document.get("tool", {}).get("pytest", {}).get("ini_options")
+    tool = document.get("tool", {})
+    table = tool.get("pytest") if isinstance(tool, dict) else {"unparseable": True}
+    return table if table is None or isinstance(table, dict) else {"unparseable": True}
 
 
 def _is_ancestor(worktree: Path, base_sha: str) -> bool:
