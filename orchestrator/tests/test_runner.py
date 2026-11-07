@@ -244,3 +244,19 @@ def test_timeout_kills_the_whole_tree_through_a_wrapper_that_stays_as_a_parent(t
     finally:
         if pid_is_alive(grandchild):
             os.kill(grandchild, signal.SIGKILL)
+
+
+def test_a_wrapper_banner_on_stderr_does_not_reach_the_captured_stdout(tmp_path, task):
+    noisy = tmp_path / "noisy-nono"
+    noisy.write_text(
+        '#!/bin/sh\necho "nono banner" >&2\nwhile [ "$1" != "--" ]; do shift; done\nshift\nexec "$@"\n'
+    )
+    noisy.chmod(noisy.stat().st_mode | stat.S_IEXEC)
+    runner = SubprocessRunner(
+        fake_claude(tmp_path, "echo '{\"ok\": true}'"), project_subdir="proj", timeout_s=10,
+        sandbox_executable=str(noisy),
+    )
+
+    result = runner.run(task, replace(CONFIG, confine=True))
+
+    assert result.stdout == '{"ok": true}\n'
