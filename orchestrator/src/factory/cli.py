@@ -2,13 +2,13 @@ import argparse
 import signal
 import subprocess
 import sys
-import unicodedata
 from collections import defaultdict
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
+from factory.textsafe import escape_control  # noqa: F401  (re-exported)
 from factory.advance import advance
 from factory.approve_plan import approve_plan, reject_plan
 from factory.clean_tasks import clean_candidates, clean_tasks
@@ -50,18 +50,6 @@ class _UsageError(Exception):
 class _Parser(argparse.ArgumentParser):
     def error(self, message):
         raise _UsageError(message)
-
-
-def escape_control(text: str) -> str:
-    """Make agent-written text safe to show: escape control and invisible format characters."""
-    out = []
-    for char in text:
-        if char not in "\n\t" and unicodedata.category(char) in ("Cc", "Cf"):
-            code = ord(char)
-            out.append(f"\\x{code:02x}" if code < 0x100 else f"\\u{code:04x}" if code < 0x10000 else f"\\U{code:08x}")
-        else:
-            out.append(char)
-    return "".join(out)
 
 
 def _parser() -> argparse.ArgumentParser:
