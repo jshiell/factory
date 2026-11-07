@@ -26,3 +26,15 @@ E1. **Throwaway e2e (human, $0):** `spike/branch_gc_e2e.py` on a synthetic repo:
 
 ## Out of scope
 Deleting branches with commits, a `discard` command, re-planning on a moved main, watching tracked config above the project subdir.
+
+## Folded from the plan-reviewer (supersedes the text above where they differ)
+- **Approved test edit:** `test_clean_tasks.py::test_a_merged_branch_is_deleted_and_a_failed_branch_is_kept` is split into a merged-deleted assertion and a failed-empty-deleted assertion (it asserts the old behaviour for an empty failed branch). No other existing test changes.
+- **Premise corrected:** a task that reaches the gate with changes already has a commit (`commit_all` runs before the checks), so only failures before or at the gate with nothing to commit leave an empty branch (plan rejection, abandon from queued, `nested_repo`, `no_changes`, `no_commits`, implement-stage errors, `recover`). How many real branches are empty is not measured (the real state dir has none).
+- **Empty means `rev-parse branch == base_sha`;** a missing branch, unset base or any git error is not empty.
+- **Execution:** re-run the strict check and re-check that the branch exists immediately before `-d`.
+- **Preview:** "empty branch will be deleted" replaces "branch left behind" (never both), and is suppressed for `outside_root` and when main is on a detached HEAD.
+- **Extra tests:** main rewritten so the base is not an ancestor (`-d` refuses, reported and kept; the task stays a candidate and `clean` exits 1 each time, accepted); a task with `worktree` None but the worktree still registered (`-d` refuses, reported); outside-root task shows no deletion flag; branch deleted between preview and `y`.
+- **Dirty empty branch:** the loss is the uncommitted worktree work, which `clean` already flags as dirty and discards.
+- **E1 adds:** main rebased past the base, a registered worktree with the task field cleared, a failed task whose branch is already gone.
+- **Residual:** `-d` also refuses after a rebase of main (not only a reset); a `recover`-failed task with a live agent is unchanged from today.
+- Not verified: real `git branch -d` behaviour after a rebase, with no upstream, and with a branch checked out elsewhere (E1 checks).
