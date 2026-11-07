@@ -81,3 +81,19 @@ def test_preview_refuses_when_main_was_reset_backwards(audited):
 
     with pytest.raises(MergeRefused, match="moved"):
         merge_preview("t1", store, repo)
+
+
+def test_preview_refuses_a_detached_main_head(audited):
+    store, repo, _, task, _ = audited
+    git(repo, "checkout", "-q", "--detach")
+
+    with pytest.raises(MergeRefused, match="branch"):
+        merge_preview("t1", store, repo)
+
+
+def test_preview_refuses_tracked_changes_in_main(audited):
+    store, repo, _, _, _ = audited
+    (repo / "a.txt").write_text("edited")
+
+    with pytest.raises(MergeRefused, match="changes"):
+        merge_preview("t1", store, repo)
