@@ -129,8 +129,9 @@ def _delete_branch(task: Task, repo: Path, outcome: Outcome) -> None:
         return
     try:
         run_git(repo, "branch", "-d", f"factory/{task.id}")
-    except subprocess.CalledProcessError:
-        outcome.problems.append(f"branch factory/{task.id} kept: git refused to delete it (not merged into main)")
+    except subprocess.CalledProcessError as error:
+        reason = ((error.stderr or "").strip().splitlines() or ["no reason given"])[0]  # git's own words, not a guess
+        outcome.problems.append(f"branch factory/{task.id} kept: git refused to delete it ({reason})")
         return
     outcome.done.append("deleted branch")
 

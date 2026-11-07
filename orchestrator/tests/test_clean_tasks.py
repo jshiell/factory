@@ -509,3 +509,25 @@ def test_a_registered_worktree_with_the_task_field_cleared_makes_git_refuse_and_
 
     assert branch_exists(repo, "failed")
     assert any("factory/failed" in problem for problem in outcomes[0].problems)
+
+
+def test_a_refusal_for_a_registered_worktree_quotes_git_and_does_not_claim_unmerged(env):
+    store, repo, manager, root, add = env
+    add("failed", S.FAILED)
+    task = store.load("failed")
+    store.save(Task(**{**task.__dict__, "worktree": None}))
+
+    problem = next(p for p in run_clean(env)[0].problems if "factory/failed" in p)
+
+    assert "worktree" in problem and "not merged into main" not in problem
+
+
+def test_a_refusal_for_an_unmerged_branch_quotes_git(env):
+    store, repo, _, _, add = env
+    add("failed", S.FAILED)
+    rewritten = git(repo, "commit-tree", "-m", "rewritten main", git(repo, "hash-object", "-t", "tree", "/dev/null"))
+    git(repo, "reset", "-q", "--hard", rewritten)
+
+    problem = next(p for p in run_clean(env)[0].problems if "factory/failed" in p)
+
+    assert "not fully merged" in problem
