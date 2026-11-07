@@ -168,3 +168,25 @@ def test_guard_a_failure_before_the_rebase_starts_reports_gits_reason_without_an
         rebase_task("t1", store, repo)
 
     assert "could not be restored" not in str(raised.value) and "git rebase failed" in str(raised.value)
+
+
+def test_a_redirected_dot_git_file_is_refused_before_any_git_runs_in_the_worktree(audited, tmp_path):
+    store, repo, worktree, task = audited
+    other = tmp_path / "other"
+    other.mkdir()
+    git(other, "init", "-q", "-b", "main")
+    (worktree / ".git").write_text(f"gitdir: {other}/.git\n")
+
+    with pytest.raises(RebaseRefused, match="gitdir"):
+        rebase_task("t1", store, repo)
+
+    assert store.load("t1") == task
+
+
+def test_a_dot_git_directory_in_the_worktree_is_refused(audited):
+    store, repo, worktree, task = audited
+    (worktree / ".git").unlink()
+    (worktree / ".git").mkdir()
+
+    with pytest.raises(RebaseRefused, match="gitdir"):
+        rebase_task("t1", store, repo)
