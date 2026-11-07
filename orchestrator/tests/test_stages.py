@@ -1,0 +1,108 @@
+from dataclasses import dataclass
+from pathlib import Path
+
+import pytest
+
+from gitutil import git
+
+from factory.audit_task import AUDIT_CONFIG
+from factory.digest import plan_digest
+from factory.ledger import Ledger
+from factory.plan_task import PLAN_CONFIG
+from factory.review_plan import REVIEW_CONFIG
+from factory.settings import Settings
+from factory.stages import Deps, build_stages, implementer_config
+from factory.step import RunResult
+from factory.store import TaskStore
+from factory.task import Task, TaskState
+
+
+class RecordingRunner:
+    def __init__(self):
+        self.configs = []
+
+    def run(self, task, config):
+        self.configs.append(config)
+        return RunResult("not json", 1)
+
+
+class RepoWorktrees:
+    def __init__(self, repo):
+        self.repo = repo
+
+    def create(self, task_id):
+        return self.repo, git(self.repo, "rev-parse", "HEAD")
+
+
+@pytest.fixture
+def setup(tmp_path, repo):
+    (tmp_path / "tasks").mkdir()
+    store = TaskStore(tmp_path / "tasks")
+    runner = RecordingRunner()
+    settings = Settings(repo=repo, state_dir=tmp_path, worktree_root=tmp_path / "wt", project_subdir="proj",
+                        test_argv=("pytest", "-x"), gate_timeout_s=7.0, cap_usd=3.0, budget_usd=0.4)
+    deps = Deps(store=store, ledger=Ledger(tmp_path / "ledger.jsonl"), runner=runner, worktrees=RepoWorktrees(repo))
+    (repo / "proj").mkdir()
+    (repo / "proj" / "code.py").write_text("x")
+    git(repo, "add", "-A")
+    git(repo, "commit", "-q", "-m", "p")
+    base = git(repo, "rev-parse", "HEAD")
+    (repo / "proj" / "code.py").write_text("y")
+    git(repo, "add", "-A")
+    git(repo, "commit", "-q", "-m", "c")
+    return store, runner, settings, deps, repo, base
+
+
+def save(store, repo, base, state, **fields):
+    store.save(Task(id="t1", prompt="do it", state=state, worktree=str(repo), base_sha=base, **fields))
+
+
+def test_the_implementer_config_is_the_only_one_with_write_tools_and_no_git(setup):
+    settings = setup[2]
+    config = implementer_config(settings)
+
+    assert {"Write", "Edit"} <= set(config.allowed_tools)
+    assert "Bash(git *)" in config.disallowed_tools
+    assert (config.budget_usd, config.max_turns, config.model) == (0.4, 30, "sonnet")
+    for readonly in (PLAN_CONFIG, REVIEW_CONFIG, AUDIT_CONFIG):
+        assert not {"Write", "Edit"} & set(readonly.allowed_tools)
+
+
+@pytest.mark.parametrize(
+    "stage,state,expected",
+    [
+        ("plan", TaskState.PROPOSED, PLAN_CONFIG),
+        ("review", TaskState.PLANNED, REVIEW_CONFIG),
+        ("audit", TaskState.VERIFIED, AUDIT_CONFIG),
+    ],
+)
+def test_read_only_stages_receive_their_own_read_only_config(setup, stage, state, expected):
+    store, runner, settings, deps, repo, base = setup
+    save(store, repo, base, state, goal="g", plan="p", plan_digest=plan_digest("p"))
+
+    build_stages(settings, deps)[stage]("t1")
+
+    assert runner.configs == [expected]
+
+
+def test_implement_receives_the_implementer_config(setup):
+    store, runner, settings, deps, repo, base = setup
+    store.save(Task(id="t1", prompt="do it"))
+
+    build_stages(settings, deps)["implement"]("t1")
+
+    assert runner.configs == [implementer_config(settings)]
+
+
+def test_verify_receives_the_test_command_subdir_and_timeout(setup, monkeypatch):
+    store, runner, settings, deps, repo, base = setup
+    calls = []
+    monkeypatch.setattr("factory.stages.verify_task", lambda *a, **k: calls.append((a, k)))
+
+    build_stages(settings, deps)["verify"]("t1")
+
+    assert calls == [(("t1", deps.store), {"project_subdir": "proj", "test_argv": ["pytest", "-x"], "gate_timeout_s": 7.0})]
+
+
+def test_stage_names_are_exactly_the_pipeline(setup):
+    assert set(build_stages(setup[2], setup[3])) == {"plan", "review", "implement", "verify", "audit"}
