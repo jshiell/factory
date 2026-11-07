@@ -160,3 +160,41 @@ def test_removing_lines_from_an_existing_test_file_fails_tests_modified(repo):
 
     assert result.passed is False
     assert result.reason == "tests_modified"
+
+
+def test_deleting_an_existing_empty_test_file_fails_tests_modified(repo):
+    base = repo_with_test_file(repo, content="")
+    (repo / "proj" / "test_calc.py").unlink()
+    (repo / "proj" / "code.py").write_text("x")
+    git(repo, "add", "-A")
+    git(repo, "commit", "-q", "-m", "delete")
+
+    assert gate(repo, base).reason == "tests_modified"
+
+
+def test_renaming_an_existing_test_file_fails_tests_modified(repo):
+    base = repo_with_test_file(repo)
+    git(repo, "mv", "proj/test_calc.py", "proj/test_other.py")
+    git(repo, "commit", "-q", "-m", "rename")
+
+    assert gate(repo, base).reason == "tests_modified"
+
+
+def test_turning_an_existing_test_file_into_a_symlink_fails_tests_modified(repo):
+    base = repo_with_test_file(repo)
+    (repo / "proj" / "test_calc.py").unlink()
+    (repo / "proj" / "test_calc.py").symlink_to("code.py")
+    git(repo, "add", "-A")
+    git(repo, "commit", "-q", "-m", "symlink")
+
+    assert gate(repo, base).reason == "tests_modified"
+
+
+def test_a_new_test_file_and_a_changed_non_test_file_pass(repo):
+    base = repo_with_test_file(repo)
+    (repo / "proj" / "test_new.py").write_text("t\n")
+    (repo / "proj" / "code.py").write_text("x")
+    git(repo, "add", "-A")
+    git(repo, "commit", "-q", "-m", "more")
+
+    assert gate(repo, base).passed is True

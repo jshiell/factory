@@ -58,11 +58,12 @@ def check_gate(
 
 
 def _tests_tampered(worktree: Path, base_sha: str, project_subdir: str) -> bool:
-    output = run_git(
-        worktree, "diff", "--numstat", "--no-renames", base_sha, "HEAD", "--",
-        f":(glob){project_subdir}/**/test_*.py", f":(glob){project_subdir}/**/*_test.py",
-    )
-    return any(line.split("\t")[1] != "0" for line in output.splitlines())
+    pathspecs = (f":(glob){project_subdir}/**/test_*.py", f":(glob){project_subdir}/**/*_test.py")
+    statuses = run_git(worktree, "diff", "--name-status", "--no-renames", base_sha, "HEAD", "--", *pathspecs)
+    if any(line[0] not in "AM" for line in statuses.splitlines()):
+        return True
+    numstat = run_git(worktree, "diff", "--numstat", "--no-renames", base_sha, "HEAD", "--", *pathspecs)
+    return any(line.split("\t")[1] != "0" for line in numstat.splitlines())
 
 
 def _is_ancestor(worktree: Path, base_sha: str) -> bool:
