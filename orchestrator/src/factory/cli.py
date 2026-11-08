@@ -11,6 +11,7 @@ from pathlib import Path
 
 from factory.textsafe import escape_control  # noqa: F401  (re-exported)
 from factory.advance import advance
+from factory.audit_corpus import PROJECT_SUBDIR
 from factory.approve_plan import approve_plan, reject_plan
 from factory.abandon_task import AbandonRefused, abandon_task
 from factory.rebase_task import RebaseRefused, rebase_task
@@ -28,6 +29,7 @@ from factory.recover_task import RecoverRefused, recover_task
 from factory.runner import SubprocessRunner
 from factory.settings import Settings, SettingsError, load_settings
 from factory.stages import Deps, build_stages
+from factory.step import Runner
 from factory.store import TaskNotFound, TaskStore, create_with_fresh_id
 from factory.task import InvalidTransition, Task, TaskState
 from factory.worktrees import WorktreeManager
@@ -44,6 +46,14 @@ def _reap_with_the_real_process_table(state_dir) -> ReapResult:
     return reap_orphans(state_dir, ps_probe(), kill_tree, group_alive)
 
 
+def _real_eval_runner(settings: Settings, eval_dir: Path) -> SubprocessRunner:
+    """The eval records its agents under its own directory, never the real `procs/`: only the lock-holder may reap."""
+    return SubprocessRunner(
+        settings.claude_executable, PROJECT_SUBDIR, settings.runner_timeout_s,
+        sandbox_executable=settings.sandbox_executable, state_dir=eval_dir,
+    )
+
+
 @dataclass
 class Context:
     settings: Settings
@@ -52,6 +62,7 @@ class Context:
     stages: dict
     clock: Callable[[], datetime] = datetime.now
     reap: Callable[[Path], ReapResult] = _reap_with_the_real_process_table
+    eval_runner: Callable[[Settings, Path], Runner] = _real_eval_runner
 
 
 class _Refused(Exception):

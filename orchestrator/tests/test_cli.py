@@ -966,3 +966,7 @@ def test_locked_with_an_explicit_directory_locks_and_reaps_that_directory_only(c
 
     assert ctx.reap.calls == [elsewhere]
 
+
+
+def test_a_context_has_a_defaulted_eval_runner_factory(ctx):
+    assert callable(ctx.eval_runner)
