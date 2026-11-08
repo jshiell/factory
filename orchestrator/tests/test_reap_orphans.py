@@ -12,7 +12,7 @@ class Fakes:
     """Stand-ins for the process table: `started` maps pid to its start time (absent means gone)."""
 
     def __init__(self, started=None, group_alive=()):
-        self.started, self.alive_groups, self.killed = dict(started or {}), set(group_alive), []
+        self.started, self.alive_groups, self.killed, self.sleeps = dict(started or {}), set(group_alive), [], []
 
     def probe(self, pid):
         return self.started.get(pid)
@@ -26,7 +26,7 @@ class Fakes:
         return pgid in self.alive_groups
 
     def reap(self, state_dir):
-        return reap_orphans(state_dir, self.probe, self.kill, self.group_alive)
+        return reap_orphans(state_dir, self.probe, self.kill, self.group_alive, sleep=self.sleeps.append)
 
 
 def test_an_alive_process_started_inside_its_launch_window_is_killed_deleted_and_reported(tmp_path):
@@ -100,3 +100,27 @@ def test_an_invalid_record_is_deleted_and_reported_and_nothing_is_killed(tmp_pat
     assert fakes.killed == [] and result.killed == []
     assert not (tmp_path / "procs" / "1.json").exists()
     assert [d.path.name for d in result.discarded] == ["1.json"]
+
+
+def test_a_group_that_will_not_empty_after_the_kill_keeps_its_record_and_raises(tmp_path):
+    write_record(tmp_path, record())
+    fakes = Fakes(started={4242: 100.2}, group_alive={4242})
+    fakes.kill = lambda pid: fakes.killed.append(pid)  # the kill has no effect on the fake group
+
+    with pytest.raises(ReapUncertain) as raised:
+        fakes.reap(tmp_path)
+
+    assert [r.pid for r in load_records(tmp_path)] == [4242]
+    assert "still has live processes" in str(raised.value)
+    assert fakes.sleeps  # it polled before giving up
+
+
+def test_guard_a_group_that_takes_a_moment_to_die_is_waited_for(tmp_path):  # starts green: pins the behaviour
+    write_record(tmp_path, record())
+    fakes = Fakes(started={4242: 100.2}, group_alive={4242})
+    fakes.kill = lambda pid: fakes.killed.append(pid)
+    fakes.sleeps = type("Dying", (list,), {"append": lambda self, s: fakes.alive_groups.discard(4242)})()
+
+    result = fakes.reap(tmp_path)
+
+    assert [r.pid for r in result.killed] == [4242] and load_records(tmp_path) == []

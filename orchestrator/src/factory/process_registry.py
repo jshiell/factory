@@ -1,5 +1,6 @@
 import json
 import os
+import time
 from pathlib import Path
 from typing import NamedTuple
 
@@ -48,6 +49,7 @@ def _read(path: Path) -> Record | InvalidRecord:
     return record
 
 
+EMPTY_POLL_INTERVAL_S, EMPTY_POLLS = 0.1, 30  # wait up to three seconds for a killed group to go
 WINDOW_SLACK_S = 2.0  # `ps` start times have 1-second resolution
 
 
@@ -67,7 +69,7 @@ class ReapUncertain(Exception):
         super().__init__(f"cannot prove these processes dead: {detail}")
 
 
-def reap_orphans(state_dir, probe, kill, group_alive) -> ReapResult:
+def reap_orphans(state_dir, probe, kill, group_alive, sleep=time.sleep) -> ReapResult:
     """Kill each recorded process group whose original process is still alive; the caller holds the state lock.
 
     `probe(pid)` gives the process's start time (epoch seconds) or None if there is no such process, and raises
@@ -85,6 +87,9 @@ def reap_orphans(state_dir, probe, kill, group_alive) -> ReapResult:
             continue
         if _is_ours_and_alive(record, started, group_alive):
             kill(record.pid)
+            if not _group_emptied(record, group_alive, sleep):
+                uncertain.append((record, "its group still has live processes after the kill"))
+                continue
             killed.append(record)
         _record_path(state_dir, record.pid).unlink()
     if uncertain:
@@ -104,3 +109,11 @@ def _is_ours_and_alive(record: Record, started: float | None, group_alive) -> bo
     if started is None:  # the leader is gone but members of its group may live (measured: the group stays signalable)
         return group_alive(record.pgid)
     return _in_window(record, started)
+
+
+def _group_emptied(record: Record, group_alive, sleep) -> bool:
+    for _ in range(EMPTY_POLLS):
+        if not group_alive(record.pgid):
+            return True
+        sleep(EMPTY_POLL_INTERVAL_S)
+    return not group_alive(record.pgid)
