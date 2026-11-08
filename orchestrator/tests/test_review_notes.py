@@ -35,3 +35,30 @@ def test_the_total_length_is_bounded_and_marked():
 
 def test_nothing_in_nothing_out():
     assert capped_findings(()) == ()
+
+
+REQUIRED = "Recommend (required): "
+
+
+def test_a_cut_note_keeps_its_required_tag_when_the_tag_was_in_the_cut_tail():
+    note = "Edge-case gap: " + "x" * 580 + " " + REQUIRED + "reject bytes with TypeError."
+
+    (kept, marker) = capped_findings((note,))
+
+    assert kept.startswith("Recommend (required) [shortened]: ") and kept.endswith("x" * 20)
+    assert len(kept) == MAX_ITEM and marker == TRUNCATED
+
+
+def test_a_long_note_whose_required_tag_is_in_the_first_500_characters_is_cut_as_before():
+    # guard (green on arrival)
+    note = "Gap. " + REQUIRED + "reject bytes. " + "x" * 600
+
+    assert capped_findings((note,)) == (note[:MAX_ITEM], TRUNCATED)
+
+
+def test_a_long_optional_or_untagged_note_is_cut_as_before():
+    # guard (green on arrival): only a required tag is protected
+    optional = "x" * 580 + " Recommend (optional): use fsum."
+
+    assert capped_findings((optional,)) == (optional[:MAX_ITEM], TRUNCATED)
+    assert capped_findings(("y" * 600,)) == ("y" * MAX_ITEM, TRUNCATED)

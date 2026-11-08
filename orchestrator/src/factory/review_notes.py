@@ -2,6 +2,15 @@ MAX_ITEMS = 10
 MAX_ITEM = 500
 MAX_TOTAL = 4000
 TRUNCATED = "[truncated]"
+REQUIRED_TAG = "recommend (required)"
+SHORTENED_REQUIRED = "Recommend (required) [shortened]: "
+
+
+def _cut(line: str) -> str:
+    """Cut to MAX_ITEM, but keep a required tag that the plain cut would drop (the tag ends a finding)."""
+    if REQUIRED_TAG in line.lower() and REQUIRED_TAG not in line[:MAX_ITEM].lower():
+        return SHORTENED_REQUIRED + line[: MAX_ITEM - len(SHORTENED_REQUIRED)]
+    return line[:MAX_ITEM]
 
 
 def capped_findings(findings: tuple[str, ...]) -> tuple[str, ...]:
@@ -14,7 +23,7 @@ def capped_findings(findings: tuple[str, ...]) -> tuple[str, ...]:
         if not line:
             continue
         if len(line) > MAX_ITEM:
-            line, cut = line[:MAX_ITEM], True
+            line, cut = _cut(line), True
         if len(kept) == MAX_ITEMS or total + len(line) > MAX_TOTAL:
             cut = True
             break
