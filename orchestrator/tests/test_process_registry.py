@@ -1,8 +1,10 @@
+import calendar
 import os
+import subprocess
 
 import pytest
 
-from factory.process_registry import InvalidRecord, Record, load_records, write_record
+from factory.process_registry import InvalidRecord, ProbeFailed, Record, load_records, ps_probe, write_record
 
 
 def record(**overrides):
@@ -47,3 +49,38 @@ def test_an_unreadable_or_incomplete_record_is_invalid(tmp_path, text):
     (found,) = load_records(tmp_path)
 
     assert isinstance(found, InvalidRecord)
+
+
+class FakePs:
+    def __init__(self, stdout="", returncode=0, error=None):
+        self.stdout, self.returncode, self.error, self.calls = stdout, returncode, error, []
+
+    def __call__(self, argv, **kwargs):
+        self.calls.append((argv, kwargs))
+        if self.error:
+            raise self.error
+        return subprocess.CompletedProcess(argv, self.returncode, self.stdout, "")
+
+
+def test_ps_start_time_is_read_as_utc_epoch_seconds_with_a_fixed_locale_and_zone():
+    ps = FakePs("Sun  8 Nov 09:54:32 2026\n")
+
+    started = ps_probe(ps)(18875)
+
+    assert started == calendar.timegm((2026, 11, 8, 9, 54, 32))
+    argv, kwargs = ps.calls[0]
+    assert argv == ["ps", "-o", "lstart=", "-p", "18875"]
+    assert kwargs["env"]["LC_ALL"] == "C" and kwargs["env"]["TZ"] == "UTC0"
+
+
+def test_no_such_process_is_none():
+    assert ps_probe(FakePs("", returncode=1))(18875) is None
+
+
+@pytest.mark.parametrize("ps", [
+    FakePs(error=PermissionError("operation not permitted: 'ps'")), FakePs(error=FileNotFoundError("ps")),
+    FakePs("garbage\n"), FakePs("", returncode=2),
+])
+def test_a_probe_that_cannot_tell_raises_probe_failed(ps):
+    with pytest.raises(ProbeFailed):
+        ps_probe(ps)(18875)

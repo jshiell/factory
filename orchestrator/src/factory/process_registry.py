@@ -1,5 +1,7 @@
+import calendar
 import json
 import os
+import subprocess
 import time
 from pathlib import Path
 from typing import NamedTuple
@@ -117,3 +119,23 @@ def _group_emptied(record: Record, group_alive, sleep) -> bool:
             return True
         sleep(EMPTY_POLL_INTERVAL_S)
     return not group_alive(record.pgid)
+
+
+def ps_probe(run=subprocess.run):
+    """A probe that reads a process's start time from `ps`, in a fixed locale and zone (the text depends on both)."""
+    def probe(pid: int) -> float | None:
+        env = {**os.environ, "LC_ALL": "C", "TZ": "UTC0"}
+        try:
+            ran = run(["ps", "-o", "lstart=", "-p", str(pid)], capture_output=True, text=True, env=env, stdin=subprocess.DEVNULL)
+        except OSError as error:
+            raise ProbeFailed(f"cannot run ps: {error}") from error
+        text = ran.stdout.strip()
+        if ran.returncode == 1 and not text:
+            return None
+        if ran.returncode != 0:
+            raise ProbeFailed(f"ps exited {ran.returncode}")
+        try:
+            return calendar.timegm(time.strptime(" ".join(text.split()), "%a %d %b %H:%M:%S %Y"))
+        except ValueError as error:
+            raise ProbeFailed(f"cannot read ps output {text!r}") from error
+    return probe
