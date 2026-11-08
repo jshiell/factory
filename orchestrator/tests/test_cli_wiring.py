@@ -229,3 +229,24 @@ def test_an_agent_launched_by_the_real_cli_is_recorded_while_it_runs(project):
 
     assert seen.read_text().strip().endswith(".json")
     assert load_records(tmp_path / "state") == []
+
+
+def test_a_gate_run_launched_by_the_real_cli_is_recorded_while_it_runs(project):
+    from factory.process_registry import load_records
+    from factory.store import TaskStore
+    from factory.task import Task, TaskState
+    repo, env, tmp_path = project
+    seen = tmp_path / "seen-gate-records"
+    config = repo / "factory.toml"
+    config.write_text(config.read_text() + f'test_argv = ["sh", "-c", "cat {tmp_path}/state/procs/*.json > {seen}"]\n')
+    sh("git", "commit", "-q", "-am", "test_argv", cwd=repo, env=env)
+    (repo / "target" / "code.py").write_text("changed by the implementer")
+    (tmp_path / "state" / "tasks").mkdir(parents=True)
+    base = sh("git", "rev-parse", "HEAD", cwd=repo, env=env).stdout.strip()
+    TaskStore(tmp_path / "state" / "tasks").save(
+        Task(id="t9", prompt="stored", state=TaskState.AGENT_DONE, worktree=str(repo), base_sha=base, goal="g", plan="p"))
+
+    factory(project, "advance", "t9")
+
+    assert '"task_id": "t9"' in seen.read_text() and '"stage": "gate"' in seen.read_text()
+    assert load_records(tmp_path / "state") == []
