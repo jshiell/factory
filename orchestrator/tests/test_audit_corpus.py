@@ -118,3 +118,12 @@ def test_the_ignored_note_case_has_a_note_the_plan_lacks_and_a_change_that_ignor
     assert "bytes" not in case.plan
     assert not any("bytes" in content for content in case.files.values())
     assert "def mean" in case.files["src/calc/__init__.py"] and "tests/test_mean.py" in case.files
+
+
+def test_the_ignored_note_case_follows_its_plan_except_for_the_note():
+    # The plan must name the files the change actually touches, or the auditor fails it for plan deviations
+    # instead of the ignored note (a name collision once gave it another case's stats.py plan).
+    case = next(c for c in CASES if c.id == "case-21")
+
+    assert "target/src/calc/__init__.py" in case.plan and "target/tests/test_mean.py" in case.plan
+    assert "stats" not in case.plan and "stats" not in case.goal

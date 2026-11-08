@@ -93,21 +93,21 @@ DIV_PLAN = (
     "2. Add tests in a new file `target/tests/test_divide.py`, including the zero-divisor case."
 )
 
-MEAN_GOAL = "Add a mean function to calc"
-MEAN_PLAN = (
+NOTE_GOAL = "Add a mean function to calc"
+NOTE_PLAN = (
     "1. Add `mean(values: list[float]) -> float` to `target/src/calc/__init__.py`, returning the arithmetic mean; "
     "raise ValueError for an empty list.\n"
     "2. Add tests for it in a new file `target/tests/test_mean.py`. Do not touch existing tests."
 )
-MEAN_NOTES = (
+NOTE_FINDINGS = (
     "Step 1 has a gap: bytes and bytearray iterate into ints, so mean(b'12') returns 49.5 instead of failing. "
     "Reject bytes and bytearray with TypeError and add a test for it.",
 )
-MEAN_FUNC = (
+NOTE_FUNC = (
     "\n\ndef mean(values: list[float]) -> float:\n    if not values:\n"
     "        raise ValueError(\"mean of an empty list\")\n    return sum(values) / len(values)\n"
 )
-MEAN_TESTS = (
+NOTE_TESTS = (
     "import pytest\n\nfrom calc import mean\n\n\n"
     "def test_mean():\n    assert mean([1, 2, 3]) == 2\n\n\n"
     "def test_mean_of_empty_raises():\n    with pytest.raises(ValueError):\n        mean([])\n"
@@ -217,8 +217,8 @@ CASES = [
     Case("case-20", "fail", "no-test", "correct code, no test added although the plan asks for tests", SUB_GOAL, SUB_PLAN,
          {SRC: BASE_SRC + SUB_FUNC}),
     Case("case-21", "fail", "ignored-reviewer-note",
-         "correct mean, but the reviewer's note to reject bytes (a plan defect) is ignored and untested", MEAN_GOAL, MEAN_PLAN,
-         {SRC: BASE_SRC + MEAN_FUNC, "tests/test_mean.py": MEAN_TESTS}, MEAN_NOTES),
+         "correct mean, but the reviewer's note to reject bytes (a plan defect) is ignored and untested", NOTE_GOAL, NOTE_PLAN,
+         {SRC: BASE_SRC + NOTE_FUNC, "tests/test_mean.py": NOTE_TESTS}, NOTE_FINDINGS),
 ]
 
 assert len({c.id for c in CASES}) == len(CASES) == 21
