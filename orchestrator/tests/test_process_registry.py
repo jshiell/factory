@@ -63,7 +63,7 @@ class FakePs:
 
 
 def test_ps_start_time_is_read_as_utc_epoch_seconds_with_a_fixed_locale_and_zone():
-    ps = FakePs("Sun  8 Nov 09:54:32 2026\n")
+    ps = FakePs("Sun Nov  8 09:54:32 2026\n")
 
     started = ps_probe(ps)(18875)
 

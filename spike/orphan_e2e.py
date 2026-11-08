@@ -48,7 +48,10 @@ def kill_driver(driver, state):
     real = int(lock.read_text().strip()) if lock.exists() and lock.read_text().strip() else None
     check("the lock names a live driver other than the uv wrapper", real is not None and real != driver.pid, str(real))
     if real:
-        os.kill(real, signal.SIGKILL)
+        try:
+            os.kill(real, signal.SIGKILL)
+        except ProcessLookupError:
+            print('   (the driver had already exited)')
     driver.kill()
     driver.wait()
     time.sleep(1)

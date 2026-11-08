@@ -136,7 +136,7 @@ def ps_probe(run=subprocess.run):
         if ran.returncode != 0:
             raise ProbeFailed(f"ps exited {ran.returncode}")
         try:
-            return calendar.timegm(time.strptime(" ".join(text.split()), "%a %d %b %H:%M:%S %Y"))
+            return calendar.timegm(time.strptime(" ".join(text.split()), "%a %b %d %H:%M:%S %Y"))
         except ValueError as error:
             raise ProbeFailed(f"cannot read ps output {text!r}") from error
     return probe
