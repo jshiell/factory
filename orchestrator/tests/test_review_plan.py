@@ -55,6 +55,13 @@ def test_the_review_prompt_has_goal_and_plan_with_the_plan_marked_untrusted():
     assert "untrusted" in prompt.lower() and not prompt.startswith("-")
 
 
+def test_the_untrusted_warning_comes_before_the_plan_text():
+    # characterisation (plan 25 C0): green on arrival; pins the layout the edge-case paragraph is added to
+    prompt = build_review_prompt("add multiply", "1. do x")
+
+    assert prompt.index("untrusted") < prompt.index("PLAN:\n1. do x")
+
+
 def test_the_review_config_is_read_only_with_an_approve_or_revise_schema():
     assert REVIEW_CONFIG.allowed_tools == ()
     assert REVIEW_CONFIG.confine is True
