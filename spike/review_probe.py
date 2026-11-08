@@ -2,10 +2,12 @@
 Frozen: the baseline prompt and both probe texts are inline, so results stay reproducible after
 plan 25 changes factory.review_plan.build_review_prompt.
 
+Plan 26 added probe3 (probe2 + a "Recommend:" sentence) and probe4 (probe3 + a 400-character limit).
+
 Run: uv run --project orchestrator python spike/review_probe.py [variant,...] [plan,...]
-  variants: current, probe1, probe2 (default: all)   plans: mean, is_even, join_words, parse_ints, messy (default: mean, is_even)
-Real API calls, <= $0.30 each, 3 runs per cell. The full default is 18 runs, about $0.70
-(plan 25 first spike: current+probe1 12 runs $0.49, probe2 6 runs $0.21).
+  variants: current, probe1, probe2, probe3, probe4 (default: all)   plans: mean, is_even, join_words, parse_ints, messy (default: mean, is_even)
+Real API calls, <= $0.30 each, 3 runs per cell. Plan 25: current+probe1 12 runs $0.49, probe2 6 runs $0.21.
+Plan 26: probe3 and probe4 on mean, is_even, join_words, messy: 24 runs, about $0.90.
 Output: spike/review-probe-out/ (gitignored) plus a summary printed to stdout."""
 import json, os, re, subprocess, sys, time
 from pathlib import Path
@@ -14,7 +16,7 @@ ROOT = Path(__file__).resolve().parent.parent
 OUT = Path(__file__).resolve().parent / "review-probe-out"
 OUT.mkdir(exist_ok=True)
 sys.path.insert(0, str(ROOT / "orchestrator" / "src"))
-from factory.review_plan import EDGE_CASE_INSTRUCTION, REVIEW_SCHEMA  # noqa: E402
+from factory.review_plan import REVIEW_SCHEMA  # noqa: E402
 
 def baseline_prompt(goal, plan):  # frozen copy of build_review_prompt as of plan 24
     return (
@@ -30,8 +32,24 @@ PROBE1 = (
     "non-finite values (inf, NaN), and boundaries. Give each gap its own finding that names a concrete "
     "input and what the plan would do with it. Do not invent gaps that do not apply."
 )
-PROBE2 = EDGE_CASE_INSTRUCTION  # the shipped text; byte-identical to the one first measured (plan 25 C1)
-VARIANTS = {"current": "", "probe1": PROBE1, "probe2": PROBE2}
+PROBE2 = (  # frozen copy of the plan-25 EDGE_CASE_INSTRUCTION
+    '\n\nAlso list edge-case gaps the goal implies but the plan does not handle. Only consider inputs '
+    "the plan's declared signature admits (for example, a parameter typed Iterable admits str and "
+    'bytes because they iterate; a parameter typed int does not admit floats or strings). Cover '
+    'silent wrong results, empty or single inputs, overflow and non-finite values where they can '
+    'occur. Give each gap its own finding naming a concrete input and what the plan would do with '
+    'it. Edge-case gaps must NOT change the verdict: use revise only for errors in the plan itself '
+    '(wrong paths, contradictions, missing steps, breaking existing tests). Do not invent gaps that '
+    'do not apply.'
+)
+# plan 26 spike: gaps end with an imperative recommendation the implementer can act on
+PROBE3 = PROBE2 + (
+    " End each edge-case gap finding with 'Recommend: ' followed by one imperative sentence stating the "
+    "behaviour the implementation should have (for example, 'Recommend: raise TypeError for bytes and add a test')."
+)
+# plan 26 spike round 2: same, with a length limit so the 500-char cap never cuts a recommendation
+PROBE4 = PROBE3 + " Keep every finding under 400 characters."
+VARIANTS = {"current": "", "probe1": PROBE1, "probe2": PROBE2, "probe3": PROBE3, "probe4": PROBE4}
 PLANS = {
     "mean": ("Add a mean function to calc",
              "1. Add `mean(values: Iterable[float]) -> float` to `target/src/calc/__init__.py` (arithmetic mean; "
@@ -86,8 +104,10 @@ def main(variants, plans):
                     print(f"{plan_name:8} {variant:8} #{i}: no structured output"); continue
                 text = " ".join(out["findings"]).lower()
                 hits = [k for k, rx in HITS.items() if re.search(rx, text)]
+                rec = sum("recommend:" in f.lower() for f in out["findings"])
+                longest = max((len(f) for f in out["findings"]), default=0)
                 print(f"{plan_name:8} {variant:8} #{i}: {out['verdict']:7} findings={len(out['findings'])} "
-                      f"hits={hits} turns={turns} ${cost:.3f}")
+                      f"hits={hits} recommend={rec} longest={longest} turns={turns} ${cost:.3f}")
                 for f in out["findings"]:
                     print(f"      - {f[:160]}")
     print(f"total ${total:.2f}")
