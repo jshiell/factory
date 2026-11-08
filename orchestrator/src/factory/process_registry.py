@@ -53,6 +53,7 @@ WINDOW_SLACK_S = 2.0  # `ps` start times have 1-second resolution
 
 class ReapResult(NamedTuple):
     killed: list[Record]
+    discarded: list[InvalidRecord]
 
 
 class ProbeFailed(Exception):
@@ -71,8 +72,12 @@ def reap_orphans(state_dir, probe, kill, group_alive) -> ReapResult:
 
     `probe(pid)` gives the process's start time (epoch seconds) or None if there is no such process, and raises
     `ProbeFailed` if it cannot tell. A record whose probe failed is kept and reported in `ReapUncertain`."""
-    killed, uncertain = [], []
+    killed, discarded, uncertain = [], [], []
     for record in load_records(state_dir):
+        if isinstance(record, InvalidRecord):
+            record.path.unlink()
+            discarded.append(record)
+            continue
         try:
             started = probe(record.pid)
         except ProbeFailed as error:
@@ -84,7 +89,7 @@ def reap_orphans(state_dir, probe, kill, group_alive) -> ReapResult:
         _record_path(state_dir, record.pid).unlink()
     if uncertain:
         raise ReapUncertain(killed, uncertain)
-    return ReapResult(killed)
+    return ReapResult(killed, discarded)
 
 
 def _record_path(state_dir, pid: int) -> Path:

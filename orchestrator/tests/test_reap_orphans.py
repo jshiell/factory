@@ -88,3 +88,15 @@ def test_a_failed_probe_keeps_its_record_and_raises_but_the_other_orphans_are_st
     assert [r.pid for r in load_records(tmp_path)] == [4242]
     assert [r.pid for r in raised.value.killed] == [4343]
     assert "4242" in str(raised.value) and "ps: operation not permitted" in str(raised.value)
+
+
+def test_an_invalid_record_is_deleted_and_reported_and_nothing_is_killed(tmp_path):
+    (tmp_path / "procs").mkdir()
+    (tmp_path / "procs" / "1.json").write_text('{"pid": 1, "pgid": 1, "task_id": "t", "stage": "s", "launched_after": 0, "launched_before": 0}')
+    fakes = Fakes(started={1: 0.0}, group_alive={1})
+
+    result = fakes.reap(tmp_path)
+
+    assert fakes.killed == [] and result.killed == []
+    assert not (tmp_path / "procs" / "1.json").exists()
+    assert [d.path.name for d in result.discarded] == ["1.json"]
