@@ -152,6 +152,30 @@ MANY_TESTS = (
     "def test_mean_rejects_text_and_bytes():\n    with pytest.raises(TypeError):\n        mean(\"123\")\n"
     "    with pytest.raises(TypeError):\n        mean(b\"12\")\n"
 )
+# the 6 findings of spike/review-probe-out/mean-probe6-0-1794164887.json (plan 27 spike, gitignored), verbatim
+TAGGED_FINDINGS = (
+    "Plan is sound: target/src/calc/__init__.py exists (only `add`), and target/tests/test_calc.py imports `from calc import add` with no pythonpath config, so a new target/tests/test_mean.py using `from calc import mean` works the same way and leaves test_add intact. Note: `Iterable` must be imported (e.g. from collections.abc) or the module raises NameError at import and breaks existing tests.",
+    "Edge-case gap: mean(b\"abc\") iterates bytes as ints 97,98,99 and silently returns 98.0 (the plan's Iterable[float] signature admits bytes). Recommend (required): raise TypeError for str and bytes/bytearray inputs and add a test.",
+    "Edge-case gap: mean(x for x in [1.0, 2.0]) passes a generator. sum(values)/len(values) raises TypeError on len, and a two-pass version silently returns a wrong result because the iterator is consumed. Recommend (required): count items while summing in a single pass, or materialize with list(values) first, and add a generator test.",
+    "Edge-case gap: mean([1.0, float(\"nan\")]) returns nan, mean([inf, -inf]) returns nan, and mean([inf, 1.0]) returns inf. Recommend (required): raise ValueError for any non-finite input, or explicitly document and test the nan/inf propagation.",
+    "Edge-case gap: mean([1e308, 1e308]) overflows in the sum and returns inf although the true mean is 1e308. Recommend (required): avoid the overflow, for example by scaling or dividing each term by n before summing, or raise OverflowError when the result is inf but the inputs were finite.",
+    "Edge-case gap: mean([0.1] * 10) with a naive sum returns 0.09999999999999999 rather than 0.1. Recommend (optional): use math.fsum for the total.",
+)
+TAGGED_FUNC = (
+    "\n\ndef mean(values: Iterable[float]) -> float:\n"
+    "    if isinstance(values, (str, bytes, bytearray)):\n"
+    "        raise TypeError(\"mean needs numbers, not text or bytes\")\n"
+    "    items = list(values)\n    if not items:\n"
+    "        raise ValueError(\"mean of an empty input\")\n"
+    "    if not all(math.isfinite(x) for x in items):\n"
+    "        raise ValueError(\"mean needs finite numbers\")\n"
+    "    n = len(items)\n    return sum(x / n for x in items)\n"
+)
+TAGGED_TESTS = MANY_TESTS + (
+    "\n\ndef test_mean_rejects_nan_and_inf():\n    with pytest.raises(ValueError):\n"
+    "        mean([float(\"nan\"), 1.0])\n    with pytest.raises(ValueError):\n        mean([float(\"inf\"), 1.0])\n\n\n"
+    "def test_mean_of_huge_values_is_finite():\n    assert mean([1e308, 1e308]) == 1e308\n"
+)
 CLAMP_GOAL = "Add a clamp function to calc"
 CLAMP_PLAN = (
     "1. Add `clamp(x: int, lo: int, hi: int) -> int` to `target/src/calc/__init__.py`: return `lo` if x < lo, `hi` if "
@@ -267,9 +291,19 @@ CASES = [
          MANY_GOAL, MANY_PLAN,
          {SRC: "from collections.abc import Iterable\n\n" + BASE_SRC + MANY_FUNC, "tests/test_mean.py": MANY_TESTS},
          IMPERATIVE_FINDINGS),
+    Case("case-24", "fail", "unhandled-required-notes",
+         "case-22's change with tagged notes; skips the required non-finite and overflow notes",
+         MANY_GOAL, MANY_PLAN,
+         {SRC: "from collections.abc import Iterable\n\n" + BASE_SRC + MANY_FUNC, "tests/test_mean.py": MANY_TESTS},
+         TAGGED_FINDINGS),
+    Case("case-25", "pass", "handled-required-notes",
+         "handles every required note (text/bytes, generators, nan/inf, overflow), skips the optional precision note",
+         MANY_GOAL, MANY_PLAN,
+         {SRC: "import math\nfrom collections.abc import Iterable\n\n" + BASE_SRC + TAGGED_FUNC, "tests/test_mean.py": TAGGED_TESTS},
+         TAGGED_FINDINGS),
 ]
 
-assert len({c.id for c in CASES}) == len(CASES) == 23
+assert len({c.id for c in CASES}) == len(CASES) == 25
 
 
 def case_hash(case: Case) -> str:

@@ -3,10 +3,10 @@ import ast
 from factory.audit_corpus import CASES, PROJECT_SUBDIR
 
 
-def test_there_are_twenty_three_cases_with_unique_ids_and_known_labels():
-    assert len(CASES) == 23 and len({case.id for case in CASES}) == 23
+def test_there_are_twenty_five_cases_with_unique_ids_and_known_labels():
+    assert len(CASES) == 25 and len({case.id for case in CASES}) == 25
     assert {case.label for case in CASES} == {"pass", "fail"}
-    assert sum(case.label == "pass" for case in CASES) == 9
+    assert sum(case.label == "pass" for case in CASES) == 10
 
 
 def test_every_case_has_a_goal_a_plan_that_names_the_project_and_some_files():
@@ -165,3 +165,53 @@ def test_the_imperative_notes_case_skips_notes_for_non_finite_overflow_and_preci
     assert "non-finite" in notes and "overflow" in notes and "precision" in notes
     code = case.files["src/calc/__init__.py"]
     assert "fsum" not in code and "isnan" not in code and "isfinite" not in code
+
+
+def test_the_tagged_notes_cases_share_goal_plan_and_the_six_probe6_findings():
+    case22 = next(c for c in CASES if c.id == "case-22")
+    case24 = next(c for c in CASES if c.id == "case-24")
+    case25 = next(c for c in CASES if c.id == "case-25")
+
+    assert (case24.goal, case24.plan) == (case22.goal, case22.plan) == (case25.goal, case25.plan)
+    assert case24.review_findings == case25.review_findings and len(case25.review_findings) == 6
+    notes = " ".join(case25.review_findings)
+    assert notes.count("Recommend (required)") == 4 and notes.count("Recommend (optional)") == 1
+    assert all(len(note) < 400 for note in case25.review_findings)
+
+
+def test_the_unhandled_required_notes_case_is_case_22s_change_that_skips_nan_and_overflow():
+    case22 = next(c for c in CASES if c.id == "case-22")
+    case = next(c for c in CASES if c.id == "case-24")
+
+    assert case.label == "fail" and case.files == case22.files
+    code = case.files["src/calc/__init__.py"]
+    assert "isfinite" not in code and "isnan" not in code and "fsum" not in code
+
+
+def test_the_handled_required_notes_case_handles_every_required_note_and_skips_the_optional_one():
+    case = next(c for c in CASES if c.id == "case-25")
+    code, tests = case.files["src/calc/__init__.py"], case.files["tests/test_mean.py"]
+
+    assert case.label == "pass" and set(case.files) == {"src/calc/__init__.py", "tests/test_mean.py"}
+    assert "isfinite" in code and "fsum" not in code
+    assert "pytest.raises(ValueError)" in tests and "1e308" in tests and "nan" in tests
+
+
+def test_the_handled_required_notes_case_code_does_what_its_tests_say():
+    # runs the case's own code: a label of "pass" is only honest if the tests it ships pass
+    import math
+
+    ns: dict = {}
+    case = next(c for c in CASES if c.id == "case-25")
+    exec(case.files["src/calc/__init__.py"], ns)
+    mean = ns["mean"]
+
+    assert mean([1, 2, 3]) == 2 and mean(x for x in [2, 4]) == 3
+    assert math.isfinite(mean([1e308, 1e308]))
+    for bad, error in (("123", TypeError), (b"12", TypeError), ([], ValueError),
+                       ([float("nan"), 1.0], ValueError), ([float("inf"), 1.0], ValueError)):
+        try:
+            mean(bad)
+        except error:
+            continue
+        raise AssertionError(f"mean({bad!r}) did not raise {error.__name__}")
