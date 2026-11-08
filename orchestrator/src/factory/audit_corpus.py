@@ -42,7 +42,7 @@ def _bulk(buried_bad_test: bool) -> dict[str, str]:
         ("power", "a ** b", [("2, 10", "1024"), ("5, 0", "1"), ("3, 2", "9")]),
         ("modulo", "a % b", [("7, 3", "1"), ("8, 4", "0"), ("-1, 5", "4")]),
         ("floor_divide", "a // b", [("7, 2", "3"), ("-7, 2", "-4"), ("6, 3", "2")]),
-        ("maximum", "a if a >= b else b", [("3, 9", "9"), ("9, 3", "9"), ("4, 4", "4")]),
+        ("maximum", "a if a >= b else b", [("3, 9", "9"), ("9, 3", "9"), ("4, 4", "4"), ("-1, 0", "0")]),
     ]
     src = BASE_SRC
     tests = "import pytest\n\nfrom calc import floor_divide, maximum, modulo, multiply, power\n\n"
