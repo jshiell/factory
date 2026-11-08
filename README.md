@@ -4,7 +4,7 @@ A personal "agentic software factory": a small Python orchestrator that takes a 
 [Claude Code](https://claude.com/claude-code) agents (`claude -p`) through **plan → review → implement → verify → audit → merge**,
 with a human approving the plan and the merge.
 
-It is a learning project, built plan by plan (`docs/plan-1.md` … `docs/plan-22.md`), test-first. The point is to find out how far you
+It is a learning project, built plan by plan (`docs/plan-1.md` … `docs/plan-23.md`), test-first. The point is to find out how far you
 can trust unattended agents when every step is sandboxed, every result is checked by something that is not the agent, and the
 only things that need a person are the two decisions that matter: *is this the right plan* and *should this land on main*.
 
@@ -12,7 +12,7 @@ only things that need a person are the two decisions that matter: *is this the r
 
 | Path | What it is |
 |---|---|
-| `orchestrator/` | The factory: a Python 3.14 package, CLI `factory`, standard library only, ~870 tests |
+| `orchestrator/` | The factory: a Python 3.14 package, CLI `factory`, standard library only, ~930 tests |
 | `target/` | A tiny Python project (`calc`) the agents work on. Replace it with any `uv` + `pytest` project |
 | `docs/` | One `plan-N.md` per increment (decisions, cycles, reviewer findings) and `spike-findings.md` (what was measured, known gaps) |
 | `spike/` | Throwaway probes and end-to-end scripts. Not production code; several make real API calls or need a terminal |
@@ -55,8 +55,9 @@ or its step cap. Agent spend is capped (see `cap_usd`) and every call is recorde
 | `recover <id>` | Mark a task whose driver died (`running`) as failed, charging an assumed cost |
 | `clean` | After a preview and confirmation, remove worktrees, gate caches, orphan caches and branches of finished tasks |
 | `costs [id]` | Spend by stage and by task, with assumed costs shown separately |
+| `eval-audit` | Run the auditor over 20 labelled changes (default 3 runs each, about $2) and compare with the last comparable run. Exits `1` if a bad change is ever judged pass or a good one is judged fail by a majority, `3` if incomplete. Options: `--runs N`, `--only CASE`, `--max-usd X`, `--resume DIR`, `--compare DIR`, `--check-corpus` (runs the real gate on every case; needs `uv` and network). Results under `<state_dir>/evals/`; uses its own lock, so other commands keep working |
 
-Exit codes: `0` ok, `1` refused or failed (the reason is printed), `2` usage error.
+Exit codes: `0` ok, `1` refused or failed (the reason is printed), `2` usage error (`eval-audit` also uses `3` for an incomplete run).
 
 ### Configuration
 
@@ -186,7 +187,7 @@ flowchart TB
 - **Tests run sandboxed too**, with a private per-task `uv` cache and a filtered environment. A failing gate triggers up to
   `fix_rounds` fix rounds; a frozen reference prevents the fixer from rewriting tests it was already judged against.
 - **Audit.** A separate read-only agent reviews the diff against the plan and returns a structured verdict. It is a second opinion,
-  not a proof. Measured on 20 hand-written cases (60 runs, plan 22) it failed all 13 bad changes in every run and passed the clean ones, but the cases were small and written by the auditor's author; large and ambiguous diffs are untested.
+  not a proof. Measured on 20 hand-written cases (60 runs, plans 22 and 23, rerunnable with `factory eval-audit`) it failed all 13 bad changes in every run and passed all 7 clean ones, but the cases were small and written by the auditor's author; large and ambiguous diffs are untested.
 - **Humans hold the two irreversible steps.** `approve` binds to a digest of the plan shown; `merge` shows the exact diff and only
   fast-forwards to the exact audited commit. Both refuse without a TTY, so an agent or a script cannot approve itself.
 - **Moved main.** `merge` never merges; if `main` moved it refuses. `rebase` replays the audited commits and returns the task to
@@ -210,7 +211,7 @@ flowchart TB
 ## Development
 
 ```sh
-cd orchestrator && uv run pytest -q      # ~870 tests, real git in temp repos
+cd orchestrator && uv run pytest -q      # ~930 tests, real git in temp repos
 cd target && uv run pytest -q
 ```
 
