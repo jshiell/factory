@@ -4,7 +4,7 @@ A personal "agentic software factory": a small Python orchestrator that takes a 
 [Claude Code](https://claude.com/claude-code) agents (`claude -p`) through **plan → review → implement → verify → audit → merge**,
 with a human approving the plan and the merge.
 
-It is a learning project, built plan by plan (`docs/plan-1.md` … `docs/plan-23.md`), test-first. The point is to find out how far you
+It is a learning project, built plan by plan (`docs/plan-1.md` … `docs/plan-24.md`), test-first. The point is to find out how far you
 can trust unattended agents when every step is sandboxed, every result is checked by something that is not the agent, and the
 only things that need a person are the two decisions that matter: *is this the right plan* and *should this land on main*.
 
@@ -12,7 +12,7 @@ only things that need a person are the two decisions that matter: *is this the r
 
 | Path | What it is |
 |---|---|
-| `orchestrator/` | The factory: a Python 3.14 package, CLI `factory`, standard library only, ~930 tests |
+| `orchestrator/` | The factory: a Python 3.14 package, CLI `factory`, standard library only, ~960 tests |
 | `target/` | A tiny Python project (`calc`) the agents work on. Replace it with any `uv` + `pytest` project |
 | `docs/` | One `plan-N.md` per increment (decisions, cycles, reviewer findings) and `spike-findings.md` (what was measured, known gaps) |
 | `spike/` | Throwaway probes and end-to-end scripts. Not production code; several make real API calls or need a terminal |
@@ -55,7 +55,7 @@ or its step cap. Agent spend is capped (see `cap_usd`) and every call is recorde
 | `recover <id>` | Mark a task whose driver died (`running`) as failed, charging an assumed cost |
 | `clean` | After a preview and confirmation, remove worktrees, gate caches, orphan caches and branches of finished tasks |
 | `costs [id]` | Spend by stage and by task, with assumed costs shown separately |
-| `eval-audit` | Run the auditor over 20 labelled changes (default 3 runs each, about $2) and compare with the last comparable run. Exits `1` if a bad change is ever judged pass or a good one is judged fail by a majority, `3` if incomplete. Options: `--runs N`, `--only CASE`, `--max-usd X`, `--resume DIR`, `--compare DIR`, `--check-corpus` (runs the real gate on every case; needs `uv` and network). Results under `<state_dir>/evals/`; uses its own lock, so other commands keep working |
+| `eval-audit` | Run the auditor over 21 labelled changes (default 3 runs each, about $2) and compare with the last comparable run. Exits `1` if a bad change is ever judged pass or a good one is judged fail by a majority, `3` if incomplete. Options: `--runs N`, `--only CASE`, `--max-usd X`, `--resume DIR`, `--compare DIR`, `--check-corpus` (runs the real gate on every case; needs `uv` and network). Results under `<state_dir>/evals/`; uses its own lock, so other commands keep working |
 
 Exit codes: `0` ok, `1` refused or failed (the reason is printed), `2` usage error (`eval-audit` also uses `3` for an incomplete run).
 
@@ -175,6 +175,7 @@ flowchart TB
 - **Sandboxed.** Every agent runs under `nono` (Seatbelt). It can read and write its own worktree and nothing else: not the main
   checkout, `.git/config`, the home directory, or other tasks. The implementer has no `Bash` and no `git`; plan, review and audit
   agents have no write tools at all.
+- **Reviewer notes.** The plan review's findings (capped: 10 items, 500 characters each, about 4000 in total, one line each) are shown at `approve` and sent to the implementer and the fixer as advisory notes. `approve` and `retry --keep-plan` refuse if the stored findings differ from the ones shown. The reviewer does not reliably find every gap, so the notes help only with what it raises.
 - **The agent never commits and never judges its own work.** The factory commits (unsigned, factory identity, hooks off) and
   then runs the gate itself.
 - **The gate is a clean checkout.** Before the tests run, the worktree is committed and cleaned (`git clean -ffdx`), so only
@@ -187,7 +188,7 @@ flowchart TB
 - **Tests run sandboxed too**, with a private per-task `uv` cache and a filtered environment. A failing gate triggers up to
   `fix_rounds` fix rounds; a frozen reference prevents the fixer from rewriting tests it was already judged against.
 - **Audit.** A separate read-only agent reviews the diff against the plan and returns a structured verdict. It is a second opinion,
-  not a proof. Measured on 20 hand-written cases (60 runs, plans 22 and 23, rerunnable with `factory eval-audit`) it failed all 13 bad changes in every run and passed all 7 clean ones, but the cases were small and written by the auditor's author; large and ambiguous diffs are untested.
+  not a proof. Measured on hand-written cases (plans 22 to 24, rerunnable with `factory eval-audit`) it failed every bad change in every run (14 of 14) and passed all 7 clean ones, but the cases were small and written by the auditor's author; large and ambiguous diffs are untested. The auditor reads the reviewer notes as part of the task, so a change that ignores a note fails.
 - **Humans hold the two irreversible steps.** `approve` binds to a digest of the plan shown; `merge` shows the exact diff and only
   fast-forwards to the exact audited commit. Both refuse without a TTY, so an agent or a script cannot approve itself.
 - **Moved main.** `merge` never merges; if `main` moved it refuses. `rebase` replays the audited commits and returns the task to
@@ -211,7 +212,7 @@ flowchart TB
 ## Development
 
 ```sh
-cd orchestrator && uv run pytest -q      # ~930 tests, real git in temp repos
+cd orchestrator && uv run pytest -q      # ~960 tests, real git in temp repos
 cd target && uv run pytest -q
 ```
 
