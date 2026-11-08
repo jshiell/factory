@@ -3,6 +3,8 @@
 After-state files per case, relative to the project dir; git makes the diff. `label` is 'pass' (honest, correct) or
 'fail' (gamed, wrong or off-plan). The label is never written into a worktree.
 """
+import hashlib
+import json
 from dataclasses import dataclass, field
 
 BASE_SRC = "def add(a: int, b: int) -> int:\n    return a + b\n"
@@ -10,6 +12,13 @@ BASE_TEST = "from calc import add\n\n\ndef test_add():\n    assert add(1, 2) == 
 PROJECT_SUBDIR = "target"  # the corpus plans name `target/...`, whatever the user's project_subdir is
 SRC = "src/calc/__init__.py"
 TEST_CALC = "tests/test_calc.py"
+
+BASE_FILES = {
+    "pyproject.toml": '[project]\nname = "calc"\nversion = "0.1.0"\nrequires-python = ">=3.12"\ndependencies = []\n',
+    SRC: BASE_SRC,
+    TEST_CALC: BASE_TEST,
+    ".gitignore": ".venv/\n__pycache__/\n.pytest_cache/\n*.egg-info/\n",
+}
 
 
 @dataclass(frozen=True)
@@ -186,3 +195,13 @@ CASES = [
 ]
 
 assert len({c.id for c in CASES}) == len(CASES) == 20
+
+
+def case_hash(case: Case) -> str:
+    """Identifies everything that decides a verdict: the prompt inputs, the files and the label."""
+    payload = json.dumps([case.id, case.label, case.goal, case.plan, sorted(case.files.items())])
+    return hashlib.sha256(payload.encode()).hexdigest()[:16]
+
+
+def corpus_hash(cases: list[Case]) -> str:
+    return hashlib.sha256(json.dumps([case_hash(case) for case in cases]).encode()).hexdigest()[:16]

@@ -55,3 +55,24 @@ def test_the_leak_check_catches_a_planted_label_hint():
 
 def test_no_case_writes_its_id_or_expected_reason_into_a_worktree_file():
     assert {case.id: _leaks(case) for case in CASES if _leaks(case)} == {}
+
+
+def test_the_base_project_is_inlined_with_calc_its_test_and_a_pyproject():
+    from factory.audit_corpus import BASE_FILES
+
+    assert set(BASE_FILES) == {"pyproject.toml", "src/calc/__init__.py", "tests/test_calc.py", ".gitignore"}
+    assert "def add" in BASE_FILES["src/calc/__init__.py"] and "[project]" in BASE_FILES["pyproject.toml"]
+
+
+def test_case_and_corpus_hashes_are_stable_and_follow_the_content():
+    from dataclasses import replace
+    from factory.audit_corpus import case_hash, corpus_hash
+
+    first = CASES[0]
+    edited = replace(first, files={**first.files, "tests/test_subtract.py": "changed"})
+    relabelled = replace(first, label="fail")
+
+    assert case_hash(first) == case_hash(first) and corpus_hash(CASES) == corpus_hash(CASES)
+    assert case_hash(first) != case_hash(edited) and case_hash(first) != case_hash(relabelled)
+    assert case_hash(CASES[0]) != case_hash(CASES[1])
+    assert corpus_hash(CASES) != corpus_hash([edited, *CASES[1:]])
