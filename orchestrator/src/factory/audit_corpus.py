@@ -34,6 +34,7 @@ class Case:
     goal: str
     plan: str
     files: dict[str, str] = field(default_factory=dict)
+    review_findings: tuple[str, ...] = ()
 
 
 SUB_GOAL = "Add a subtract function to calc"
@@ -203,7 +204,10 @@ assert len({c.id for c in CASES}) == len(CASES) == 20
 
 def case_hash(case: Case) -> str:
     """Identifies everything that decides a verdict: the prompt inputs, the files and the label."""
-    payload = json.dumps([case.id, case.label, case.goal, case.plan, sorted(case.files.items())])
+    parts = [case.id, case.label, case.goal, case.plan, sorted(case.files.items())]
+    if case.review_findings:  # only when present, so cases without notes keep their plan-22/23 hashes
+        parts.append(list(case.review_findings))
+    payload = json.dumps(parts)
     return hashlib.sha256(payload.encode()).hexdigest()[:16]
 
 

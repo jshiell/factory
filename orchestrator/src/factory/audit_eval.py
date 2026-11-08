@@ -67,7 +67,7 @@ def run_one(
     worktree, base_sha = materialise(case, manager, task_id)
     try:
         store.save(Task(
-            id=task_id, prompt=build_implementation_prompt(case.goal, case.plan), state=TaskState.VERIFIED,
+            id=task_id, prompt=build_implementation_prompt(case.goal, case.plan, case.review_findings), state=TaskState.VERIFIED,
             worktree=str(worktree), base_sha=base_sha, goal=case.goal, plan=case.plan,
         ))
         before = len(ledger.entries())

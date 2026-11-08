@@ -86,3 +86,25 @@ def test_the_base_pyproject_can_run_the_tests_it_ships_with():
 
     assert project["build-system"]["build-backend"] == "uv_build"
     assert any(dep.startswith("pytest") for dep in project["dependency-groups"]["dev"])
+
+
+# --- reviewer notes on a case (plan 24 C6) --------------------------------------
+from dataclasses import replace
+
+from factory.audit_corpus import case_hash, corpus_hash
+
+
+def test_guard_the_first_twenty_cases_keep_their_corpus_hash():
+    # Characterisation (starts green): adding the notes field must not move the plan-22/23 hashes.
+    assert corpus_hash(CASES[:20]) == "2449f1ff319eeef3"
+
+
+def test_a_case_has_no_reviewer_notes_by_default():
+    assert all(case.review_findings == () for case in CASES[:20])
+
+
+def test_reviewer_notes_are_part_of_what_the_case_hash_identifies():
+    case = CASES[0]
+
+    assert case_hash(replace(case, review_findings=("a note",))) != case_hash(case)
+    assert case_hash(replace(case, review_findings=("a note",))) != case_hash(replace(case, review_findings=("other",)))

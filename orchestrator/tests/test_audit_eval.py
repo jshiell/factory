@@ -255,3 +255,15 @@ def test_check_corpus_gives_every_case_to_the_gate_in_a_committed_worktree(tmp_p
 
     assert [(case.id, result.passed) for case, result in results] == [("case-01", True), ("case-02", False), ("case-03", True)]
     assert results[1][1].reason == "tests_failed" and all(committed for _, committed in seen) and len(seen) == 3
+
+
+def test_the_reviewer_notes_of_a_case_reach_the_auditor_inside_the_task_prompt(rig):
+    from dataclasses import replace
+    manager, store, ledger, eval_dir = rig
+    case = replace(next(c for c in CASES if c.id == "case-01"), review_findings=("reject bytes",))
+    runner = CannedRunner(RunResult(verdict_stdout("fail", findings=("x",)), 0))
+
+    run_one(case, 1, manager, store, ledger, runner, 5.0, eval_dir)
+
+    (task,) = runner.tasks
+    assert "REVIEWER NOTES" in task.prompt and "- reject bytes\n" in task.prompt
