@@ -1,7 +1,9 @@
 import os
+import signal
+import subprocess
 import sys
 
-from factory.process import run_to_exit
+from factory.process import group_alive, kill_tree, run_to_exit
 
 
 def python(code):
@@ -47,3 +49,23 @@ def test_a_timeout_still_kills_the_tree_while_capturing(tmp_path):
     except ProcessLookupError:
         alive = False
     assert not alive
+
+
+def test_a_group_is_alive_until_its_members_are_killed_and_reaped():
+    leader = subprocess.Popen(["sleep", "30"], start_new_session=True)
+    try:
+        assert group_alive(leader.pid) is True
+        kill_tree(leader.pid)
+        leader.wait()
+        assert group_alive(leader.pid) is False
+    finally:
+        leader.kill()
+
+
+def test_a_group_stays_alive_while_a_member_lives_after_its_leader_is_gone():
+    leader = subprocess.Popen(["sh", "-c", "sleep 30 & exit 0"], start_new_session=True)
+    leader.wait()
+    try:
+        assert group_alive(leader.pid) is True
+    finally:
+        os.killpg(leader.pid, signal.SIGKILL)

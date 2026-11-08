@@ -30,6 +30,17 @@ def kill_tree(root_pid: int) -> None:
         pass
 
 
+def group_alive(pgid: int) -> bool:
+    """True while any process (even a zombie) is in the group; a group we may not signal still counts as alive."""
+    try:
+        os.killpg(pgid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
+
+
 class ExitResult(NamedTuple):
     exit_code: int | None
     timed_out: bool
