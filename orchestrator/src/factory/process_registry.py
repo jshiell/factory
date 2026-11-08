@@ -46,3 +46,28 @@ def _read(path: Path) -> Record | InvalidRecord:
     if record.pid <= 1 or record.pgid != record.pid or record.pgid == os.getpgrp():
         return InvalidRecord(path, "pid and pgid do not name a process group this factory launched")
     return record
+
+
+WINDOW_SLACK_S = 2.0  # `ps` start times have 1-second resolution
+
+
+class ReapResult(NamedTuple):
+    killed: list[Record]
+
+
+def reap_orphans(state_dir, probe, kill, group_alive) -> ReapResult:
+    """Kill each recorded process group whose original process is still alive; the caller holds the state lock.
+
+    `probe(pid)` gives the process's start time (epoch seconds) or None if there is no such process."""
+    killed = []
+    for record in load_records(state_dir):
+        started = probe(record.pid)
+        if started is not None and record.launched_after - WINDOW_SLACK_S <= started <= record.launched_before + WINDOW_SLACK_S:
+            kill(record.pid)
+            _record_path(state_dir, record.pid).unlink()
+            killed.append(record)
+    return ReapResult(killed)
+
+
+def _record_path(state_dir, pid: int) -> Path:
+    return _procs_dir(state_dir) / f"{pid}.json"
