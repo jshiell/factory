@@ -2,6 +2,7 @@ import re
 import secrets
 from collections.abc import Callable
 
+from factory.review_notes import notes_block
 from factory.task import Task
 from factory.textsafe import escape_control
 
@@ -15,7 +16,9 @@ def build_fix_prompt(task: Task, test_output: str, nonce: Callable[[], str] = la
     while marker in output:
         marker = nonce()
     brief = (
-        f"GOAL: {task.goal}\n\nPLAN:\n{task.plan}" if task.goal and task.plan else f"TASK:\n{task.prompt}"
+        f"GOAL: {task.goal}\n\nPLAN:\n{task.plan}\n\n{notes_block(task.review_findings)}".rstrip("\n")
+        if task.goal and task.plan
+        else f"TASK:\n{task.prompt}"
     )
     return (
         "Your previous work on this task was committed and the factory ran its tests; they failed. "
