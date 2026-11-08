@@ -970,3 +970,159 @@ def test_locked_with_an_explicit_directory_locks_and_reaps_that_directory_only(c
 
 def test_a_context_has_a_defaulted_eval_runner_factory(ctx):
     assert callable(ctx.eval_runner)
+
+
+# --- plan 23: factory eval-audit ----------------------------------------------------
+
+import json as _json
+
+from factory.audit_corpus import CASES as EVAL_CASES
+
+
+def _verdict_json(verdict, cost=0.03):
+    return _json.dumps({"type": "result", "subtype": "success", "is_error": False, "total_cost_usd": cost,
+                        "structured_output": {"verdict": verdict, "findings": ["because"]}})
+
+
+class LabelRunner:
+    """Judges each case as its label says, except the ids in `wrong`; remembers what it was built with."""
+
+    def __init__(self, wrong=(), cost=0.03, spy=None):
+        self.wrong, self.cost, self.spy, self.seen = set(wrong), cost, spy, []
+
+    def run(self, task, config):
+        from factory.step import RunResult
+        case_id = task.id.split("-", 1)[1]
+        label = next(c.label for c in EVAL_CASES if c.id == case_id)
+        self.seen.append(case_id)
+        if self.spy:
+            self.spy()
+        verdict = label if case_id not in self.wrong else ("fail" if label == "pass" else "pass")
+        return RunResult(_verdict_json(verdict, self.cost), 0)
+
+
+@pytest.fixture
+def evals(ctx):
+    ctx.reap = reaper()
+    built = []
+
+    def factory(runner):
+        def build(settings, eval_dir):
+            built.append((settings, eval_dir))
+            return runner
+        ctx.eval_runner = build
+    factory.built = built
+    return factory
+
+
+def eval_dirs(ctx):
+    root = ctx.settings.state_dir / "evals"
+    return sorted(root.iterdir()) if root.exists() else []
+
+
+def test_a_clean_eval_prints_its_directory_then_the_report_and_exits_zero(ctx, evals):
+    evals(LabelRunner())
+
+    code, out, err = run(ctx, "eval-audit", "--runs", "1")
+
+    (eval_dir,) = eval_dirs(ctx)
+    assert code == 0 and eval_dir.name == "20260102T030405"
+    assert out.splitlines()[0] == f"eval directory: {eval_dir}"
+    assert "false-pass" in out and "false-fail" in out and "no earlier complete run" in out
+    assert len(list(eval_dir.glob("case-*-r1.json"))) == 20
+
+
+def test_the_eval_is_built_with_the_settings_and_its_own_directory_and_reaps_only_that_directory(ctx, evals):
+    evals(LabelRunner())
+
+    run(ctx, "eval-audit", "--runs", "1", "--only", "case-01")
+
+    (settings, eval_dir), = evals.built
+    assert settings is ctx.settings and eval_dir.parent == ctx.settings.state_dir / "evals"
+    assert ctx.reap.calls == [eval_dir]
+
+
+def test_the_real_state_dir_stays_free_and_untouched_while_an_eval_runs(ctx, evals):
+    from factory.lock import state_lock
+    free = []
+
+    def spy():
+        with state_lock(ctx.settings.state_dir):
+            free.append(True)
+    evals(LabelRunner(spy=spy))
+
+    run(ctx, "eval-audit", "--runs", "1", "--only", "case-01")
+
+    assert free == [True]
+    assert not ctx.settings.tasks_dir.exists() or list(ctx.settings.tasks_dir.iterdir()) == []
+    assert not ctx.settings.ledger_path.exists()
+
+
+def test_a_second_eval_on_the_same_directory_is_refused(ctx, evals):
+    from factory.lock import state_lock
+    evals(LabelRunner())
+    run(ctx, "eval-audit", "--runs", "1", "--only", "case-01")
+    (eval_dir,) = eval_dirs(ctx)
+
+    with state_lock(eval_dir):
+        code, _, err = run(ctx, "eval-audit", "--runs", "1", "--only", "case-01", "--resume", str(eval_dir))
+
+    assert code == 1 and "holds the lock" in err
+
+
+@pytest.mark.parametrize("args, message", [
+    (("--only", "case-99"), "unknown case"),
+    (("--runs", "0"), "--runs"),
+    (("--max-usd", "0"), "--max-usd"),
+    (("--resume", "/nowhere/at/all"), "--resume"),
+    (("--compare", "/nowhere/at/all"), "--compare"),
+])
+def test_bad_options_are_usage_errors_and_nothing_runs(ctx, evals, args, message):
+    runner = LabelRunner()
+    evals(runner)
+
+    code, out, err = run(ctx, "eval-audit", *args)
+
+    assert code == 2 and message in err and runner.seen == [] and eval_dirs(ctx) == []
+
+
+def test_a_bad_case_judged_pass_exits_one(ctx, evals):
+    evals(LabelRunner(wrong={"case-09"}))
+
+    code, out, _ = run(ctx, "eval-audit", "--runs", "1")
+
+    assert code == 1 and "case-09" in out
+
+
+def test_a_run_stopped_by_the_budget_cap_exits_three(ctx, evals):
+    evals(LabelRunner(cost=0.5))
+
+    code, out, _ = run(ctx, "eval-audit", "--runs", "1", "--max-usd", "0.7")
+
+    assert code == 3
+
+
+def test_the_next_eval_is_compared_with_the_last_complete_full_one(ctx, evals):
+    evals(LabelRunner())
+    run(ctx, "eval-audit", "--runs", "1")
+    ctx.clock = lambda: datetime(2026, 1, 3, 3, 4, 5)
+    evals(LabelRunner(wrong={"case-01"}))
+
+    code, out, _ = run(ctx, "eval-audit", "--runs", "1")
+
+    assert "compared with 20260102T030405" in out and "case-01: pass -> fail" in out and code == 1
+
+
+def test_resuming_with_a_changed_corpus_is_refused(ctx, evals, monkeypatch):
+    evals(LabelRunner())
+    run(ctx, "eval-audit", "--runs", "1", "--only", "case-01")
+    (eval_dir,) = eval_dirs(ctx)
+    from dataclasses import replace as _replace
+    monkeypatch.setattr(cli, "EVAL_CASES", [_replace(EVAL_CASES[0], plan="a different plan"), *EVAL_CASES[1:]])
+    runner = LabelRunner()
+    evals(runner)
+
+    code, _, err = run(ctx, "eval-audit", "--runs", "1", "--only", "case-01", "--resume", str(eval_dir))
+
+    assert code == 2 and "corpus changed" in err and runner.seen == []
+

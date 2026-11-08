@@ -11,7 +11,10 @@ from pathlib import Path
 
 from factory.textsafe import escape_control  # noqa: F401  (re-exported)
 from factory.advance import advance
-from factory.audit_corpus import PROJECT_SUBDIR
+from factory.audit_compare import compare, find_previous
+from factory.audit_corpus import CASES as EVAL_CASES, PROJECT_SUBDIR
+from factory.audit_eval import CorpusChanged, run_eval
+from factory.audit_report import exit_code as eval_exit_code, load_records, render
 from factory.approve_plan import approve_plan, reject_plan
 from factory.abandon_task import AbandonRefused, abandon_task
 from factory.rebase_task import RebaseRefused, rebase_task
@@ -114,6 +117,12 @@ def _parser() -> argparse.ArgumentParser:
     retry.add_argument("--keep-plan", action="store_true")
     commands.add_parser("clean")
     commands.add_parser("costs").add_argument("task_id", nargs="?")
+    audit_eval = commands.add_parser("eval-audit")
+    audit_eval.add_argument("--runs", type=int, default=3)
+    audit_eval.add_argument("--only", action="append")
+    audit_eval.add_argument("--max-usd", type=float, default=6.0)
+    audit_eval.add_argument("--resume", type=Path)
+    audit_eval.add_argument("--compare", type=Path)
     return parser
 
 
@@ -449,9 +458,61 @@ def _merge(args, io, ctx) -> int:
     return 0
 
 
+def _eval_usage_error(args, evals_root: Path) -> str | None:
+    unknown = [case_id for case_id in args.only or [] if case_id not in {c.id for c in EVAL_CASES}]
+    if unknown:
+        return f"unknown case: {', '.join(unknown)}"
+    if args.runs <= 0:
+        return "--runs must be positive"
+    if args.max_usd <= 0:
+        return "--max-usd must be positive"
+    if args.resume and not (args.resume.resolve().parent == evals_root.resolve() and (args.resume / "meta.json").is_file()):
+        return f"--resume must be an earlier eval directory under {evals_root}"
+    if args.compare and not args.compare.is_dir():
+        return "--compare must be an existing directory"
+    return None
+
+
+def _new_eval_dir(evals_root: Path, clock) -> Path:
+    stamp = clock().strftime("%Y%m%dT%H%M%S")
+    directory, number = evals_root / stamp, 1
+    while directory.exists():
+        number += 1
+        directory = evals_root / f"{stamp}-{number}"
+    return directory
+
+
+def _eval_audit(args, io, ctx) -> int:
+    evals_root = ctx.settings.state_dir / "evals"
+    problem = _eval_usage_error(args, evals_root)
+    if problem:
+        print(f"usage error: {problem}", file=io.stderr)
+        return 2
+    cases = [c for c in EVAL_CASES if not args.only or c.id in args.only]
+    eval_dir = args.resume or _new_eval_dir(evals_root, ctx.clock)
+    print(f"eval directory: {eval_dir}", file=io.stdout)
+    try:
+        with _locked(ctx, io, state_dir=eval_dir):
+            runner = ctx.eval_runner(ctx.settings, eval_dir)
+            complete = run_eval(eval_dir, cases, args.runs, runner, args.max_usd)
+    except _Refused as refused:
+        print(escape_control(str(refused)), file=io.stderr)
+        return 1
+    except CorpusChanged:
+        print("usage error: the corpus changed since this eval started; begin a new one", file=io.stderr)
+        return 2
+    records = load_records(eval_dir)
+    for line in render(records, cases):
+        print(line, file=io.stdout)
+    previous = args.compare or find_previous(evals_root, eval_dir, [c.id for c in EVAL_CASES])
+    for line in compare(previous, eval_dir) if previous else ["\nno earlier complete run to compare with"]:
+        print(line, file=io.stdout)
+    return eval_exit_code(records, args.runs, complete, cases)
+
+
 _COMMANDS = {
     "new": _new, "list": _list, "show": _show, "advance": _advance,
-    "approve": _approve, "reject": _reject, "merge": _merge, "retry": _retry, "recover": _recover, "abandon": _abandon, "rebase": _rebase, "clean": _clean, "costs": _costs,
+    "approve": _approve, "reject": _reject, "merge": _merge, "retry": _retry, "recover": _recover, "abandon": _abandon, "rebase": _rebase, "clean": _clean, "costs": _costs, "eval-audit": _eval_audit,
 }
 
 
