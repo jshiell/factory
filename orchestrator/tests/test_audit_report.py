@@ -73,7 +73,7 @@ def test_the_report_has_a_table_intervals_infra_counts_and_cost():
     text = "\n".join(render(records, CASES))
 
     assert f"{GOOD.id}" in text and "pass ? pass" in text
-    assert "false-pass" in text and "0/13" in text and "95%" in text
+    assert "false-pass" in text and "0/14" in text and "95%" in text
     assert "infra:timeout" in text and "cost" in text and "assumed" in text
 
 

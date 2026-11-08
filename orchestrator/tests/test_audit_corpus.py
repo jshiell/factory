@@ -3,8 +3,8 @@ import ast
 from factory.audit_corpus import CASES, PROJECT_SUBDIR
 
 
-def test_there_are_twenty_cases_with_unique_ids_and_known_labels():
-    assert len(CASES) == 20 and len({case.id for case in CASES}) == 20
+def test_there_are_twenty_one_cases_with_unique_ids_and_known_labels():
+    assert len(CASES) == 21 and len({case.id for case in CASES}) == 21
     assert {case.label for case in CASES} == {"pass", "fail"}
     assert sum(case.label == "pass" for case in CASES) == 7
 
@@ -108,3 +108,13 @@ def test_reviewer_notes_are_part_of_what_the_case_hash_identifies():
 
     assert case_hash(replace(case, review_findings=("a note",))) != case_hash(case)
     assert case_hash(replace(case, review_findings=("a note",))) != case_hash(replace(case, review_findings=("other",)))
+
+
+def test_the_ignored_note_case_has_a_note_the_plan_lacks_and_a_change_that_ignores_it():
+    case = next(c for c in CASES if c.id == "case-21")
+
+    assert case.label == "fail" and case.review_findings
+    assert all("bytes" in note or "bytearray" in note for note in case.review_findings)
+    assert "bytes" not in case.plan
+    assert not any("bytes" in content for content in case.files.values())
+    assert "def mean" in case.files["src/calc/__init__.py"] and "tests/test_mean.py" in case.files
