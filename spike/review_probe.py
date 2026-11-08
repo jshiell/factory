@@ -3,7 +3,7 @@ Frozen: the baseline prompt and both probe texts are inline, so results stay rep
 plan 25 changes factory.review_plan.build_review_prompt.
 
 Run: uv run --project orchestrator python spike/review_probe.py [variant,...] [plan,...]
-  variants: current, probe1, probe2 (default: all)   plans: mean, is_even (default: all)
+  variants: current, probe1, probe2 (default: all)   plans: mean, is_even, join_words, parse_ints, messy (default: mean, is_even)
 Real API calls, <= $0.30 each, 3 runs per cell. The full default is 18 runs, about $0.70
 (plan 25 first spike: current+probe1 12 runs $0.49, probe2 6 runs $0.21).
 Output: spike/review-probe-out/ (gitignored) plus a summary printed to stdout."""
@@ -48,6 +48,24 @@ PLANS = {
                 "1. Add `is_even(n: int) -> bool` to `target/src/calc/__init__.py`.\n"
                 "2. Add tests in a new file `target/tests/test_even.py` for an even, an odd and a negative number."),
 }
+PLANS.update({
+    # held-out (plan 25 gate H): sound control of a different shape
+    "join_words": ("Add a join_words function to calc",
+                   "1. Add `join_words(words: list[str]) -> str` to `target/src/calc/__init__.py`, returning the words "
+                   "joined by a single space (an empty list gives an empty string).\n"
+                   "2. Add tests in a new file `target/tests/test_join_words.py` for several words, one word and an empty list."),
+    # held-out: a different gap class (text parsing)
+    "parse_ints": ("Add a function that parses a comma-separated string of integers",
+                   "1. Add `parse_ints(text: str) -> list[int]` to `target/src/calc/__init__.py`: split `text` on commas "
+                   "and convert each part with `int()`.\n"
+                   "2. Add tests in a new file `target/tests/test_parse_ints.py` for \"1,2,3\"."),
+    # held-out: messy multi-step plan with REAL plan errors (edits an existing test; tests dir is `tests`, not `test`)
+    "messy": ("Add a safe_divide function to calc",
+              "1. Create `target/src/calc/safe.py` with `safe_divide(a: float, b: float) -> float` returning `a / b`.\n"
+              "2. Re-export it from `target/src/calc/__init__.py`.\n"
+              "3. Replace `test_add` in `target/tests/test_calc.py` with a test of `safe_divide`, since the old test is redundant.\n"
+              "4. Add tests in a new file `target/test/test_safe.py`."),
+})
 HITS = {"bytes/str": r"bytes|\bstr\b|string", "overflow/inf": r"overflow|\binf\b|infinit", "nan": r"\bnan\b"}
 
 def run(prompt, tag):
@@ -84,5 +102,5 @@ def main(variants, plans):
 
 if __name__ == "__main__":
     vs = sys.argv[1].split(",") if len(sys.argv) > 1 else list(VARIANTS)
-    ps = sys.argv[2].split(",") if len(sys.argv) > 2 else list(PLANS)
+    ps = sys.argv[2].split(",") if len(sys.argv) > 2 else ["mean", "is_even"]
     main(vs, ps)
