@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parent.parent
 OUT = Path(__file__).resolve().parent / "review-probe-out"
 OUT.mkdir(exist_ok=True)
 sys.path.insert(0, str(ROOT / "orchestrator" / "src"))
-from factory.review_plan import REVIEW_SCHEMA  # noqa: E402
+from factory.review_plan import EDGE_CASE_INSTRUCTION, REVIEW_SCHEMA  # noqa: E402
 
 def baseline_prompt(goal, plan):  # frozen copy of build_review_prompt as of plan 24
     return (
@@ -30,15 +30,7 @@ PROBE1 = (
     "non-finite values (inf, NaN), and boundaries. Give each gap its own finding that names a concrete "
     "input and what the plan would do with it. Do not invent gaps that do not apply."
 )
-PROBE2 = (
-    "\n\nAlso list edge-case gaps the goal implies but the plan does not handle. Only consider inputs the "
-    "plan's declared signature admits (for example, a parameter typed Iterable admits str and bytes because "
-    "they iterate; a parameter typed int does not admit floats or strings). Cover silent wrong results, "
-    "empty or single inputs, overflow and non-finite values where they can occur. Give each gap its own "
-    "finding naming a concrete input and what the plan would do with it. Edge-case gaps must NOT change "
-    "the verdict: use revise only for errors in the plan itself (wrong paths, contradictions, missing "
-    "steps, breaking existing tests). Do not invent gaps that do not apply."
-)
+PROBE2 = EDGE_CASE_INSTRUCTION  # the shipped text; byte-identical to the one first measured (plan 25 C1)
 VARIANTS = {"current": "", "probe1": PROBE1, "probe2": PROBE2}
 PLANS = {
     "mean": ("Add a mean function to calc",
