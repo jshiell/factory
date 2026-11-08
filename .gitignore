@@ -11,3 +11,5 @@ spike/cli_probe/.venv/
 .factory/
 spike/nono-probe-out/
 spike/nono-impl-out/
+spike/audit-eval-out-fake*/
+spike/audit-eval-out/state/
