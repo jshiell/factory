@@ -13,7 +13,7 @@ from factory.textsafe import escape_control  # noqa: F401  (re-exported)
 from factory.advance import advance
 from factory.audit_compare import compare, find_previous
 from factory.audit_corpus import CASES as EVAL_CASES, PROJECT_SUBDIR
-from factory.audit_eval import CorpusChanged, run_eval
+from factory.audit_eval import CorpusChanged, check_corpus, run_eval
 from factory.audit_report import exit_code as eval_exit_code, load_records, render
 from factory.approve_plan import approve_plan, reject_plan
 from factory.abandon_task import AbandonRefused, abandon_task
@@ -21,6 +21,7 @@ from factory.rebase_task import RebaseRefused, rebase_task
 from factory.clean_tasks import clean_candidates, clean_tasks, remove_orphan_caches
 from factory.gate_cache import orphan_caches
 from factory.digest import plan_digest
+from factory.gate import check_gate
 from factory.ids import InvalidTaskId
 from factory.ledger import Ledger
 from factory.lock import AlreadyRunning, state_lock
@@ -123,6 +124,7 @@ def _parser() -> argparse.ArgumentParser:
     audit_eval.add_argument("--max-usd", type=float, default=6.0)
     audit_eval.add_argument("--resume", type=Path)
     audit_eval.add_argument("--compare", type=Path)
+    audit_eval.add_argument("--check-corpus", action="store_true")
     return parser
 
 
@@ -482,12 +484,31 @@ def _new_eval_dir(evals_root: Path, clock) -> Path:
     return directory
 
 
+def _check_corpus(io, ctx) -> int:
+    """Needs uv (and usually network): the gate's real test run over every case, no agents."""
+    settings = ctx.settings
+    gate = lambda worktree, base_sha: check_gate(  # noqa: E731
+        worktree, base_sha, PROJECT_SUBDIR, list(settings.test_argv), settings.gate_timeout_s)
+    blocked = []
+    for case, result in check_corpus(EVAL_CASES, gate):
+        status = "ok" if result.passed else f"BLOCKED {result.reason}"
+        print(f"{case.id} {case.label:4} {case.category:24} gate={status}", file=io.stdout)
+        if not result.passed:
+            blocked.append(case.id)
+            if result.output:
+                print("    " + escape_control(result.output.strip()).replace("\n", "\n    "), file=io.stdout)
+    print(f"\n{len(EVAL_CASES)} cases, " + (f"blocked: {', '.join(blocked)}" if blocked else "none blocked"), file=io.stdout)
+    return 1 if blocked else 0
+
+
 def _eval_audit(args, io, ctx) -> int:
     evals_root = ctx.settings.state_dir / "evals"
     problem = _eval_usage_error(args, evals_root)
     if problem:
         print(f"usage error: {problem}", file=io.stderr)
         return 2
+    if args.check_corpus:
+        return _check_corpus(io, ctx)
     cases = [c for c in EVAL_CASES if not args.only or c.id in args.only]
     eval_dir = args.resume or _new_eval_dir(evals_root, ctx.clock)
     print(f"eval directory: {eval_dir}", file=io.stdout)

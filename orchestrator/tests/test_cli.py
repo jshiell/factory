@@ -1126,3 +1126,33 @@ def test_resuming_with_a_changed_corpus_is_refused(ctx, evals, monkeypatch):
 
     assert code == 2 and "corpus changed" in err and runner.seen == []
 
+
+
+def test_check_corpus_runs_the_gate_on_every_case_runs_no_agents_and_exits_zero_when_all_pass(ctx, evals, monkeypatch):
+    from factory.gate import GateResult
+    runner = LabelRunner()
+    evals(runner)
+    calls = []
+    monkeypatch.setattr(cli, "check_gate", lambda worktree, base_sha, subdir, argv, timeout, **kw: (calls.append((subdir, argv, timeout)), GateResult(True))[1])
+
+    code, out, _ = run(ctx, "eval-audit", "--check-corpus")
+
+    assert code == 0 and len(calls) == 20 and runner.seen == [] and eval_dirs(ctx) == []
+    assert calls[0] == ("target", list(ctx.settings.test_argv), ctx.settings.gate_timeout_s)
+    assert "case-01 pass minimal" in out and "20 cases, none blocked" in out
+
+
+def test_check_corpus_names_a_blocked_case_with_its_reason_and_escaped_output_and_exits_one(ctx, evals, monkeypatch):
+    from factory.gate import GateResult
+    evals(LabelRunner())
+
+    def gate(worktree, base_sha, subdir, argv, timeout, **kw):
+        if worktree.name.endswith("case-02"):
+            return GateResult(False, "tests_failed", 1, "\x1b[31m1 failed\x1b[0m")
+        return GateResult(True)
+    monkeypatch.setattr(cli, "check_gate", gate)
+
+    code, out, _ = run(ctx, "eval-audit", "--check-corpus")
+
+    assert code == 1 and "case-02" in out and "BLOCKED tests_failed" in out and "1 failed" in out and "\x1b" not in out
+    assert "blocked: case-02" in out
