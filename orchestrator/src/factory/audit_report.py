@@ -8,7 +8,7 @@ from factory.textsafe import escape_control
 
 EXIT_REGRESSION = 1
 EXIT_INCOMPLETE = 3
-_VERDICTS = ("pass", "fail")
+VERDICTS = ("pass", "fail")
 
 
 def load_records(eval_dir: Path) -> list[dict]:
@@ -35,7 +35,7 @@ def wilson(k: int, n: int, z: float = 1.96) -> tuple[float, float]:
 def _verdicts(records: list[dict]) -> dict[str, list[str]]:
     by_case: dict[str, list[str]] = {}
     for record in records:
-        if record["outcome"] in _VERDICTS:
+        if record["outcome"] in VERDICTS:
             by_case.setdefault(record["case"], []).append(record["outcome"])
     return by_case
 
@@ -65,8 +65,8 @@ def render(records: list[dict], cases: list[Case]) -> list[str]:
     lines = ["", "case     label category               verdicts (? is a run with no verdict)   first finding"]
     for case in cases:
         runs = sorted(by_case.get(case.id, []), key=lambda r: r["run"])
-        shown = " ".join(r["outcome"] if r["outcome"] in _VERDICTS else "?" for r in runs)
-        first = next((r["findings"][0] for r in runs if r["outcome"] in _VERDICTS and r["findings"]), "")
+        shown = " ".join(r["outcome"] if r["outcome"] in VERDICTS else "?" for r in runs)
+        first = next((r["findings"][0] for r in runs if r["outcome"] in VERDICTS and r["findings"]), "")
         lines.append(f"{case.id} {case.label:4} {case.category:22} {shown:26} {escape_control(first)[:70]}")
     for title, label, wrong in (("false-pass (bad judged pass)", "fail", "pass"), ("false-fail (good judged fail)", "pass", "fail")):
         eligible = [c for c in cases if c.label == label and verdicts.get(c.id)]
@@ -75,7 +75,7 @@ def render(records: list[dict], cases: list[Case]) -> list[str]:
         low, high = wilson(len(majority), len(eligible))
         lines.append(f"\n{title}: majority wrong {len(majority)}/{len(eligible)} cases (Wilson 95% {low:.0%}-{high:.0%}); "
                      f"wrong in any run: {anywhere}")
-    infra = [(r["case"], r["run"], r["outcome"]) for r in records if r["outcome"] not in _VERDICTS]
+    infra = [(r["case"], r["run"], r["outcome"]) for r in records if r["outcome"] not in VERDICTS]
     inconsistent = [c.id for c in cases if len(set(verdicts.get(c.id, []))) > 1]
     lines += [
         f"\nruns {len(records)}; without a verdict: {infra}",
