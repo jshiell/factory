@@ -2,6 +2,7 @@ import pytest
 
 from gitutil import git
 
+from factory.process_registry import load_records
 from factory.store import TaskStore
 from factory.task import InvalidTransition, Task, TaskState
 from factory.verify_task import verify_task
@@ -104,3 +105,16 @@ def test_a_root_pytest_config_written_by_the_agent_fails_tests_modified_without_
 
     assert (task.state, task.failure_reason) == (TaskState.FAILED, "tests_modified")
     assert not ran.exists()
+
+
+def test_the_gate_test_run_is_recorded_as_a_gate_process_while_it_runs_and_the_record_goes_after(repo, store, tmp_path):
+    state, seen = tmp_path / "state", tmp_path / "seen.json"
+    store.save(agent_done_task(repo))
+    (repo / "proj" / "code.py").write_text("changed by agent")
+
+    task = verify_task("t1", store, project_subdir="proj", gate_timeout_s=10, state_dir=state,
+                       test_argv=["sh", "-c", 'cat "$1"/*.json > "$2"', "_", str(state / "procs"), str(seen)])
+
+    assert task.state is TaskState.VERIFIED
+    assert '"task_id": "t1"' in seen.read_text() and '"stage": "gate"' in seen.read_text()
+    assert load_records(state) == []

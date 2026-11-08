@@ -9,6 +9,7 @@ from factory.fix_prompt import OUTPUT_LIMIT, build_fix_prompt
 from factory.gate import GateResult, check_gate, commit_all, has_nested_repo
 from factory.gate_sandbox import GateSandbox
 from factory.ledger import Ledger
+from factory.process_registry import Tracker
 from factory.step import ASSUMED_COST_MULTIPLIER, Runner, check_budget
 from factory.store import TaskStore
 from factory.task import Event, Task, apply
@@ -17,6 +18,7 @@ from factory.worktrees import run_git
 
 _SUCCESS = (OutcomeKind.SUCCESS, OutcomeKind.SUCCESS_WITH_DENIALS)
 FIX_STAGE = "fix"
+GATE_STAGE = "gate"
 
 
 def verify_task(
@@ -33,6 +35,7 @@ def verify_task(
     cap_usd: float | None = None,
     fix_rounds: int = 0,
     factory_paths: tuple[Path, ...] = (),
+    state_dir: Path | None = None,
 ) -> Task:
     """Gate the agent's work; on `tests_failed`, up to `fix_rounds` fresh agent runs get the failure text."""
     task = store.load(task_id)
@@ -40,8 +43,9 @@ def verify_task(
     if task.fix_in_flight:
         return _fail_interrupted(task, store, ledger, fix_config)
     capture = OUTPUT_LIMIT if fix_rounds > 0 else None
+    tracker = Tracker(state_dir, task.id, GATE_STAGE) if state_dir else None
     while True:
-        result = _gate_once(task, project_subdir, test_argv, gate_timeout_s, sandbox, capture, factory_paths)
+        result = _gate_once(task, project_subdir, test_argv, gate_timeout_s, sandbox, capture, factory_paths, tracker)
         if result.passed:
             return _finish(apply(task, Event.GATE_PASSED), store)
         if result.reason != "tests_failed" or task.fix_rounds_used >= fix_rounds:
@@ -92,6 +96,7 @@ def _gate_once(
     task: Task, project_subdir: str, test_argv: list[str], gate_timeout_s: float,
     sandbox: Callable[[Task], GateSandbox] | None, capture_limit: int | None = None,
     factory_paths: tuple[Path, ...] = (),
+    tracker=None,
 ) -> GateResult:
     worktree = Path(task.worktree)
     if has_nested_repo(worktree, project_subdir):  # before `git add -A` records it as a gitlink
@@ -103,11 +108,11 @@ def _gate_once(
     if sandbox is None:
         return check_gate(
             worktree, task.base_sha, project_subdir, test_argv, gate_timeout_s,
-            capture_limit=capture_limit, frozen_sha=task.fix_frozen_sha,
+            capture_limit=capture_limit, frozen_sha=task.fix_frozen_sha, tracker=tracker,
         )
     confined = sandbox(task)
     return check_gate(
         worktree, task.base_sha, project_subdir, list(confined.argv), gate_timeout_s,
         env=confined.env, test_prefix=confined.prefix, capture_limit=capture_limit,
-        frozen_sha=task.fix_frozen_sha,
+        frozen_sha=task.fix_frozen_sha, tracker=tracker,
     )

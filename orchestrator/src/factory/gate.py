@@ -53,6 +53,7 @@ def check_gate(
     test_prefix: tuple[str, ...] = (),
     capture_limit: int | None = None,
     frozen_sha: str | None = None,
+    tracker=None,
 ) -> GateResult:
     project_dir = _resolve_inside(worktree, project_subdir)
     if not _is_ancestor(worktree, base_sha):
@@ -73,7 +74,7 @@ def check_gate(
     if _changed_outside_project(worktree, base_sha, project_dir):
         return GateResult(False, "outside_project")
     try:
-        ran = run_to_exit([*test_prefix, *test_argv], project_dir, env, timeout_s, capture_limit)
+        ran = run_to_exit([*test_prefix, *test_argv], project_dir, env, timeout_s, capture_limit, tracker)
     except OSError:  # a missing sandbox wrapper: fail closed, never run the tests unconfined
         return GateResult(False, "sandbox_unavailable")
     if ran.timed_out:
