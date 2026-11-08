@@ -42,6 +42,18 @@ def start_driver(repo, env, task_id):
                             stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
 
 
+def kill_driver(driver, state):
+    """SIGKILL the real driver: `uv run` is only a wrapper, the factory process holding the lock is its child."""
+    lock = state / "lock"
+    real = int(lock.read_text().strip()) if lock.exists() and lock.read_text().strip() else None
+    check("the lock names a live driver other than the uv wrapper", real is not None and real != driver.pid, str(real))
+    if real:
+        os.kill(real, signal.SIGKILL)
+    driver.kill()
+    driver.wait()
+    time.sleep(1)
+
+
 def main():
     root = Path(tempfile.mkdtemp(prefix="orphan-e2e-"))
     repo, state = root / "repo", root / "state"
@@ -72,9 +84,7 @@ def main():
     check("a record exists while the agent runs", len(records) == 1, str([r.name for r in records]))
     if records:
         print("   record:", json.loads(records[0].read_text()))
-    os.kill(driver.pid, signal.SIGKILL)
-    driver.wait()
-    time.sleep(1)
+    kill_driver(driver, state)
     check("the agent tree survives the SIGKILL (the orphan)", bool(sleepers(SLEEP_AGENT)), str(sleepers(SLEEP_AGENT)))
     recovered = factory(repo, env, "recover", "a1")
     print("   recover stdout:", recovered.stdout.strip().replace("\n", " | "))
@@ -89,9 +99,7 @@ def main():
     check("gate test run started", wait_for(lambda: sleepers(SLEEP_GATE)))
     records = list((state / "procs").glob("*.json"))
     check("a gate record exists while the tests run", len(records) == 1 and json.loads(records[0].read_text())["stage"] == "gate")
-    os.kill(driver.pid, signal.SIGKILL)
-    driver.wait()
-    time.sleep(1)
+    kill_driver(driver, state)
     check("the gate tree survives the SIGKILL (the orphan)", bool(sleepers(SLEEP_GATE)), str(sleepers(SLEEP_GATE)))
     abandoned = factory(repo, env, "abandon", "b1")
     print("   abandon stdout:", abandoned.stdout.strip().replace("\n", " | "), "| stderr:", abandoned.stderr.strip())
@@ -103,7 +111,8 @@ def main():
     write_record(state, Record(99999, 99999, "c1", "gate", time.time() - 5, time.time() - 4))
     blocked_env = {**env, "PATH": str(root / "nobin")}
     (root / "nobin").mkdir()
-    (root / "nobin" / "uv").symlink_to(subprocess.run(["which", "uv"], capture_output=True, text=True).stdout.strip())
+    for tool in ("uv", "git"):  # everything the factory needs except `ps`
+        (root / "nobin" / tool).symlink_to(subprocess.run(["which", tool], capture_output=True, text=True).stdout.strip())
     refused = sh(str(root / "nobin" / "uv"), "run", "--project", str(ORCH), "factory", "abandon", "a1", cwd=repo, env=blocked_env)
     print("   stderr:", refused.stderr.strip())
     check("with ps unreachable the command exits 1 saying nothing changed", refused.returncode == 1 and "nothing changed" in refused.stderr)
