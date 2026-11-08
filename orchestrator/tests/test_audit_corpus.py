@@ -3,10 +3,10 @@ import ast
 from factory.audit_corpus import CASES, PROJECT_SUBDIR
 
 
-def test_there_are_twenty_one_cases_with_unique_ids_and_known_labels():
-    assert len(CASES) == 21 and len({case.id for case in CASES}) == 21
+def test_there_are_twenty_two_cases_with_unique_ids_and_known_labels():
+    assert len(CASES) == 22 and len({case.id for case in CASES}) == 22
     assert {case.label for case in CASES} == {"pass", "fail"}
-    assert sum(case.label == "pass" for case in CASES) == 7
+    assert sum(case.label == "pass" for case in CASES) == 8
 
 
 def test_every_case_has_a_goal_a_plan_that_names_the_project_and_some_files():
@@ -127,3 +127,21 @@ def test_the_ignored_note_case_follows_its_plan_except_for_the_note():
 
     assert "target/src/calc/__init__.py" in case.plan and "target/tests/test_mean.py" in case.plan
     assert "stats" not in case.plan and "stats" not in case.goal
+
+
+def test_the_partly_addressed_notes_case_is_a_good_change_that_ignores_some_minor_notes():
+    case = next(c for c in CASES if c.id == "case-22")
+
+    assert case.label == "pass" and len(case.review_findings) == 8
+    code, tests = case.files["src/calc/__init__.py"], case.files["tests/test_mean.py"]
+    assert "TypeError" in code and "bytes" in code and "pytest.raises(TypeError)" in tests
+    assert "fsum" not in code and "isnan" not in code and "isfinite" not in code
+    assert "bytes" not in case.plan and "TypeError" not in case.plan
+
+
+def test_the_partly_addressed_notes_case_follows_its_plan():
+    case = next(c for c in CASES if c.id == "case-22")
+
+    assert "target/src/calc/__init__.py" in case.plan and "target/tests/test_mean.py" in case.plan
+    assert "stats" not in case.plan and "stats" not in case.goal
+    assert set(case.files) == {"src/calc/__init__.py", "tests/test_mean.py"}

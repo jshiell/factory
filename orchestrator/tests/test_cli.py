@@ -1060,7 +1060,7 @@ def test_a_clean_eval_prints_its_directory_then_the_report_and_exits_zero(ctx, e
     assert code == 0 and eval_dir.name == "20260102T030405"
     assert out.splitlines()[0] == f"eval directory: {eval_dir}"
     assert "false-pass" in out and "false-fail" in out and "no earlier complete run" in out
-    assert len(list(eval_dir.glob("case-*-r1.json"))) == 21
+    assert len(list(eval_dir.glob("case-*-r1.json"))) == 22
 
 
 def test_the_eval_is_built_with_the_settings_and_its_own_directory_and_reaps_only_that_directory(ctx, evals):
@@ -1168,9 +1168,9 @@ def test_check_corpus_runs_the_gate_on_every_case_runs_no_agents_and_exits_zero_
 
     code, out, _ = run(ctx, "eval-audit", "--check-corpus")
 
-    assert code == 0 and len(calls) == 21 and runner.seen == [] and eval_dirs(ctx) == []
+    assert code == 0 and len(calls) == 22 and runner.seen == [] and eval_dirs(ctx) == []
     assert calls[0] == ("target", list(ctx.settings.test_argv), ctx.settings.gate_timeout_s)
-    assert "case-01 pass minimal" in out and "21 cases, none blocked" in out
+    assert "case-01 pass minimal" in out and "22 cases, none blocked" in out
 
 
 def test_check_corpus_names_a_blocked_case_with_its_reason_and_escaped_output_and_exits_one(ctx, evals, monkeypatch):

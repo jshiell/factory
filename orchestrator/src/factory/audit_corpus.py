@@ -112,6 +112,37 @@ NOTE_TESTS = (
     "def test_mean():\n    assert mean([1, 2, 3]) == 2\n\n\n"
     "def test_mean_of_empty_raises():\n    with pytest.raises(ValueError):\n        mean([])\n"
 )
+MANY_GOAL = "Add a mean function to calc"
+MANY_PLAN = (
+    "1. Add `mean(values: Iterable[float]) -> float` to `target/src/calc/__init__.py` (arithmetic mean; raise "
+    "`ValueError` on an empty input).\n"
+    "2. Add tests in a new file `target/tests/test_mean.py`."
+)
+MANY_FINDINGS = (
+    "Edge-case gap: mean(b'\\x01\\x02') iterates as ints 1 and 2 and silently returns 1.5; the plan does not reject bytes.",
+    "Edge-case gap: mean('123') iterates characters, and sum then raises an incidental TypeError instead of a clear error.",
+    "Edge-case gap: mean(x for x in [1, 2, 3]) has no len(), so a len(values) implementation raises TypeError; read the input once.",
+    "Edge-case gap: mean([1e308, 1e308]) sums to inf and returns inf although the true mean is 1e308.",
+    "Edge-case gap: mean([float('nan'), 1.0]) returns nan and mean([float('inf'), 1.0]) returns inf; the plan does not say whether to reject them.",
+    "Edge-case gap: mean([0.1] * 10) with plain sum drifts from 0.1; math.fsum would be exact.",
+    "Edge-case gap: mean([True, False, True]) returns 0.666...; the plan does not say whether bool counts as a number.",
+    "Edge-case gap: mean([5.0]) should return 5.0, but the plan lists no test for a single value.",
+)
+MANY_FUNC = (
+    "\n\ndef mean(values: Iterable[float]) -> float:\n"
+    "    if isinstance(values, (str, bytes, bytearray)):\n"
+    "        raise TypeError(\"mean needs numbers, not text or bytes\")\n"
+    "    items = list(values)\n    if not items:\n"
+    "        raise ValueError(\"mean of an empty input\")\n    return sum(items) / len(items)\n"
+)
+MANY_TESTS = (
+    "import pytest\n\nfrom calc import mean\n\n\n"
+    "def test_mean():\n    assert mean([1, 2, 3]) == 2\n\n\n"
+    "def test_mean_of_empty_raises():\n    with pytest.raises(ValueError):\n        mean([])\n\n\n"
+    "def test_mean_accepts_a_generator():\n    assert mean(x for x in [2, 4]) == 3\n\n\n"
+    "def test_mean_rejects_text_and_bytes():\n    with pytest.raises(TypeError):\n        mean(\"123\")\n"
+    "    with pytest.raises(TypeError):\n        mean(b\"12\")\n"
+)
 CLAMP_GOAL = "Add a clamp function to calc"
 CLAMP_PLAN = (
     "1. Add `clamp(x: int, lo: int, hi: int) -> int` to `target/src/calc/__init__.py`: return `lo` if x < lo, `hi` if "
@@ -219,9 +250,12 @@ CASES = [
     Case("case-21", "fail", "ignored-reviewer-note",
          "correct mean, but the reviewer's note to reject bytes (a plan defect) is ignored and untested", NOTE_GOAL, NOTE_PLAN,
          {SRC: BASE_SRC + NOTE_FUNC, "tests/test_mean.py": NOTE_TESTS}, NOTE_FINDINGS),
+    Case("case-22", "pass", "partly-addressed-notes",
+         "good mean that handles three of eight reviewer notes (bytes/str, generators) and leaves the minor ones", MANY_GOAL, MANY_PLAN,
+         {SRC: "from collections.abc import Iterable\n\n" + BASE_SRC + MANY_FUNC, "tests/test_mean.py": MANY_TESTS}, MANY_FINDINGS),
 ]
 
-assert len({c.id for c in CASES}) == len(CASES) == 21
+assert len({c.id for c in CASES}) == len(CASES) == 22
 
 
 def case_hash(case: Case) -> str:
