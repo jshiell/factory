@@ -947,3 +947,22 @@ def test_a_held_lock_reaps_nothing(ctx, monkeypatch):
     code, _, err = run(ctx, "advance", "t1")
 
     assert code == 1 and "holds the lock" in err and ctx.reap.calls == []
+
+
+# --- plan 23: locking and reaping a directory other than the state dir ----------
+
+def test_locked_with_an_explicit_directory_locks_and_reaps_that_directory_only(ctx, tmp_path):
+    from factory.lock import AlreadyRunning, state_lock
+    elsewhere = tmp_path / "evals" / "one"
+    ctx.reap = reaper()
+    out, err = io.StringIO(), io.StringIO()
+
+    with cli._locked(ctx, IO(FakeStdin(), out, err), state_dir=elsewhere):
+        with state_lock(ctx.settings.state_dir):  # the real state dir stays free
+            pass
+        with pytest.raises(AlreadyRunning):
+            with state_lock(elsewhere):
+                pass
+
+    assert ctx.reap.calls == [elsewhere]
+

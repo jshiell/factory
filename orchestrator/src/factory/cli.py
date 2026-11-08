@@ -59,12 +59,13 @@ class _Refused(Exception):
 
 
 @contextmanager
-def _locked(ctx: "Context", io: "IO"):
-    """Hold the state lock, first killing agents or gate runs a SIGKILLed driver left behind."""
+def _locked(ctx: "Context", io: "IO", state_dir: Path | None = None):
+    """Hold the lock on `state_dir` (default: the state dir), first killing agents or gate runs a SIGKILLed driver left behind."""
+    directory = state_dir or ctx.settings.state_dir
     try:
-        with state_lock(ctx.settings.state_dir):
+        with state_lock(directory):
             try:
-                result = ctx.reap(ctx.settings.state_dir)
+                result = ctx.reap(directory)
             except ReapUncertain as uncertain:
                 _print_reaped(uncertain.killed, [], io)
                 raise _Refused(f"{uncertain}; nothing changed") from None
