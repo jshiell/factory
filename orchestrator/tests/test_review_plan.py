@@ -5,7 +5,9 @@ import pytest
 from factory.command import RunnerConfig
 from factory.digest import plan_digest
 from factory.ledger import Ledger
-from factory.review_plan import REVIEW_CONFIG, REVIEW_SCHEMA, build_review_prompt, review_plan
+from factory.review_plan import (
+    EDGE_CASE_INSTRUCTION, REVIEW_CONFIG, REVIEW_SCHEMA, build_review_prompt, review_plan,
+)
 from factory.step import BudgetCapReached, MissingBudget, RunResult
 from factory.store import TaskStore
 from factory.task import InvalidTransition, Task, TaskState
@@ -60,6 +62,13 @@ def test_the_untrusted_warning_comes_before_the_plan_text():
     prompt = build_review_prompt("add multiply", "1. do x")
 
     assert prompt.index("untrusted") < prompt.index("PLAN:\n1. do x")
+
+
+def test_the_review_prompt_ends_with_the_edge_case_instruction_after_the_plan():
+    prompt = build_review_prompt("add multiply", "1. do x")
+
+    assert prompt.endswith(EDGE_CASE_INSTRUCTION)
+    assert prompt.index("1. do x") < prompt.index(EDGE_CASE_INSTRUCTION)
 
 
 def test_the_review_config_is_read_only_with_an_approve_or_revise_schema():
