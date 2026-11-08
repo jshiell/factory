@@ -10,7 +10,8 @@ import pytest
 
 from factory.command import RunnerConfig
 from factory.runner import SubprocessRunner
-from factory.task import Task
+from factory.process_registry import load_records
+from factory.task import Task, TaskState
 
 CONFIG = RunnerConfig(model="sonnet", budget_usd=0.5)
 
@@ -276,3 +277,25 @@ def test_a_normal_exit_still_kills_what_the_agent_left_running(tmp_path, task):
 
 def _sleepers():
     return subprocess.run(["pgrep", "-x", "sleep"], capture_output=True, text=True).stdout.split()
+
+
+def test_the_agent_is_recorded_under_the_task_state_while_it_runs_and_the_record_goes_after(tmp_path, task, monkeypatch):
+    state = tmp_path / "state"
+    monkeypatch.setenv("STATE", str(state))
+    runner = SubprocessRunner(fake_claude(tmp_path, 'ls "$STATE/procs"'), project_subdir="proj", timeout_s=10, state_dir=state)
+
+    result = runner.run(replace(task, state=TaskState.QUEUED), CONFIG)
+
+    (name,) = result.stdout.split()
+    assert name.endswith(".json")
+    assert load_records(state) == []
+
+
+def test_the_agent_record_names_the_task_and_its_state(tmp_path, task, monkeypatch):
+    state = tmp_path / "state"
+    monkeypatch.setenv("STATE", str(state))
+    runner = SubprocessRunner(fake_claude(tmp_path, 'cat "$STATE/procs/"*.json'), project_subdir="proj", timeout_s=10, state_dir=state)
+
+    result = runner.run(replace(task, state=TaskState.QUEUED), CONFIG)
+
+    assert '"task_id": "t1"' in result.stdout and '"stage": "queued"' in result.stdout

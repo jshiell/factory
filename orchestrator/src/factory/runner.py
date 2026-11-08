@@ -1,20 +1,24 @@
 import os
 import subprocess
 import tempfile
+import time
+from contextlib import nullcontext
 from pathlib import Path
 
 from factory.command import RunnerConfig, build_command, sandbox_prefix
 from factory.process import STRIPPED_ENV, kill_tree
+from factory.process_registry import Tracker
 from factory.step import RunResult
 from factory.task import Task
 
 
 class SubprocessRunner:
-    def __init__(self, executable: str, project_subdir: str, timeout_s: float, sandbox_executable: str = "nono"):
+    def __init__(self, executable: str, project_subdir: str, timeout_s: float, sandbox_executable: str = "nono", state_dir=None):
         self._executable = executable
         self._project_subdir = project_subdir
         self._timeout_s = timeout_s
         self._sandbox_executable = sandbox_executable
+        self._state_dir = state_dir
 
     def run(self, task: Task, config: RunnerConfig) -> RunResult:
         worktree = str(Path(task.worktree).resolve())
@@ -23,7 +27,9 @@ class SubprocessRunner:
         if config.confine:
             argv = sandbox_prefix(self._sandbox_executable, worktree) + argv
         cwd = Path(task.worktree) / self._project_subdir
+        tracker = Tracker(self._state_dir, task.id, task.state.value) if self._state_dir else None
         with tempfile.TemporaryFile("w+") as stdout_file:
+            launched_after = time.time()
             process = subprocess.Popen(
                 argv,
                 cwd=cwd,
@@ -35,18 +41,19 @@ class SubprocessRunner:
                 start_new_session=True,
             )
             timed_out = False
-            try:
-                process.wait(timeout=self._timeout_s)
-            except subprocess.TimeoutExpired:
-                timed_out = True
-                kill_tree(process.pid)
-                process.wait()
-            except BaseException:
-                kill_tree(process.pid)
-                process.wait()
-                raise
-            else:
-                kill_tree(process.pid)  # whatever the agent left running in its session
+            with (tracker.launched(process.pid, launched_after, time.time()) if tracker else nullcontext()):
+                try:
+                    process.wait(timeout=self._timeout_s)
+                except subprocess.TimeoutExpired:
+                    timed_out = True
+                    kill_tree(process.pid)
+                    process.wait()
+                except BaseException:
+                    kill_tree(process.pid)
+                    process.wait()
+                    raise
+                else:
+                    kill_tree(process.pid)  # whatever the agent left running in its session
             stdout_file.seek(0)
             return RunResult(stdout_file.read(), process.returncode, timed_out)
 
