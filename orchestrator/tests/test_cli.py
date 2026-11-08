@@ -423,7 +423,7 @@ def test_recover_fails_the_running_task_and_warns_about_the_agent_and_lost_work(
     code, out, _ = run(ctx, "recover", "t1")
 
     assert code == 0 and ctx.store.load("t1").failure_reason == "interrupted"
-    assert "4242" in out and "/w/t1" in out and "still be alive" in out and "uncommitted" in out
+    assert "4242" in out and "/w/t1" in out and "killed first" in out and "uncommitted" in out
 
 
 def test_recover_exits_1_when_another_run_holds_the_lock_and_changes_nothing(ctx):

@@ -81,7 +81,7 @@ def _fix_round(
 
 
 def _fail_interrupted(task: Task, store: TaskStore, ledger: Ledger | None, config: RunnerConfig | None) -> Task:
-    """A driver died while a fix agent ran: it may still be alive, so touch no git and charge the assumed cost."""
+    """A driver died while a fix agent ran: the command that got here already killed it if it was recorded, but touch no git and charge the assumed cost."""
     if ledger is not None and config is not None and config.budget_usd is not None:
         ledger.append(task.id, ASSUMED_COST_MULTIPLIER * config.budget_usd, assumed=True, stage=FIX_STAGE)
     return _finish(apply(replace(task, fix_in_flight=False), Event.GATE_FAILED, reason="fix_interrupted"), store)

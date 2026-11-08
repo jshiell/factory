@@ -312,7 +312,7 @@ def _recover(args, io, ctx) -> int:
         print(f"recover refused: {error}", file=io.stderr)
         return 1
     print(f"{task.id}: marked failed (interrupted); last driver pid {last_driver}, worktree {task.worktree}", file=io.stdout)
-    print("The agent may still be alive if the driver was killed with SIGKILL: check before cleaning.", file=io.stdout)
+    print("Agents the dead driver recorded were killed first; one launched in the instant before SIGKILL may be unrecorded: check before cleaning.", file=io.stdout)
     print("Its work is uncommitted in the worktree; `factory clean` would discard it.", file=io.stdout)
     return 0
 

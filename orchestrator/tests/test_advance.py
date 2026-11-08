@@ -85,7 +85,7 @@ def test_a_running_task_is_reported_stale_and_left_alone(store):
 
     result = advance("t1", store, pipeline(store, log))
 
-    assert log == [] and "agent may still be alive" in result.stopped
+    assert log == [] and "factory recover" in result.stopped
 
 
 def test_a_stage_that_leaves_the_state_unchanged_stops_the_loop_with_the_recorded_error(store):
