@@ -4,6 +4,7 @@ import subprocess
 import sys
 from collections import defaultdict
 from collections.abc import Callable
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -19,6 +20,8 @@ from factory.digest import plan_digest
 from factory.ids import InvalidTaskId
 from factory.ledger import Ledger
 from factory.lock import AlreadyRunning, state_lock
+from factory.process import group_alive, kill_tree
+from factory.process_registry import ReapResult, ReapUncertain, ps_probe, reap_orphans
 from factory.merge_task import MergeRefused, merge_preview, merge_task
 from factory.retry_task import RetryRefused, require_keepable_plan, retry_task, retry_with_plan
 from factory.recover_task import RecoverRefused, recover_task
@@ -37,6 +40,10 @@ class IO:
     stderr: object
 
 
+def _reap_with_the_real_process_table(state_dir) -> ReapResult:
+    return reap_orphans(state_dir, ps_probe(), kill_tree, group_alive)
+
+
 @dataclass
 class Context:
     settings: Settings
@@ -44,6 +51,34 @@ class Context:
     ledger: Ledger
     stages: dict
     clock: Callable[[], datetime] = datetime.now
+    reap: Callable[[Path], ReapResult] = _reap_with_the_real_process_table
+
+
+class _Refused(Exception):
+    """The lock could not be taken, or orphans could not be proven dead: the command must change nothing."""
+
+
+@contextmanager
+def _locked(ctx: "Context", io: "IO"):
+    """Hold the state lock, first killing agents or gate runs a SIGKILLed driver left behind."""
+    try:
+        with state_lock(ctx.settings.state_dir):
+            try:
+                result = ctx.reap(ctx.settings.state_dir)
+            except ReapUncertain as uncertain:
+                _print_reaped(uncertain.killed, [], io)
+                raise _Refused(f"{uncertain}; nothing changed") from None
+            _print_reaped(result.killed, result.discarded, io)
+            yield
+    except AlreadyRunning:
+        raise _Refused("another factory run holds the lock") from None
+
+
+def _print_reaped(killed, discarded, io) -> None:
+    for record in killed:
+        print(f"killed orphan of {record.task_id} ({record.stage}), pid {record.pid}", file=io.stdout)
+    for record in discarded:
+        print(f"discarded invalid process record {record.path.name}: {record.reason}", file=io.stdout)
 
 
 class _UsageError(Exception):
@@ -138,10 +173,10 @@ def _show(args, io, ctx) -> int:
 def _advance(args, io, ctx) -> int:
     _load(ctx, args.task_id)
     try:
-        with state_lock(ctx.settings.state_dir):
+        with _locked(ctx, io):
             result = advance(args.task_id, ctx.store, ctx.stages)
-    except AlreadyRunning:
-        print("another factory run holds the lock", file=io.stderr)
+    except _Refused as refused:
+        print(escape_control(str(refused)), file=io.stderr)
         return 1
     for step in result.steps:
         print(f"{step.stage} -> {step.state.value}", file=io.stdout)
@@ -268,10 +303,10 @@ def _recover(args, io, ctx) -> int:
     lock_file = ctx.settings.state_dir / "lock"
     last_driver = lock_file.read_text().strip() if lock_file.exists() else "unknown"  # read before taking the lock
     try:
-        with state_lock(ctx.settings.state_dir):
+        with _locked(ctx, io):
             recover_task(args.task_id, ctx.store, ctx.ledger, ctx.settings.budget_usd)
-    except AlreadyRunning:
-        print("another factory run holds the lock", file=io.stderr)
+    except _Refused as refused:
+        print(escape_control(str(refused)), file=io.stderr)
         return 1
     except RecoverRefused as error:
         print(f"recover refused: {error}", file=io.stderr)
@@ -285,10 +320,10 @@ def _recover(args, io, ctx) -> int:
 def _abandon(args, io, ctx) -> int:
     _load(ctx, args.task_id)
     try:
-        with state_lock(ctx.settings.state_dir):
+        with _locked(ctx, io):
             task = abandon_task(args.task_id, ctx.store)
-    except AlreadyRunning:
-        print("another factory run holds the lock", file=io.stderr)
+    except _Refused as refused:
+        print(escape_control(str(refused)), file=io.stderr)
         return 1
     except AbandonRefused as error:
         print(f"abandon refused: {error}", file=io.stderr)
@@ -300,10 +335,10 @@ def _abandon(args, io, ctx) -> int:
 def _rebase(args, io, ctx) -> int:
     _load(ctx, args.task_id)
     try:
-        with state_lock(ctx.settings.state_dir):
+        with _locked(ctx, io):
             rebased = rebase_task(args.task_id, ctx.store, ctx.settings.repo)
-    except AlreadyRunning:
-        print("another factory run holds the lock", file=io.stderr)
+    except _Refused as refused:
+        print(escape_control(str(refused)), file=io.stderr)
         return 1
     except (RebaseRefused, InvalidTransition, subprocess.CalledProcessError) as error:
         print(escape_control(f"rebase refused: {error}"), file=io.stderr)
@@ -340,7 +375,7 @@ def _clean(args, io, ctx) -> int:
     settings = ctx.settings
     cache_root = settings.gate_cache_dir
     try:
-        with state_lock(settings.state_dir):
+        with _locked(ctx, io):
             candidates = clean_candidates(ctx.store, settings.repo, settings.worktree_root, cache_root)
             scan = orphan_caches(ctx.store, cache_root)
             if not (candidates or scan.orphans or scan.skipped):
@@ -360,8 +395,8 @@ def _clean(args, io, ctx) -> int:
             worktrees = WorktreeManager(settings.repo, settings.worktree_root)
             outcomes = clean_tasks(candidates, ctx.store, worktrees, settings.repo, settings.worktree_root, cache_root)
             outcomes += remove_orphan_caches(ctx.store, cache_root, scan.orphans)
-    except AlreadyRunning:
-        print("another factory run holds the lock", file=io.stderr)
+    except _Refused as refused:
+        print(escape_control(str(refused)), file=io.stderr)
         return 1
     for outcome in outcomes:
         for line in outcome.done + outcome.problems:
@@ -379,7 +414,7 @@ def _merge(args, io, ctx) -> int:
         return 1
     settings = ctx.settings
     try:
-        with state_lock(settings.state_dir):
+        with _locked(ctx, io):
             preview = merge_preview(args.task_id, ctx.store, settings.repo)
             shown = "\n".join([f"MERGE {preview.task.id}: fast-forward main to {preview.task.audited_sha}",
                                f"branch: {preview.branch}", "CHANGES:", preview.diffstat, "AUDIT FINDINGS:"]
@@ -392,8 +427,8 @@ def _merge(args, io, ctx) -> int:
                 return 1
             worktrees = WorktreeManager(settings.repo, settings.worktree_root)
             merged = merge_task(args.task_id, ctx.store, settings.repo, worktrees, shown_sha=preview.task.audited_sha)
-    except AlreadyRunning:
-        print("another factory run holds the lock", file=io.stderr)
+    except _Refused as refused:
+        print(escape_control(str(refused)), file=io.stderr)
         return 1
     except (MergeRefused, InvalidTransition, subprocess.CalledProcessError) as error:
         print(f"merge refused: {error}", file=io.stderr)

@@ -874,3 +874,76 @@ def test_guard_no_command_except_retry_keep_plan_calls_retry_with_plan(ctx, keep
     run(ctx, *command, stdin="y\n")
 
     assert keep_spy == []
+
+
+# --- reaping orphans under the lock -------------------------------------------
+
+def reaper(killed=(), discarded=(), uncertain=None):
+    from factory.process_registry import ReapResult, ReapUncertain
+    calls = []
+
+    def reap(state_dir):
+        calls.append(state_dir)
+        if uncertain:
+            raise ReapUncertain(list(killed), [(r, "ps: operation not permitted") for r in uncertain])
+        return ReapResult(list(killed), list(discarded))
+    reap.calls = calls
+    return reap
+
+
+def orphan(pid=4242, task_id="t1", stage="implement"):
+    from factory.process_registry import Record
+    return Record(pid, pid, task_id, stage, 100.0, 100.5)
+
+
+REAPING_COMMANDS = [
+    (("advance", "t1"), S.PROPOSED), (("recover", "t1"), S.RUNNING), (("abandon", "t1"), S.PROPOSED),
+    (("rebase", "t1"), S.AUDITED), (("clean",), S.RUNNING), (("merge", "t1"), S.AUDITED),
+]
+
+
+@pytest.mark.parametrize("argv, state", REAPING_COMMANDS, ids=[c[0][0] for c in REAPING_COMMANDS])
+def test_every_command_that_takes_the_lock_reaps_orphans_under_it_once(ctx, argv, state):
+    put(ctx, state)
+    ctx.stages.update(all_stages(ctx))
+    ctx.reap = reaper()
+
+    run(ctx, *argv)
+
+    assert ctx.reap.calls == [ctx.settings.state_dir]
+
+
+def test_what_was_reaped_is_printed_with_its_task_and_stage(ctx):
+    put(ctx, S.PROPOSED)
+    ctx.stages.update(all_stages(ctx))
+    ctx.reap = reaper(killed=[orphan(4242, "t7", "implement")])
+
+    code, out, _ = run(ctx, "advance", "t1")
+
+    assert "killed orphan of t7 (implement), pid 4242" in out
+
+
+def test_a_probe_that_cannot_tell_refuses_the_command_and_changes_nothing(ctx):
+    put(ctx, S.PROPOSED)
+    ran = []
+    ctx.stages.update(all_stages(ctx))
+    ctx.stages["plan"] = lambda task_id: (ran.append(task_id), ctx.store.load(task_id))[1]
+    ctx.reap = reaper(uncertain=[orphan(4242, "t7", "gate")])
+
+    code, out, err = run(ctx, "advance", "t1")
+
+    assert code == 1 and ran == []
+    assert "cannot prove these processes dead" in err and "t7" in err and "nothing changed" in err
+
+
+def test_a_held_lock_reaps_nothing(ctx, monkeypatch):
+    put(ctx, S.PROPOSED)
+    ctx.reap = reaper()
+
+    def held(state_dir):
+        raise cli.AlreadyRunning(str(state_dir))
+    monkeypatch.setattr(cli, "state_lock", held)
+
+    code, _, err = run(ctx, "advance", "t1")
+
+    assert code == 1 and "holds the lock" in err and ctx.reap.calls == []
