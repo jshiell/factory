@@ -236,3 +236,22 @@ def test_resuming_against_a_changed_corpus_is_refused_before_anything_runs(tmp_p
         run_eval(eval_dir, changed, 1, runner, 5.0)
 
     assert runner.order == []
+
+
+# --- the corpus gate check ------------------------------------------------------------
+
+from factory.audit_eval import check_corpus
+from factory.gate import GateResult
+
+
+def test_check_corpus_gives_every_case_to_the_gate_in_a_committed_worktree(tmp_path):
+    seen = []
+
+    def gate(worktree, base_sha):
+        seen.append((worktree.name, git(worktree, "rev-parse", "HEAD") != base_sha))
+        return GateResult(False, "tests_failed", 1, "boom") if worktree.name.endswith("case-02") else GateResult(True)
+
+    results = check_corpus(CASES[:3], gate)
+
+    assert [(case.id, result.passed) for case, result in results] == [("case-01", True), ("case-02", False), ("case-03", True)]
+    assert results[1][1].reason == "tests_failed" and all(committed for _, committed in seen) and len(seen) == 3

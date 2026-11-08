@@ -4,12 +4,13 @@ import hashlib
 import json
 import os
 import tempfile
+from collections.abc import Callable
 from pathlib import Path
 
 from factory.approve_plan import build_implementation_prompt
 from factory.audit_corpus import BASE_FILES, PROJECT_SUBDIR, Case, case_hash, corpus_hash
 from factory.audit_task import AUDIT_CONFIG, audit_task, build_audit_prompt
-from factory.gate import commit_all
+from factory.gate import GateResult, commit_all
 from factory.ledger import Ledger
 from factory.step import BudgetCapReached, Runner
 from factory.store import TaskStore
@@ -143,3 +144,15 @@ def run_eval(eval_dir: Path, cases: list[Case], runs: int, runner: Runner, cap_u
                     return False
     _write_atomically(meta_path(eval_dir), json.dumps(_meta(cases, runs, complete=True), indent=1))
     return True
+
+
+def check_corpus(cases: list[Case], gate: Callable[[Path, str], GateResult]) -> list[tuple[Case, GateResult]]:
+    """Plan 22 required every case to pass the real gate, else it never reaches the auditor in production."""
+    results = []
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        manager = WorktreeManager(build_base_repo(root), root / "wt")
+        for case in cases:
+            worktree, base_sha = materialise(case, manager, f"gate-{case.id}")
+            results.append((case, gate(worktree, base_sha)))
+    return results

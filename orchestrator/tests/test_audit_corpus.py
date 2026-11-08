@@ -76,3 +76,13 @@ def test_case_and_corpus_hashes_are_stable_and_follow_the_content():
     assert case_hash(first) != case_hash(edited) and case_hash(first) != case_hash(relabelled)
     assert case_hash(CASES[0]) != case_hash(CASES[1])
     assert corpus_hash(CASES) != corpus_hash([edited, *CASES[1:]])
+
+
+def test_the_base_pyproject_can_run_the_tests_it_ships_with():
+    import tomllib
+    from factory.audit_corpus import BASE_FILES
+
+    project = tomllib.loads(BASE_FILES["pyproject.toml"])
+
+    assert project["build-system"]["build-backend"] == "uv_build"
+    assert any(dep.startswith("pytest") for dep in project["dependency-groups"]["dev"])

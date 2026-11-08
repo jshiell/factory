@@ -14,7 +14,11 @@ SRC = "src/calc/__init__.py"
 TEST_CALC = "tests/test_calc.py"
 
 BASE_FILES = {
-    "pyproject.toml": '[project]\nname = "calc"\nversion = "0.1.0"\nrequires-python = ">=3.12"\ndependencies = []\n',
+    "pyproject.toml": (
+        '[project]\nname = "calc"\nversion = "0.1.0"\nrequires-python = ">=3.14"\ndependencies = []\n\n'
+        '[build-system]\nrequires = ["uv_build>=0.13.7,<0.14.0"]\nbuild-backend = "uv_build"\n\n'
+        '[dependency-groups]\ndev = ["pytest>=9.2.0"]\n'
+    ),
     SRC: BASE_SRC,
     TEST_CALC: BASE_TEST,
     ".gitignore": ".venv/\n__pycache__/\n.pytest_cache/\n*.egg-info/\n",
