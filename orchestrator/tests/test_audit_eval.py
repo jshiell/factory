@@ -156,3 +156,83 @@ def test_the_result_is_written_through_a_temporary_file_so_a_kill_cannot_leave_h
 
     assert [r for r in replaced if r[1] == "case-01-r1.json"] == [(".case-01-r1.json.tmp", "case-01-r1.json")]
     assert sorted(path.name for path in rig[3].glob("*.json")) == ["case-01-r1.json"]
+
+
+# --- the whole run: meta, round-robin, resume, budget ----------------------------
+
+from dataclasses import replace
+
+from factory.audit_corpus import corpus_hash
+from factory.audit_eval import CorpusChanged, load_meta, run_eval
+
+
+class VerdictRunner:
+    """Judges every case by its label's own words, records the order tasks arrive in."""
+
+    def __init__(self, verdict="pass", cost=0.05, spy=None):
+        self.verdict, self.cost, self.spy, self.order = verdict, cost, spy, []
+
+    def run(self, task, config):
+        self.order.append(task.id)
+        if self.spy:
+            self.spy()
+        return RunResult(verdict_stdout(self.verdict, findings=(), cost=self.cost), 0)
+
+
+THREE = CASES[:3]
+
+
+def test_meta_is_written_first_unfinished_and_marked_complete_only_when_every_run_is_done(tmp_path):
+    eval_dir = tmp_path / "eval"
+    seen = []
+    runner = VerdictRunner(spy=lambda: seen.append(load_meta(eval_dir)["complete"]))
+
+    complete = run_eval(eval_dir, THREE, 1, runner, 5.0)
+
+    meta = load_meta(eval_dir)
+    assert seen == [False, False, False] and complete is True and meta["complete"] is True
+    assert meta["corpus_hash"] == corpus_hash(THREE) and meta["cases"] == [c.id for c in THREE] and meta["runs"] == 1
+    assert set(meta["case_hashes"]) == {c.id for c in THREE}
+    assert meta["audit_config"]["model"] == "sonnet" and meta["prompt_hash"]
+
+
+def test_runs_go_round_robin_so_a_stop_leaves_balanced_data(tmp_path):
+    runner = VerdictRunner()
+
+    run_eval(tmp_path / "eval", THREE, 2, runner, 5.0)
+
+    assert runner.order == ["a1-case-01", "a1-case-02", "a1-case-03", "a2-case-01", "a2-case-02", "a2-case-03"]
+
+
+def test_resume_skips_valid_results_and_reruns_a_corrupt_one(tmp_path):
+    eval_dir = tmp_path / "eval"
+    run_eval(eval_dir, THREE, 1, VerdictRunner(), 5.0)
+    (eval_dir / "case-02-r1.json").write_text('{"case": "case-02", "ru')  # half-written by a kill
+    (eval_dir / "case-03-r1.json").unlink()
+    runner = VerdictRunner()
+
+    run_eval(eval_dir, THREE, 1, runner, 5.0)
+
+    assert runner.order == ["a1-case-02", "a1-case-03"]
+    assert load_meta(eval_dir)["complete"] is True
+
+
+def test_the_budget_cap_stops_the_run_with_partial_results_and_an_incomplete_meta(tmp_path):
+    eval_dir = tmp_path / "eval"
+
+    complete = run_eval(eval_dir, THREE, 1, VerdictRunner(cost=0.5), 0.7)  # the second run's 0.5 + 0.3 > 0.7
+
+    assert complete is False and load_meta(eval_dir)["complete"] is False
+    assert sorted(p.name for p in eval_dir.glob("case-*.json")) == ["case-01-r1.json"]
+
+
+def test_resuming_against_a_changed_corpus_is_refused_before_anything_runs(tmp_path):
+    eval_dir = tmp_path / "eval"
+    run_eval(eval_dir, THREE, 1, VerdictRunner(), 5.0)
+    changed = [replace(THREE[0], plan=THREE[0].plan + " Also log."), *THREE[1:]]
+    runner = VerdictRunner()
+
+    with pytest.raises(CorpusChanged):
+        run_eval(eval_dir, changed, 1, runner, 5.0)
+
+    assert runner.order == []
