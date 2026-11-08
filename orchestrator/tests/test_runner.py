@@ -260,3 +260,19 @@ def test_a_wrapper_banner_on_stderr_does_not_reach_the_captured_stdout(tmp_path,
     result = runner.run(task, replace(CONFIG, confine=True))
 
     assert result.stdout == '{"ok": true}\n'
+
+
+def test_a_normal_exit_still_kills_what_the_agent_left_running(tmp_path, task):
+    runner = SubprocessRunner(fake_claude(tmp_path, "sleep 30 &\necho $!"), project_subdir="proj", timeout_s=10)
+
+    result = runner.run(task, CONFIG)
+
+    lingering = result.stdout.strip()
+    deadline = time.time() + 5
+    while time.time() < deadline and lingering in _sleepers():
+        time.sleep(0.05)
+    assert lingering not in _sleepers()
+
+
+def _sleepers():
+    return subprocess.run(["pgrep", "-x", "sleep"], capture_output=True, text=True).stdout.split()

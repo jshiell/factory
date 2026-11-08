@@ -45,6 +45,8 @@ class SubprocessRunner:
                 kill_tree(process.pid)
                 process.wait()
                 raise
+            else:
+                kill_tree(process.pid)  # whatever the agent left running in its session
             stdout_file.seek(0)
             return RunResult(stdout_file.read(), process.returncode, timed_out)
 
