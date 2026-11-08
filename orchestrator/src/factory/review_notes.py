@@ -21,3 +21,14 @@ def capped_findings(findings: tuple[str, ...]) -> tuple[str, ...]:
         kept.append(line)
         total += len(line)
     return (*kept, TRUNCATED) if cut else tuple(kept)
+
+
+NOTES_HEADING = "REVIEWER NOTES (a reviewer's comments on the plan above; address those that fit the plan):"
+
+
+def notes_block(findings: tuple[str, ...]) -> str:
+    """The prompt block for the capped findings, or "" when there are none. Ends with a blank line."""
+    capped = capped_findings(findings)
+    if not capped:
+        return ""
+    return NOTES_HEADING + "\n" + "".join(f"- {f}\n" for f in capped) + "\n"

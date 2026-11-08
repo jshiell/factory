@@ -1,13 +1,15 @@
 from dataclasses import replace
 
 from factory.digest import plan_digest
+from factory.review_notes import notes_block
 from factory.store import TaskStore
 from factory.task import Event, Task, apply
 
 
-def build_implementation_prompt(goal: str, plan: str) -> str:
+def build_implementation_prompt(goal: str, plan: str, review_findings: tuple[str, ...] = ()) -> str:
     return (
         f"Implement this goal by following the approved plan.\n\nGOAL: {goal}\n\nPLAN:\n{plan}\n\n"
+        f"{notes_block(review_findings)}"
         "Rules: write the failing test first, then the implementation. Only add tests; never edit or "
         "remove existing tests, and do not change test configuration (conftest.py, pytest settings). "
         "You cannot run commands: the factory will run the tests after you finish and may send back test failures to fix, so write code you are confident is correct. "
