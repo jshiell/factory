@@ -16,7 +16,7 @@ ROOT = Path(__file__).resolve().parent.parent
 OUT = Path(__file__).resolve().parent / "review-probe-out"
 OUT.mkdir(exist_ok=True)
 sys.path.insert(0, str(ROOT / "orchestrator" / "src"))
-from factory.review_plan import REVIEW_SCHEMA  # noqa: E402
+from factory.review_plan import EDGE_CASE_INSTRUCTION, REVIEW_SCHEMA  # noqa: E402
 
 def baseline_prompt(goal, plan):  # frozen copy of build_review_prompt as of plan 24
     return (
@@ -49,6 +49,7 @@ PROBE3 = PROBE2 + (
 )
 # plan 26 spike round 2: same, with a length limit so the 500-char cap never cuts a recommendation
 PROBE4 = PROBE3 + " Keep every finding under 400 characters."
+assert PROBE4 == EDGE_CASE_INSTRUCTION  # the shipped text is the one measured in round 2
 VARIANTS = {"current": "", "probe1": PROBE1, "probe2": PROBE2, "probe3": PROBE3, "probe4": PROBE4}
 PLANS = {
     "mean": ("Add a mean function to calc",
