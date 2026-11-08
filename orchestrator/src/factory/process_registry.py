@@ -62,12 +62,16 @@ def reap_orphans(state_dir, probe, kill, group_alive) -> ReapResult:
     killed = []
     for record in load_records(state_dir):
         started = probe(record.pid)
-        if started is not None and record.launched_after - WINDOW_SLACK_S <= started <= record.launched_before + WINDOW_SLACK_S:
+        if started is not None and _in_window(record, started):
             kill(record.pid)
-            _record_path(state_dir, record.pid).unlink()
             killed.append(record)
+        _record_path(state_dir, record.pid).unlink()
     return ReapResult(killed)
 
 
 def _record_path(state_dir, pid: int) -> Path:
     return _procs_dir(state_dir) / f"{pid}.json"
+
+
+def _in_window(record: Record, started: float) -> bool:
+    return record.launched_after - WINDOW_SLACK_S <= started <= record.launched_before + WINDOW_SLACK_S

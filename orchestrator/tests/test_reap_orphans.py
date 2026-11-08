@@ -38,3 +38,13 @@ def test_an_alive_process_started_inside_its_launch_window_is_killed_deleted_and
     assert fakes.killed == [4242]
     assert load_records(tmp_path) == []
     assert [(r.pid, r.task_id, r.stage) for r in result.killed] == [(4242, "t1", "implement")]
+
+
+def test_an_alive_process_started_outside_its_window_is_a_reused_pid_so_only_the_record_goes(tmp_path):
+    write_record(tmp_path, record())
+    fakes = Fakes(started={4242: 5000.0}, group_alive={4242})
+
+    result = fakes.reap(tmp_path)
+
+    assert fakes.killed == [] and result.killed == []
+    assert load_records(tmp_path) == []
