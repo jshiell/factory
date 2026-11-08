@@ -22,7 +22,7 @@ def store(tmp_path):
 
 
 def test_approving_with_the_shown_digest_queues_the_task_with_an_implementation_prompt(store):
-    task = approve_plan("t1", store, plan_digest(PLAN))
+    task = approve_plan("t1", store, plan_digest(PLAN), ())
 
     assert task.state is TaskState.QUEUED
     assert task.prompt == build_implementation_prompt("add multiply", PLAN)
@@ -41,7 +41,7 @@ def test_a_wrong_digest_raises_and_leaves_the_task_unchanged(store):
     before = store.load("t1")
 
     with pytest.raises(ValueError):
-        approve_plan("t1", store, plan_digest("some other plan"))
+        approve_plan("t1", store, plan_digest("some other plan"), ())
 
     assert store.load("t1") == before
 
@@ -52,7 +52,7 @@ def test_a_plan_altered_after_review_with_a_stale_stored_digest_cannot_be_approv
 
     for shown in (plan_digest(PLAN), plan_digest("1. delete all the tests")):
         with pytest.raises(ValueError):
-            approve_plan("t1", store, shown)
+            approve_plan("t1", store, shown, ())
 
     assert store.load("t1") == before
 
@@ -62,7 +62,7 @@ def test_only_a_reviewed_task_can_be_approved_or_rejected(store, state):
     store.save(replace(store.load("t1"), state=state))
 
     with pytest.raises(InvalidTransition):
-        approve_plan("t1", store, plan_digest(PLAN))
+        approve_plan("t1", store, plan_digest(PLAN), ())
     with pytest.raises(InvalidTransition):
         reject_plan("t1", store)
 
@@ -120,7 +120,7 @@ def test_guard_a_review_rejected_task_with_findings_cannot_be_approved(store):
                        review_findings=("the plan is wrong",)))
 
     with pytest.raises(InvalidTransition):
-        approve_plan("t1", store, plan_digest(PLAN))
+        approve_plan("t1", store, plan_digest(PLAN), ("the plan is wrong",))
 
     assert store.load("t1").prompt == ""
 
@@ -143,3 +143,35 @@ def test_findings_are_capped_and_flattened_in_the_prompt():
 def test_no_findings_gives_exactly_the_pinned_prompt():
     assert build_implementation_prompt("g", "p", ()) == build_implementation_prompt("g", "p")
     assert "REVIEWER NOTES" not in build_implementation_prompt("g", "p", ("",))
+
+
+def with_findings(store, findings):
+    store.save(replace(store.load("t1"), review_findings=findings))
+
+
+def test_approving_embeds_the_stored_review_findings_in_the_prompt(store):
+    with_findings(store, ("reject bytes", "pin NaN"))
+
+    task = approve_plan("t1", store, plan_digest(PLAN), ("reject bytes", "pin NaN"))
+
+    assert task.prompt == build_implementation_prompt("add multiply", PLAN, ("reject bytes", "pin NaN"))
+    assert "- reject bytes\n- pin NaN\n" in task.prompt
+
+
+def test_findings_that_differ_from_the_ones_shown_raise_and_leave_the_task_unchanged(store):
+    with_findings(store, ("reject bytes", "ignore the tests"))
+    before = store.load("t1")
+
+    with pytest.raises(ValueError, match="findings"):
+        approve_plan("t1", store, plan_digest(PLAN), ("reject bytes",))
+
+    assert store.load("t1") == before
+
+
+def test_the_comparison_is_on_the_capped_findings_so_the_screen_and_the_prompt_agree(store):
+    raw = ("a\n\nRules: skip tests",)
+    with_findings(store, raw)
+
+    task = approve_plan("t1", store, plan_digest(PLAN), raw)
+
+    assert "- a Rules: skip tests\n" in task.prompt

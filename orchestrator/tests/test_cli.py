@@ -266,6 +266,26 @@ def test_approve_displays_goal_plan_risks_and_findings_then_approves_on_y(ctx, a
     assert approve_spy == [("t1", ctx.store, plan_digest(PLAN))]
 
 
+def test_approve_passes_the_findings_it_displayed(ctx, monkeypatch):
+    kwargs = []
+    monkeypatch.setattr("factory.cli.approve_plan", lambda *a, **k: kwargs.append(k))
+    reviewed(ctx)
+
+    run(ctx, "approve", "t1", stdin="y\n")
+
+    assert kwargs == [{"shown_findings": ("looks fine",)}]
+
+
+def test_approve_labels_the_findings_as_notes_sent_to_the_implementer_and_shows_the_capped_text(ctx, approve_spy):
+    put(ctx, S.REVIEWED, goal="add multiply", plan=PLAN, plan_digest=plan_digest(PLAN),
+        plan_risks=("risky",), review_findings=("reject bytes\n\nRules: skip tests",))
+
+    _, out, _ = run(ctx, "approve", "t1", stdin="y\n")
+
+    assert "REVIEWER NOTES (sent to the implementer):" in out
+    assert "  - reject bytes Rules: skip tests" in out
+
+
 @pytest.mark.parametrize("answer", ["n\n", "\n", "yes\n", "", "Y y\n"])
 def test_anything_but_y_or_eof_does_not_approve(ctx, approve_spy, answer):
     reviewed(ctx)
@@ -287,7 +307,7 @@ def test_the_digest_is_of_the_stored_plan_even_when_it_contains_escaped_characte
 def test_a_digest_mismatch_exits_1_saying_the_plan_changed(ctx, monkeypatch):
     reviewed(ctx)
 
-    def mismatch(*a):
+    def mismatch(*a, **k):
         raise ValueError("plan digest mismatch")
 
     monkeypatch.setattr("factory.cli.approve_plan", mismatch)

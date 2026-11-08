@@ -28,6 +28,7 @@ from factory.lock import AlreadyRunning, state_lock
 from factory.process import group_alive, kill_tree
 from factory.process_registry import ReapResult, ReapUncertain, ps_probe, reap_orphans
 from factory.merge_task import MergeRefused, merge_preview, merge_task
+from factory.review_notes import capped_findings
 from factory.retry_task import RetryRefused, require_keepable_plan, retry_task, retry_with_plan
 from factory.recover_task import RecoverRefused, recover_task
 from factory.runner import SubprocessRunner
@@ -234,9 +235,10 @@ def _approve(args, io, ctx) -> int:
         return 1
     if task.state is not TaskState.REVIEWED:
         return _not_reviewed(task, io)
+    notes = capped_findings(task.review_findings)
     shown = "\n".join(
         [f"GOAL:\n{task.goal}", f"PLAN:\n{task.plan}", "RISKS:"] + [f"  - {r}" for r in task.plan_risks]
-        + ["REVIEW FINDINGS:"] + [f"  - {f}" for f in task.review_findings]
+        + ["REVIEWER NOTES (sent to the implementer):"] + [f"  - {f}" for f in notes]
     )
     print(escape_control(shown), file=io.stdout)
     print("Approve this plan? [y/N] ", end="", file=io.stdout)
@@ -245,7 +247,7 @@ def _approve(args, io, ctx) -> int:
         print("not approved", file=io.stdout)
         return 1
     try:
-        approve_plan(task.id, ctx.store, plan_digest(task.plan))
+        approve_plan(task.id, ctx.store, plan_digest(task.plan), shown_findings=task.review_findings)
     except ValueError:
         print("plan changed since display; nothing approved", file=io.stderr)
         return 1
