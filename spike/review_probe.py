@@ -2,11 +2,13 @@
 Frozen: the baseline prompt and both probe texts are inline, so results stay reproducible after
 plan 25 changes factory.review_plan.build_review_prompt.
 
+Plan 27 round 2 added probe6 (probe5 + nan/inf and garbled output are required, a missing test alone never); 12 runs, about $0.45.
 Plan 26 added probe3 (probe2 + a "Recommend:" sentence) and probe4 (probe3 + a 400-character limit).
 
 Run: uv run --project orchestrator python spike/review_probe.py [variant,...] [plan,...]
-  variants: current, probe1, probe2, probe3, probe4 (default: all)   plans: mean, is_even, join_words, parse_ints, messy (default: mean, is_even)
+  variants: current, probe1 to probe6 (default: all)   plans: mean, is_even, join_words, parse_ints, messy (default: mean, is_even)
 Real API calls, <= $0.30 each, 3 runs per cell. Plan 25: current+probe1 12 runs $0.49, probe2 6 runs $0.21.
+Plan 27 added probe5 (probe2 + required/optional tags on each recommendation); 12 runs, about $0.45.
 Plan 26: probe3 and probe4 on mean, is_even, join_words, messy: 24 runs, about $0.90.
 Output: spike/review-probe-out/ (gitignored) plus a summary printed to stdout."""
 import json, os, re, subprocess, sys, time
@@ -16,7 +18,7 @@ ROOT = Path(__file__).resolve().parent.parent
 OUT = Path(__file__).resolve().parent / "review-probe-out"
 OUT.mkdir(exist_ok=True)
 sys.path.insert(0, str(ROOT / "orchestrator" / "src"))
-from factory.review_plan import EDGE_CASE_INSTRUCTION, REVIEW_SCHEMA  # noqa: E402
+from factory.review_plan import REVIEW_SCHEMA  # noqa: E402
 
 def baseline_prompt(goal, plan):  # frozen copy of build_review_prompt as of plan 24
     return (
@@ -49,8 +51,24 @@ PROBE3 = PROBE2 + (
 )
 # plan 26 spike round 2: same, with a length limit so the 500-char cap never cuts a recommendation
 PROBE4 = PROBE3 + " Keep every finding under 400 characters."
-assert PROBE4 == EDGE_CASE_INSTRUCTION  # the shipped text is the one measured in round 2
-VARIANTS = {"current": "", "probe1": PROBE1, "probe2": PROBE2, "probe3": PROBE3, "probe4": PROBE4}
+# plan 27 spike: the reviewer tags each recommendation required or optional (replaces probe4's last two sentences)
+PROBE5 = PROBE2 + (
+    " End each edge-case gap finding with 'Recommend (required): ' or 'Recommend (optional): ' followed by one "
+    "imperative sentence stating the behaviour the implementation should have (for example, 'Recommend (required): "
+    "raise TypeError for bytes and add a test'). Use required when the plan would give a silently wrong result, a "
+    "crash or a hang on an input its declared signature admits; use optional for precision, style, documentation or "
+    "extra tests. Keep every finding under 400 characters."
+)
+# plan 27 round 2: nan/inf and garbled output count as silently wrong; a missing test alone is never required
+PROBE6 = PROBE2 + (
+    " End each edge-case gap finding with 'Recommend (required): ' or 'Recommend (optional): ' followed by one "
+    "imperative sentence stating the behaviour the implementation should have (for example, 'Recommend (required): "
+    "raise TypeError for bytes and add a test'). Use required when the plan would give a silently wrong result "
+    "(including a nan or inf result, or garbled output such as doubled separators), a crash or a hang on an input "
+    "its declared signature admits; use optional for precision, style and documentation. A missing test on its own "
+    "is never required. Keep every finding under 400 characters."
+)
+VARIANTS = {"current": "", "probe1": PROBE1, "probe2": PROBE2, "probe3": PROBE3, "probe4": PROBE4, "probe5": PROBE5, "probe6": PROBE6}
 PLANS = {
     "mean": ("Add a mean function to calc",
              "1. Add `mean(values: Iterable[float]) -> float` to `target/src/calc/__init__.py` (arithmetic mean; "
@@ -105,10 +123,13 @@ def main(variants, plans):
                     print(f"{plan_name:8} {variant:8} #{i}: no structured output"); continue
                 text = " ".join(out["findings"]).lower()
                 hits = [k for k, rx in HITS.items() if re.search(rx, text)]
-                rec = sum("recommend:" in f.lower() for f in out["findings"])
+                low = [f.lower() for f in out["findings"]]
+                rec = sum("recommend:" in f for f in low) + sum("recommend (" in f for f in low)
+                req = sum("recommend (required)" in f for f in low)
+                opt = sum("recommend (optional)" in f for f in low)
                 longest = max((len(f) for f in out["findings"]), default=0)
                 print(f"{plan_name:8} {variant:8} #{i}: {out['verdict']:7} findings={len(out['findings'])} "
-                      f"hits={hits} recommend={rec} longest={longest} turns={turns} ${cost:.3f}")
+                      f"hits={hits} recommend={rec} required={req} optional={opt} longest={longest} turns={turns} ${cost:.3f}")
                 for f in out["findings"]:
                     print(f"      - {f[:160]}")
     print(f"total ${total:.2f}")
