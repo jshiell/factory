@@ -201,7 +201,7 @@ def test_a_task_that_kept_its_plan_is_implemented_with_the_approved_prompt_in_a_
     plan = "1. add multiply\n2. test it"
     store.save(Task(id="t1", prompt=build_implementation_prompt("add multiply", plan), state=TaskState.FAILED,
                     goal="add multiply", plan=plan, plan_digest=plan_digest(plan), failure_reason="tests_failed"))
-    child = retry_with_plan("t1", store, lambda: datetime(2026, 1, 2, 3, 4, 5), plan_digest(plan))
+    child = retry_with_plan("t1", store, lambda: datetime(2026, 1, 2, 3, 4, 5), plan_digest(plan), ())
 
     factory(project, "advance", child.id)
 

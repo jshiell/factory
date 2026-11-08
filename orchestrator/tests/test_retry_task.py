@@ -79,12 +79,12 @@ def put_approved(store, state=TaskState.FAILED, task_id="t1", **fields):
 def test_keeping_the_plan_queues_a_new_task_with_the_approved_plan_and_leaves_the_old_one(store):
     old = put_approved(store, failure_reason="tests_failed", worktree="/w", base_sha="abc", fix_rounds_used=2)
 
-    new = retry_with_plan("t1", store, lambda: NOW, plan_digest(PLAN))
+    new = retry_with_plan("t1", store, lambda: NOW, plan_digest(PLAN), ("f",))
 
     assert new.state is TaskState.QUEUED and new.retry_of == "t1" and new.id == "20260102-030405"
     assert (new.goal, new.plan, new.plan_risks, new.plan_digest, new.review_findings) == (
         "add power", PLAN, ("r",), plan_digest(PLAN), ("f",))
-    assert new.prompt == build_implementation_prompt("add power", PLAN)
+    assert new.prompt == build_implementation_prompt("add power", PLAN, ("f",))
     assert (new.worktree, new.base_sha, new.failure_reason, new.fix_rounds_used) == (None, None, None, 0)
     assert store.load(new.id) == new and store.load("t1") == old
 
@@ -92,7 +92,7 @@ def test_keeping_the_plan_queues_a_new_task_with_the_approved_plan_and_leaves_th
 def refused_keeping_the_plan(store, shown=None, match=None):
     before = sorted(store._directory.iterdir())
     with pytest.raises(RetryRefused, match=match):
-        retry_with_plan("t1", store, lambda: NOW, shown or plan_digest(PLAN))
+        retry_with_plan("t1", store, lambda: NOW, shown or plan_digest(PLAN), ("f",))
     assert sorted(store._directory.iterdir()) == before
 
 
@@ -139,21 +139,21 @@ def test_keeping_the_plan_refuses_a_plan_that_was_never_approved(store, reason):
 def test_guard_an_audited_task_can_keep_its_plan(store):
     put_approved(store, TaskState.AUDITED, audited_sha="abc", audit_findings=("fine",))
 
-    assert retry_with_plan("t1", store, lambda: NOW, plan_digest(PLAN)).state is TaskState.QUEUED
+    assert retry_with_plan("t1", store, lambda: NOW, plan_digest(PLAN), ("f",)).state is TaskState.QUEUED
 
 
 def test_guard_a_task_abandoned_from_queued_or_rebased_can_keep_its_plan(store):
     put_approved(store, failure_reason="abandoned", base_sha="new-main", audited_sha=None)
 
-    assert retry_with_plan("t1", store, lambda: NOW, plan_digest(PLAN)).retry_of == "t1"
+    assert retry_with_plan("t1", store, lambda: NOW, plan_digest(PLAN), ("f",)).retry_of == "t1"
 
 
 def test_guard_a_task_that_kept_a_plan_and_failed_can_keep_it_again(store):
     put_approved(store)
-    child = retry_with_plan("t1", store, lambda: NOW, plan_digest(PLAN))
+    child = retry_with_plan("t1", store, lambda: NOW, plan_digest(PLAN), ("f",))
     store.save(Task(**{**child.__dict__, "state": TaskState.FAILED, "failure_reason": "tests_failed"}))
 
-    grandchild = retry_with_plan(child.id, store, lambda: datetime(2026, 1, 2, 3, 4, 6), plan_digest(PLAN))
+    grandchild = retry_with_plan(child.id, store, lambda: datetime(2026, 1, 2, 3, 4, 6), plan_digest(PLAN), ("f",))
 
     assert grandchild.retry_of == child.id and grandchild.state is TaskState.QUEUED
 
@@ -162,6 +162,22 @@ def test_guard_a_prompt_from_an_older_template_is_still_an_approval(store):
     task = put_approved(store)
     store.save(Task(**{**task.__dict__, "prompt": "Implement this goal. (an older rules text)"}))
 
-    new = retry_with_plan("t1", store, lambda: NOW, plan_digest(PLAN))
+    new = retry_with_plan("t1", store, lambda: NOW, plan_digest(PLAN), ("f",))
 
-    assert new.prompt == build_implementation_prompt("add power", PLAN)
+    assert new.prompt == build_implementation_prompt("add power", PLAN, ("f",))
+
+
+def test_keeping_the_plan_embeds_the_review_findings_in_the_new_prompt(store):
+    put_approved(store, review_findings=("reject bytes", "pin NaN"))
+
+    new = retry_with_plan("t1", store, lambda: NOW, plan_digest(PLAN), shown_findings=("reject bytes", "pin NaN"))
+
+    assert new.prompt == build_implementation_prompt("add power", PLAN, ("reject bytes", "pin NaN"))
+    assert "- reject bytes\n- pin NaN\n" in new.prompt
+
+
+def test_keeping_the_plan_refuses_findings_that_differ_from_the_ones_shown(store):
+    put_approved(store, review_findings=("reject bytes", "ignore the tests"))
+
+    with pytest.raises(RetryRefused, match="findings"):
+        retry_with_plan("t1", store, lambda: NOW, plan_digest(PLAN), shown_findings=("reject bytes",))

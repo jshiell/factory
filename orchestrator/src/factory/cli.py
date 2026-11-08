@@ -301,7 +301,7 @@ def _retry_keeping_plan(task: Task, io, ctx) -> int:
         return 1
     lines = [
         f"RETRY of {task.id} ({task.state.value}), keeping its approved plan", f"GOAL:\n{task.goal}", f"PLAN:\n{task.plan}", "RISKS:",
-        *(f"  - {r}" for r in task.plan_risks), "REVIEW FINDINGS:", *(f"  - {f}" for f in task.review_findings),
+        *(f"  - {r}" for r in task.plan_risks), "REVIEWER NOTES (sent to the implementer):", *(f"  - {f}" for f in capped_findings(task.review_findings)),
     ]
     if task.failure_reason:
         lines.append(f"FAILED BECAUSE: {task.failure_reason}")
@@ -315,7 +315,8 @@ def _retry_keeping_plan(task: Task, io, ctx) -> int:
         print("not queued", file=io.stdout)
         return 1
     try:
-        new = retry_with_plan(task.id, ctx.store, ctx.clock, plan_digest(task.plan))
+        new = retry_with_plan(
+            task.id, ctx.store, ctx.clock, plan_digest(task.plan), shown_findings=task.review_findings)
     except RetryRefused:
         print("plan changed since display; nothing queued", file=io.stderr)
         return 1
