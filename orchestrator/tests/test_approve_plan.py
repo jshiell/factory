@@ -102,3 +102,24 @@ def test_the_implementation_prompt_says_failing_tests_may_be_sent_back():
     from factory.approve_plan import build_implementation_prompt
 
     assert "may send back test failures" in build_implementation_prompt("g", "p")
+
+
+# Characterisation (plan 24 C0; these start green): the prompt text and the rejected-review path.
+def test_guard_the_implementation_prompt_is_pinned_literally():
+    assert build_implementation_prompt("g", "p") == (
+        "Implement this goal by following the approved plan.\n\nGOAL: g\n\nPLAN:\np\n\nRules: write the failing test "
+        "first, then the implementation. Only add tests; never edit or remove existing tests, and do not change test "
+        "configuration (conftest.py, pytest settings). You cannot run commands: the factory will run the tests after "
+        "you finish and may send back test failures to fix, so write code you are confident is correct. "
+        "Do not use git; do not commit."
+    )
+
+
+def test_guard_a_review_rejected_task_with_findings_cannot_be_approved(store):
+    store.save(replace(store.load("t1"), state=TaskState.FAILED, failure_reason="review_rejected",
+                       review_findings=("the plan is wrong",)))
+
+    with pytest.raises(InvalidTransition):
+        approve_plan("t1", store, plan_digest(PLAN))
+
+    assert store.load("t1").prompt == ""
