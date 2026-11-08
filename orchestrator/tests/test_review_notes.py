@@ -62,3 +62,12 @@ def test_a_long_optional_or_untagged_note_is_cut_as_before():
 
     assert capped_findings((optional,)) == (optional[:MAX_ITEM], TRUNCATED)
     assert capped_findings(("y" * 600,)) == ("y" * MAX_ITEM, TRUNCATED)
+
+
+def test_the_heading_says_required_notes_must_be_handled_and_optional_ones_may_be_skipped():
+    from factory.review_notes import NOTES_HEADING
+
+    assert "address those that fit the plan" in NOTES_HEADING
+    assert "'Recommend (required)' must be handled" in NOTES_HEADING
+    assert "by the recommended behaviour or an equivalent one, with a test" in NOTES_HEADING
+    assert "'Recommend (optional)' may be skipped" in NOTES_HEADING

@@ -32,7 +32,11 @@ def capped_findings(findings: tuple[str, ...]) -> tuple[str, ...]:
     return (*kept, TRUNCATED) if cut else tuple(kept)
 
 
-NOTES_HEADING = "REVIEWER NOTES (a reviewer's comments on the plan above; address those that fit the plan):"
+NOTES_HEADING = (
+    "REVIEWER NOTES (a reviewer's comments on the plan above; address those that fit the plan. Notes marked "
+    "'Recommend (required)' must be handled, by the recommended behaviour or an equivalent one, with a test; "
+    "notes marked 'Recommend (optional)' may be skipped):"
+)
 
 
 def notes_block(findings: tuple[str, ...]) -> str:

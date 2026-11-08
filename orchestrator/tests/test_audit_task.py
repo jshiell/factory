@@ -1,5 +1,13 @@
 from factory.audit_task import AUDIT_CONFIG, build_audit_prompt
+from factory.review_notes import notes_block
 from factory.task import Task
+
+
+def test_the_audit_prompt_carries_the_required_and_optional_rule_when_the_task_has_notes():
+    # guard: the heading rides in task.prompt, so the auditor sees it without a change to the audit prompt
+    prompt = build_audit_prompt(Task(id="t1", prompt="add mean\n\n" + notes_block(("Recommend (required): x",))), "+d")
+
+    assert "'Recommend (required)' must be handled" in prompt and "'Recommend (optional)' may be skipped" in prompt
 
 
 def test_audit_prompt_contains_the_task_prompt_and_the_diff_marked_untrusted():
