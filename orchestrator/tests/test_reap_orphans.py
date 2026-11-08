@@ -1,6 +1,6 @@
 import pytest
 
-from factory.process_registry import Record, load_records, reap_orphans, write_record
+from factory.process_registry import ProbeFailed, ReapUncertain, Record, load_records, reap_orphans, write_record
 
 
 def record(**overrides):
@@ -69,3 +69,22 @@ def test_a_dead_leader_with_a_live_group_has_the_group_killed(tmp_path):
     assert fakes.killed == [4242]
     assert load_records(tmp_path) == []
     assert [r.pid for r in result.killed] == [4242]
+
+
+def test_a_failed_probe_keeps_its_record_and_raises_but_the_other_orphans_are_still_reaped(tmp_path):
+    write_record(tmp_path, record(pid=4242, pgid=4242))
+    write_record(tmp_path, record(pid=4343, pgid=4343, task_id="t2"))
+    fakes = Fakes(started={4343: 100.2}, group_alive={4343})
+    probe = fakes.probe
+
+    def flaky(pid):
+        if pid == 4242:
+            raise ProbeFailed("ps: operation not permitted")
+        return probe(pid)
+
+    with pytest.raises(ReapUncertain) as raised:
+        reap_orphans(tmp_path, flaky, fakes.kill, fakes.group_alive)
+
+    assert [r.pid for r in load_records(tmp_path)] == [4242]
+    assert [r.pid for r in raised.value.killed] == [4343]
+    assert "4242" in str(raised.value) and "ps: operation not permitted" in str(raised.value)
