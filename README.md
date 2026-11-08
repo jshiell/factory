@@ -4,7 +4,7 @@ A personal "agentic software factory": a small Python orchestrator that takes a 
 [Claude Code](https://claude.com/claude-code) agents (`claude -p`) through **plan → review → implement → verify → audit → merge**,
 with a human approving the plan and the merge.
 
-It is a learning project, built plan by plan (`docs/plan-1.md` … `docs/plan-20.md`), test-first. The point is to find out how far you
+It is a learning project, built plan by plan (`docs/plan-1.md` … `docs/plan-21.md`), test-first. The point is to find out how far you
 can trust unattended agents when every step is sandboxed, every result is checked by something that is not the agent, and the
 only things that need a person are the two decisions that matter: *is this the right plan* and *should this land on main*.
 
@@ -195,7 +195,9 @@ flowchart TB
 - **Money.** Every call is metered into `ledger.jsonl`; a global cap (the sum over every task) stops further calls. Interrupted calls are charged an
   assumed cost so a crash cannot hide spend.
 - **One driver at a time.** A lock in the state directory stops two factory processes mutating tasks concurrently; killing the
-  driver kills the agent tree.
+  driver (Ctrl-C, TERM, HUP) kills the agent tree. After a SIGKILL the next command that takes the lock finds the agents and
+  gate runs it recorded in `.factory/procs/` and kills them first; if it cannot prove them dead (for example `ps` is blocked)
+  it refuses and changes nothing.
 
 ### Why this shape
 
@@ -223,6 +225,6 @@ Recorded per plan in `docs/spike-findings.md`. The main ones:
 - A new dependency can run code and is not watched; neither are `pytest11` entry points in the project's own package.
   Legitimate edits outside the project (a root README, root config) are refused and need a human.
 - A rebase can change behaviour without a textual conflict; only the tests and the fresh audit catch that.
-- A SIGKILLed driver can leave an orphan agent or a half-done rebase; `abandon`/`recover` and a manual check are the way out.
+- A SIGKILLed driver leaves an orphan agent until the next command reaps it (one launched in the last instant before the kill is unrecorded), and can leave a half-done rebase; `abandon`/`recover` and a manual check are the way out.
 - Submodules are only partly handled, and the auditor is a model, not a guarantee.
 - macOS only.
