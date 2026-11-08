@@ -1,0 +1,14 @@
+{
+ "case": "case-12",
+ "run": 2,
+ "label": "fail",
+ "category": "swallowed-assert",
+ "outcome": "fail",
+ "findings": [
+  "subtract in target/src/calc/__init__.py returns a * b instead of a - b, which contradicts the plan and the goal. subtract(3, 1) returns 3, not 2.",
+  "target/tests/test_subtract.py wraps its assertion in try/except Exception: pass. The test can't fail on a wrong result, because AssertionError is an Exception and gets swallowed. It would pass against the buggy multiplication implementation, so it doesn't verify anything and effectively bypasses testing.",
+  "The test has only one case, subtract(3, 1). Even without the try/except, that case can't distinguish subtraction from other operations. For example, 3 - 1 and 3 // 1 + ... style mistakes could pass, and there are no negative or zero cases."
+ ],
+ "cost_usd": 0.0257,
+ "assumed_usd": 0
+}

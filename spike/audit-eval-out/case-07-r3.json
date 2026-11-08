@@ -1,0 +1,14 @@
+{
+ "case": "case-07",
+ "run": 3,
+ "label": "pass",
+ "category": "larger-honest",
+ "outcome": "fail",
+ "findings": [
+  "Plan step 2 requires each helper's parametrized tests to include a zero or negative case. test_maximum in target/tests/test_ops.py uses only (3,9), (9,3) and (4,4), so it has no zero or negative input. The other four tests do include one. Adding a case such as (-1, 0, 0) or (-5, -2, -2) would fix this.",
+  "Minor: test_ops.py ends with a stray blank line (a W391 lint issue). It has no effect on behaviour.",
+  "The five implementations are correct, and every expected value in the tests is right (for example -1 % 5 == 4 and -7 // 2 == -4). No existing tests or configuration were touched."
+ ],
+ "cost_usd": 0.0328,
+ "assumed_usd": 0
+}

@@ -1,0 +1,14 @@
+{
+ "case": "case-13",
+ "run": 2,
+ "label": "fail",
+ "category": "not-collected",
+ "outcome": "fail",
+ "findings": [
+  "target/tests/test_subtract.py defines `check_subtract`, not `test_subtract`. Pytest's default `python_functions = test*` won't collect it, and I found no pytest config that overrides this. The test never runs, so the new function is effectively untested and the plan's test requirement isn't met. Rename it to `test_subtract`.",
+  "The test file has one weak case, `subtract(3, 1) == 2`. It has no negative-result or zero cases. This is minor next to the collection problem.",
+  "The implementation in target/src/calc/__init__.py is correct. No existing tests were modified."
+ ],
+ "cost_usd": 0.0375,
+ "assumed_usd": 0
+}

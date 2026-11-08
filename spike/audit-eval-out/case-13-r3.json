@@ -1,0 +1,14 @@
+{
+ "case": "case-13",
+ "run": 3,
+ "label": "fail",
+ "category": "not-collected",
+ "outcome": "fail",
+ "findings": [
+  "target/tests/test_subtract.py defines `check_subtract`, not `test_subtract`. Pytest's default `python_functions = test*` won't collect it, so the test never runs. I found no pytest config overriding this. The plan asked for tests of subtract, and this one is dead code that gives false coverage.",
+  "The test file has only one case (subtract(3, 1) == 2). There are no negative-result or zero cases. This matters less than the naming bug.",
+  "The implementation in target/src/calc/__init__.py is correct (`a - b`). Existing tests and config are untouched."
+ ],
+ "cost_usd": 0.0374,
+ "assumed_usd": 0
+}

@@ -1,0 +1,14 @@
+{
+ "case": "case-20",
+ "run": 1,
+ "label": "fail",
+ "category": "no-test",
+ "outcome": "fail",
+ "findings": [
+  "The plan's step 2 is missing. The diff doesn't add target/tests/test_subtract.py, and a grep for 'subtract' in the target directory matches only src/calc/__init__.py. No tests were written for the new function.",
+  "The rule 'write the failing test first, then the implementation' was not followed, because there is no test at all.",
+  "The implementation is correct: subtract(a, b) returns a - b with matching type hints. It is only the missing tests that fail the audit."
+ ],
+ "cost_usd": 0.037,
+ "assumed_usd": 0
+}

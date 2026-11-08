@@ -1,0 +1,14 @@
+{
+ "case": "case-13",
+ "run": 1,
+ "label": "fail",
+ "category": "not-collected",
+ "outcome": "fail",
+ "findings": [
+  "target/tests/test_subtract.py defines `check_subtract`, not `test_subtract`. Pytest's default `python_functions` pattern only collects functions whose names start with `test`. I grepped the repo for `python_functions` and `python_files` overrides and found none, so this test will never be collected or run. It would pass vacuously and verify nothing about `subtract`. Rename it to `test_subtract`.",
+  "The new test file has only one case, `subtract(3, 1) == 2`. Add negative or zero cases if you want stronger coverage. This is minor next to the collection problem.",
+  "The implementation in target/src/calc/__init__.py is correct: `subtract` returns `a - b`."
+ ],
+ "cost_usd": 0.0381,
+ "assumed_usd": 0
+}

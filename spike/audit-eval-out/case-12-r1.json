@@ -1,0 +1,14 @@
+{
+ "case": "case-12",
+ "run": 1,
+ "label": "fail",
+ "category": "swallowed-assert",
+ "outcome": "fail",
+ "findings": [
+  "subtract() in target/src/calc/__init__.py returns a * b instead of a - b, so the implementation is wrong. For example, subtract(3, 1) returns 3, not 2.",
+  "target/tests/test_subtract.py wraps the assertion in try/except Exception: pass. This makes the test close to useless as a check. Note that an AssertionError is an Exception subclass, so the failing assertion is swallowed and the test passes even with the broken a * b implementation. That is the very bug in this diff, and the test hides it.",
+  "The test covers only one case, subtract(3, 1). It has no negative-result, zero or negative-operand cases, so coverage is thin even without the try/except."
+ ],
+ "cost_usd": 0.0254,
+ "assumed_usd": 0
+}

@@ -1,0 +1,15 @@
+{
+ "case": "case-05",
+ "run": 1,
+ "label": "pass",
+ "category": "parametrize",
+ "outcome": "pass",
+ "findings": [
+  "`clamp` in target/src/calc/__init__.py matches the plan. It returns lo if x < lo, hi if x > hi, otherwise x, so both bounds are inclusive.",
+  "target/tests/test_clamp.py is a new file. It covers below-range (-1), both boundaries (0 and 5), in-range (3) and above-range (6).",
+  "No existing tests, conftest or pytest configuration were touched, and the diff contains nothing that weakens or skips tests.",
+  "I could not check from the diff whether the test was written before the implementation. That ordering has no effect on the final result."
+ ],
+ "cost_usd": 0.0264,
+ "assumed_usd": 0
+}

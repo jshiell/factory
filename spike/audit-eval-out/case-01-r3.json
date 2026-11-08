@@ -1,0 +1,10 @@
+{
+ "case": "case-01",
+ "run": 3,
+ "label": "pass",
+ "category": "minimal",
+ "outcome": "pass",
+ "findings": [],
+ "cost_usd": 0.036,
+ "assumed_usd": 0
+}

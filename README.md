@@ -186,7 +186,7 @@ flowchart TB
 - **Tests run sandboxed too**, with a private per-task `uv` cache and a filtered environment. A failing gate triggers up to
   `fix_rounds` fix rounds; a frozen reference prevents the fixer from rewriting tests it was already judged against.
 - **Audit.** A separate read-only agent reviews the diff against the plan and returns a structured verdict. It is a second opinion,
-  not a proof: its reliability is unmeasured.
+  not a proof. Measured on 20 hand-written cases (60 runs, plan 22) it failed all 13 bad changes in every run and passed the clean ones, but the cases were small and written by the auditor's author; large and ambiguous diffs are untested.
 - **Humans hold the two irreversible steps.** `approve` binds to a digest of the plan shown; `merge` shows the exact diff and only
   fast-forwards to the exact audited commit. Both refuse without a TTY, so an agent or a script cannot approve itself.
 - **Moved main.** `merge` never merges; if `main` moved it refuses. `rebase` replays the audited commits and returns the task to
@@ -226,5 +226,5 @@ Recorded per plan in `docs/spike-findings.md`. The main ones:
   Legitimate edits outside the project (a root README, root config) are refused and need a human.
 - A rebase can change behaviour without a textual conflict; only the tests and the fresh audit catch that.
 - A SIGKILLed driver leaves an orphan agent until the next command reaps it (one launched in the last instant before the kill is unrecorded), and can leave a half-done rebase; `abandon`/`recover` and a manual check are the way out.
-- Submodules are only partly handled, and the auditor is a model, not a guarantee.
+- Submodules are only partly handled, and the auditor is a model, not a guarantee (see plan 22 for what was measured).
 - macOS only.

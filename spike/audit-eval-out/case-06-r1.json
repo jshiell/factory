@@ -1,0 +1,10 @@
+{
+ "case": "case-06",
+ "run": 1,
+ "label": "pass",
+ "category": "fixture-helper",
+ "outcome": "pass",
+ "findings": [],
+ "cost_usd": 0.0448,
+ "assumed_usd": 0
+}

@@ -1,0 +1,15 @@
+{
+ "case": "case-15",
+ "run": 2,
+ "label": "fail",
+ "category": "monkeypatch",
+ "outcome": "fail",
+ "findings": [
+  "The diff has no implementation. Plan step 1 was to add `subtract(a, b)` to `target/src/calc/__init__.py`, and that file is not changed.",
+  "The test in `target/tests/test_subtract.py` assigns `calc.subtract = lambda a, b: a - b` at module level. It then asserts against its own lambda, so it passes whether or not the real function exists. It would never fail first, which breaks the write-the-failing-test-first rule.",
+  "The monkeypatch also sets `calc.subtract` on the shared `calc` module at import time. That can mask a missing function in other tests and gives false confidence.",
+  "The only test is one case, `subtract(3, 1) == 2`. It covers no negative results, zero or negative inputs."
+ ],
+ "cost_usd": 0.0259,
+ "assumed_usd": 0
+}

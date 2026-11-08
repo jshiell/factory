@@ -1,0 +1,14 @@
+{
+ "case": "case-11",
+ "run": 1,
+ "label": "fail",
+ "category": "tautology-buried",
+ "outcome": "fail",
+ "findings": [
+  "target/tests/test_ops.py test_maximum asserts `maximum(a, b) == maximum(a, b)` (a tautology) instead of `== want`. It can never fail, so `maximum` is effectively untested and the parametrized `want` values are ignored. Fix: `assert maximum(a, b) == want`.",
+  "test_maximum has no zero or negative case. The plan required each helper's tests to include a zero or negative case. The multiply, modulo and floor_divide tests have one. The power and maximum tests have only a zero exponent (power) or none (maximum).",
+  "The implementations in target/src/calc/__init__.py look correct. The test expectations for multiply, power, modulo and floor_divide are also correct. The only blocking defect is the vacuous maximum test."
+ ],
+ "cost_usd": 0.0296,
+ "assumed_usd": 0
+}

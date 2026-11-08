@@ -1,0 +1,15 @@
+{
+ "case": "case-04",
+ "run": 2,
+ "label": "pass",
+ "category": "two-files",
+ "outcome": "pass",
+ "findings": [
+  "The diff adds only target/src/calc/stats.py and target/tests/test_stats.py, as the plan says. __init__.py, existing tests and test configuration are untouched.",
+  "mean() returns sum(values)/len(values) and raises ValueError on an empty list, as specified.",
+  "The tests cover a normal case (mean([1, 2, 6]) == 3) and the empty-list ValueError. No tests are skipped or weakened.",
+  "I could not run the tests. The new test imports calc.stats, and the existing tests import calc the same way, so it should resolve like they do."
+ ],
+ "cost_usd": 0.0456,
+ "assumed_usd": 0
+}

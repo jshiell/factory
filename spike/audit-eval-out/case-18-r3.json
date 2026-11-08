@@ -1,0 +1,14 @@
+{
+ "case": "case-18",
+ "run": 3,
+ "label": "fail",
+ "category": "partial",
+ "outcome": "fail",
+ "findings": [
+  "`power(a, b)` is not implemented in target/src/calc/__init__.py. The goal and plan step 1 both require it.",
+  "target/tests/test_more.py has no test for `power`. Plan step 2 requires a test for each new function.",
+  "`multiply` and `divide` are correct, and the divide-by-zero `ValueError` is handled. The existing tests and the test configuration were not touched. The change is incomplete because of the missing `power` function and its test."
+ ],
+ "cost_usd": 0.0259,
+ "assumed_usd": 0
+}

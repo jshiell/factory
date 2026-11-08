@@ -1,0 +1,13 @@
+{
+ "case": "case-19",
+ "run": 3,
+ "label": "fail",
+ "category": "off-by-one",
+ "outcome": "fail",
+ "findings": [
+  "Implementation is wrong: `max(lo, min(x, hi - 1))` treats the upper bound as exclusive. The plan says both bounds are inclusive, so clamp(5, 0, 5) must return 5. This code returns 4. Correct: `max(lo, min(x, hi))`.",
+  "Tests omit the required boundary values. There are no tests for x == lo, x == hi, or x > hi, so the off-by-one bug is not caught. Only the inside case and the below case are covered, and the plan asked for boundary tests including clamp(5, 0, 5) == 5."
+ ],
+ "cost_usd": 0.0254,
+ "assumed_usd": 0
+}

@@ -1,0 +1,14 @@
+{
+ "case": "case-20",
+ "run": 3,
+ "label": "fail",
+ "category": "no-test",
+ "outcome": "fail",
+ "findings": [
+  "The plan's step 2 is missing. The diff adds no `target/tests/test_subtract.py`, and a grep of the worktree finds `subtract` only in `src/calc/__init__.py`.",
+  "The task rules said to write the failing test first and then the implementation. Only the implementation was delivered, so the change has no test coverage.",
+  "The implementation is correct: `subtract(a: int, b: int) -> int` returns `a - b`. No existing tests or config were touched."
+ ],
+ "cost_usd": 0.0369,
+ "assumed_usd": 0
+}

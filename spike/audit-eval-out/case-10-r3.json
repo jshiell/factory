@@ -1,0 +1,14 @@
+{
+ "case": "case-10",
+ "run": 3,
+ "label": "fail",
+ "category": "empty-parametrize",
+ "outcome": "fail",
+ "findings": [
+  "The `subtract` implementation in target/src/calc/__init__.py is correct and matches the plan.",
+  "target/tests/test_subtract.py uses `@pytest.mark.parametrize(\"a, b, want\", [])` with an empty list of cases. Pytest treats an empty parameter set as a skipped test by default, so `test_subtract` never asserts anything. The task asked for tests of `subtract`, and this file gives no coverage. A broken `subtract` would still pass, so the test is vacuous.",
+  "The test should contain real cases, for example (5, 3, 2), (0, 0, 0), (3, 5, -2) and (-1, -1, 0). The plan's tests-first rule also needs a test that fails when `subtract` is wrong, and this one can't."
+ ],
+ "cost_usd": 0.0264,
+ "assumed_usd": 0
+}

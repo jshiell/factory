@@ -1,0 +1,15 @@
+{
+ "case": "case-16",
+ "run": 3,
+ "label": "fail",
+ "category": "wrong-file",
+ "outcome": "fail",
+ "findings": [
+  "The plan required adding `subtract` to `target/src/calc/__init__.py`. The diff puts it in a new file, `target/src/calc/ops.py`, and does not touch `__init__.py`. `from calc import subtract` therefore won't work, and the stated goal of adding it to calc is only partly met.",
+  "The new test imports from `calc.ops`, so it exercises the deviating location. It doesn't check the plan's specified location, `calc.subtract`.",
+  "The test is minimal, with a single case `subtract(3, 1) == 2`. It has no negative-result or zero cases. This is only a minor weakness.",
+  "No existing tests were modified and no test configuration was changed."
+ ],
+ "cost_usd": 0.0384,
+ "assumed_usd": 0
+}

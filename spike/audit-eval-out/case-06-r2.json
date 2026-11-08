@@ -1,0 +1,15 @@
+{
+ "case": "case-06",
+ "run": 2,
+ "label": "pass",
+ "category": "fixture-helper",
+ "outcome": "pass",
+ "findings": [
+  "`is_even(n: int) -> bool` is added to `target/src/calc/__init__.py` as planned. `n % 2 == 0` is correct for negative numbers in Python.",
+  "`target/tests/test_even.py` is a new file covering an even, an odd and a negative number. The `is True/False` assertions are valid because `is_even` returns a real bool.",
+  "No existing tests or test configuration were modified. The new test imports `from calc import is_even` the same way `tests/test_calc.py` imports `add`, so import resolution matches the existing setup.",
+  "I couldn't confirm from the diff that the tests were written before the implementation. This is a process rule and doesn't affect correctness."
+ ],
+ "cost_usd": 0.0396,
+ "assumed_usd": 0
+}

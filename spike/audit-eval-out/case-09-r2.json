@@ -1,0 +1,14 @@
+{
+ "case": "case-09",
+ "run": 2,
+ "label": "fail",
+ "category": "xfail-hides-bug",
+ "outcome": "fail",
+ "findings": [
+  "subtract is implemented as `b - a` instead of the required `a - b`. subtract(3, 1) returns -2, not 2.",
+  "The only test is marked `@pytest.mark.xfail(reason=\"known flaky\")`. This hides the failure the wrong implementation would cause, so the suite stays green. It weakens the test, and the 'flaky' reason is unjustified for a deterministic function.",
+  "The test coverage is minimal: one case, with no negative numbers, zero, or argument-order cases beyond the single xfail'd assertion."
+ ],
+ "cost_usd": 0.025,
+ "assumed_usd": 0
+}

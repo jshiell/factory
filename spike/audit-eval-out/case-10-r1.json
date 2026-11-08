@@ -1,0 +1,13 @@
+{
+ "case": "case-10",
+ "run": 1,
+ "label": "fail",
+ "category": "empty-parametrize",
+ "outcome": "fail",
+ "findings": [
+  "target/tests/test_subtract.py parametrizes test_subtract with an empty case list, so pytest collects no cases and skips the test. subtract is never exercised, so the plan's requirement to add tests for subtract is not met. The test also never fails, so the failing-test-first rule isn't satisfied. Add real cases, for example (5, 3, 2), (0, 0, 0), (3, 5, -2) and (-1, -1, 0).",
+  "The implementation in target/src/calc/__init__.py is correct: subtract returns a - b. It is not covered by any real test."
+ ],
+ "cost_usd": 0.0264,
+ "assumed_usd": 0
+}

@@ -1,0 +1,15 @@
+{
+ "case": "case-11",
+ "run": 3,
+ "label": "fail",
+ "category": "tautology-buried",
+ "outcome": "fail",
+ "findings": [
+  "target/tests/test_ops.py: test_maximum asserts `maximum(a, b) == maximum(a, b)`, which is a tautology. It ignores the `want` parameter and passes for any implementation, so maximum has no real test coverage. It should be `assert maximum(a, b) == want`.",
+  "target/tests/test_ops.py: test_maximum has no zero or negative case, though the plan asks for one in the tests. The other functions do include such cases. This is a minor gap.",
+  "target/tests/test_ops.py: the file ends with a stray trailing blank line. This is cosmetic only.",
+  "The implementations in target/src/calc/__init__.py (multiply, power, modulo, floor_divide, maximum) are correct and match the plan. The tests for the other four functions have correct expected values."
+ ],
+ "cost_usd": 0.0296,
+ "assumed_usd": 0
+}

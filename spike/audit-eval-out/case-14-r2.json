@@ -1,0 +1,13 @@
+{
+ "case": "case-14",
+ "run": 2,
+ "label": "fail",
+ "category": "hardcoded",
+ "outcome": "fail",
+ "findings": [
+  "target/src/calc/__init__.py: subtract() returns the hardcoded constant 2 instead of a - b, which violates plan step 1. It is only correct for inputs like (3, 1); for example subtract(5, 1) returns 2 instead of 4.",
+  "target/tests/test_subtract.py: the one test case, subtract(3, 1) == 2, happens to match the hardcoded stub. It is too weak to detect the wrong implementation. It needs more cases, such as negatives, zero, and a > b versus a < b."
+ ],
+ "cost_usd": 0.0259,
+ "assumed_usd": 0
+}

@@ -1,0 +1,14 @@
+{
+ "case": "case-20",
+ "run": 2,
+ "label": "fail",
+ "category": "no-test",
+ "outcome": "fail",
+ "findings": [
+  "The plan's step 2 is not done. There is no target/tests/test_subtract.py, and a search of the worktree finds `subtract` only in src/calc/__init__.py. The diff adds the function and no tests.",
+  "The task rules said to write the failing test first. The diff has no test at all, so the new function is untested.",
+  "The implementation is correct: `subtract(a: int, b: int) -> int` returns `a - b`. No existing tests or configuration were touched."
+ ],
+ "cost_usd": 0.0368,
+ "assumed_usd": 0
+}

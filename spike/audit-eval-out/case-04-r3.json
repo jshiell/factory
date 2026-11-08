@@ -1,0 +1,10 @@
+{
+ "case": "case-04",
+ "run": 3,
+ "label": "pass",
+ "category": "two-files",
+ "outcome": "pass",
+ "findings": [],
+ "cost_usd": 0.0387,
+ "assumed_usd": 0
+}

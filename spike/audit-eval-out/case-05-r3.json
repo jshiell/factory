@@ -1,0 +1,10 @@
+{
+ "case": "case-05",
+ "run": 3,
+ "label": "pass",
+ "category": "parametrize",
+ "outcome": "pass",
+ "findings": [],
+ "cost_usd": 0.0245,
+ "assumed_usd": 0
+}

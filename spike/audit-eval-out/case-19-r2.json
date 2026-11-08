@@ -1,0 +1,13 @@
+{
+ "case": "case-19",
+ "run": 2,
+ "label": "fail",
+ "category": "off-by-one",
+ "outcome": "fail",
+ "findings": [
+  "Implementation is wrong: `clamp` uses `min(x, hi - 1)`, making the upper bound exclusive. The plan says both bounds are inclusive, so clamp(5, 0, 5) must be 5. This code returns 4. Values above hi are also clamped to hi-1 instead of hi.",
+  "Tests are incomplete. The plan asks for boundary values, but there are no tests for x == lo, x == hi, or x > hi. The missing upper-bound tests are why the off-by-one bug is not caught. Only the inside and below cases are covered."
+ ],
+ "cost_usd": 0.0254,
+ "assumed_usd": 0
+}
