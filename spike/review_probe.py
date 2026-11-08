@@ -18,7 +18,7 @@ ROOT = Path(__file__).resolve().parent.parent
 OUT = Path(__file__).resolve().parent / "review-probe-out"
 OUT.mkdir(exist_ok=True)
 sys.path.insert(0, str(ROOT / "orchestrator" / "src"))
-from factory.review_plan import REVIEW_SCHEMA  # noqa: E402
+from factory.review_plan import EDGE_CASE_INSTRUCTION, REVIEW_SCHEMA  # noqa: E402
 
 def baseline_prompt(goal, plan):  # frozen copy of build_review_prompt as of plan 24
     return (
@@ -68,6 +68,7 @@ PROBE6 = PROBE2 + (
     "its declared signature admits; use optional for precision, style and documentation. A missing test on its own "
     "is never required. Keep every finding under 400 characters."
 )
+assert PROBE6 == EDGE_CASE_INSTRUCTION  # the shipped text is the one measured in plan 27 round 2
 VARIANTS = {"current": "", "probe1": PROBE1, "probe2": PROBE2, "probe3": PROBE3, "probe4": PROBE4, "probe5": PROBE5, "probe6": PROBE6}
 PLANS = {
     "mean": ("Add a mean function to calc",

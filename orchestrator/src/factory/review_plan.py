@@ -37,9 +37,12 @@ EDGE_CASE_INSTRUCTION = (
     "finding naming a concrete input and what the plan would do with it. Edge-case gaps must NOT change "
     "the verdict: use revise only for errors in the plan itself (wrong paths, contradictions, missing "
     "steps, breaking existing tests). Do not invent gaps that do not apply."
-    " End each edge-case gap finding with 'Recommend: ' followed by one imperative sentence stating the "
-    "behaviour the implementation should have (for example, 'Recommend: raise TypeError for bytes and add a "
-    "test'). Keep every finding under 400 characters."
+    " End each edge-case gap finding with 'Recommend (required): ' or 'Recommend (optional): ' followed by one "
+    "imperative sentence stating the behaviour the implementation should have (for example, 'Recommend (required): "
+    "raise TypeError for bytes and add a test'). Use required when the plan would give a silently wrong result "
+    "(including a nan or inf result, or garbled output such as doubled separators), a crash or a hang on an input "
+    "its declared signature admits; use optional for precision, style and documentation. A missing test on its own "
+    "is never required. Keep every finding under 400 characters."
 )
 
 

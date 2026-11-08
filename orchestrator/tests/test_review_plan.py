@@ -83,22 +83,34 @@ def test_the_edge_case_instruction_limits_gaps_to_inputs_the_signature_admits():
     assert "declared signature admits" in EDGE_CASE_INSTRUCTION
 
 
+def test_a_missing_test_alone_is_never_required():
+    assert "A missing test on its own is never required." in EDGE_CASE_INSTRUCTION
+
+
+def test_the_tag_sentence_keeps_the_400_character_limit():
+    # characterisation (green on arrival): the limit already existed in plan 26's text
+    assert EDGE_CASE_INSTRUCTION.endswith("Keep every finding under 400 characters.")
+
+
 RECOMMEND_SUFFIX = (
-    " End each edge-case gap finding with 'Recommend: ' followed by one imperative sentence stating the "
-    "behaviour the implementation should have (for example, 'Recommend: raise TypeError for bytes and add a "
-    "test'). Keep every finding under 400 characters."
+    " End each edge-case gap finding with 'Recommend (required): ' or 'Recommend (optional): ' followed by one "
+    "imperative sentence stating the behaviour the implementation should have (for example, 'Recommend (required): "
+    "raise TypeError for bytes and add a test'). Use required when the plan would give a silently wrong result "
+    "(including a nan or inf result, or garbled output such as doubled separators), a crash or a hang on an input "
+    "its declared signature admits; use optional for precision, style and documentation. A missing test on its own "
+    "is never required. Keep every finding under 400 characters."
 )
 
 
-def test_the_edge_case_instruction_ends_with_the_recommend_sentence_and_length_limit():
-    # pins the exact wording measured in the plan 26 spike (probe4); a reworded sentence must fail
+def test_the_edge_case_instruction_ends_with_the_required_and_optional_tag_sentence():
+    # pins the exact wording measured in the plan 27 spike (probe6); a reworded sentence must fail
     assert EDGE_CASE_INSTRUCTION.endswith(RECOMMEND_SUFFIX)
 
 
 def test_the_recommend_sentence_comes_after_the_verdict_rule():
     # the spike measured it in this order
     text = EDGE_CASE_INSTRUCTION
-    assert text.index("revise only for errors in the plan itself") < text.index("Recommend: ")
+    assert text.index("revise only for errors in the plan itself") < text.index("Recommend (required): ")
 
 
 def test_the_review_config_is_read_only_with_an_approve_or_revise_schema():
