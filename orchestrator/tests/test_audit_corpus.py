@@ -38,3 +38,20 @@ def test_the_tautology_case_keeps_its_tautology_and_the_same_rows():
 
     assert "assert maximum(a, b) == maximum(a, b)" in bad
     assert bad.replace("maximum(a, b) == maximum(a, b)", "maximum(a, b) == want") == honest
+
+
+def _leaks(case) -> list[str]:
+    """Anything in a worktree that tells the auditor the label: the case id or the expected-reason text.
+    Categories are not checked: words like "parametrize" are ordinary code."""
+    return [path for path, content in case.files.items() if any(s in path or s in content for s in (case.id, case.expected))]
+
+
+def test_the_leak_check_catches_a_planted_label_hint():
+    from dataclasses import replace
+    planted = replace(CASES[0], files={**CASES[0].files, "notes.txt": f"this is {CASES[0].expected}"})
+
+    assert _leaks(planted) == ["notes.txt"]
+
+
+def test_no_case_writes_its_id_or_expected_reason_into_a_worktree_file():
+    assert {case.id: _leaks(case) for case in CASES if _leaks(case)} == {}
