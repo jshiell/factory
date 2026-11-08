@@ -2,6 +2,7 @@ import os
 import signal
 import subprocess
 import sys
+import time
 
 from factory.process import group_alive, kill_tree, run_to_exit
 
@@ -69,3 +70,18 @@ def test_a_group_stays_alive_while_a_member_lives_after_its_leader_is_gone():
         assert group_alive(leader.pid) is True
     finally:
         os.killpg(leader.pid, signal.SIGKILL)
+
+
+def test_a_normal_exit_still_kills_what_the_command_left_running(tmp_path):
+    result = run_to_exit(["sh", "-c", "sleep 30 & echo $!"], tmp_path, None, 10, capture_limit=100)
+
+    lingering = int(result.tail.strip())
+    deadline = time.time() + 5
+    while time.time() < deadline and _alive(lingering):
+        time.sleep(0.05)
+    assert result.exit_code == 0 and not _alive(lingering)
+
+
+def _alive(pid):
+    listed = subprocess.run(["pgrep", "-x", "sleep"], capture_output=True, text=True).stdout.split()
+    return str(pid) in listed

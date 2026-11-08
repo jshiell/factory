@@ -70,6 +70,8 @@ def run_to_exit(
             kill_tree(process.pid)
             process.wait()
             raise
+        else:
+            kill_tree(process.pid)  # whatever the command left running in its session
         tail = None if capture_limit is None else _tail(output, capture_limit)
     return ExitResult(None if timed_out else process.returncode, timed_out, tail)
 
