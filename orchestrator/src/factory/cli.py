@@ -413,7 +413,7 @@ def build_context(settings: Settings) -> Context:
     store, ledger = TaskStore(settings.tasks_dir), Ledger(settings.ledger_path)
     runner = SubprocessRunner(
         settings.claude_executable, settings.project_subdir, settings.runner_timeout_s,
-        sandbox_executable=settings.sandbox_executable,
+        sandbox_executable=settings.sandbox_executable, state_dir=settings.state_dir,
     )
     worktrees = WorktreeManager(settings.repo, settings.worktree_root)
     stages = build_stages(settings, Deps(store, ledger, runner, worktrees))

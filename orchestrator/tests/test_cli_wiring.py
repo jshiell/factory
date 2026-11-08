@@ -209,3 +209,23 @@ def test_a_task_that_kept_its_plan_is_implemented_with_the_approved_prompt_in_a_
     assert argv[argv.index("-p") + 1] == build_implementation_prompt("add multiply", plan)
     (worktree,) = (tmp_path / "wt").iterdir()
     assert worktree.name == child.id
+
+
+def test_an_agent_launched_by_the_real_cli_is_recorded_while_it_runs(project):
+    from factory.process_registry import load_records
+    from factory.store import TaskStore
+    from factory.task import Task, TaskState
+    repo, _, tmp_path = project
+    seen = tmp_path / "seen-records"
+    spy = tmp_path / "spy-claude"
+    spy.write_text(f'#!/bin/sh\nls "{tmp_path}/state/procs" > "{seen}"\n')
+    spy.chmod(spy.stat().st_mode | stat.S_IEXEC)
+    config = repo / "factory.toml"
+    config.write_text(config.read_text().replace("fake-claude", "spy-claude"))
+    (tmp_path / "state" / "tasks").mkdir(parents=True)
+    TaskStore(tmp_path / "state" / "tasks").save(Task(id="t9", prompt="implement it", state=TaskState.QUEUED))
+
+    factory(project, "advance", "t9")
+
+    assert seen.read_text().strip().endswith(".json")
+    assert load_records(tmp_path / "state") == []
