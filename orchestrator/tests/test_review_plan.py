@@ -71,6 +71,18 @@ def test_the_review_prompt_ends_with_the_edge_case_instruction_after_the_plan():
     assert prompt.index("1. do x") < prompt.index(EDGE_CASE_INSTRUCTION)
 
 
+def test_the_edge_case_instruction_says_gaps_must_not_change_the_verdict():
+    # guard (green on arrival): the clause the spike found necessary to stop sound plans being rejected
+    text = EDGE_CASE_INSTRUCTION
+    assert "must NOT change the verdict" in text
+    assert "revise only for errors in the plan itself" in text
+
+
+def test_the_edge_case_instruction_limits_gaps_to_inputs_the_signature_admits():
+    # guard (green on arrival): stops invented float/str gaps for an int parameter
+    assert "declared signature admits" in EDGE_CASE_INSTRUCTION
+
+
 def test_the_review_config_is_read_only_with_an_approve_or_revise_schema():
     assert REVIEW_CONFIG.allowed_tools == ()
     assert REVIEW_CONFIG.confine is True
