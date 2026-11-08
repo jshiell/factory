@@ -3,7 +3,6 @@ import dataclasses
 import hashlib
 import json
 import os
-import subprocess
 import tempfile
 from pathlib import Path
 
@@ -27,7 +26,7 @@ def build_base_repo(root: Path) -> Path:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(content)
     (repo / ".gitignore").write_text(BASE_FILES[".gitignore"])
-    subprocess.run(["git", "init", "-q", "-b", "main"], cwd=repo, check=True, stdin=subprocess.DEVNULL)
+    run_git(repo, "init", "-q", "-b", "main")
     run_git(repo, "add", "-A")
     run_git(repo, *_IDENTITY, "commit", "-q", "-m", "base")
     return repo
