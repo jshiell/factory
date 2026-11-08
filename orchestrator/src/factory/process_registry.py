@@ -3,6 +3,7 @@ import json
 import os
 import subprocess
 import time
+from contextlib import contextmanager
 from pathlib import Path
 from typing import NamedTuple
 
@@ -139,3 +140,18 @@ def ps_probe(run=subprocess.run):
         except ValueError as error:
             raise ProbeFailed(f"cannot read ps output {text!r}") from error
     return probe
+
+
+class Tracker:
+    """Records a launched process group for as long as the `with` block runs, so a later command can find an orphan."""
+
+    def __init__(self, state_dir, task_id: str, stage: str):
+        self._state_dir, self._task_id, self._stage = state_dir, task_id, stage
+
+    @contextmanager
+    def launched(self, pid: int, launched_after: float, launched_before: float):
+        write_record(self._state_dir, Record(pid, pid, self._task_id, self._stage, launched_after, launched_before))
+        try:
+            yield
+        finally:
+            _record_path(self._state_dir, pid).unlink(missing_ok=True)

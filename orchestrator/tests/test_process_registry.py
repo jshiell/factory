@@ -4,7 +4,7 @@ import subprocess
 
 import pytest
 
-from factory.process_registry import InvalidRecord, ProbeFailed, Record, load_records, ps_probe, write_record
+from factory.process_registry import InvalidRecord, ProbeFailed, Record, Tracker, load_records, ps_probe, write_record
 
 
 def record(**overrides):
@@ -84,3 +84,20 @@ def test_no_such_process_is_none():
 def test_a_probe_that_cannot_tell_raises_probe_failed(ps):
     with pytest.raises(ProbeFailed):
         ps_probe(ps)(18875)
+
+
+def test_a_tracked_launch_has_a_record_only_while_it_runs(tmp_path):
+    tracker = Tracker(tmp_path, "t1", "gate")
+
+    with tracker.launched(4242, 100.0, 100.5):
+        assert load_records(tmp_path) == [record(stage="gate")]
+
+    assert load_records(tmp_path) == []
+
+
+def test_a_tracked_launch_that_raises_still_removes_its_record(tmp_path):
+    with pytest.raises(KeyboardInterrupt):
+        with Tracker(tmp_path, "t1", "gate").launched(4242, 100.0, 100.5):
+            raise KeyboardInterrupt
+
+    assert load_records(tmp_path) == []
