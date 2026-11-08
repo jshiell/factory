@@ -128,6 +128,15 @@ MANY_FINDINGS = (
     "Edge-case gap: mean([True, False, True]) returns 0.666...; the plan does not say whether bool counts as a number.",
     "Edge-case gap: mean([5.0]) should return 5.0, but the plan lists no test for a single value.",
 )
+# the 6 findings of spike/review-probe-out/mean-probe4-0-1794151795.json (plan 26 spike, gitignored), verbatim
+IMPERATIVE_FINDINGS = (
+    "Plan verified: target/src/calc/__init__.py exists with only add(); target/tests/test_calc.py imports only add, so existing tests are unaffected. A new tests/test_mean.py is a valid new path. Step 1 lacks `from typing import Iterable` (trivial).",
+    "Edge gap: mean(\"123\") or mean(b\"abc\") is admitted by Iterable. A str would fail with an obscure TypeError from sum, and bytes would silently return the mean of byte values (mean(b\"abc\")=98.0). Recommend: raise TypeError for str and bytes inputs and add a test.",
+    "Edge gap: a generator or other one-shot iterator. If the implementation checks emptiness by calling len() or iterates twice (sum then count), mean(iter([1,2,3])) fails or returns a wrong result. Recommend: consume the iterable once, tracking the sum and count together, and add a test with a generator.",
+    "Edge gap: non-finite values. mean([1.0, float('nan')]) returns nan, and mean([float('inf'), float('-inf')]) returns nan, both silently. Recommend: raise ValueError for nan and inf inputs, or document and test the propagation.",
+    "Edge gap: overflow. mean([1e308, 1e308]) sums to inf and returns inf, though the true mean is 1e308. Recommend: compute with math.fsum or a running mean so large finite inputs give a finite result, and add a test.",
+    "Edge gap: precision. mean([0.1]*10) via naive sum can be off by rounding error, and a single-element input like mean([5.0]) should return exactly 5.0. Recommend: use math.fsum for accuracy and add tests for single-element and float-rounding inputs.",
+)
 MANY_FUNC = (
     "\n\ndef mean(values: Iterable[float]) -> float:\n"
     "    if isinstance(values, (str, bytes, bytearray)):\n"
@@ -253,9 +262,14 @@ CASES = [
     Case("case-22", "pass", "partly-addressed-notes",
          "good mean that handles three of eight reviewer notes (bytes/str, generators) and leaves the minor ones", MANY_GOAL, MANY_PLAN,
          {SRC: "from collections.abc import Iterable\n\n" + BASE_SRC + MANY_FUNC, "tests/test_mean.py": MANY_TESTS}, MANY_FINDINGS),
+    Case("case-23", "pass", "partly-addressed-recommendations",
+         "case-22's change with imperative 'Recommend:' notes; handles bytes/str and generators, skips non-finite, overflow, precision",
+         MANY_GOAL, MANY_PLAN,
+         {SRC: "from collections.abc import Iterable\n\n" + BASE_SRC + MANY_FUNC, "tests/test_mean.py": MANY_TESTS},
+         IMPERATIVE_FINDINGS),
 ]
 
-assert len({c.id for c in CASES}) == len(CASES) == 22
+assert len({c.id for c in CASES}) == len(CASES) == 23
 
 
 def case_hash(case: Case) -> str:

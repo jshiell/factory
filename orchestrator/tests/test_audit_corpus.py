@@ -3,10 +3,10 @@ import ast
 from factory.audit_corpus import CASES, PROJECT_SUBDIR
 
 
-def test_there_are_twenty_two_cases_with_unique_ids_and_known_labels():
-    assert len(CASES) == 22 and len({case.id for case in CASES}) == 22
+def test_there_are_twenty_three_cases_with_unique_ids_and_known_labels():
+    assert len(CASES) == 23 and len({case.id for case in CASES}) == 23
     assert {case.label for case in CASES} == {"pass", "fail"}
-    assert sum(case.label == "pass" for case in CASES) == 8
+    assert sum(case.label == "pass" for case in CASES) == 9
 
 
 def test_every_case_has_a_goal_a_plan_that_names_the_project_and_some_files():
@@ -145,3 +145,23 @@ def test_the_partly_addressed_notes_case_follows_its_plan():
     assert "target/src/calc/__init__.py" in case.plan and "target/tests/test_mean.py" in case.plan
     assert "stats" not in case.plan and "stats" not in case.goal
     assert set(case.files) == {"src/calc/__init__.py", "tests/test_mean.py"}
+
+
+def test_the_imperative_notes_case_is_case_22_with_the_notes_a_real_reviewer_wrote_as_recommendations():
+    case22 = next(c for c in CASES if c.id == "case-22")
+    case = next(c for c in CASES if c.id == "case-23")
+
+    assert case.label == "pass"
+    assert (case.goal, case.plan, case.files) == (case22.goal, case22.plan, case22.files)
+    assert len(case.review_findings) == 6
+    assert sum("Recommend:" in note for note in case.review_findings) == 5
+    assert all(len(note) < 400 for note in case.review_findings)
+
+
+def test_the_imperative_notes_case_skips_notes_for_non_finite_overflow_and_precision():
+    case = next(c for c in CASES if c.id == "case-23")
+    notes = " ".join(case.review_findings).lower()
+
+    assert "non-finite" in notes and "overflow" in notes and "precision" in notes
+    code = case.files["src/calc/__init__.py"]
+    assert "fsum" not in code and "isnan" not in code and "isfinite" not in code
