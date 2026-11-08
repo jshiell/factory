@@ -48,3 +48,24 @@ def test_an_alive_process_started_outside_its_window_is_a_reused_pid_so_only_the
 
     assert fakes.killed == [] and result.killed == []
     assert load_records(tmp_path) == []
+
+
+def test_guard_a_gone_process_with_an_empty_group_only_loses_its_record(tmp_path):  # starts green: pins the behaviour
+    write_record(tmp_path, record())
+    fakes = Fakes()
+
+    result = fakes.reap(tmp_path)
+
+    assert fakes.killed == [] and result.killed == []
+    assert load_records(tmp_path) == []
+
+
+def test_a_dead_leader_with_a_live_group_has_the_group_killed(tmp_path):
+    write_record(tmp_path, record())
+    fakes = Fakes(group_alive={4242})
+
+    result = fakes.reap(tmp_path)
+
+    assert fakes.killed == [4242]
+    assert load_records(tmp_path) == []
+    assert [r.pid for r in result.killed] == [4242]
