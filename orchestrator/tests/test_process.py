@@ -4,7 +4,10 @@ import subprocess
 import sys
 import time
 
+import pytest
+
 from factory.process import group_alive, kill_tree, run_to_exit
+from factory.process_registry import Tracker, load_records
 
 
 def python(code):
@@ -85,3 +88,37 @@ def test_a_normal_exit_still_kills_what_the_command_left_running(tmp_path):
 def _alive(pid):
     listed = subprocess.run(["pgrep", "-x", "sleep"], capture_output=True, text=True).stdout.split()
     return str(pid) in listed
+
+
+LIST_RECORDS = "import os, sys; print(os.getpid(), sorted(os.listdir(sys.argv[1])))"
+
+
+def test_the_command_is_recorded_while_it_runs_and_the_record_goes_after_a_normal_exit(tmp_path):
+    result = run_to_exit([sys.executable, "-c", LIST_RECORDS, str(tmp_path / "procs")], tmp_path, None, 10,
+                         capture_limit=200, tracker=Tracker(tmp_path, "t1", "gate"))
+
+    pid, listing = result.tail.split(" ", 1)
+    assert f"{pid}.json" in listing
+    assert load_records(tmp_path) == []
+
+
+def test_the_record_goes_after_a_timeout(tmp_path):
+    result = run_to_exit(["sleep", "30"], tmp_path, None, 0.2, tracker=Tracker(tmp_path, "t1", "gate"))
+
+    assert result.timed_out and load_records(tmp_path) == []
+
+
+def test_the_record_goes_after_an_interruption(tmp_path):
+    def interrupt(signum, frame):
+        raise KeyboardInterrupt
+
+    previous = signal.signal(signal.SIGALRM, interrupt)
+    signal.setitimer(signal.ITIMER_REAL, 0.3)
+    try:
+        with pytest.raises(KeyboardInterrupt):
+            run_to_exit(["sleep", "30"], tmp_path, None, 30, tracker=Tracker(tmp_path, "t1", "gate"))
+    finally:
+        signal.setitimer(signal.ITIMER_REAL, 0)
+        signal.signal(signal.SIGALRM, previous)
+
+    assert load_records(tmp_path) == []

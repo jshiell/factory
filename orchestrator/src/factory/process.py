@@ -2,6 +2,8 @@ import os
 import signal
 import subprocess
 import tempfile
+import time
+from contextlib import nullcontext
 from typing import NamedTuple
 
 STRIPPED_ENV = ("VIRTUAL_ENV", "GIT_DIR", "GIT_WORK_TREE", "ANTHROPIC_API_KEY")
@@ -48,30 +50,33 @@ class ExitResult(NamedTuple):
 
 
 def run_to_exit(
-    argv: list[str], cwd, env: dict[str, str] | None, timeout_s: float, capture_limit: int | None = None
+    argv: list[str], cwd, env: dict[str, str] | None, timeout_s: float, capture_limit: int | None = None, tracker=None
 ) -> ExitResult:
-    """Run `argv` in its own session; on a timeout or any interruption kill the whole tree.
+    """Run `argv` in its own session; on a timeout, a normal exit or any interruption kill the whole tree.
 
     With `capture_limit`, stdout and stderr go to one unlinked temp file and the last `capture_limit`
-    characters come back as `tail` (read by seeking from the end: the command may print without limit)."""
+    characters come back as `tail` (read by seeking from the end: the command may print without limit).
+    With a `tracker`, the process group is recorded until the tree is dead, so a SIGKILLed driver leaves a trace."""
     with tempfile.TemporaryFile() as output:
         sink = subprocess.DEVNULL if capture_limit is None else output
+        launched_after = time.time()
         process = subprocess.Popen(
             argv, cwd=cwd, env=env, stdin=subprocess.DEVNULL, stdout=sink, stderr=sink, start_new_session=True,
         )
         timed_out = False
-        try:
-            process.wait(timeout=timeout_s)
-        except subprocess.TimeoutExpired:
-            timed_out = True
-            kill_tree(process.pid)
-            process.wait()
-        except BaseException:
-            kill_tree(process.pid)
-            process.wait()
-            raise
-        else:
-            kill_tree(process.pid)  # whatever the command left running in its session
+        with (tracker.launched(process.pid, launched_after, time.time()) if tracker else nullcontext()):
+            try:
+                process.wait(timeout=timeout_s)
+            except subprocess.TimeoutExpired:
+                timed_out = True
+                kill_tree(process.pid)
+                process.wait()
+            except BaseException:
+                kill_tree(process.pid)
+                process.wait()
+                raise
+            else:
+                kill_tree(process.pid)  # whatever the command left running in its session
         tail = None if capture_limit is None else _tail(output, capture_limit)
     return ExitResult(None if timed_out else process.returncode, timed_out, tail)
 
