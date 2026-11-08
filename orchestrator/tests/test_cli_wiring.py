@@ -250,3 +250,42 @@ def test_a_gate_run_launched_by_the_real_cli_is_recorded_while_it_runs(project):
 
     assert '"task_id": "t9"' in seen.read_text() and '"stage": "gate"' in seen.read_text()
     assert load_records(tmp_path / "state") == []
+
+
+FAKE_AUDITOR = r'''#!/usr/bin/env python3
+import glob, json, os, sys
+argv = sys.argv[1:]
+state = os.environ["FAKE_STATE_DIR"]
+with open(os.environ["FAKE_CLAUDE_LOG"], "a") as log:
+    log.write(json.dumps({"argv": argv, "cwd": os.getcwd(),
+                          "eval_records": sorted(glob.glob(state + "/evals/*/procs/*.json")),
+                          "real_records": sorted(glob.glob(state + "/procs/*.json"))}) + "\n")
+print(json.dumps({"type": "result", "subtype": "success", "is_error": False, "total_cost_usd": 0.01,
+                  "structured_output": {"verdict": "pass", "findings": []}}))
+'''
+
+
+def test_eval_audit_runs_the_real_runner_in_the_corpus_project_and_records_under_its_own_directory(project):
+    repo, env, tmp_path = project
+    auditor = tmp_path / "fake-auditor"
+    auditor.write_text(FAKE_AUDITOR)
+    auditor.chmod(auditor.stat().st_mode | stat.S_IEXEC)
+    config = (repo / "factory.toml").read_text().replace(next(l for l in (repo / "factory.toml").read_text().splitlines()
+                                                              if l.startswith("claude_executable")), f'claude_executable = "{auditor}"')
+    (repo / "factory.toml").write_text(config + 'project_subdir = "elsewhere"\n')
+    env["FAKE_STATE_DIR"] = str(tmp_path / "state")
+    project = (repo, env, tmp_path)
+
+    result = factory(project, "eval-audit", "--runs", "1", "--only", "case-01")
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    (call,) = [json.loads(line) for line in (tmp_path / "argv.log").read_text().splitlines()]
+    (eval_dir,) = (tmp_path / "state" / "evals").iterdir()
+    assert Path(call["cwd"]).parts[-2:] == ("a1-case-01", "target") or call["cwd"].endswith("/target")
+    assert "elsewhere" not in call["cwd"] and "--json-schema" in call["argv"] and "--disallowedTools" in call["argv"]
+    assert [Path(p).parent.parent for p in call["eval_records"]] == [eval_dir] and call["real_records"] == []
+    nono = [json.loads(line) for line in (tmp_path / "nono.log").read_text().splitlines()]
+    assert nono and nono[0][:2] == ["run", "-s"] and "--allow-cwd" in nono[0]
+    assert not (tmp_path / "state" / "ledger.jsonl").exists()
+    assert list((tmp_path / "state" / "tasks").glob("*.json")) == []
+    assert list((eval_dir / "procs").glob("*.json")) == [] and (eval_dir / "case-01-r1.json").is_file()
