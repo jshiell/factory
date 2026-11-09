@@ -61,3 +61,10 @@ def test_a_note_number_may_not_be_repeated(text):
     answer = parse_answer(text, required_count=3)
 
     assert isinstance(answer, Refuse) and answer.reason
+
+
+def test_with_no_required_note_shown_a_waive_answer_is_refused():
+    # guard (green on arrival; mutation-checked)
+    answer = parse_answer("w 1", required_count=0)
+
+    assert isinstance(answer, Refuse) and answer.reason
