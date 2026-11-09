@@ -193,3 +193,15 @@ def test_waiving_a_required_note_drops_it_from_the_task_and_the_prompt_and_recor
     assert task.review_findings == (OPTIONAL_NOTE,) and task.waived_findings == (REQUIRED_NOTE,)
     assert "fsum" not in task.prompt and OPTIONAL_NOTE in task.prompt
     assert store.load("t1") == task
+
+
+def test_waiving_a_note_that_is_not_there_is_refused_and_saves_nothing(store):
+    from factory.waiver import InvalidWaiver
+
+    with_notes(store, REQUIRED_NOTE)
+    before = store.load("t1")
+
+    with pytest.raises(InvalidWaiver):
+        approve_plan("t1", store, plan_digest(PLAN), (REQUIRED_NOTE,), waived=("Recommend (required): other",))
+
+    assert store.load("t1") == before
