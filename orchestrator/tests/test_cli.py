@@ -1397,3 +1397,13 @@ def test_guard_other_failures_show_no_gap_block_and_pass_no_gaps(ctx, keep_kwarg
     _, out, _ = run(ctx, "retry", "t1", "--keep-plan", stdin="y\n")
 
     assert "sent to the next attempt" not in out and keep_kwargs == [{"shown_findings": ("looks fine",)}]
+
+
+def test_a_gap_quoting_a_waived_note_is_reported_as_dropped(ctx, keep_kwargs):
+    quoting = f"not handled: {REQ2}"
+    approved_failure(ctx, review_findings=(REQ2,), failure_reason="audit_rejected", audit_findings=(quoting, GAP))
+
+    code, out, _ = run(ctx, "retry", "t1", "--keep-plan", stdin="w 1\ny\n")
+
+    assert code == 0 and f"dropped (quotes a waived note): {quoting}\n" in out
+    assert keep_kwargs == [{"shown_findings": (REQ2,), "waived": (REQ2,), "shown_audit_gaps": (quoting, GAP)}]
