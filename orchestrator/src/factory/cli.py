@@ -229,6 +229,28 @@ def _reject(args, io, ctx) -> int:
     return 0
 
 
+def _ask_with_waiver(io, question: str, confirm_question: str, required: list[str], declined: str) -> tuple[str, ...] | None:
+    """Ask `question`; return the required notes to waive (none for `y`), or None when nothing should go ahead."""
+    print(approval_prompt(question, required), end="", file=io.stdout)
+    io.stdout.flush()
+    answer = parse_answer(io.stdin.readline(), len(required))
+    waived: tuple[str, ...] = ()
+    if isinstance(answer, Waive):
+        waived = tuple(required[number - 1] for number in answer.numbers)
+        print(escape_control("\n".join(["Waiving (these will not be sent to the agents or enforced by the audit):",
+                                        *(f"  - {note}" for note in waived)])), file=io.stdout)
+        print(confirm_question, end="", file=io.stdout)
+        io.stdout.flush()
+        if io.stdin.readline().strip() != "y":
+            answer = Refuse(reason=None)
+    if isinstance(answer, Refuse):
+        if answer.reason:
+            print(escape_control(answer.reason), file=io.stderr)
+        print(declined, file=io.stdout)
+        return None
+    return waived
+
+
 def _approve(args, io, ctx) -> int:
     task = _load(ctx, args.task_id)
     if not io.stdin.isatty():
@@ -242,22 +264,8 @@ def _approve(args, io, ctx) -> int:
         + ["REVIEWER NOTES (sent to the implementer):"] + note_display
     )
     print(escape_control(shown), file=io.stdout)
-    print(approval_prompt("Approve this plan? [y/N]", required), end="", file=io.stdout)
-    io.stdout.flush()
-    answer = parse_answer(io.stdin.readline(), len(required))
-    waived: tuple[str, ...] = ()
-    if isinstance(answer, Waive):
-        waived = tuple(required[number - 1] for number in answer.numbers)
-        print(escape_control("\n".join(["Waiving (these will not be sent to the agents or enforced by the audit):",
-                                        *(f"  - {note}" for note in waived)])), file=io.stdout)
-        print("Waive these and approve? [y/N] ", end="", file=io.stdout)
-        io.stdout.flush()
-        if io.stdin.readline().strip() != "y":
-            answer = Refuse(reason=None)
-    if isinstance(answer, Refuse):
-        if answer.reason:
-            print(escape_control(answer.reason), file=io.stderr)
-        print("not approved", file=io.stdout)
+    waived = _ask_with_waiver(io, "Approve this plan? [y/N]", "Waive these and approve? [y/N] ", required, "not approved")
+    if waived is None:
         return 1
     kwargs = {"waived": waived} if waived else {}
     try:
