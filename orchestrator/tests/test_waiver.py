@@ -72,3 +72,19 @@ def test_with_no_required_note_shown_a_waive_answer_is_refused():
 
 def test_r_with_numbers_reinstates_earlier_waived_notes():
     assert parse_answer("r 2 1", required_count=3, waived_count=2) == Reinstate(numbers=(2, 1))
+
+
+@pytest.mark.parametrize("text, waived_count", [
+    ("r", 2), ("r 3", 2), ("r 0", 2), ("r 1 1", 2), ("r a", 2), ("r 1", 0), ("r 1 w 2", 2), ("w 1 r 1", 2),
+], ids=["no-numbers", "too-high", "zero", "twice", "not-digits", "nothing-waived", "r-then-w", "w-then-r"])
+def test_a_bad_reinstate_answer_is_refused_with_a_reason(text, waived_count):
+    # guard (green on arrival; mutation-checked)
+    answer = parse_answer(text, required_count=3, waived_count=waived_count)
+
+    assert isinstance(answer, Refuse) and answer.reason
+
+
+@pytest.mark.parametrize("text", ["y", "w 1 3"])
+def test_y_and_w_ignore_the_waived_count(text):
+    # guard (green on arrival; mutation-checked)
+    assert parse_answer(text, 3, waived_count=2) == parse_answer(text, 3)
