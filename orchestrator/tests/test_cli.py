@@ -1237,3 +1237,27 @@ def test_w_shows_what_it_waives_asks_again_and_on_y_approves_with_that_note_waiv
     assert approve_kwargs == [{"shown_findings": (REQ1, OPT, REQ2), "waived": (REQ2,)}]
     assert "Waiving" in out and f"  - {REQ2}\n" in out.split("Waiving", 1)[1]
     assert "Waive these and approve? [y/N] " in out
+
+
+@pytest.mark.parametrize("text", ["w", "w 0", "w 3", "w 1 1", "w x", "w ²", "w -1"])
+def test_a_bad_waive_answer_approves_nothing_exits_1_and_says_why(ctx, approve_kwargs, text):
+    from factory.waiver import parse_answer
+
+    reviewed_with_notes(ctx, REQ1, OPT, REQ2)
+
+    code, out, err = run(ctx, "approve", "t1", stdin=text + "\ny\n")
+
+    assert code == 1 and approve_kwargs == []
+    assert err.strip() == parse_answer(text, 2).reason and "Waiving" not in out
+    assert ctx.store.load("t1").state is S.REVIEWED
+
+
+def test_an_unknown_answer_just_says_not_approved(ctx, approve_kwargs):
+    # guard (green on arrival): W is not w, and n is n
+    reviewed_with_notes(ctx, REQ1)
+
+    for text in ("W 1", "n", "yes"):
+        code, out, err = run(ctx, "approve", "t1", stdin=text + "\n")
+        assert code == 1 and out.endswith("not approved\n") and err == ""
+
+    assert approve_kwargs == []

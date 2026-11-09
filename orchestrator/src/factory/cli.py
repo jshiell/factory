@@ -255,6 +255,8 @@ def _approve(args, io, ctx) -> int:
         if io.stdin.readline().strip() != "y":
             answer = Refuse(reason=None)
     if isinstance(answer, Refuse):
+        if answer.reason:
+            print(escape_control(answer.reason), file=io.stderr)
         print("not approved", file=io.stdout)
         return 1
     kwargs = {"waived": waived} if waived else {}
