@@ -1457,3 +1457,14 @@ def test_retry_keeping_the_plan_warns_how_many_stored_required_notes_the_cap_dro
 
     warning = f"WARNING: 2 required note(s) beyond the first {MAX_ITEMS} were dropped"
     assert warning in out and out.index("REVIEWER NOTES") < out.index(warning) < out.index("Queue this plan again")
+
+
+def test_guard_retry_prints_no_warning_for_an_already_capped_stored_list(ctx, monkeypatch):
+    from factory.review_notes import MAX_ITEMS, TRUNCATED
+
+    monkeypatch.setattr("factory.cli.retry_with_plan", lambda *a, **k: Task(id="new", prompt=""))
+    approved_failure(ctx, review_findings=(*_required_notes(MAX_ITEMS), TRUNCATED))
+
+    _, out, _ = run(ctx, "retry", "t1", "--keep-plan", stdin="y\n")
+
+    assert "WARNING" not in out
