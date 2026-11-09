@@ -1423,3 +1423,25 @@ def test_approve_warns_how_many_required_notes_the_cap_dropped_before_asking(ctx
 
     warning = f"WARNING: 3 required note(s) beyond the first {MAX_ITEMS} were dropped"
     assert warning in out and out.index("REVIEWER NOTES") < out.index(warning) < out.index("Approve this plan?")
+
+
+def test_guard_approve_prints_no_warning_at_the_item_limit(ctx, approve_spy):
+    from factory.review_notes import MAX_ITEMS
+
+    put(ctx, S.REVIEWED, goal="add multiply", plan=PLAN, plan_digest=plan_digest(PLAN),
+        plan_risks=("risky",), review_findings=_required_notes(MAX_ITEMS))
+
+    _, out, _ = run(ctx, "approve", "t1", stdin="y\n")
+
+    assert "WARNING" not in out
+
+
+def test_guard_waiving_a_shown_note_still_prints_the_warning_once(ctx, approve_spy):
+    from factory.review_notes import MAX_ITEMS
+
+    put(ctx, S.REVIEWED, goal="add multiply", plan=PLAN, plan_digest=plan_digest(PLAN),
+        plan_risks=("risky",), review_findings=_required_notes(MAX_ITEMS + 2))
+
+    _, out, _ = run(ctx, "approve", "t1", stdin="w 1\ny\n")
+
+    assert out.count("WARNING: 2 required note(s)") == 1
