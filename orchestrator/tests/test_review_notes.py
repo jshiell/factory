@@ -80,3 +80,13 @@ def test_a_required_note_past_the_item_limit_is_kept_in_place_of_an_optional_one
     result = capped_findings((*optional, required))
 
     assert result == (*optional[:MAX_ITEMS - 1], required, TRUNCATED)
+
+
+def test_a_required_note_is_kept_when_other_notes_would_fill_the_total_limit():
+    # guard (green on arrival after the item-limit change; proven real by a mutation check)
+    others = tuple(f"{i}" + "x" * (MAX_ITEM - 1) for i in range(MAX_TOTAL // MAX_ITEM))
+    required = "Recommend (required): " + "r" * 278
+
+    result = capped_findings((*others, required))
+
+    assert result == (*others[:-1], required, TRUNCATED)
