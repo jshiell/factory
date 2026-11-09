@@ -2,7 +2,7 @@ from datetime import datetime
 from collections.abc import Callable
 
 from factory.approve_plan import build_implementation_prompt
-from factory.audit_gaps import gaps_to_carry
+from factory.audit_gaps import gaps_to_carry, split_quoting_waived
 from factory.digest import plan_digest
 from factory.review_notes import capped_findings
 from factory.store import TaskStore, create_with_fresh_id
@@ -40,6 +40,7 @@ def retry_with_plan(
     gaps = gaps_to_carry(task)
     if shown_audit_gaps is not None and shown_audit_gaps != gaps:
         raise RetryRefused(f"audit gaps mismatch for {task.id}")
+    gaps, _ = split_quoting_waived(gaps, waived)
     return create_with_fresh_id(
         store, clock,
         lambda new_id: Task(

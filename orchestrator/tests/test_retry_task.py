@@ -258,3 +258,17 @@ def test_keeping_the_plan_accepts_the_gaps_that_were_shown(store):
     put_approved(store, failure_reason="audit_rejected", audit_findings=(GAP,))
 
     assert GAP in keep(store, shown_audit_gaps=(GAP,)).prompt
+
+
+def test_a_gap_quoting_a_waived_note_reaches_neither_the_new_attempt_nor_its_auditor(store):
+    from factory.audit_task import build_audit_prompt
+
+    other = "tests were skipped"
+    put_approved(store, review_findings=(REQUIRED_NOTE,), failure_reason="audit_rejected",
+                 audit_findings=(f"Not handled: {REQUIRED_NOTE.lower()}.", other))
+
+    new = retry_with_plan("t1", store, lambda: NOW, plan_digest(PLAN), (REQUIRED_NOTE,), waived=(REQUIRED_NOTE,))
+
+    assert other in new.prompt
+    for prompt in (new.prompt, build_audit_prompt(new, "diff")):
+        assert "fsum" not in prompt

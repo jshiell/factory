@@ -25,3 +25,10 @@ def gaps_to_carry(task: Task) -> tuple[str, ...]:
     if task.failure_reason == "audit_rejected":
         return _bounded(task.audit_findings)
     return ()
+
+
+def split_quoting_waived(gaps: tuple[str, ...], waived: tuple[str, ...]) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    """(kept, dropped): a gap that quotes a waived note (case-insensitive) is dropped."""
+    quotes = [w.lower() for w in waived]
+    dropped = tuple(g for g in gaps if any(q in g.lower() for q in quotes))
+    return tuple(g for g in gaps if g not in dropped), dropped
