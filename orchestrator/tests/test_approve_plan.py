@@ -249,3 +249,13 @@ def test_identical_required_notes_are_waived_one_per_entry(store):
     store.save(replace(twice, state=TaskState.REVIEWED, review_findings=shown, waived_findings=()))
     with pytest.raises(InvalidWaiver):
         approve_plan("t1", store, plan_digest(PLAN), shown, waived=(REQUIRED_NOTE,) * 3)
+
+
+def test_earlier_waived_notes_are_kept_when_more_are_waived(store):
+    # guard (green on arrival; mutation-checked)
+    earlier = "Recommend (required): earlier waived"
+    with_notes(store, REQUIRED_NOTE, waived=(earlier,))
+
+    task = approve_plan("t1", store, plan_digest(PLAN), (REQUIRED_NOTE,), waived=(REQUIRED_NOTE,))
+
+    assert task.waived_findings == (earlier, REQUIRED_NOTE)
