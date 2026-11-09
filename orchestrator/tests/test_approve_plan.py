@@ -259,3 +259,16 @@ def test_earlier_waived_notes_are_kept_when_more_are_waived(store):
     task = approve_plan("t1", store, plan_digest(PLAN), (REQUIRED_NOTE,), waived=(REQUIRED_NOTE,))
 
     assert task.waived_findings == (earlier, REQUIRED_NOTE)
+
+
+def test_a_waived_note_reaches_neither_the_implementer_the_fixer_nor_the_auditor(store):
+    # guard (green on arrival; mutation-checked)
+    from factory.audit_task import build_audit_prompt
+    from factory.fix_prompt import build_fix_prompt
+
+    with_notes(store, REQUIRED_NOTE, OPTIONAL_NOTE)
+    task = approve_plan("t1", store, plan_digest(PLAN), (REQUIRED_NOTE, OPTIONAL_NOTE), waived=(REQUIRED_NOTE,))
+    task = store.load(task.id)
+
+    for prompt in (task.prompt, build_fix_prompt(task, "FAILED"), build_audit_prompt(task, "diff")):
+        assert "fsum" not in prompt and OPTIONAL_NOTE in prompt
