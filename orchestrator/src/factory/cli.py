@@ -330,6 +330,8 @@ def _retry_keeping_plan(task: Task, io, ctx) -> int:
         f"RETRY of {task.id} ({task.state.value}), keeping its approved plan", f"GOAL:\n{task.goal}", f"PLAN:\n{task.plan}", "RISKS:",
         *(f"  - {r}" for r in task.plan_risks), "REVIEWER NOTES (sent to the implementer):", *note_display,
     ]
+    if task.waived_findings:
+        lines += ["WAIVED EARLIER (not sent):", *(f"  - {f}" for f in task.waived_findings)]
     if task.failure_reason:
         lines.append(f"FAILED BECAUSE: {task.failure_reason}")
     if task.state is TaskState.AUDITED:

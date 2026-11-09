@@ -1331,3 +1331,11 @@ def test_keeping_the_plan_numbers_required_notes_and_waives_on_w_then_y(ctx, kee
     assert f"  - [1] {REQ1}\n" in out and f"  - [2] {REQ2}\n" in out and f"  - {OPT}\n" in out
     assert "Waive these and queue? [y/N] " in out
     assert keep_kwargs == [{"shown_findings": (REQ1, OPT, REQ2), "waived": (REQ2,)}]
+
+
+def test_keeping_the_plan_shows_the_notes_waived_earlier(ctx, keep_kwargs):
+    approved_failure(ctx, review_findings=(OPT,), waived_findings=(REQ1,))
+
+    _, out, _ = run(ctx, "retry", "t1", "--keep-plan", stdin="n\n")
+
+    assert f"WAIVED EARLIER (not sent):\n  - {REQ1}\n" in out
