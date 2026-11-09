@@ -142,3 +142,12 @@ def test_a_shortened_required_note_still_counts_as_required():
     (*_, kept, marker) = capped_findings(("n",) * MAX_ITEMS + (long_required,))
 
     assert kept.startswith("Recommend (required) [shortened]: ") and marker == TRUNCATED
+
+
+def test_the_prompt_block_carries_a_required_note_that_came_after_ten_optional_ones():
+    # guard (green on arrival): implementer and fixer prompts are built from notes_block
+    from factory.review_notes import notes_block
+
+    block = notes_block(("n",) * MAX_ITEMS + (REQUIRED + "reject bytes",))
+
+    assert f"- {REQUIRED}reject bytes\n" in block
