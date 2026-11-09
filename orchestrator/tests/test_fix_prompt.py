@@ -111,3 +111,15 @@ def test_audit_gaps_sit_after_the_notes_and_before_the_rules_and_the_test_output
 
     order = [prompt.index(part) for part in ("PLAN:\n1. add it", "reject bytes", GAP, "Rules:", "<test-output-")]
     assert order == sorted(order)
+
+
+def test_the_fix_prompt_uses_its_own_gaps_heading_and_the_implementer_keeps_its_own():
+    from factory.approve_plan import AUDIT_GAPS_HEADING, build_implementation_prompt
+    from factory.fix_prompt import FIX_AUDIT_GAPS_HEADING
+
+    fix = build_fix_prompt(task(prior_audit_findings=(GAP,)), "out")
+    implement = build_implementation_prompt("g", "p", audit_gaps=(GAP,))
+
+    assert FIX_AUDIT_GAPS_HEADING in fix and AUDIT_GAPS_HEADING not in fix
+    assert AUDIT_GAPS_HEADING in implement and FIX_AUDIT_GAPS_HEADING not in implement
+    assert "address the gaps" not in FIX_AUDIT_GAPS_HEADING and "while fixing the failing tests" in FIX_AUDIT_GAPS_HEADING.lower()

@@ -17,7 +17,7 @@ AUDIT_GAPS_HEADING = (
 )
 
 
-def gaps_block(audit_gaps: tuple[str, ...], nonce: Callable[[], str]) -> str:
+def gaps_block(audit_gaps: tuple[str, ...], nonce: Callable[[], str], heading: str = AUDIT_GAPS_HEADING) -> str:
     """A fenced block of one-line, escaped gaps, or "" when there are none. Ends with a blank line."""
     lines = [escape_control(" ".join(gap.split())) for gap in audit_gaps]
     lines = [line for line in lines if line]
@@ -27,7 +27,7 @@ def gaps_block(audit_gaps: tuple[str, ...], nonce: Callable[[], str]) -> str:
     while any(marker in line for line in lines):
         marker = nonce()
     body = "".join(f"- {line}\n" for line in lines)
-    return f"{AUDIT_GAPS_HEADING}\n<audit-gaps-{marker}>\n{body}</audit-gaps-{marker}>\n\n"
+    return f"{heading}\n<audit-gaps-{marker}>\n{body}</audit-gaps-{marker}>\n\n"
 
 
 def build_implementation_prompt(
