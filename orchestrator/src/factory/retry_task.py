@@ -29,14 +29,14 @@ def retry_task(task_id: str, store: TaskStore, clock: Callable[[], datetime]) ->
 
 def retry_with_plan(
     task_id: str, store: TaskStore, clock: Callable[[], datetime], shown_digest: str, shown_findings: tuple[str, ...],
-    waived: tuple[str, ...] = (), shown_audit_gaps: tuple[str, ...] | None = None,
+    waived: tuple[str, ...] = (), shown_audit_gaps: tuple[str, ...] | None = None, reinstated: tuple[str, ...] = (),
 ) -> Task:
     """Queue a new task with the plan a human already approved for `task_id` (the caller confirmed it with the human)."""
     task = store.load(task_id)
     require_keepable_plan(task, shown_digest)
     if capped_findings(shown_findings) != capped_findings(task.review_findings):
         raise RetryRefused(f"review findings mismatch for {task.id}")
-    notes = remove_waived(capped_findings(task.review_findings), waived) if waived else task.review_findings
+    notes = _notes_for_retry(task, waived)
     gaps = gaps_to_carry(task)
     if shown_audit_gaps is not None and shown_audit_gaps != gaps:
         raise RetryRefused(f"audit gaps mismatch for {task.id}")
@@ -50,6 +50,10 @@ def retry_with_plan(
             prior_audit_findings=gaps,
         ),
     )
+
+
+def _notes_for_retry(task: Task, waived: tuple[str, ...]) -> tuple[str, ...]:
+    return remove_waived(capped_findings(task.review_findings), waived) if waived else task.review_findings
 
 
 def require_keepable_plan(task: Task, shown_digest: str) -> None:
