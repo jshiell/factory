@@ -170,3 +170,12 @@ def test_guard_dropped_required_ignores_optional_and_blank_lines():
     optional = tuple(f"gap {i}. Recommend (optional): skip it" for i in range(MAX_ITEMS + 5))
     assert dropped_required((*optional, "", "  ", "untagged note")) == 0
     assert dropped_required((*optional, *(_required(i) for i in range(MAX_ITEMS + 2)))) == 2
+
+
+def test_guard_dropped_required_sees_the_tag_after_flattening_and_cutting():
+    from factory.review_notes import dropped_required
+
+    odd_tags = ("a. RECOMMEND (REQUIRED): x", "b. Recommend\n(required): x", "c. Recommend  (required): x",
+                "d" * 600 + " Recommend (required): x")
+    filler = tuple(_required(i) for i in range(MAX_ITEMS))
+    assert dropped_required((*filler, *odd_tags)) == len(odd_tags)
