@@ -90,3 +90,11 @@ def test_a_required_note_is_kept_when_other_notes_would_fill_the_total_limit():
     result = capped_findings((*others, required))
 
     assert result == (*others[:-1], required, TRUNCATED)
+
+
+def test_only_the_first_ten_required_notes_are_kept_and_no_other_note_takes_a_slot():
+    # guard (green on arrival; mutation-checked)
+    required = tuple(f"Recommend (required): note {i}" for i in range(MAX_ITEMS + 1))
+
+    assert capped_findings(("an untagged note", *required)) == (*required[:MAX_ITEMS], TRUNCATED)
+
