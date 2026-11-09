@@ -1209,3 +1209,13 @@ def test_approve_numbers_the_required_notes_and_offers_waiving_them(ctx, approve
     assert f"  - [1] {REQ1}\n" in out and f"  - [2] {REQ2}\n" in out
     assert f"  - {OPT}\n" in out and "  - plain note\n" in out
     assert "'w 1 3'" in out
+
+
+def test_approve_without_a_required_note_shows_no_numbers_and_no_waive_offer(ctx, approve_spy):
+    # guard (green on arrival; mutation-checked)
+    reviewed_with_notes(ctx, OPT, "plain note")
+
+    _, out, _ = run(ctx, "approve", "t1", stdin="n\n")
+
+    assert "[1]" not in out and "waive" not in out
+    assert out.endswith("Approve this plan? [y/N] not approved\n")
