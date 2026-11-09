@@ -101,3 +101,13 @@ def test_the_stored_prompt_fallback_does_not_repeat_notes_it_already_carries():
     prompt = build_fix_prompt(bare, "x")
 
     assert prompt.count("REVIEWER NOTES") == 1
+
+
+GAP = "the empty list was not handled"
+
+
+def test_audit_gaps_sit_after_the_notes_and_before_the_rules_and_the_test_output():
+    prompt = build_fix_prompt(task(review_findings=("reject bytes",), prior_audit_findings=(GAP,)), "FAILED test_x")
+
+    order = [prompt.index(part) for part in ("PLAN:\n1. add it", "reject bytes", GAP, "Rules:", "<test-output-")]
+    assert order == sorted(order)
