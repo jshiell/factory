@@ -52,6 +52,15 @@ def dropped_required(findings: tuple[str, ...]) -> int:
     return present - sum(is_required(line) for line in capped_findings(findings))
 
 
+def dropped_required_warning(findings: tuple[str, ...]) -> str:
+    """A one-line warning when the cap dropped required notes, else ""; the line holds only numbers."""
+    count = dropped_required(findings)
+    if not count:
+        return ""
+    return (f"WARNING: {count} required note(s) beyond the first {MAX_ITEMS} were dropped and are not in the "
+            "agents' prompts or the audit's. Reject and re-plan if they matter.")
+
+
 NOTES_HEADING = (
     "REVIEWER NOTES (a reviewer's comments on the plan above; address those that fit the plan. Notes marked "
     "'Recommend (required)' must be handled, by the recommended behaviour or an equivalent one, with a test; "

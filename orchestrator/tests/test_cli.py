@@ -1407,3 +1407,19 @@ def test_a_gap_quoting_a_waived_note_is_reported_as_dropped(ctx, keep_kwargs):
 
     assert code == 0 and f"dropped (quotes a waived note): {quoting}\n" in out
     assert keep_kwargs == [{"shown_findings": (REQ2,), "waived": (REQ2,), "shown_audit_gaps": (quoting, GAP)}]
+
+
+def _required_notes(count):
+    return tuple(f"gap {i}. Recommend (required): handle it" for i in range(count))
+
+
+def test_approve_warns_how_many_required_notes_the_cap_dropped_before_asking(ctx, approve_spy):
+    from factory.review_notes import MAX_ITEMS
+
+    put(ctx, S.REVIEWED, goal="add multiply", plan=PLAN, plan_digest=plan_digest(PLAN),
+        plan_risks=("risky",), review_findings=_required_notes(MAX_ITEMS + 3))
+
+    _, out, _ = run(ctx, "approve", "t1", stdin="y\n")
+
+    warning = f"WARNING: 3 required note(s) beyond the first {MAX_ITEMS} were dropped"
+    assert warning in out and out.index("REVIEWER NOTES") < out.index(warning) < out.index("Approve this plan?")

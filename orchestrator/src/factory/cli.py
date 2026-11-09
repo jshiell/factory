@@ -29,7 +29,7 @@ from factory.lock import AlreadyRunning, state_lock
 from factory.process import group_alive, kill_tree
 from factory.process_registry import ReapResult, ReapUncertain, ps_probe, reap_orphans
 from factory.merge_task import MergeRefused, merge_preview, merge_task
-from factory.review_notes import capped_findings
+from factory.review_notes import capped_findings, dropped_required_warning
 from factory.retry_task import RetryRefused, require_keepable_plan, retry_task, retry_with_plan
 from factory.recover_task import RecoverRefused, recover_task
 from factory.runner import SubprocessRunner
@@ -265,6 +265,8 @@ def _approve(args, io, ctx) -> int:
         + ["REVIEWER NOTES (sent to the implementer):"] + note_display
     )
     print(escape_control(shown), file=io.stdout)
+    if warning := dropped_required_warning(task.review_findings):
+        print(warning, file=io.stdout)
     waived = _ask_with_waiver(io, "Approve this plan? [y/N]", "Waive these and approve? [y/N] ", required, "not approved")
     if waived is None:
         return 1
