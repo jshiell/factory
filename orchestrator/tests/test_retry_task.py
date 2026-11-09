@@ -272,3 +272,29 @@ def test_a_gap_quoting_a_waived_note_reaches_neither_the_new_attempt_nor_its_aud
     assert other in new.prompt
     for prompt in (new.prompt, build_audit_prompt(new, "diff")):
         assert "fsum" not in prompt
+
+
+def test_a_retry_of_a_kept_plan_retry_still_gets_the_gaps(store):
+    put_approved(store, failure_reason="audit_rejected", audit_findings=(GAP,))
+    child = keep(store)
+    store.save(Task(**{**child.__dict__, "state": TaskState.FAILED, "failure_reason": "tests_failed"}))
+
+    grandchild = retry_with_plan(child.id, store, lambda: datetime(2026, 1, 2, 3, 4, 6), plan_digest(PLAN), ("f",))
+
+    assert GAP in grandchild.prompt and grandchild.prior_audit_findings == (GAP,)
+
+
+def test_fresh_audit_findings_replace_the_inherited_ones(store):
+    put_approved(store, prior_audit_findings=("old gap",), failure_reason="audit_rejected", audit_findings=(GAP,))
+
+    new = keep(store)
+
+    assert new.prior_audit_findings == (GAP,) and "old gap" not in new.prompt
+
+
+def test_an_audited_task_passes_no_gaps_on(store):
+    put_approved(store, TaskState.AUDITED, prior_audit_findings=("old gap",), audit_findings=("fine",))
+
+    new = keep(store)
+
+    assert new.prior_audit_findings == () and "old gap" not in new.prompt

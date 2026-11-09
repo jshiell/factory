@@ -1,4 +1,4 @@
-from factory.task import Task
+from factory.task import Task, TaskState
 
 MAX_GAPS = 10
 MAX_GAP = 500
@@ -22,9 +22,10 @@ def _bounded(findings: tuple[str, ...]) -> tuple[str, ...]:
 
 def gaps_to_carry(task: Task) -> tuple[str, ...]:
     """What a kept-plan retry of `task` tells the new attempt about the audit that rejected it."""
-    if task.failure_reason == "audit_rejected":
-        return _bounded(task.audit_findings)
-    return ()
+    if task.state is not TaskState.FAILED:
+        return ()
+    fresh = _bounded(task.audit_findings) if task.failure_reason == "audit_rejected" else ()
+    return fresh or task.prior_audit_findings
 
 
 def split_quoting_waived(gaps: tuple[str, ...], waived: tuple[str, ...]) -> tuple[tuple[str, ...], tuple[str, ...]]:

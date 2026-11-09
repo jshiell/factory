@@ -47,6 +47,7 @@ def retry_with_plan(
             id=new_id, prompt=build_implementation_prompt(task.goal, task.plan, notes, gaps), state=TaskState.QUEUED, goal=task.goal,
             plan=task.plan, plan_risks=task.plan_risks, plan_digest=task.plan_digest,
             review_findings=notes, retry_of=task.id, waived_findings=task.waived_findings + waived,
+            prior_audit_findings=gaps,
         ),
     )
 
