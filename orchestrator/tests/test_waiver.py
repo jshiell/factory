@@ -35,7 +35,7 @@ def test_w_with_note_numbers_waives_those_notes(text, numbers):
     assert parse_answer(text, required_count=3) == Waive(numbers=numbers)
 
 
-@pytest.mark.parametrize("text", ['w', ' w \\n'])
+@pytest.mark.parametrize("text", ['w', ' w \n'])
 def test_w_without_note_numbers_is_refused(text):
     answer = parse_answer(text, required_count=3)
 
