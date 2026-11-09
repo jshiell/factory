@@ -7,7 +7,7 @@ from factory.digest import plan_digest
 from factory.review_notes import TRUNCATED, capped_findings
 from factory.store import TaskStore, create_with_fresh_id
 from factory.task import Task, TaskState
-from factory.waiver import remove_waived
+from factory.waiver import InvalidWaiver, remove_waived
 
 RETRYABLE = (TaskState.FAILED, TaskState.AUDITED)
 
@@ -36,6 +36,8 @@ def retry_with_plan(
     require_keepable_plan(task, shown_digest)
     if capped_findings(shown_findings) != capped_findings(task.review_findings):
         raise RetryRefused(f"review findings mismatch for {task.id}")
+    if waived and reinstated:
+        raise InvalidWaiver("cannot waive and reinstate notes in the same retry")
     notes = _notes_for_retry(task, waived, reinstated)
     gaps = gaps_to_carry(task)
     if shown_audit_gaps is not None and shown_audit_gaps != gaps:

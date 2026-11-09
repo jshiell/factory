@@ -311,3 +311,97 @@ def test_reinstating_an_earlier_waived_note_sends_it_again_and_takes_it_off_the_
     for prompt in (new.prompt, build_audit_prompt(new, "diff")):
         assert "fsum" in prompt and OPTIONAL_NOTE in prompt
     assert store.load(new.id) == new
+
+
+def test_a_stored_marker_is_recomputed_when_notes_are_reinstated(store):
+    from factory.audit_task import build_audit_prompt
+    from factory.review_notes import MAX_ITEMS, TRUNCATED, capped_findings, notes_block
+
+    required = tuple(f"Recommend (required): note {i}" for i in range(MAX_ITEMS - 1))
+    stored = (*required, OPTIONAL_NOTE, TRUNCATED)
+    put_approved(store, review_findings=stored, waived_findings=(REQUIRED_NOTE,))
+
+    new = retry_with_plan("t1", store, lambda: NOW, plan_digest(PLAN), stored, reinstated=(REQUIRED_NOTE,))
+
+    assert new.review_findings == capped_findings((*required, OPTIONAL_NOTE, REQUIRED_NOTE))
+    assert new.review_findings.count(TRUNCATED) <= 1 and OPTIONAL_NOTE not in new.review_findings
+    assert notes_block(new.review_findings) in new.prompt
+
+
+def test_a_marker_goes_when_the_reinstated_list_is_no_longer_cut(store):
+    from factory.review_notes import TRUNCATED
+
+    put_approved(store, review_findings=(OPTIONAL_NOTE, TRUNCATED), waived_findings=(REQUIRED_NOTE,))
+
+    new = retry_with_plan("t1", store, lambda: NOW, plan_digest(PLAN), (OPTIONAL_NOTE, TRUNCATED), reinstated=(REQUIRED_NOTE,))
+
+    assert TRUNCATED not in new.review_findings
+
+
+def test_a_note_that_is_not_waived_cannot_be_reinstated(store):
+    # guard (green on arrival; mutation-checked)
+    from factory.waiver import InvalidWaiver
+
+    put_approved(store, review_findings=(OPTIONAL_NOTE,), waived_findings=(REQUIRED_NOTE,))
+
+    with pytest.raises(InvalidWaiver):
+        retry_with_plan("t1", store, lambda: NOW, plan_digest(PLAN), (OPTIONAL_NOTE,), reinstated=("Recommend (required): other",))
+
+    assert [t.id for t in store.list().tasks] == ["t1"]
+
+
+def test_a_note_waived_once_cannot_be_reinstated_twice(store):
+    # guard (green on arrival; mutation-checked)
+    from factory.waiver import InvalidWaiver
+
+    put_approved(store, review_findings=(OPTIONAL_NOTE,), waived_findings=(REQUIRED_NOTE,))
+
+    with pytest.raises(InvalidWaiver):
+        retry_with_plan("t1", store, lambda: NOW, plan_digest(PLAN), (OPTIONAL_NOTE,), reinstated=(REQUIRED_NOTE, REQUIRED_NOTE))
+
+    assert [t.id for t in store.list().tasks] == ["t1"]
+
+
+def test_reinstating_one_of_two_identical_waived_notes_leaves_the_other_waived(store):
+    # guard (green on arrival; mutation-checked)
+    put_approved(store, review_findings=(OPTIONAL_NOTE,), waived_findings=(REQUIRED_NOTE, REQUIRED_NOTE))
+
+    new = retry_with_plan("t1", store, lambda: NOW, plan_digest(PLAN), (OPTIONAL_NOTE,), reinstated=(REQUIRED_NOTE,))
+
+    assert new.waived_findings == (REQUIRED_NOTE,) and new.review_findings.count(REQUIRED_NOTE) == 1
+
+
+def test_waiving_and_reinstating_in_one_retry_is_refused(store):
+    # guard (green on arrival; mutation-checked)
+    from factory.waiver import InvalidWaiver
+
+    other = "Recommend (required): other"
+    put_approved(store, review_findings=(other,), waived_findings=(REQUIRED_NOTE,))
+
+    with pytest.raises(InvalidWaiver):
+        retry_with_plan("t1", store, lambda: NOW, plan_digest(PLAN), (other,), waived=(other,), reinstated=(REQUIRED_NOTE,))
+
+    assert [t.id for t in store.list().tasks] == ["t1"]
+
+
+def test_a_fresh_audit_gap_quoting_a_reinstated_note_is_still_sent(store):
+    # guard (green on arrival; mutation-checked)
+    gap = f"Not handled: {REQUIRED_NOTE.lower()}."
+    put_approved(store, review_findings=(OPTIONAL_NOTE,), waived_findings=(REQUIRED_NOTE,), failure_reason="audit_rejected",
+                 audit_findings=(gap,))
+
+    new = retry_with_plan("t1", store, lambda: NOW, plan_digest(PLAN), (OPTIONAL_NOTE,), reinstated=(REQUIRED_NOTE,))
+
+    assert gap in new.prompt
+
+
+def test_reinstating_up_to_the_required_cap_is_accepted(store):
+    # guard (green on arrival; mutation-checked)
+    from factory.review_notes import MAX_ITEMS
+
+    nine = tuple(f"Recommend (required): note {i}" for i in range(MAX_ITEMS - 1))
+    put_approved(store, review_findings=nine, waived_findings=(REQUIRED_NOTE,))
+
+    new = retry_with_plan("t1", store, lambda: NOW, plan_digest(PLAN), nine, reinstated=(REQUIRED_NOTE,))
+
+    assert REQUIRED_NOTE in new.review_findings
