@@ -4,7 +4,7 @@ from collections.abc import Callable
 from factory.approve_plan import build_implementation_prompt
 from factory.audit_gaps import gaps_to_carry, split_quoting_waived
 from factory.digest import plan_digest
-from factory.review_notes import TRUNCATED, capped_findings
+from factory.review_notes import MAX_ITEMS, TRUNCATED, capped_findings, is_required
 from factory.store import TaskStore, create_with_fresh_id
 from factory.task import Task, TaskState
 from factory.waiver import InvalidWaiver, remove_waived
@@ -58,7 +58,10 @@ def retry_with_plan(
 def _notes_for_retry(task: Task, waived: tuple[str, ...], reinstated: tuple[str, ...] = ()) -> tuple[str, ...]:
     if reinstated:
         stored = tuple(note for note in task.review_findings if note != TRUNCATED)
-        return capped_findings((*stored, *reinstated))
+        wanted = (*stored, *reinstated)
+        if sum(is_required(note) for note in wanted) > MAX_ITEMS:
+            raise InvalidWaiver(f"reinstating would pass the limit of {MAX_ITEMS} required notes")
+        return capped_findings(wanted)
     return remove_waived(capped_findings(task.review_findings), waived) if waived else task.review_findings
 
 

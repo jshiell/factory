@@ -405,3 +405,19 @@ def test_reinstating_up_to_the_required_cap_is_accepted(store):
     new = retry_with_plan("t1", store, lambda: NOW, plan_digest(PLAN), nine, reinstated=(REQUIRED_NOTE,))
 
     assert REQUIRED_NOTE in new.review_findings
+
+
+def test_reinstating_beyond_the_required_cap_is_refused(store):
+    # defensive guard on a hand-built task: the app paths never store more than the cap (green on arrival; mutation-checked)
+    from factory.review_notes import MAX_ITEMS
+    from factory.waiver import InvalidWaiver
+
+    full = tuple(f"Recommend (required): note {i}" for i in range(MAX_ITEMS))
+    put_approved(store, review_findings=full, waived_findings=(REQUIRED_NOTE,))
+
+    with pytest.raises(InvalidWaiver):
+        retry_with_plan("t1", store, lambda: NOW, plan_digest(PLAN), full, reinstated=(REQUIRED_NOTE,))
+
+    assert [t.id for t in store.list().tasks] == ["t1"]
+
+
