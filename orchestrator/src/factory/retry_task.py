@@ -6,6 +6,7 @@ from factory.digest import plan_digest
 from factory.review_notes import capped_findings
 from factory.store import TaskStore, create_with_fresh_id
 from factory.task import Task, TaskState
+from factory.waiver import remove_waived
 
 RETRYABLE = (TaskState.FAILED, TaskState.AUDITED)
 
@@ -26,19 +27,21 @@ def retry_task(task_id: str, store: TaskStore, clock: Callable[[], datetime]) ->
 
 
 def retry_with_plan(
-    task_id: str, store: TaskStore, clock: Callable[[], datetime], shown_digest: str, shown_findings: tuple[str, ...]
+    task_id: str, store: TaskStore, clock: Callable[[], datetime], shown_digest: str, shown_findings: tuple[str, ...],
+    waived: tuple[str, ...] = (),
 ) -> Task:
     """Queue a new task with the plan a human already approved for `task_id` (the caller confirmed it with the human)."""
     task = store.load(task_id)
     require_keepable_plan(task, shown_digest)
     if capped_findings(shown_findings) != capped_findings(task.review_findings):
         raise RetryRefused(f"review findings mismatch for {task.id}")
+    notes = remove_waived(capped_findings(task.review_findings), waived) if waived else task.review_findings
     return create_with_fresh_id(
         store, clock,
         lambda new_id: Task(
-            id=new_id, prompt=build_implementation_prompt(task.goal, task.plan, task.review_findings), state=TaskState.QUEUED, goal=task.goal,
+            id=new_id, prompt=build_implementation_prompt(task.goal, task.plan, notes), state=TaskState.QUEUED, goal=task.goal,
             plan=task.plan, plan_risks=task.plan_risks, plan_digest=task.plan_digest,
-            review_findings=task.review_findings, retry_of=task.id,
+            review_findings=notes, retry_of=task.id, waived_findings=task.waived_findings + waived,
         ),
     )
 
