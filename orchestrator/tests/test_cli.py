@@ -1339,3 +1339,12 @@ def test_keeping_the_plan_shows_the_notes_waived_earlier(ctx, keep_kwargs):
     _, out, _ = run(ctx, "retry", "t1", "--keep-plan", stdin="n\n")
 
     assert f"WAIVED EARLIER (not sent):\n  - {REQ1}\n" in out
+
+
+def test_y_when_keeping_a_plan_with_required_notes_passes_no_waiver(ctx, keep_kwargs):
+    # guard (green on arrival; mutation-checked)
+    approved_failure(ctx, review_findings=(REQ1, REQ2))
+
+    code, _, _ = run(ctx, "retry", "t1", "--keep-plan", stdin="y\n")
+
+    assert code == 0 and keep_kwargs == [{"shown_findings": (REQ1, REQ2)}]
