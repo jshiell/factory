@@ -44,5 +44,8 @@ def parse_answer(text: str, required_count: int) -> Approve | Waive | Refuse:
             return Refuse(reason="w needs the numbers of the notes to waive")
         if not all(word.isascii() and word.isdigit() for word in words[1:]):
             return Refuse(reason="note numbers are plain digits, like: w 1 3")
-        return Waive(numbers=tuple(int(word) for word in words[1:]))
+        numbers = tuple(int(word) for word in words[1:])
+        if not all(1 <= number <= required_count for number in numbers):
+            return Refuse(reason=f"note numbers must be between 1 and {required_count}")
+        return Waive(numbers=numbers)
     return Refuse(reason=None)
