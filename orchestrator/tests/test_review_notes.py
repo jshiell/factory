@@ -119,3 +119,10 @@ def test_identical_notes_are_dropped_by_position_not_by_value():
     result = capped_findings(("same",) * MAX_ITEMS + (REQUIRED + "x",))
 
     assert result == ("same",) * (MAX_ITEMS - 1) + (REQUIRED + "x", TRUNCATED)
+
+
+def test_a_cut_required_note_is_marked_even_when_nothing_is_dropped():
+    # guard (green on arrival; mutation-checked)
+    result = capped_findings((REQUIRED + "x" * 600,))
+
+    assert result == ((REQUIRED + "x" * 600)[:MAX_ITEM], TRUNCATED)
