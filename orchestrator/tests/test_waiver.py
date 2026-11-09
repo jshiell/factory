@@ -54,3 +54,10 @@ def test_a_note_number_must_be_one_of_the_shown_required_notes(text):
     answer = parse_answer(text, required_count=3)
 
     assert isinstance(answer, Refuse) and answer.reason
+
+
+@pytest.mark.parametrize("text", ["w 1 1", "w 2 1 2"])
+def test_a_note_number_may_not_be_repeated(text):
+    answer = parse_answer(text, required_count=3)
+
+    assert isinstance(answer, Refuse) and answer.reason

@@ -47,5 +47,7 @@ def parse_answer(text: str, required_count: int) -> Approve | Waive | Refuse:
         numbers = tuple(int(word) for word in words[1:])
         if not all(1 <= number <= required_count for number in numbers):
             return Refuse(reason=f"note numbers must be between 1 and {required_count}")
+        if len(set(numbers)) != len(numbers):
+            return Refuse(reason="a note number was given twice")
         return Waive(numbers=numbers)
     return Refuse(reason=None)
