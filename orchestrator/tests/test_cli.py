@@ -1219,3 +1219,21 @@ def test_approve_without_a_required_note_shows_no_numbers_and_no_waive_offer(ctx
 
     assert "[1]" not in out and "waive" not in out
     assert out.endswith("Approve this plan? [y/N] not approved\n")
+
+
+@pytest.fixture
+def approve_kwargs(monkeypatch):
+    calls = []
+    monkeypatch.setattr("factory.cli.approve_plan", lambda *a, **k: calls.append(k))
+    return calls
+
+
+def test_w_shows_what_it_waives_asks_again_and_on_y_approves_with_that_note_waived(ctx, approve_kwargs):
+    reviewed_with_notes(ctx, REQ1, OPT, REQ2)
+
+    code, out, _ = run(ctx, "approve", "t1", stdin="w 2\ny\n")
+
+    assert code == 0
+    assert approve_kwargs == [{"shown_findings": (REQ1, OPT, REQ2), "waived": (REQ2,)}]
+    assert "Waiving" in out and f"  - {REQ2}\n" in out.split("Waiving", 1)[1]
+    assert "Waive these and approve? [y/N] " in out

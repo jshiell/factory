@@ -37,7 +37,7 @@ from factory.stages import Deps, build_stages
 from factory.step import Runner
 from factory.store import TaskNotFound, TaskStore, create_with_fresh_id
 from factory.task import InvalidTransition, Task, TaskState
-from factory.waiver import approval_prompt, note_lines
+from factory.waiver import Refuse, Waive, approval_prompt, note_lines, parse_answer
 from factory.worktrees import WorktreeManager
 
 
@@ -244,11 +244,22 @@ def _approve(args, io, ctx) -> int:
     print(escape_control(shown), file=io.stdout)
     print(approval_prompt("Approve this plan? [y/N]", required), end="", file=io.stdout)
     io.stdout.flush()
-    if io.stdin.readline().strip() != "y":
+    answer = parse_answer(io.stdin.readline(), len(required))
+    waived: tuple[str, ...] = ()
+    if isinstance(answer, Waive):
+        waived = tuple(required[number - 1] for number in answer.numbers)
+        print(escape_control("\n".join(["Waiving (these will not be sent to the agents or enforced by the audit):",
+                                        *(f"  - {note}" for note in waived)])), file=io.stdout)
+        print("Waive these and approve? [y/N] ", end="", file=io.stdout)
+        io.stdout.flush()
+        if io.stdin.readline().strip() != "y":
+            answer = Refuse(reason=None)
+    if isinstance(answer, Refuse):
         print("not approved", file=io.stdout)
         return 1
+    kwargs = {"waived": waived} if waived else {}
     try:
-        approve_plan(task.id, ctx.store, plan_digest(task.plan), shown_findings=task.review_findings)
+        approve_plan(task.id, ctx.store, plan_digest(task.plan), shown_findings=task.review_findings, **kwargs)
     except ValueError:
         print("plan changed since display; nothing approved", file=io.stderr)
         return 1
