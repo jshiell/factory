@@ -40,5 +40,7 @@ def parse_answer(text: str, required_count: int) -> Approve | Waive | Refuse:
     if words == ["y"]:
         return Approve()
     if words[:1] == ["w"]:
+        if len(words) == 1:
+            return Refuse(reason="w needs the numbers of the notes to waive")
         return Waive(numbers=tuple(int(word) for word in words[1:]))
     return Refuse(reason=None)
