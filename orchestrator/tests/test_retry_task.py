@@ -232,3 +232,13 @@ def test_keeping_the_plan_after_a_rejected_audit_sends_its_findings_to_the_new_a
     put_approved(store, failure_reason="audit_rejected", audit_findings=(GAP,))
 
     assert GAP in keep(store).prompt
+
+
+def test_guard_other_sources_send_no_gaps(store):
+    # guard (green on arrival; mutation-checked)
+    put_approved(store, failure_reason="tests_failed", audit_findings=(GAP,))
+    put_approved(store, TaskState.AUDITED, task_id="t2", audit_findings=(GAP,))
+    put_approved(store, task_id="t3", failure_reason="audit_rejected", audit_findings=("", "  \n "))
+
+    for task_id in ("t1", "t2", "t3"):
+        assert "EARLIER ATTEMPT" not in keep(store, task_id).prompt and GAP not in keep(store, task_id).prompt
