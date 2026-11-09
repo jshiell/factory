@@ -344,6 +344,8 @@ def _retry_keeping_plan(task: Task, io, ctx) -> int:
         lines += ["AUDIT FINDINGS:", *(f"  - {f}" for f in task.audit_findings),
                   f"{task.id} is audited and still mergeable; abandon it if you take this retry"]
     print(escape_control("\n".join(lines)), file=io.stdout)
+    if warning := dropped_required_warning(task.review_findings):
+        print(warning, file=io.stdout)
     waived = _ask_with_waiver(
         io, f"Queue this plan again as a new task (retry of {task.id})? [y/N]", "Waive these and queue? [y/N] ", required, "not queued")
     if waived is None:

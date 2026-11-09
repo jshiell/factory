@@ -1445,3 +1445,15 @@ def test_guard_waiving_a_shown_note_still_prints_the_warning_once(ctx, approve_s
     _, out, _ = run(ctx, "approve", "t1", stdin="w 1\ny\n")
 
     assert out.count("WARNING: 2 required note(s)") == 1
+
+
+def test_retry_keeping_the_plan_warns_how_many_stored_required_notes_the_cap_dropped(ctx, monkeypatch):
+    from factory.review_notes import MAX_ITEMS
+
+    monkeypatch.setattr("factory.cli.retry_with_plan", lambda *a, **k: Task(id="new", prompt=""))
+    approved_failure(ctx, review_findings=_required_notes(MAX_ITEMS + 2))
+
+    _, out, _ = run(ctx, "retry", "t1", "--keep-plan", stdin="y\n")
+
+    warning = f"WARNING: 2 required note(s) beyond the first {MAX_ITEMS} were dropped"
+    assert warning in out and out.index("REVIEWER NOTES") < out.index(warning) < out.index("Queue this plan again")
