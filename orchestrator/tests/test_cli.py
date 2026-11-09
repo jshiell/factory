@@ -1373,3 +1373,27 @@ def test_an_invalid_waiver_from_retry_is_reported_as_such_not_as_a_changed_plan(
     code, _, err = run(ctx, "retry", "t1", "--keep-plan", stdin="w 1\ny\n")
 
     assert code == 1 and "cannot waive" in err and "plan changed" not in err
+
+
+# --- audit gaps carried by retry --keep-plan --------------------------------------
+
+GAP = "the empty list was not handled"
+
+
+def test_keeping_the_plan_after_a_rejected_audit_shows_and_passes_the_gaps_it_will_send(ctx, keep_kwargs):
+    approved_failure(ctx, failure_reason="audit_rejected", audit_findings=("empty list\x1b[8m not handled",))
+
+    code, out, _ = run(ctx, "retry", "t1", "--keep-plan", stdin="y\n")
+
+    assert code == 0 and "AUDIT FINDINGS (sent to the next attempt):" in out
+    assert "  - empty list\\x1b[8m not handled" in out and "\x1b" not in out
+    assert keep_kwargs == [{"shown_findings": ("looks fine",), "shown_audit_gaps": ("empty list\x1b[8m not handled",)}]
+
+
+def test_guard_other_failures_show_no_gap_block_and_pass_no_gaps(ctx, keep_kwargs):
+    # guard (green on arrival; mutation-checked)
+    approved_failure(ctx, failure_reason="tests_failed", audit_findings=(GAP,))
+
+    _, out, _ = run(ctx, "retry", "t1", "--keep-plan", stdin="y\n")
+
+    assert "sent to the next attempt" not in out and keep_kwargs == [{"shown_findings": ("looks fine",)}]

@@ -12,6 +12,7 @@ from pathlib import Path
 from factory.textsafe import escape_control  # noqa: F401  (re-exported)
 from factory.advance import advance
 from factory.audit_compare import compare, find_previous
+from factory.audit_gaps import gaps_to_carry
 from factory.audit_corpus import CASES as EVAL_CASES, PROJECT_SUBDIR
 from factory.audit_eval import CorpusChanged, check_corpus, run_eval
 from factory.audit_report import exit_code as eval_exit_code, load_records, render
@@ -332,6 +333,9 @@ def _retry_keeping_plan(task: Task, io, ctx) -> int:
     ]
     if task.waived_findings:
         lines += ["WAIVED EARLIER (not sent):", *(f"  - {f}" for f in task.waived_findings)]
+    gaps = gaps_to_carry(task)
+    if gaps:
+        lines += ["AUDIT FINDINGS (sent to the next attempt):", *(f"  - {g}" for g in gaps)]
     if task.failure_reason:
         lines.append(f"FAILED BECAUSE: {task.failure_reason}")
     if task.state is TaskState.AUDITED:
@@ -343,6 +347,8 @@ def _retry_keeping_plan(task: Task, io, ctx) -> int:
     if waived is None:
         return 1
     kwargs = {"waived": waived} if waived else {}
+    if gaps:
+        kwargs["shown_audit_gaps"] = gaps
     try:
         new = retry_with_plan(
             task.id, ctx.store, ctx.clock, plan_digest(task.plan), shown_findings=task.review_findings, **kwargs)
