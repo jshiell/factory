@@ -133,3 +133,12 @@ def test_the_required_tag_is_matched_in_any_case_on_a_short_note():
     result = capped_findings(("n",) * MAX_ITEMS + ("RECOMMEND (REQUIRED): x",))
 
     assert result == ("n",) * (MAX_ITEMS - 1) + ("RECOMMEND (REQUIRED): x", TRUNCATED)
+
+
+def test_a_shortened_required_note_still_counts_as_required():
+    # guard (green on arrival; mutation-checked)
+    long_required = "Gap: " + "x" * 580 + " " + REQUIRED + "reject bytes."
+
+    (*_, kept, marker) = capped_findings(("n",) * MAX_ITEMS + (long_required,))
+
+    assert kept.startswith("Recommend (required) [shortened]: ") and marker == TRUNCATED
