@@ -81,7 +81,7 @@ class TaskStore:
             raise TaskNotFound(task_id) from None
         data["state"] = TaskState(data["state"])
         data["denials"] = tuple(data["denials"])
-        for field in ("audit_findings", "plan_risks", "review_findings"):
+        for field in ("audit_findings", "plan_risks", "review_findings", "waived_findings"):
             data[field] = tuple(data.get(field, ()))
         return Task(**data)
 

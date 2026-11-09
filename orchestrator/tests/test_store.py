@@ -154,3 +154,12 @@ def test_new_task_id_is_a_safe_timestamp_with_an_optional_suffix():
 
     assert new_task_id(now) == "20261107-090503"
     assert new_task_id(now, "2") == "20261107-090503-2"
+
+
+def test_waived_findings_round_trip_as_a_tuple(tmp_path):
+    store = TaskStore(tmp_path)
+    task = Task(id="t1", prompt="p", waived_findings=("Recommend (required): use fsum",))
+
+    store.save(task)
+
+    assert store.load("t1") == task
