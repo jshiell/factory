@@ -45,6 +45,13 @@ def capped_findings(findings: tuple[str, ...]) -> tuple[str, ...]:
     return (*result, TRUNCATED) if cut else result
 
 
+def dropped_required(findings: tuple[str, ...]) -> int:
+    """How many required notes `capped_findings` drops (only the MAX_ITEMS cap can drop one)."""
+    flattened = (" ".join(raw.split()) for raw in findings)
+    present = sum(is_required(line) for line in flattened if line)
+    return present - sum(is_required(line) for line in capped_findings(findings))
+
+
 NOTES_HEADING = (
     "REVIEWER NOTES (a reviewer's comments on the plan above; address those that fit the plan. Notes marked "
     "'Recommend (required)' must be handled, by the recommended behaviour or an equivalent one, with a test; "

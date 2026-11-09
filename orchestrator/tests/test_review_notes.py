@@ -151,3 +151,14 @@ def test_the_prompt_block_carries_a_required_note_that_came_after_ten_optional_o
     block = notes_block(("n",) * MAX_ITEMS + (REQUIRED + "reject bytes",))
 
     assert f"- {REQUIRED}reject bytes\n" in block
+
+
+def _required(i):
+    return f"gap {i}. Recommend (required): handle it"
+
+
+def test_dropped_required_counts_the_required_notes_past_the_item_limit():
+    from factory.review_notes import dropped_required
+
+    assert dropped_required(tuple(_required(i) for i in range(MAX_ITEMS))) == 0
+    assert dropped_required(tuple(_required(i) for i in range(MAX_ITEMS + 1))) == 1
