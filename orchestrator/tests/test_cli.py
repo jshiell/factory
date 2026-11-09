@@ -1348,3 +1348,13 @@ def test_y_when_keeping_a_plan_with_required_notes_passes_no_waiver(ctx, keep_kw
     code, _, _ = run(ctx, "retry", "t1", "--keep-plan", stdin="y\n")
 
     assert code == 0 and keep_kwargs == [{"shown_findings": (REQ1, REQ2)}]
+
+
+@pytest.mark.parametrize("stdin", ["w 1\nn\n", "w 1\n", "w 9\ny\n", "w\ny\n", "w 1 1\ny\n"])
+def test_a_declined_or_bad_waive_answer_queues_nothing_when_keeping_a_plan(ctx, keep_kwargs, stdin):
+    # guard (green on arrival; mutation-checked)
+    approved_failure(ctx, review_findings=(REQ1, REQ2))
+
+    code, out, _ = run(ctx, "retry", "t1", "--keep-plan", stdin=stdin)
+
+    assert code == 1 and keep_kwargs == [] and out.endswith("not queued\n")
