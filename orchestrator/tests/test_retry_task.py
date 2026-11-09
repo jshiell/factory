@@ -242,3 +242,19 @@ def test_guard_other_sources_send_no_gaps(store):
 
     for task_id in ("t1", "t2", "t3"):
         assert "EARLIER ATTEMPT" not in keep(store, task_id).prompt and GAP not in keep(store, task_id).prompt
+
+
+def test_keeping_the_plan_refuses_gaps_that_differ_from_the_ones_shown(store):
+    put_approved(store, failure_reason="audit_rejected", audit_findings=(GAP,))
+    before = sorted(store._directory.iterdir())
+
+    with pytest.raises(RetryRefused, match="audit"):
+        keep(store, shown_audit_gaps=("something else",))
+
+    assert sorted(store._directory.iterdir()) == before
+
+
+def test_keeping_the_plan_accepts_the_gaps_that_were_shown(store):
+    put_approved(store, failure_reason="audit_rejected", audit_findings=(GAP,))
+
+    assert GAP in keep(store, shown_audit_gaps=(GAP,)).prompt

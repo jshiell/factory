@@ -29,7 +29,7 @@ def retry_task(task_id: str, store: TaskStore, clock: Callable[[], datetime]) ->
 
 def retry_with_plan(
     task_id: str, store: TaskStore, clock: Callable[[], datetime], shown_digest: str, shown_findings: tuple[str, ...],
-    waived: tuple[str, ...] = (),
+    waived: tuple[str, ...] = (), shown_audit_gaps: tuple[str, ...] | None = None,
 ) -> Task:
     """Queue a new task with the plan a human already approved for `task_id` (the caller confirmed it with the human)."""
     task = store.load(task_id)
@@ -38,6 +38,8 @@ def retry_with_plan(
         raise RetryRefused(f"review findings mismatch for {task.id}")
     notes = remove_waived(capped_findings(task.review_findings), waived) if waived else task.review_findings
     gaps = gaps_to_carry(task)
+    if shown_audit_gaps is not None and shown_audit_gaps != gaps:
+        raise RetryRefused(f"audit gaps mismatch for {task.id}")
     return create_with_fresh_id(
         store, clock,
         lambda new_id: Task(
