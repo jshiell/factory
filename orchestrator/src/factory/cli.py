@@ -270,7 +270,8 @@ def _approve(args, io, ctx) -> int:
         return 1
     except InvalidTransition:
         return _not_reviewed(ctx.store.load(task.id), io)
-    print(f"{task.id}: approved and queued; run: factory advance {task.id}", file=io.stdout)
+    waived_note = f" ({len(waived)} required note{'s' if len(waived) != 1 else ''} waived)" if waived else ""
+    print(f"{task.id}: approved and queued{waived_note}; run: factory advance {task.id}", file=io.stdout)
     return 0
 
 

@@ -1303,3 +1303,11 @@ def test_an_invalid_waiver_from_approve_is_reported_as_such_not_as_a_changed_pla
     code, _, err = run(ctx, "approve", "t1", stdin="w 1\ny\n")
 
     assert code == 1 and "cannot waive" in err and "plan changed" not in err
+
+
+def test_the_approve_line_names_how_many_required_notes_were_waived(ctx, approve_kwargs):
+    reviewed_with_notes(ctx, REQ1, REQ2)
+
+    _, out, _ = run(ctx, "approve", "t1", stdin="w 1 2\ny\n")
+
+    assert "approved and queued (2 required notes waived); run: factory advance t1" in out
