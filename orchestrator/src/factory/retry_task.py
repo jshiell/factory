@@ -4,7 +4,7 @@ from collections.abc import Callable
 from factory.approve_plan import build_implementation_prompt
 from factory.audit_gaps import gaps_to_carry, split_quoting_waived
 from factory.digest import plan_digest
-from factory.review_notes import capped_findings
+from factory.review_notes import TRUNCATED, capped_findings
 from factory.store import TaskStore, create_with_fresh_id
 from factory.task import Task, TaskState
 from factory.waiver import remove_waived
@@ -36,23 +36,27 @@ def retry_with_plan(
     require_keepable_plan(task, shown_digest)
     if capped_findings(shown_findings) != capped_findings(task.review_findings):
         raise RetryRefused(f"review findings mismatch for {task.id}")
-    notes = _notes_for_retry(task, waived)
+    notes = _notes_for_retry(task, waived, reinstated)
     gaps = gaps_to_carry(task)
     if shown_audit_gaps is not None and shown_audit_gaps != gaps:
         raise RetryRefused(f"audit gaps mismatch for {task.id}")
     gaps, _ = split_quoting_waived(gaps, waived)
+    still_waived = remove_waived(task.waived_findings, reinstated) if reinstated else task.waived_findings
     return create_with_fresh_id(
         store, clock,
         lambda new_id: Task(
             id=new_id, prompt=build_implementation_prompt(task.goal, task.plan, notes, gaps), state=TaskState.QUEUED, goal=task.goal,
             plan=task.plan, plan_risks=task.plan_risks, plan_digest=task.plan_digest,
-            review_findings=notes, retry_of=task.id, waived_findings=task.waived_findings + waived,
+            review_findings=notes, retry_of=task.id, waived_findings=still_waived + waived,
             prior_audit_findings=gaps,
         ),
     )
 
 
-def _notes_for_retry(task: Task, waived: tuple[str, ...]) -> tuple[str, ...]:
+def _notes_for_retry(task: Task, waived: tuple[str, ...], reinstated: tuple[str, ...] = ()) -> tuple[str, ...]:
+    if reinstated:
+        stored = tuple(note for note in task.review_findings if note != TRUNCATED)
+        return capped_findings((*stored, *reinstated))
     return remove_waived(capped_findings(task.review_findings), waived) if waived else task.review_findings
 
 

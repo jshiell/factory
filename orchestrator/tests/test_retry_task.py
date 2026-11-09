@@ -298,3 +298,16 @@ def test_an_audited_task_passes_no_gaps_on(store):
     new = keep(store)
 
     assert new.prior_audit_findings == () and "old gap" not in new.prompt
+
+
+def test_reinstating_an_earlier_waived_note_sends_it_again_and_takes_it_off_the_waived_list(store):
+    from factory.audit_task import build_audit_prompt
+
+    put_approved(store, review_findings=(OPTIONAL_NOTE,), waived_findings=(REQUIRED_NOTE,))
+
+    new = retry_with_plan("t1", store, lambda: NOW, plan_digest(PLAN), (OPTIONAL_NOTE,), reinstated=(REQUIRED_NOTE,))
+
+    assert set(new.review_findings) == {REQUIRED_NOTE, OPTIONAL_NOTE} and new.waived_findings == ()
+    for prompt in (new.prompt, build_audit_prompt(new, "diff")):
+        assert "fsum" in prompt and OPTIONAL_NOTE in prompt
+    assert store.load(new.id) == new
