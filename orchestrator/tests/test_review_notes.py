@@ -162,3 +162,11 @@ def test_dropped_required_counts_the_required_notes_past_the_item_limit():
 
     assert dropped_required(tuple(_required(i) for i in range(MAX_ITEMS))) == 0
     assert dropped_required(tuple(_required(i) for i in range(MAX_ITEMS + 1))) == 1
+
+
+def test_guard_dropped_required_ignores_optional_and_blank_lines():
+    from factory.review_notes import dropped_required
+
+    optional = tuple(f"gap {i}. Recommend (optional): skip it" for i in range(MAX_ITEMS + 5))
+    assert dropped_required((*optional, "", "  ", "untagged note")) == 0
+    assert dropped_required((*optional, *(_required(i) for i in range(MAX_ITEMS + 2)))) == 2
