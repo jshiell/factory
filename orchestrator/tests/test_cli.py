@@ -1358,3 +1358,18 @@ def test_a_declined_or_bad_waive_answer_queues_nothing_when_keeping_a_plan(ctx, 
     code, out, _ = run(ctx, "retry", "t1", "--keep-plan", stdin=stdin)
 
     assert code == 1 and keep_kwargs == [] and out.endswith("not queued\n")
+
+
+def test_an_invalid_waiver_from_retry_is_reported_as_such_not_as_a_changed_plan(ctx, monkeypatch):
+    # guard (green on arrival; mutation-checked)
+    from factory.waiver import InvalidWaiver
+
+    def refuse(*args, **kwargs):
+        raise InvalidWaiver("only a required note can be waived: x")
+
+    monkeypatch.setattr("factory.cli.retry_with_plan", refuse)
+    approved_failure(ctx, review_findings=(REQ1,))
+
+    code, _, err = run(ctx, "retry", "t1", "--keep-plan", stdin="w 1\ny\n")
+
+    assert code == 1 and "cannot waive" in err and "plan changed" not in err
