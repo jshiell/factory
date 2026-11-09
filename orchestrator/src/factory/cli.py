@@ -230,8 +230,8 @@ def _reject(args, io, ctx) -> int:
     return 0
 
 
-def _ask_with_waiver(io, question: str, confirm_question: str, required: list[str], declined: str) -> tuple[str, ...] | None:
-    """Ask `question`; return the required notes to waive (none for `y`), or None when nothing should go ahead."""
+def _ask_with_waiver(io, question: str, confirm_question: str, required: list[str], declined: str) -> tuple[tuple[str, ...], tuple[str, ...]] | None:
+    """Ask `question`; return (notes to waive, notes to reinstate), both empty for `y`, or None when nothing should go ahead."""
     print(approval_prompt(question, required), end="", file=io.stdout)
     io.stdout.flush()
     answer = parse_answer(io.stdin.readline(), len(required))
@@ -249,7 +249,7 @@ def _ask_with_waiver(io, question: str, confirm_question: str, required: list[st
             print(escape_control(answer.reason), file=io.stderr)
         print(declined, file=io.stdout)
         return None
-    return waived
+    return waived, ()
 
 
 def _approve(args, io, ctx) -> int:
@@ -267,9 +267,10 @@ def _approve(args, io, ctx) -> int:
     print(escape_control(shown), file=io.stdout)
     if warning := dropped_required_warning(task.review_findings):
         print(warning, file=io.stdout)
-    waived = _ask_with_waiver(io, "Approve this plan? [y/N]", "Waive these and approve? [y/N] ", required, "not approved")
-    if waived is None:
+    answered = _ask_with_waiver(io, "Approve this plan? [y/N]", "Waive these and approve? [y/N] ", required, "not approved")
+    if answered is None:
         return 1
+    waived, _ = answered
     kwargs = {"waived": waived} if waived else {}
     try:
         approve_plan(task.id, ctx.store, plan_digest(task.plan), shown_findings=task.review_findings, **kwargs)
@@ -346,10 +347,11 @@ def _retry_keeping_plan(task: Task, io, ctx) -> int:
     print(escape_control("\n".join(lines)), file=io.stdout)
     if warning := dropped_required_warning(task.review_findings):
         print(warning, file=io.stdout)
-    waived = _ask_with_waiver(
+    answered = _ask_with_waiver(
         io, f"Queue this plan again as a new task (retry of {task.id})? [y/N]", "Waive these and queue? [y/N] ", required, "not queued")
-    if waived is None:
+    if answered is None:
         return 1
+    waived, _ = answered
     kwargs = {"waived": waived} if waived else {}
     for dropped in split_quoting_waived(gaps, waived)[1]:
         print(escape_control(f"dropped (quotes a waived note): {dropped}"), file=io.stdout)
