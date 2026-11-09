@@ -196,3 +196,16 @@ def test_waiving_a_required_note_keeps_the_plan_without_it_and_records_it(store)
     assert new.review_findings == (OPTIONAL_NOTE,) and new.waived_findings == (REQUIRED_NOTE,)
     assert "fsum" not in new.prompt and OPTIONAL_NOTE in new.prompt
     assert store.load(new.id) == new and store.load("t1") == old
+
+
+@pytest.mark.parametrize("waived", [("Recommend (required): not a note",), (OPTIONAL_NOTE,)], ids=["absent", "optional"])
+def test_an_invalid_waiver_is_refused_and_queues_nothing(store, waived):
+    # guard (green on arrival; mutation-checked)
+    from factory.waiver import InvalidWaiver
+
+    put_approved(store, review_findings=(REQUIRED_NOTE, OPTIONAL_NOTE))
+
+    with pytest.raises(InvalidWaiver):
+        retry_with_plan("t1", store, lambda: NOW, plan_digest(PLAN), (REQUIRED_NOTE, OPTIONAL_NOTE), waived=waived)
+
+    assert [t.id for t in store.list().tasks] == ["t1"]
