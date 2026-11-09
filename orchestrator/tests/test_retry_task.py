@@ -209,3 +209,13 @@ def test_an_invalid_waiver_is_refused_and_queues_nothing(store, waived):
         retry_with_plan("t1", store, lambda: NOW, plan_digest(PLAN), (REQUIRED_NOTE, OPTIONAL_NOTE), waived=waived)
 
     assert [t.id for t in store.list().tasks] == ["t1"]
+
+
+def test_a_kept_plan_retry_keeps_the_notes_already_waived(store):
+    # guard (green on arrival; mutation-checked)
+    earlier = "Recommend (required): earlier waived"
+    put_approved(store, review_findings=(REQUIRED_NOTE,), waived_findings=(earlier,))
+
+    new = retry_with_plan("t1", store, lambda: NOW, plan_digest(PLAN), (REQUIRED_NOTE,), waived=(REQUIRED_NOTE,))
+
+    assert new.waived_findings == (earlier, REQUIRED_NOTE)
