@@ -13,10 +13,16 @@ def _cut(line: str) -> str:
     return line[:MAX_ITEM]
 
 
+def _is_required(line: str) -> bool:
+    return REQUIRED_TAG in line.lower()
+
+
 def capped_findings(findings: tuple[str, ...]) -> tuple[str, ...]:
-    """One-line, bounded copies of the review findings; the same text is shown to the human and sent to the agents."""
-    kept: list[str] = []
-    total = 0
+    """One-line, bounded copies of the review findings; the same text is shown to the human and sent to the agents.
+
+    Required notes are kept first (up to MAX_ITEMS, outside the MAX_TOTAL budget); the others fill what is left.
+    """
+    lines: list[str] = []
     cut = False
     for raw in findings:
         line = " ".join(raw.split())
@@ -24,12 +30,19 @@ def capped_findings(findings: tuple[str, ...]) -> tuple[str, ...]:
             continue
         if len(line) > MAX_ITEM:
             line, cut = _cut(line), True
-        if len(kept) == MAX_ITEMS or total + len(line) > MAX_TOTAL:
-            cut = True
+        lines.append(line)
+    kept = [i for i, line in enumerate(lines) if _is_required(line)][:MAX_ITEMS]
+    budget = MAX_TOTAL - sum(len(lines[i]) for i in kept)
+    for i, line in enumerate(lines):
+        if i in kept:
+            continue
+        if len(kept) == MAX_ITEMS or len(line) > budget:
             break
-        kept.append(line)
-        total += len(line)
-    return (*kept, TRUNCATED) if cut else tuple(kept)
+        kept.append(i)
+        budget -= len(line)
+    cut = cut or len(kept) < len(lines)
+    result = tuple(lines[i] for i in sorted(kept))
+    return (*result, TRUNCATED) if cut else result
 
 
 NOTES_HEADING = (

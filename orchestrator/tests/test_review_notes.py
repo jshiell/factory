@@ -71,3 +71,12 @@ def test_the_heading_says_required_notes_must_be_handled_and_optional_ones_may_b
     assert "'Recommend (required)' must be handled" in NOTES_HEADING
     assert "by the recommended behaviour or an equivalent one, with a test" in NOTES_HEADING
     assert "'Recommend (optional)' may be skipped" in NOTES_HEADING
+
+
+def test_a_required_note_past_the_item_limit_is_kept_in_place_of_an_optional_one():
+    optional = tuple(f"Recommend (optional): note {i}" for i in range(MAX_ITEMS))
+    required = "Recommend (required): reject bytes"
+
+    result = capped_findings((*optional, required))
+
+    assert result == (*optional[:MAX_ITEMS - 1], required, TRUNCATED)
