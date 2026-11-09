@@ -98,3 +98,10 @@ def test_only_the_first_ten_required_notes_are_kept_and_no_other_note_takes_a_sl
 
     assert capped_findings(("an untagged note", *required)) == (*required[:MAX_ITEMS], TRUNCATED)
 
+
+def test_required_notes_over_the_total_limit_are_kept_whole_and_nothing_else_is():
+    # guard (green on arrival; mutation-checked)
+    required = tuple("Recommend (required): " + str(i) * 470 for i in range(MAX_ITEMS))
+    assert sum(len(r) for r in required) > MAX_TOTAL
+
+    assert capped_findings(("an untagged note", *required)) == (*required, TRUNCATED)
