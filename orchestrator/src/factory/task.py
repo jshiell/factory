@@ -63,6 +63,7 @@ class Task:
     fix_in_flight: bool = False
     fix_frozen_sha: str | None = None
     waived_findings: tuple[str, ...] = ()
+    prior_audit_findings: tuple[str, ...] = ()
 
 
 _TRANSITIONS = {
