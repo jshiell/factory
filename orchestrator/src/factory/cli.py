@@ -37,7 +37,7 @@ from factory.stages import Deps, build_stages
 from factory.step import Runner
 from factory.store import TaskNotFound, TaskStore, create_with_fresh_id
 from factory.task import InvalidTransition, Task, TaskState
-from factory.waiver import Refuse, Waive, approval_prompt, note_lines, parse_answer
+from factory.waiver import InvalidWaiver, Refuse, Waive, approval_prompt, note_lines, parse_answer
 from factory.worktrees import WorktreeManager
 
 
@@ -262,6 +262,9 @@ def _approve(args, io, ctx) -> int:
     kwargs = {"waived": waived} if waived else {}
     try:
         approve_plan(task.id, ctx.store, plan_digest(task.plan), shown_findings=task.review_findings, **kwargs)
+    except InvalidWaiver as error:
+        print(f"cannot waive: {escape_control(str(error))}; nothing approved", file=io.stderr)
+        return 1
     except ValueError:
         print("plan changed since display; nothing approved", file=io.stderr)
         return 1

@@ -1289,3 +1289,17 @@ def test_w_when_no_note_is_required_approves_nothing(ctx, approve_kwargs):
     code, _, err = run(ctx, "approve", "t1", stdin="w 1\ny\n")
 
     assert code == 1 and approve_kwargs == [] and err.strip()
+
+
+def test_an_invalid_waiver_from_approve_is_reported_as_such_not_as_a_changed_plan(ctx, monkeypatch):
+    from factory.waiver import InvalidWaiver
+
+    def refuse(*args, **kwargs):
+        raise InvalidWaiver("only a required note can be waived: x")
+
+    monkeypatch.setattr("factory.cli.approve_plan", refuse)
+    reviewed_with_notes(ctx, REQ1)
+
+    code, _, err = run(ctx, "approve", "t1", stdin="w 1\ny\n")
+
+    assert code == 1 and "cannot waive" in err and "plan changed" not in err
