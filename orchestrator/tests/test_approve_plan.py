@@ -217,3 +217,15 @@ def test_waiving_an_optional_note_is_refused_and_saves_nothing(store):
         approve_plan("t1", store, plan_digest(PLAN), (REQUIRED_NOTE, OPTIONAL_NOTE), waived=(OPTIONAL_NOTE,))
 
     assert store.load("t1") == before
+
+
+def test_the_truncated_marker_cannot_be_waived(store):
+    # guard (green on arrival; mutation-checked)
+    from factory.review_notes import MAX_ITEMS, TRUNCATED
+    from factory.waiver import InvalidWaiver
+
+    notes = tuple(f"Recommend (required): note {i}" for i in range(MAX_ITEMS + 1))
+    with_notes(store, *notes)
+
+    with pytest.raises(InvalidWaiver):
+        approve_plan("t1", store, plan_digest(PLAN), notes, waived=(TRUNCATED,))
