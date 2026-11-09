@@ -112,3 +112,10 @@ def test_kept_notes_stay_in_the_reviewers_order_when_a_required_note_is_in_the_m
     notes = ("first", REQUIRED + "second", "third")
 
     assert capped_findings(notes) == notes
+
+
+def test_identical_notes_are_dropped_by_position_not_by_value():
+    # guard (green on arrival; mutation-checked)
+    result = capped_findings(("same",) * MAX_ITEMS + (REQUIRED + "x",))
+
+    assert result == ("same",) * (MAX_ITEMS - 1) + (REQUIRED + "x", TRUNCATED)
