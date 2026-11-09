@@ -1,7 +1,7 @@
 import pytest
 
 from factory.review_notes import MAX_ITEM, MAX_ITEMS, TRUNCATED, capped_findings
-from factory.waiver import remove_waived
+from factory.waiver import Approve, Refuse, parse_answer, remove_waived
 
 REQUIRED = "Recommend (required): "
 
@@ -18,3 +18,13 @@ def test_capping_the_notes_left_after_a_waiver_changes_nothing(notes):
 
     assert capped_findings(reduced) == reduced
     assert (TRUNCATED in shown) == (TRUNCATED in reduced)
+
+
+@pytest.mark.parametrize("text", ["y", "  y \n", "y\n"])
+def test_y_approves_without_waiving(text):
+    assert parse_answer(text, required_count=2) == Approve()
+
+
+@pytest.mark.parametrize("text", ["", "n", "yes", "Y y", "Y", "ok"])
+def test_anything_else_is_not_approved_and_needs_no_explanation(text):
+    assert parse_answer(text, required_count=2) == Refuse(reason=None)
