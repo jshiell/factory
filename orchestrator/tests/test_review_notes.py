@@ -105,3 +105,10 @@ def test_required_notes_over_the_total_limit_are_kept_whole_and_nothing_else_is(
     assert sum(len(r) for r in required) > MAX_TOTAL
 
     assert capped_findings(("an untagged note", *required)) == (*required, TRUNCATED)
+
+
+def test_kept_notes_stay_in_the_reviewers_order_when_a_required_note_is_in_the_middle():
+    # guard (green on arrival; mutation-checked)
+    notes = ("first", REQUIRED + "second", "third")
+
+    assert capped_findings(notes) == notes
