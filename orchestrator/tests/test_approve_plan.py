@@ -205,3 +205,15 @@ def test_waiving_a_note_that_is_not_there_is_refused_and_saves_nothing(store):
         approve_plan("t1", store, plan_digest(PLAN), (REQUIRED_NOTE,), waived=("Recommend (required): other",))
 
     assert store.load("t1") == before
+
+
+def test_waiving_an_optional_note_is_refused_and_saves_nothing(store):
+    from factory.waiver import InvalidWaiver
+
+    with_notes(store, REQUIRED_NOTE, OPTIONAL_NOTE)
+    before = store.load("t1")
+
+    with pytest.raises(InvalidWaiver):
+        approve_plan("t1", store, plan_digest(PLAN), (REQUIRED_NOTE, OPTIONAL_NOTE), waived=(OPTIONAL_NOTE,))
+
+    assert store.load("t1") == before
