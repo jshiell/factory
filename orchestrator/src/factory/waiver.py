@@ -34,22 +34,35 @@ class Waive:
     numbers: tuple[int, ...]
 
 
-def parse_answer(text: str, required_count: int) -> Approve | Waive | Refuse:
-    """What the human typed at the approval prompt: `y` approves, `w 1 3` approves and waives notes 1 and 3."""
+@dataclass(frozen=True)
+class Reinstate:
+    numbers: tuple[int, ...]
+
+
+def _numbers(words: list[str], verb: str, limit: int, noun: str) -> tuple[int, ...] | Refuse:
+    if not words:
+        return Refuse(reason=f"{verb} needs the numbers of the notes to {noun}")
+    if not all(word.isascii() and word.isdigit() for word in words):
+        return Refuse(reason=f"note numbers are plain digits, like: {verb} 1 3")
+    numbers = tuple(int(word) for word in words)
+    if not all(1 <= number <= limit for number in numbers):
+        return Refuse(reason=f"note numbers must be between 1 and {limit}")
+    if len(set(numbers)) != len(numbers):
+        return Refuse(reason="a note number was given twice")
+    return numbers
+
+
+def parse_answer(text: str, required_count: int, waived_count: int = 0) -> Approve | Waive | Reinstate | Refuse:
+    """What the human typed: `y` approves, `w 1 3` waives required notes 1 and 3, `r 1` reinstates earlier-waived note 1."""
     words = text.split()
     if words == ["y"]:
         return Approve()
     if words[:1] == ["w"]:
-        if len(words) == 1:
-            return Refuse(reason="w needs the numbers of the notes to waive")
-        if not all(word.isascii() and word.isdigit() for word in words[1:]):
-            return Refuse(reason="note numbers are plain digits, like: w 1 3")
-        numbers = tuple(int(word) for word in words[1:])
-        if not all(1 <= number <= required_count for number in numbers):
-            return Refuse(reason=f"note numbers must be between 1 and {required_count}")
-        if len(set(numbers)) != len(numbers):
-            return Refuse(reason="a note number was given twice")
-        return Waive(numbers=numbers)
+        numbers = _numbers(words[1:], "w", required_count, "waive")
+        return numbers if isinstance(numbers, Refuse) else Waive(numbers=numbers)
+    if words[:1] == ["r"]:
+        numbers = _numbers(words[1:], "r", waived_count, "reinstate")
+        return numbers if isinstance(numbers, Refuse) else Reinstate(numbers=numbers)
     return Refuse(reason=None)
 
 

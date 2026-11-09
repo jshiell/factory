@@ -1,7 +1,7 @@
 import pytest
 
 from factory.review_notes import MAX_ITEM, MAX_ITEMS, TRUNCATED, capped_findings
-from factory.waiver import Approve, Refuse, Waive, parse_answer, remove_waived
+from factory.waiver import Approve, Refuse, Reinstate, Waive, parse_answer, remove_waived
 
 REQUIRED = "Recommend (required): "
 
@@ -68,3 +68,7 @@ def test_with_no_required_note_shown_a_waive_answer_is_refused():
     answer = parse_answer("w 1", required_count=0)
 
     assert isinstance(answer, Refuse) and answer.reason
+
+
+def test_r_with_numbers_reinstates_earlier_waived_notes():
+    assert parse_answer("r 2 1", required_count=3, waived_count=2) == Reinstate(numbers=(2, 1))
