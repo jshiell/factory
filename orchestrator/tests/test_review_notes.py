@@ -179,3 +179,11 @@ def test_guard_dropped_required_sees_the_tag_after_flattening_and_cutting():
                 "d" * 600 + " Recommend (required): x")
     filler = tuple(_required(i) for i in range(MAX_ITEMS))
     assert dropped_required((*filler, *odd_tags)) == len(odd_tags)
+
+
+def test_guard_dropped_required_equals_required_in_minus_required_kept():
+    from factory.review_notes import dropped_required, is_required
+
+    findings = tuple(_required(i) for i in range(25))
+    assert dropped_required(findings) == 25 - MAX_ITEMS
+    assert dropped_required(findings) == sum(map(is_required, findings)) - sum(map(is_required, capped_findings(findings)))
