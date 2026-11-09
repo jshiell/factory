@@ -126,3 +126,10 @@ def test_a_cut_required_note_is_marked_even_when_nothing_is_dropped():
     result = capped_findings((REQUIRED + "x" * 600,))
 
     assert result == ((REQUIRED + "x" * 600)[:MAX_ITEM], TRUNCATED)
+
+
+def test_the_required_tag_is_matched_in_any_case_on_a_short_note():
+    # guard (green on arrival; mutation-checked)
+    result = capped_findings(("n",) * MAX_ITEMS + ("RECOMMEND (REQUIRED): x",))
+
+    assert result == ("n",) * (MAX_ITEMS - 1) + ("RECOMMEND (REQUIRED): x", TRUNCATED)
