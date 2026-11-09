@@ -421,3 +421,14 @@ def test_reinstating_beyond_the_required_cap_is_refused(store):
     assert [t.id for t in store.list().tasks] == ["t1"]
 
 
+
+
+def test_a_failed_reinstate_is_worded_as_a_reinstate(store):
+    from factory.waiver import InvalidWaiver
+
+    put_approved(store, review_findings=(OPTIONAL_NOTE,), waived_findings=(REQUIRED_NOTE,))
+
+    with pytest.raises(InvalidWaiver, match="reinstate") as error:
+        retry_with_plan("t1", store, lambda: NOW, plan_digest(PLAN), (OPTIONAL_NOTE,), reinstated=("Recommend (required): other",))
+
+    assert "waive" not in str(error.value).replace("waived", "")

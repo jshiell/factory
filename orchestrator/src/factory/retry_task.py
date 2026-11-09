@@ -43,7 +43,7 @@ def retry_with_plan(
     if shown_audit_gaps is not None and shown_audit_gaps != gaps:
         raise RetryRefused(f"audit gaps mismatch for {task.id}")
     gaps, _ = split_quoting_waived(gaps, waived)
-    still_waived = remove_waived(task.waived_findings, reinstated) if reinstated else task.waived_findings
+    still_waived = _still_waived(task, reinstated)
     return create_with_fresh_id(
         store, clock,
         lambda new_id: Task(
@@ -63,6 +63,15 @@ def _notes_for_retry(task: Task, waived: tuple[str, ...], reinstated: tuple[str,
             raise InvalidWaiver(f"reinstating would pass the limit of {MAX_ITEMS} required notes")
         return capped_findings(wanted)
     return remove_waived(capped_findings(task.review_findings), waived) if waived else task.review_findings
+
+
+def _still_waived(task: Task, reinstated: tuple[str, ...]) -> tuple[str, ...]:
+    remaining = list(task.waived_findings)
+    for note in reinstated:
+        if note not in remaining:
+            raise InvalidWaiver(f"cannot reinstate a note that was not waived: {note}")
+        remaining.remove(note)
+    return tuple(remaining)
 
 
 def require_keepable_plan(task: Task, shown_digest: str) -> None:
