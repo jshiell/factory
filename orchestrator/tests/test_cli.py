@@ -1280,3 +1280,12 @@ def test_declining_the_waiver_confirmation_approves_nothing(ctx, approve_kwargs,
     code, out, _ = run(ctx, "approve", "t1", stdin="w 1\n" + second)
 
     assert code == 1 and approve_kwargs == [] and out.endswith("not approved\n")
+
+
+def test_w_when_no_note_is_required_approves_nothing(ctx, approve_kwargs):
+    # guard (green on arrival; mutation-checked)
+    reviewed_with_notes(ctx, OPT, "plain note")
+
+    code, _, err = run(ctx, "approve", "t1", stdin="w 1\ny\n")
+
+    assert code == 1 and approve_kwargs == [] and err.strip()
