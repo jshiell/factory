@@ -1387,6 +1387,49 @@ def test_r_reinstates_an_earlier_waived_note_at_a_kept_plan_retry(ctx, keep_kwar
     assert keep_kwargs == [{"shown_findings": (OPT,), "reinstated": (REQ1,)}]
 
 
+@pytest.mark.parametrize("stdin", ["r 1\nn\n", "r 1\n", "r 2\ny\n", "r\ny\n", "r 1 1\ny\n", "r 1 w 1\ny\n"])
+def test_a_declined_or_bad_reinstate_answer_queues_nothing(ctx, keep_kwargs, stdin):
+    # guard (green on arrival; mutation-checked)
+    approved_failure(ctx, review_findings=(OPT,), waived_findings=(REQ1,))
+
+    code, out, _ = run(ctx, "retry", "t1", "--keep-plan", stdin=stdin)
+
+    assert code == 1 and keep_kwargs == [] and out.endswith("not queued\n")
+
+
+def test_no_reinstate_hint_or_block_without_earlier_waivers(ctx, keep_kwargs):
+    # guard (green on arrival; mutation-checked)
+    approved_failure(ctx, review_findings=(REQ1,))
+
+    code, out, err = run(ctx, "retry", "t1", "--keep-plan", stdin="r 1\ny\n")
+
+    assert code == 1 and keep_kwargs == [] and "reinstate" not in out.lower() and "REINSTATE" not in out
+    assert err.strip() == "note numbers must be between 1 and 0"
+
+
+def test_approve_does_not_take_r(ctx, approve_kwargs):
+    # guard (green on arrival; mutation-checked)
+    reviewed_with_notes(ctx, REQ1)
+
+    code, out, _ = run(ctx, "approve", "t1", stdin="r 1\ny\n")
+
+    assert code == 1 and approve_kwargs == [] and "reinstate" not in out.lower()
+
+
+def test_a_failed_reinstate_is_reported_as_such_not_as_a_waiver(ctx, monkeypatch):
+    from factory.waiver import InvalidWaiver
+
+    def refuse(*args, **kwargs):
+        raise InvalidWaiver("cannot reinstate a note that is not there: x")
+
+    monkeypatch.setattr("factory.cli.retry_with_plan", refuse)
+    approved_failure(ctx, review_findings=(OPT,), waived_findings=(REQ1,))
+
+    code, _, err = run(ctx, "retry", "t1", "--keep-plan", stdin="r 1\ny\n")
+
+    assert code == 1 and "cannot waive" not in err and "reinstate" in err and "nothing queued" in err
+
+
 # --- audit gaps carried by retry --keep-plan --------------------------------------
 
 GAP = "the empty list was not handled"

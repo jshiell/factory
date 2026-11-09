@@ -376,7 +376,8 @@ def _retry_keeping_plan(task: Task, io, ctx) -> int:
         new = retry_with_plan(
             task.id, ctx.store, ctx.clock, plan_digest(task.plan), shown_findings=task.review_findings, **kwargs)
     except InvalidWaiver as error:
-        print(f"cannot waive: {escape_control(str(error))}; nothing queued", file=io.stderr)
+        action = "reinstate" if reinstated else "waive"
+        print(f"cannot {action}: {escape_control(str(error))}; nothing queued", file=io.stderr)
         return 1
     except RetryRefused:
         print("plan changed since display; nothing queued", file=io.stderr)
