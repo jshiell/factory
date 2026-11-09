@@ -38,7 +38,7 @@ from factory.stages import Deps, build_stages
 from factory.step import Runner
 from factory.store import TaskNotFound, TaskStore, create_with_fresh_id
 from factory.task import InvalidTransition, Task, TaskState
-from factory.waiver import InvalidWaiver, Refuse, Waive, approval_prompt, note_lines, parse_answer
+from factory.waiver import InvalidWaiver, Refuse, Reinstate, Waive, approval_prompt, note_lines, parse_answer
 from factory.worktrees import WorktreeManager
 
 
@@ -230,12 +230,23 @@ def _reject(args, io, ctx) -> int:
     return 0
 
 
-def _ask_with_waiver(io, question: str, confirm_question: str, required: list[str], declined: str) -> tuple[tuple[str, ...], tuple[str, ...]] | None:
+def _ask_with_waiver(io, question: str, confirm_question: str, required: list[str], declined: str,
+                     waived_earlier: tuple[str, ...] = ()) -> tuple[tuple[str, ...], tuple[str, ...]] | None:
     """Ask `question`; return (notes to waive, notes to reinstate), both empty for `y`, or None when nothing should go ahead."""
-    print(approval_prompt(question, required), end="", file=io.stdout)
+    print(approval_prompt(question, required, len(waived_earlier)), end="", file=io.stdout)
     io.stdout.flush()
-    answer = parse_answer(io.stdin.readline(), len(required))
+    answer = parse_answer(io.stdin.readline(), len(required), len(waived_earlier))
     waived: tuple[str, ...] = ()
+    if isinstance(answer, Reinstate):
+        reinstated = tuple(waived_earlier[number - 1] for number in answer.numbers)
+        print(escape_control("\n".join(["Reinstating (these will be sent to the agents and enforced by the audit again):",
+                                        *(f"  - {note}" for note in reinstated)])), file=io.stdout)
+        print("Reinstate these and queue? [y/N] ", end="", file=io.stdout)
+        io.stdout.flush()
+        if io.stdin.readline().strip() != "y":
+            print(declined, file=io.stdout)
+            return None
+        return (), reinstated
     if isinstance(answer, Waive):
         waived = tuple(required[number - 1] for number in answer.numbers)
         print(escape_control("\n".join(["Waiving (these will not be sent to the agents or enforced by the audit):",
@@ -336,6 +347,7 @@ def _retry_keeping_plan(task: Task, io, ctx) -> int:
     ]
     if task.waived_findings:
         lines += ["WAIVED EARLIER (not sent):", *(f"  - {f}" for f in task.waived_findings)]
+        lines += ["REINSTATE with r N:", *(f"  - [r{i}] {f}" for i, f in enumerate(task.waived_findings, 1))]
     gaps = gaps_to_carry(task)
     if gaps:
         lines += ["AUDIT FINDINGS (sent to the next attempt):", *(f"  - {g}" for g in gaps)]
@@ -348,11 +360,14 @@ def _retry_keeping_plan(task: Task, io, ctx) -> int:
     if warning := dropped_required_warning(task.review_findings):
         print(warning, file=io.stdout)
     answered = _ask_with_waiver(
-        io, f"Queue this plan again as a new task (retry of {task.id})? [y/N]", "Waive these and queue? [y/N] ", required, "not queued")
+        io, f"Queue this plan again as a new task (retry of {task.id})? [y/N]", "Waive these and queue? [y/N] ", required, "not queued",
+        task.waived_findings)
     if answered is None:
         return 1
-    waived, _ = answered
+    waived, reinstated = answered
     kwargs = {"waived": waived} if waived else {}
+    if reinstated:
+        kwargs["reinstated"] = reinstated
     for dropped in split_quoting_waived(gaps, waived)[1]:
         print(escape_control(f"dropped (quotes a waived note): {dropped}"), file=io.stdout)
     if gaps:

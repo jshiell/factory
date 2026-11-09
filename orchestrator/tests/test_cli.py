@@ -1375,6 +1375,18 @@ def test_an_invalid_waiver_from_retry_is_reported_as_such_not_as_a_changed_plan(
     assert code == 1 and "cannot waive" in err and "plan changed" not in err
 
 
+def test_r_reinstates_an_earlier_waived_note_at_a_kept_plan_retry(ctx, keep_kwargs):
+    approved_failure(ctx, review_findings=(OPT,), waived_findings=(REQ1,))
+
+    code, out, _ = run(ctx, "retry", "t1", "--keep-plan", stdin="r 1\ny\n")
+
+    assert code == 0
+    assert f"WAIVED EARLIER (not sent):\n  - {REQ1}\n" in out
+    assert f"REINSTATE with r N:\n  - [r1] {REQ1}\n" in out
+    assert "Reinstating" in out and "Reinstate these and queue? [y/N] " in out
+    assert keep_kwargs == [{"shown_findings": (OPT,), "reinstated": (REQ1,)}]
+
+
 # --- audit gaps carried by retry --keep-plan --------------------------------------
 
 GAP = "the empty list was not handled"

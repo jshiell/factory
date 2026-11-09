@@ -81,5 +81,8 @@ def note_lines(notes: tuple[str, ...]) -> tuple[list[str], list[str]]:
     return lines, required
 
 
-def approval_prompt(question: str, required: list[str]) -> str:
-    return question + " " + WAIVE_HINT if required else question + " "
+REINSTATE_HINT = "(or 'r 1' to reinstate earlier-waived note 1) "
+
+
+def approval_prompt(question: str, required: list[str], waived_earlier: int = 0) -> str:
+    return question + " " + (WAIVE_HINT if required else "") + (REINSTATE_HINT if waived_earlier else "")
