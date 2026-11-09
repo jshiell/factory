@@ -29,8 +29,16 @@ class Refuse:
     reason: str | None
 
 
-def parse_answer(text: str, required_count: int) -> Approve | Refuse:
-    """What the human typed at the approval prompt: `y` approves; anything else approves nothing."""
-    if text.strip() == "y":
+@dataclass(frozen=True)
+class Waive:
+    numbers: tuple[int, ...]
+
+
+def parse_answer(text: str, required_count: int) -> Approve | Waive | Refuse:
+    """What the human typed at the approval prompt: `y` approves, `w 1 3` approves and waives notes 1 and 3."""
+    words = text.split()
+    if words == ["y"]:
         return Approve()
+    if words[:1] == ["w"]:
+        return Waive(numbers=tuple(int(word) for word in words[1:]))
     return Refuse(reason=None)

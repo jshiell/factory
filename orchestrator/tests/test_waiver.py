@@ -1,7 +1,7 @@
 import pytest
 
 from factory.review_notes import MAX_ITEM, MAX_ITEMS, TRUNCATED, capped_findings
-from factory.waiver import Approve, Refuse, parse_answer, remove_waived
+from factory.waiver import Approve, Refuse, Waive, parse_answer, remove_waived
 
 REQUIRED = "Recommend (required): "
 
@@ -28,3 +28,8 @@ def test_y_approves_without_waiving(text):
 @pytest.mark.parametrize("text", ["", "n", "yes", "Y y", "Y", "ok"])
 def test_anything_else_is_not_approved_and_needs_no_explanation(text):
     assert parse_answer(text, required_count=2) == Refuse(reason=None)
+
+
+@pytest.mark.parametrize("text, numbers", [("w 1", (1,)), ("w 1 3", (1, 3)), ("  w 3   1 \n", (3, 1))])
+def test_w_with_note_numbers_waives_those_notes(text, numbers):
+    assert parse_answer(text, required_count=3) == Waive(numbers=numbers)
