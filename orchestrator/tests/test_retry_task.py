@@ -219,3 +219,16 @@ def test_a_kept_plan_retry_keeps_the_notes_already_waived(store):
     new = retry_with_plan("t1", store, lambda: NOW, plan_digest(PLAN), (REQUIRED_NOTE,), waived=(REQUIRED_NOTE,))
 
     assert new.waived_findings == (earlier, REQUIRED_NOTE)
+
+
+GAP = "the empty list was not handled"
+
+
+def keep(store, task_id="t1", **kwargs):
+    return retry_with_plan(task_id, store, lambda: NOW, plan_digest(PLAN), ("f",), **kwargs)
+
+
+def test_keeping_the_plan_after_a_rejected_audit_sends_its_findings_to_the_new_attempt(store):
+    put_approved(store, failure_reason="audit_rejected", audit_findings=(GAP,))
+
+    assert GAP in keep(store).prompt

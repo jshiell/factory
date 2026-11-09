@@ -2,6 +2,7 @@ from datetime import datetime
 from collections.abc import Callable
 
 from factory.approve_plan import build_implementation_prompt
+from factory.audit_gaps import gaps_to_carry
 from factory.digest import plan_digest
 from factory.review_notes import capped_findings
 from factory.store import TaskStore, create_with_fresh_id
@@ -36,10 +37,11 @@ def retry_with_plan(
     if capped_findings(shown_findings) != capped_findings(task.review_findings):
         raise RetryRefused(f"review findings mismatch for {task.id}")
     notes = remove_waived(capped_findings(task.review_findings), waived) if waived else task.review_findings
+    gaps = gaps_to_carry(task)
     return create_with_fresh_id(
         store, clock,
         lambda new_id: Task(
-            id=new_id, prompt=build_implementation_prompt(task.goal, task.plan, notes), state=TaskState.QUEUED, goal=task.goal,
+            id=new_id, prompt=build_implementation_prompt(task.goal, task.plan, notes, gaps), state=TaskState.QUEUED, goal=task.goal,
             plan=task.plan, plan_risks=task.plan_risks, plan_digest=task.plan_digest,
             review_findings=notes, retry_of=task.id, waived_findings=task.waived_findings + waived,
         ),
