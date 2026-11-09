@@ -37,6 +37,7 @@ from factory.stages import Deps, build_stages
 from factory.step import Runner
 from factory.store import TaskNotFound, TaskStore, create_with_fresh_id
 from factory.task import InvalidTransition, Task, TaskState
+from factory.waiver import approval_prompt, note_lines
 from factory.worktrees import WorktreeManager
 
 
@@ -235,13 +236,13 @@ def _approve(args, io, ctx) -> int:
         return 1
     if task.state is not TaskState.REVIEWED:
         return _not_reviewed(task, io)
-    notes = capped_findings(task.review_findings)
+    note_display, required = note_lines(capped_findings(task.review_findings))
     shown = "\n".join(
         [f"GOAL:\n{task.goal}", f"PLAN:\n{task.plan}", "RISKS:"] + [f"  - {r}" for r in task.plan_risks]
-        + ["REVIEWER NOTES (sent to the implementer):"] + [f"  - {f}" for f in notes]
+        + ["REVIEWER NOTES (sent to the implementer):"] + note_display
     )
     print(escape_control(shown), file=io.stdout)
-    print("Approve this plan? [y/N] ", end="", file=io.stdout)
+    print(approval_prompt("Approve this plan? [y/N]", required), end="", file=io.stdout)
     io.stdout.flush()
     if io.stdin.readline().strip() != "y":
         print("not approved", file=io.stdout)

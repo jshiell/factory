@@ -1187,3 +1187,25 @@ def test_check_corpus_names_a_blocked_case_with_its_reason_and_escaped_output_an
 
     assert code == 1 and "case-02" in out and "BLOCKED tests_failed" in out and "1 failed" in out and "\x1b" not in out
     assert "blocked: case-02" in out
+
+
+# --- waiving required notes at approve -----------------------------------------
+
+REQ1 = "Recommend (required): reject bytes with TypeError"
+REQ2 = "Recommend (required): use math.fsum so the sum cannot overflow"
+OPT = "Recommend (optional): add a docstring"
+
+
+def reviewed_with_notes(ctx, *notes):
+    put(ctx, S.REVIEWED, goal="add multiply", plan=PLAN, plan_digest=plan_digest(PLAN),
+        plan_risks=("risky",), review_findings=notes)
+
+
+def test_approve_numbers_the_required_notes_and_offers_waiving_them(ctx, approve_spy):
+    reviewed_with_notes(ctx, REQ1, OPT, REQ2, "plain note")
+
+    _, out, _ = run(ctx, "approve", "t1", stdin="n\n")
+
+    assert f"  - [1] {REQ1}\n" in out and f"  - [2] {REQ2}\n" in out
+    assert f"  - {OPT}\n" in out and "  - plain note\n" in out
+    assert "'w 1 3'" in out

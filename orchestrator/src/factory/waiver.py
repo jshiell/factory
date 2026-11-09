@@ -51,3 +51,22 @@ def parse_answer(text: str, required_count: int) -> Approve | Waive | Refuse:
             return Refuse(reason="a note number was given twice")
         return Waive(numbers=numbers)
     return Refuse(reason=None)
+
+
+WAIVE_HINT = "(or 'w 1 3' to waive required notes 1 and 3) "
+
+
+def note_lines(notes: tuple[str, ...]) -> tuple[list[str], list[str]]:
+    """The display lines for the notes, and the required notes in order; a required note is numbered for waiving."""
+    lines, required = [], []
+    for note in notes:
+        if is_required(note):
+            required.append(note)
+            lines.append(f"  - [{len(required)}] {note}")
+        else:
+            lines.append(f"  - {note}")
+    return lines, required
+
+
+def approval_prompt(question: str, required: list[str]) -> str:
+    return question + " " + WAIVE_HINT if required else question + " "
