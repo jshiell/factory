@@ -325,9 +325,10 @@ def _retry_keeping_plan(task: Task, io, ctx) -> int:
     except RetryRefused as error:
         print(f"retry refused: {error}", file=io.stderr)
         return 1
+    note_display, required = note_lines(capped_findings(task.review_findings))
     lines = [
         f"RETRY of {task.id} ({task.state.value}), keeping its approved plan", f"GOAL:\n{task.goal}", f"PLAN:\n{task.plan}", "RISKS:",
-        *(f"  - {r}" for r in task.plan_risks), "REVIEWER NOTES (sent to the implementer):", *(f"  - {f}" for f in capped_findings(task.review_findings)),
+        *(f"  - {r}" for r in task.plan_risks), "REVIEWER NOTES (sent to the implementer):", *note_display,
     ]
     if task.failure_reason:
         lines.append(f"FAILED BECAUSE: {task.failure_reason}")
@@ -335,14 +336,17 @@ def _retry_keeping_plan(task: Task, io, ctx) -> int:
         lines += ["AUDIT FINDINGS:", *(f"  - {f}" for f in task.audit_findings),
                   f"{task.id} is audited and still mergeable; abandon it if you take this retry"]
     print(escape_control("\n".join(lines)), file=io.stdout)
-    print(f"Queue this plan again as a new task (retry of {task.id})? [y/N] ", end="", file=io.stdout)
-    io.stdout.flush()
-    if io.stdin.readline().strip() != "y":
-        print("not queued", file=io.stdout)
+    waived = _ask_with_waiver(
+        io, f"Queue this plan again as a new task (retry of {task.id})? [y/N]", "Waive these and queue? [y/N] ", required, "not queued")
+    if waived is None:
         return 1
+    kwargs = {"waived": waived} if waived else {}
     try:
         new = retry_with_plan(
-            task.id, ctx.store, ctx.clock, plan_digest(task.plan), shown_findings=task.review_findings)
+            task.id, ctx.store, ctx.clock, plan_digest(task.plan), shown_findings=task.review_findings, **kwargs)
+    except InvalidWaiver as error:
+        print(f"cannot waive: {escape_control(str(error))}; nothing queued", file=io.stderr)
+        return 1
     except RetryRefused:
         print("plan changed since display; nothing queued", file=io.stderr)
         return 1

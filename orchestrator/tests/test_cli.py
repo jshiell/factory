@@ -1311,3 +1311,23 @@ def test_the_approve_line_names_how_many_required_notes_were_waived(ctx, approve
     _, out, _ = run(ctx, "approve", "t1", stdin="w 1 2\ny\n")
 
     assert "approved and queued (2 required notes waived); run: factory advance t1" in out
+
+
+# --- waiving required notes at retry --keep-plan ---------------------------------
+
+@pytest.fixture
+def keep_kwargs(monkeypatch):
+    calls = []
+    monkeypatch.setattr("factory.cli.retry_with_plan", lambda *a, **k: calls.append(k) or Task(id="new", prompt=""))
+    return calls
+
+
+def test_keeping_the_plan_numbers_required_notes_and_waives_on_w_then_y(ctx, keep_kwargs):
+    approved_failure(ctx, review_findings=(REQ1, OPT, REQ2))
+
+    code, out, _ = run(ctx, "retry", "t1", "--keep-plan", stdin="w 2\ny\n")
+
+    assert code == 0
+    assert f"  - [1] {REQ1}\n" in out and f"  - [2] {REQ2}\n" in out and f"  - {OPT}\n" in out
+    assert "Waive these and queue? [y/N] " in out
+    assert keep_kwargs == [{"shown_findings": (REQ1, OPT, REQ2), "waived": (REQ2,)}]
