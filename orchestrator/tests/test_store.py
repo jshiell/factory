@@ -163,3 +163,12 @@ def test_waived_findings_round_trip_as_a_tuple(tmp_path):
     store.save(task)
 
     assert store.load("t1") == task
+
+
+def test_a_task_file_without_waived_findings_loads_with_none_waived(tmp_path):
+    # guard (green on arrival): files saved before plan 29 have no such key
+    (tmp_path / "t1.json").write_text(
+        '{"id": "t1", "prompt": "p", "state": "queued", "attempts": 0, "failure_reason": null, "denials": []}'
+    )
+
+    assert TaskStore(tmp_path).load("t1").waived_findings == ()
