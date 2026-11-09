@@ -1261,3 +1261,12 @@ def test_an_unknown_answer_just_says_not_approved(ctx, approve_kwargs):
         assert code == 1 and out.endswith("not approved\n") and err == ""
 
     assert approve_kwargs == []
+
+
+def test_y_with_required_notes_shown_approves_without_a_waiver(ctx, approve_kwargs):
+    # guard (green on arrival; mutation-checked)
+    reviewed_with_notes(ctx, REQ1, REQ2)
+
+    code, _, _ = run(ctx, "approve", "t1", stdin="y\n")
+
+    assert code == 0 and approve_kwargs == [{"shown_findings": (REQ1, REQ2)}]
