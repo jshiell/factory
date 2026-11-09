@@ -229,3 +229,23 @@ def test_the_truncated_marker_cannot_be_waived(store):
 
     with pytest.raises(InvalidWaiver):
         approve_plan("t1", store, plan_digest(PLAN), notes, waived=(TRUNCATED,))
+
+
+def test_identical_required_notes_are_waived_one_per_entry(store):
+    # guard (green on arrival; mutation-checked)
+    from factory.waiver import InvalidWaiver
+
+    with_notes(store, REQUIRED_NOTE, REQUIRED_NOTE)
+    shown = (REQUIRED_NOTE, REQUIRED_NOTE)
+
+    once = approve_plan("t1", store, plan_digest(PLAN), shown, waived=(REQUIRED_NOTE,))
+    assert once.review_findings == (REQUIRED_NOTE,) and once.waived_findings == (REQUIRED_NOTE,)
+
+    with_notes(store, REQUIRED_NOTE, REQUIRED_NOTE)
+    store.save(replace(store.load("t1"), state=TaskState.REVIEWED, waived_findings=()))
+    twice = approve_plan("t1", store, plan_digest(PLAN), shown, waived=(REQUIRED_NOTE, REQUIRED_NOTE))
+    assert twice.review_findings == ()
+
+    store.save(replace(twice, state=TaskState.REVIEWED, review_findings=shown, waived_findings=()))
+    with pytest.raises(InvalidWaiver):
+        approve_plan("t1", store, plan_digest(PLAN), shown, waived=(REQUIRED_NOTE,) * 3)
