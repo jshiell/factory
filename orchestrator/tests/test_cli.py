@@ -1270,3 +1270,13 @@ def test_y_with_required_notes_shown_approves_without_a_waiver(ctx, approve_kwar
     code, _, _ = run(ctx, "approve", "t1", stdin="y\n")
 
     assert code == 0 and approve_kwargs == [{"shown_findings": (REQ1, REQ2)}]
+
+
+@pytest.mark.parametrize("second", ["n\n", "\n", "yes\n", ""])
+def test_declining_the_waiver_confirmation_approves_nothing(ctx, approve_kwargs, second):
+    # guard (green on arrival; mutation-checked)
+    reviewed_with_notes(ctx, REQ1, REQ2)
+
+    code, out, _ = run(ctx, "approve", "t1", stdin="w 1\n" + second)
+
+    assert code == 1 and approve_kwargs == [] and out.endswith("not approved\n")
