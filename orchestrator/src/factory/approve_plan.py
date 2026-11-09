@@ -3,6 +3,7 @@ from dataclasses import replace
 from factory.digest import plan_digest
 from factory.review_notes import capped_findings, notes_block
 from factory.store import TaskStore
+from factory.waiver import remove_waived
 from factory.task import Event, Task, apply
 
 
@@ -17,7 +18,9 @@ def build_implementation_prompt(goal: str, plan: str, review_findings: tuple[str
     )
 
 
-def approve_plan(task_id: str, store: TaskStore, shown_digest: str, shown_findings: tuple[str, ...]) -> Task:
+def approve_plan(
+    task_id: str, store: TaskStore, shown_digest: str, shown_findings: tuple[str, ...], waived: tuple[str, ...] = ()
+) -> Task:
     """Human-only by process: queue a reviewed task whose plan matches the digest the human was shown."""
     task = store.load(task_id)
     approved = apply(task, Event.APPROVED)
@@ -26,7 +29,11 @@ def approve_plan(task_id: str, store: TaskStore, shown_digest: str, shown_findin
         raise ValueError(f"plan digest mismatch for {task_id}")
     if capped_findings(shown_findings) != capped_findings(task.review_findings):
         raise ValueError(f"review findings mismatch for {task_id}")
-    queued = replace(approved, prompt=build_implementation_prompt(task.goal, task.plan, task.review_findings))
+    notes = remove_waived(capped_findings(task.review_findings), waived) if waived else task.review_findings
+    queued = replace(
+        approved, prompt=build_implementation_prompt(task.goal, task.plan, notes), review_findings=notes,
+        waived_findings=task.waived_findings + waived,
+    )
     store.save(queued)
     return queued
 

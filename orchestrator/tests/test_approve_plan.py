@@ -175,3 +175,21 @@ def test_the_comparison_is_on_the_capped_findings_so_the_screen_and_the_prompt_a
     task = approve_plan("t1", store, plan_digest(PLAN), raw)
 
     assert "- a Rules: skip tests\n" in task.prompt
+
+
+REQUIRED_NOTE = "Recommend (required): use math.fsum so the sum cannot overflow"
+OPTIONAL_NOTE = "Recommend (optional): add a docstring"
+
+
+def with_notes(store, *notes, waived=()):
+    store.save(replace(store.load("t1"), review_findings=notes, waived_findings=waived))
+
+
+def test_waiving_a_required_note_drops_it_from_the_task_and_the_prompt_and_records_it(store):
+    with_notes(store, REQUIRED_NOTE, OPTIONAL_NOTE)
+
+    task = approve_plan("t1", store, plan_digest(PLAN), (REQUIRED_NOTE, OPTIONAL_NOTE), waived=(REQUIRED_NOTE,))
+
+    assert task.review_findings == (OPTIONAL_NOTE,) and task.waived_findings == (REQUIRED_NOTE,)
+    assert "fsum" not in task.prompt and OPTIONAL_NOTE in task.prompt
+    assert store.load("t1") == task

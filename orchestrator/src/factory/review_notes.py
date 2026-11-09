@@ -13,7 +13,7 @@ def _cut(line: str) -> str:
     return line[:MAX_ITEM]
 
 
-def _is_required(line: str) -> bool:
+def is_required(line: str) -> bool:
     return REQUIRED_TAG in line.lower()
 
 
@@ -31,7 +31,7 @@ def capped_findings(findings: tuple[str, ...]) -> tuple[str, ...]:
         if len(line) > MAX_ITEM:
             line, cut = _cut(line), True
         lines.append(line)
-    kept = [i for i, line in enumerate(lines) if _is_required(line)][:MAX_ITEMS]
+    kept = [i for i, line in enumerate(lines) if is_required(line)][:MAX_ITEMS]
     budget = MAX_TOTAL - sum(len(lines[i]) for i in kept)
     for i, line in enumerate(lines):
         if i in kept:
