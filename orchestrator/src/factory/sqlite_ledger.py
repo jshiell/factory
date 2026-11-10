@@ -24,5 +24,12 @@ class SqliteLedger:
 
     def entries(self) -> list[dict]:
         with transaction(self._db_path) as conn:
-            rows = conn.execute("SELECT task_id, cost_usd, assumed FROM ledger ORDER BY seq").fetchall()
-        return [{"task_id": t, "cost_usd": c, "assumed": bool(a)} for t, c, a in rows]
+            rows = conn.execute("SELECT task_id, cost_usd, assumed, stage FROM ledger ORDER BY seq").fetchall()
+        return [self._entry(*row) for row in rows]
+
+    @staticmethod
+    def _entry(task_id: str, cost_usd: float, assumed: int, stage: str | None) -> dict:
+        entry = {"task_id": task_id, "cost_usd": cost_usd, "assumed": bool(assumed)}
+        if stage is not None:
+            entry["stage"] = stage
+        return entry
