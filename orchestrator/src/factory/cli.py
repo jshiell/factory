@@ -2,7 +2,6 @@ import argparse
 import signal
 import subprocess
 import sys
-from collections import defaultdict
 from collections.abc import Callable
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -25,6 +24,7 @@ from factory.digest import plan_digest
 from factory.gate import check_gate
 from factory.ids import InvalidTaskId
 from factory.ledger import Ledger
+from factory import service
 from factory.migrate import DatabaseNotEmpty, migrate
 from factory.lock import AlreadyRunning, state_lock
 from factory.process import group_alive, kill_tree
@@ -177,7 +177,7 @@ def _migrate(args, io, ctx) -> int:
 
 
 def _list(args, io, ctx) -> int:
-    listing = ctx.store.list()
+    listing = service.list_tasks(ctx.store)
     for task in listing.tasks:
         reason = f"  {task.failure_reason}" if task.failure_reason else ""
         print(f"{task.id}  {task.state.value}{reason}", file=io.stdout)
@@ -208,7 +208,7 @@ def _describe(task: Task) -> list[str]:
 
 
 def _show(args, io, ctx) -> int:
-    print(escape_control("\n".join(_describe(_load(ctx, args.task_id)))), file=io.stdout)
+    print(escape_control("\n".join(_describe(service.get_task(ctx.store, args.task_id)))), file=io.stdout)
     return 0
 
 
@@ -315,22 +315,15 @@ def _approve(args, io, ctx) -> int:
 
 
 def _costs(args, io, ctx) -> int:
-    if args.task_id is not None:
-        _load(ctx, args.task_id)
-    entries = [e for e in ctx.ledger.entries() if args.task_id in (None, e["task_id"])]
-    by_stage, by_task = defaultdict(float), defaultdict(float)
-    for entry in entries:
-        by_stage[entry.get("stage", "unknown")] += entry["cost_usd"]
-        by_task[entry["task_id"]] += entry["cost_usd"]
+    report = service.cost_report(ctx.store, ctx.ledger, args.task_id)
     print("by stage:", file=io.stdout)
-    for stage, cost in sorted(by_stage.items()):
+    for stage, cost in sorted(report.by_stage.items()):
         print(f"  {stage}  ${cost:.4f}", file=io.stdout)
     print("by task:", file=io.stdout)
-    for task_id, cost in sorted(by_task.items()):
+    for task_id, cost in sorted(report.by_task.items()):
         print(f"  {task_id}  ${cost:.4f}", file=io.stdout)
-    assumed = sum(e["cost_usd"] for e in entries if e.get("assumed"))
-    print(f"assumed: ${assumed:.4f}", file=io.stdout)
-    print(f"total: ${sum(e['cost_usd'] for e in entries):.4f}", file=io.stdout)
+    print(f"assumed: ${report.assumed:.4f}", file=io.stdout)
+    print(f"total: ${report.total:.4f}", file=io.stdout)
     return 0
 
 
