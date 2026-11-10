@@ -17,6 +17,8 @@ from factory.advance import advance
 from factory.job_runner import JobRunner
 from factory.rebase_task import RebaseRefused, rebase_task
 from factory.recover_task import RecoverRefused, recover_task
+from factory.merge_task import MergeRefused, merge_preview, merge_task
+from factory.worktrees import WorktreeManager
 from factory.job_store import Job, JobNotFound, JobStore
 from factory.ids import InvalidTaskId
 from factory.task import InvalidTransition, TaskState
@@ -174,6 +176,16 @@ def create_app(ctx) -> Starlette:
         task = service.reject_plan(ctx.store, request.path_params["task_id"])
         return JSONResponse({"id": task.id, "state": ctx.store.load(task.id).state.value})
 
+    async def merge_preview_view(request: Request) -> JSONResponse:
+        task_id = request.path_params["task_id"]
+        service.get_task(ctx.store, task_id)
+        try:
+            preview = merge_preview(task_id, ctx.store, ctx.settings.repo)
+        except (MergeRefused, InvalidTransition, subprocess.CalledProcessError) as error:
+            raise ApiError(409, "merge refused", str(error)) from None
+        return JSONResponse({"branch": preview.branch, "audited_sha": preview.task.audited_sha,
+                             "diffstat": preview.diffstat, "findings": list(preview.findings)})
+
     async def list_jobs(request: Request) -> JSONResponse:
         return JSONResponse({"jobs": [_job_json(job) for job in jobs.list()]})
 
@@ -182,7 +194,8 @@ def create_app(ctx) -> Starlette:
 
     app = Starlette(
         lifespan=lifespan,
-        routes=[Route("/tasks/{task_id}/approval", approval_preview, methods=["GET"]),
+        routes=[Route("/tasks/{task_id}/merge-preview", merge_preview_view, methods=["GET"]),
+                Route("/tasks/{task_id}/approval", approval_preview, methods=["GET"]),
                 Route("/tasks/{task_id}/approve", approve, methods=["POST"]),
                 Route("/tasks/{task_id}/reject", reject, methods=["POST"]),
                 Route("/tasks/{task_id}/rebase", rebase, methods=["POST"]),
