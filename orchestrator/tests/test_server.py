@@ -417,3 +417,12 @@ def test_a_queued_job_whose_task_changed_meanwhile_ends_failed_and_changes_nothi
     job = client.get(f"/jobs/{job_id}").json()
     assert job["state"] == "failed" and job["error"] == "recover refused: t is merged, not running"
     assert ctx.store.load("t") == merged
+
+
+def test_approval_preview_warns_how_many_required_notes_the_cap_dropped(client, ctx):
+    from factory.review_notes import MAX_ITEMS
+    reviewed(ctx, findings=tuple(f"gap {i}. Recommend (required): handle it" for i in range(MAX_ITEMS + 3)))
+
+    warning = client.get("/tasks/a/approval").json()["warning"]
+
+    assert warning.startswith(f"WARNING: 3 required note(s) beyond the first {MAX_ITEMS} were dropped")

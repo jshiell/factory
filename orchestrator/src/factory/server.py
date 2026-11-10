@@ -172,6 +172,7 @@ def create_app(ctx) -> Starlette:
         return JSONResponse({
             "goal": task.goal, "plan": task.plan, "risks": list(task.plan_risks), "review_findings": list(shown),
             "required": note_lines(shown)[1], "plan_digest": plan_digest(task.plan),
+            "warning": dropped_required_warning(task.review_findings),
         })
 
     async def approve(request: Request) -> JSONResponse:
