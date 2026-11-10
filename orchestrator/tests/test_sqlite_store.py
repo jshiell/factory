@@ -47,3 +47,14 @@ def test_unsafe_task_ids_are_rejected(tmp_path, task_id):
         store.save(Task(id=task_id, prompt="p"))
     with pytest.raises(InvalidTaskId):
         store.create(Task(id=task_id, prompt="p"))
+
+
+def test_list_returns_tasks_sorted_by_id_and_an_empty_store_lists_nothing(tmp_path):
+    store = SqliteTaskStore(tmp_path / "factory.db")
+    assert store.list().tasks == []
+    for task_id in ("b", "a", "c"):
+        store.save(Task(id=task_id, prompt="p"))
+
+    listing = store.list()
+
+    assert [t.id for t in listing.tasks] == ["a", "b", "c"] and listing.skipped == []

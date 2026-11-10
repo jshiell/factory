@@ -4,7 +4,7 @@ from contextlib import closing, contextmanager
 from pathlib import Path
 
 from factory.ids import require_safe_id
-from factory.store import TaskExists, TaskNotFound, task_from_dict, task_to_dict
+from factory.store import Listing, TaskExists, TaskNotFound, task_from_dict, task_to_dict
 from factory.task import Task
 
 
@@ -33,6 +33,11 @@ class SqliteTaskStore:
                 )
         except sqlite3.IntegrityError:
             raise TaskExists(task.id) from None
+
+    def list(self) -> Listing:
+        with self._transaction() as conn:
+            rows = conn.execute("SELECT data FROM tasks ORDER BY id").fetchall()
+        return Listing([task_from_dict(json.loads(data)) for (data,) in rows], [])
 
     def load(self, task_id: str) -> Task:
         require_safe_id(task_id)
