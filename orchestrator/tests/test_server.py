@@ -45,3 +45,17 @@ def test_post_tasks_with_a_body_that_is_not_json_is_422(client):
     response = client.post("/tasks", content=b"{nope", headers={"content-type": "application/json"})
 
     assert response.status_code == 422
+
+
+def test_get_tasks_lists_ids_states_and_unreadable_rows(client, ctx):
+    ctx.store.save(Task(id="a", prompt="", state=TaskState.PROPOSED))
+    ctx.store.save(Task(id="b", prompt="", state=TaskState.FAILED, failure_reason="gate_failed"))
+
+    response = client.get("/tasks")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "tasks": [{"id": "a", "state": "proposed", "failure_reason": None},
+                  {"id": "b", "state": "failed", "failure_reason": "gate_failed"}],
+        "skipped": [],
+    }

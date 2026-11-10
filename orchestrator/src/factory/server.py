@@ -40,7 +40,12 @@ def create_app(ctx) -> Starlette:
         task = service.create_task(ctx.store, ctx.clock, goal)
         return JSONResponse({"id": task.id}, status_code=201)
 
+    async def list_tasks(request: Request) -> JSONResponse:
+        listing = service.list_tasks(ctx.store)
+        tasks = [{"id": t.id, "state": t.state.value, "failure_reason": t.failure_reason} for t in listing.tasks]
+        return JSONResponse({"tasks": tasks, "skipped": listing.skipped})
+
     return Starlette(
-        routes=[Route("/tasks", create_task, methods=["POST"])],
+        routes=[Route("/tasks", create_task, methods=["POST"]), Route("/tasks", list_tasks, methods=["GET"])],
         exception_handlers={ApiError: _error_response},
     )
