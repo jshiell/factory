@@ -57,14 +57,13 @@ or its step cap. Agent spend is capped (see `cap_usd`) and every call is recorde
 | `costs [id]` | Spend by stage and by task, with assumed costs shown separately |
 | `migrate` | Copy the old JSON tasks and ledger under `<state_dir>` into `factory.db`. Refuses a database that already has rows; never deletes the old files |
 | `serve [--port N]` | Run the local HTTP server (below) |
-| `eval-audit` | Run the auditor over 25 labelled changes (default 3 runs each, about $2) and compare with the last comparable run. Exits `1` if a bad change is ever judged pass or a good one is judged fail by a majority, `3` if incomplete. Options: `--runs N`, `--only CASE`, `--max-usd X`, `--resume DIR`, `--compare DIR`, `--check-corpus` (runs the real gate on every case; needs `uv` and network). Results under `<state_dir>/evals/`; uses its own lock, so other commands keep working |
+| `eval-audit` | Run the auditor over 25 labelled changes (default 3 runs each, about $2) and compare with the last comparable run. Exits `1` if a bad change is ever judged pass or a good one is judged fail by a majority, `3` if incomplete. Options: `--runs N`, `--only CASE`, `--max-usd X`, `--resume DIR`, `--compare DIR`, `--check-corpus` (runs the real gate on every case; needs `uv` and network). Results under `<state_dir>/evals/`; its own eval directory and lock, so it never reaps the server's agents |
 
 Exit codes: `0` ok, `1` refused or failed (the reason is printed), `2` usage error (`eval-audit` also uses `3` for an incomplete run).
 
 ### Server
 
-`factory serve [--port N]` (default 8765) listens on `127.0.0.1` only and holds the state-dir lock, so the other commands
-refuse while it runs. It can spend money and merge code, so every request needs `Authorization: Bearer <token>`, where the
+`factory serve [--port N]` (default `server_port`, 8765) listens on `127.0.0.1` only and holds the state-dir lock for as long as it runs. It can spend money and merge code, so every request needs `Authorization: Bearer <token>`, where the
 token is the file `<state_dir>/token` (created with mode 0600 on first start; a more permissive file is refused). A
 non-loopback `Host` or any `Origin` header is refused with 403, which keeps other web pages and DNS rebinding out.
 Stopping it with SIGINT, SIGTERM or SIGHUP shuts it down; jobs it left unfinished are marked `interrupted` at the next start.
@@ -83,7 +82,7 @@ Reads and quick actions answer at once; `advance`, `abandon`, `recover`, `rebase
 | `GET /jobs`, `GET /jobs/{id}` | job state: `queued`, `running`, `succeeded`, `failed`, `interrupted` |
 
 Errors are `{error, detail}`: 401 token, 403 host or origin, 404 unknown task or job, 409 wrong state or stale preview, 422 bad input.
-The CLI does not use the server yet; it still opens the database directly.
+Every CLI command except `migrate` and `serve` is a client of this server and needs it running (`no factory server is running` otherwise); it reads the token from `<state_dir>/token`. Long commands wait for their job; Ctrl-C stops waiting and the job carries on. `eval-audit --resume` is not available through the server yet; `--compare` and `--check-corpus` work locally.
 
 ### Configuration
 
@@ -91,7 +90,8 @@ Optional `factory.toml` in the working directory (or `--config <file>`). Relativ
 
 ```toml
 repo = "."                     # default: the git toplevel
-state_dir = ".factory"         # tasks, ledger, gate caches, lock
+state_dir = ".factory"         # database, token, gate caches, lock
+server_port = 8765             # where `serve` listens and the CLI connects
 worktree_root = ".worktrees"   # one git worktree per task
 project_subdir = "target"      # where the agent works and the tests run
 test_argv = ["uv", "run", "pytest", "-q"]
@@ -223,7 +223,7 @@ flowchart TB
 - **Money.** Every call is metered into `ledger.jsonl`; a global cap (the sum over every task) stops further calls. Interrupted calls are charged an
   assumed cost so a crash cannot hide spend.
 - **One driver at a time.** A lock in the state directory stops two factory processes mutating tasks concurrently; killing the
-  driver (Ctrl-C, TERM, HUP) kills the agent tree. After a SIGKILL the next command that takes the lock finds the agents and
+  driver (Ctrl-C, TERM, HUP) kills the agent tree. After a SIGKILL the next `factory serve` finds the agents and
   gate runs it recorded in `.factory/procs/` and kills them first; if it cannot prove them dead (for example `ps` is blocked)
   it refuses and changes nothing.
 
