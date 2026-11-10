@@ -20,3 +20,13 @@ def test_stage_is_recorded_when_given_and_absent_otherwise(tmp_path):
 
     assert ledger.entries()[0]["stage"] == "audit"
     assert "stage" not in ledger.entries()[1]
+
+
+def test_total_sums_costs_and_is_zero_when_empty(tmp_path):
+    ledger = SqliteLedger(tmp_path / "factory.db")
+    assert ledger.total() == 0
+
+    ledger.append("t1", 0.25)
+    ledger.append("t2", 0.5)
+
+    assert ledger.total() == 0.75

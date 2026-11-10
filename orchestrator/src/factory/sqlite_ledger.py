@@ -27,6 +27,10 @@ class SqliteLedger:
             rows = conn.execute("SELECT task_id, cost_usd, assumed, stage FROM ledger ORDER BY seq").fetchall()
         return [self._entry(*row) for row in rows]
 
+    def total(self) -> float:
+        with transaction(self._db_path) as conn:
+            return conn.execute("SELECT COALESCE(SUM(cost_usd), 0) FROM ledger").fetchone()[0]
+
     @staticmethod
     def _entry(task_id: str, cost_usd: float, assumed: int, stage: str | None) -> dict:
         entry = {"task_id": task_id, "cost_usd": cost_usd, "assumed": bool(assumed)}
