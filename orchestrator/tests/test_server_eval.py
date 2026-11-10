@@ -1,4 +1,5 @@
 from datetime import datetime
+from pathlib import Path
 
 import pytest
 
@@ -71,12 +72,12 @@ def test_resuming_reuses_the_earlier_directory_and_reruns_nothing_valid(client, 
     ctx.built.clear()
     ctx.reap.calls.clear()
 
-    response = client.post("/eval-audit", json={"runs": 1, "only": ["case-01"], "resume": "20260102T030405"})
+    response = client.post("/eval-audit", json={"runs": 1, "only": ["case-01"], "resume": Path(eval_dir).name})
 
     assert response.status_code == 202 and response.json()["eval_dir"] == eval_dir
     job = _wait(client, response.json()["job"]["id"])
     assert job["state"] == "succeeded" and job["result"]["complete"] is True
-    assert ctx.reap.calls == [ctx.settings.state_dir / "evals" / "20260102T030405"]
+    assert ctx.reap.calls == [Path(eval_dir)]
     assert len(list((ctx.settings.state_dir / "evals").iterdir())) == 1
 
 
