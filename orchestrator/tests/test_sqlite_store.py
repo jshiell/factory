@@ -1,4 +1,7 @@
+import pytest
+
 from factory.sqlite_store import SqliteTaskStore
+from factory.store import TaskExists
 from factory.task import Task, TaskState
 
 
@@ -16,3 +19,13 @@ def test_saved_task_with_every_field_set_loads_back_equal(tmp_path):
     store.save(task)
 
     assert store.load("t1") == task
+
+
+def test_create_never_overwrites_an_existing_task(tmp_path):
+    store = SqliteTaskStore(tmp_path / "factory.db")
+    store.create(Task(id="t1", prompt="first"))
+
+    with pytest.raises(TaskExists):
+        store.create(Task(id="t1", prompt="second"))
+
+    assert store.load("t1").prompt == "first"

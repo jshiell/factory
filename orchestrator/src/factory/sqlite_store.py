@@ -3,7 +3,7 @@ import sqlite3
 from contextlib import closing, contextmanager
 from pathlib import Path
 
-from factory.store import task_from_dict, task_to_dict
+from factory.store import TaskExists, task_from_dict, task_to_dict
 from factory.task import Task
 
 
@@ -19,6 +19,17 @@ class SqliteTaskStore:
                 "INSERT OR REPLACE INTO tasks (id, state, data) VALUES (?, ?, ?)",
                 (task.id, task.state.value, json.dumps(task_to_dict(task))),
             )
+
+    def create(self, task: Task) -> None:
+        """Save a new task, never overwriting an existing one."""
+        try:
+            with self._transaction() as conn:
+                conn.execute(
+                    "INSERT INTO tasks (id, state, data) VALUES (?, ?, ?)",
+                    (task.id, task.state.value, json.dumps(task_to_dict(task))),
+                )
+        except sqlite3.IntegrityError:
+            raise TaskExists(task.id) from None
 
     def load(self, task_id: str) -> Task:
         with self._transaction() as conn:
