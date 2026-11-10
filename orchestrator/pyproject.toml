@@ -5,6 +5,7 @@ description = "Personal agentic software factory orchestrator"
 readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
+    "httpx>=0.28.1",
     "starlette>=1.10.0",
     "uvicorn>=0.54.0",
 ]
@@ -18,6 +19,5 @@ build-backend = "uv_build"
 
 [dependency-groups]
 dev = [
-    "httpx>=0.28.1",
     "pytest>=9.2.0",
 ]
