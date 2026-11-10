@@ -12,7 +12,7 @@ only things that need a person are the two decisions that matter: *is this the r
 
 | Path | What it is |
 |---|---|
-| `orchestrator/` | The factory: a Python 3.14 package, CLI `factory`, standard library only, ~970 tests |
+| `orchestrator/` | The factory: a Python 3.14 package, CLI `factory`, standard library only, ~1240 tests |
 | `target/` | A tiny Python project (`calc`) the agents work on. Replace it with any `uv` + `pytest` project |
 | `docs/` | One `plan-N.md` per increment (decisions, cycles, reviewer findings) and `spike-findings.md` (what was measured, known gaps) |
 | `spike/` | Throwaway probes and end-to-end scripts. Not production code; several make real API calls or need a terminal |
@@ -55,9 +55,35 @@ or its step cap. Agent spend is capped (see `cap_usd`) and every call is recorde
 | `recover <id>` | Mark a task whose driver died (`running`) as failed, charging an assumed cost |
 | `clean` | After a preview and confirmation, remove worktrees, gate caches, orphan caches and branches of finished tasks |
 | `costs [id]` | Spend by stage and by task, with assumed costs shown separately |
+| `migrate` | Copy the old JSON tasks and ledger under `<state_dir>` into `factory.db`. Refuses a database that already has rows; never deletes the old files |
+| `serve [--port N]` | Run the local HTTP server (below) |
 | `eval-audit` | Run the auditor over 25 labelled changes (default 3 runs each, about $2) and compare with the last comparable run. Exits `1` if a bad change is ever judged pass or a good one is judged fail by a majority, `3` if incomplete. Options: `--runs N`, `--only CASE`, `--max-usd X`, `--resume DIR`, `--compare DIR`, `--check-corpus` (runs the real gate on every case; needs `uv` and network). Results under `<state_dir>/evals/`; uses its own lock, so other commands keep working |
 
 Exit codes: `0` ok, `1` refused or failed (the reason is printed), `2` usage error (`eval-audit` also uses `3` for an incomplete run).
+
+### Server
+
+`factory serve [--port N]` (default 8765) listens on `127.0.0.1` only and holds the state-dir lock, so the other commands
+refuse while it runs. It can spend money and merge code, so every request needs `Authorization: Bearer <token>`, where the
+token is the file `<state_dir>/token` (created with mode 0600 on first start; a more permissive file is refused). A
+non-loopback `Host` or any `Origin` header is refused with 403, which keeps other web pages and DNS rebinding out.
+Stopping it with SIGINT, SIGTERM or SIGHUP shuts it down; jobs it left unfinished are marked `interrupted` at the next start.
+
+Reads and quick actions answer at once; `advance`, `abandon`, `recover`, `rebase`, `merge`, `clean` and `eval-audit` return
+`202 {job}` and run one at a time, in order. Poll `GET /jobs/{id}`.
+
+| Endpoint | Purpose |
+|---|---|
+| `POST /tasks {goal}` / `GET /tasks` / `GET /tasks/{id}` / `GET /costs?task_id=` | create and read |
+| `GET /tasks/{id}/approval`, `POST .../approve {plan_digest, waive}`, `POST .../reject` | approve a reviewed plan; a stale digest is 409 |
+| `GET /tasks/{id}/merge-preview`, `POST .../merge {audited_sha}` | a stale sha is 409 |
+| `GET /tasks/{id}/retry-preview`, `POST .../retry` or `{keep_plan, plan_digest, waive, reinstate}` | fresh or keep-plan retry |
+| `GET /clean-preview`, `POST /clean {token}` | the token hashes the preview; a changed preview is 409 |
+| `POST /tasks/{id}/advance`, `/abandon`, `/recover`, `/rebase`, `POST /eval-audit {runs, max_usd, only}` | jobs |
+| `GET /jobs`, `GET /jobs/{id}` | job state: `queued`, `running`, `succeeded`, `failed`, `interrupted` |
+
+Errors are `{error, detail}`: 401 token, 403 host or origin, 404 unknown task or job, 409 wrong state or stale preview, 422 bad input.
+The CLI does not use the server yet; it still opens the database directly.
 
 ### Configuration
 
