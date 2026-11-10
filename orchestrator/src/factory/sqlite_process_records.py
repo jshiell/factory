@@ -22,8 +22,15 @@ class SqliteProcessRecords:
             rows = conn.execute("SELECT * FROM processes ORDER BY pid").fetchall()
         return [self._checked(Record(*row)) for row in rows]
 
+    def remove(self, pid: int) -> None:
+        with transaction(self._db_path) as conn:
+            conn.execute("DELETE FROM processes WHERE pid = ?", (pid,))
+
+    def discard(self, invalid: InvalidRecord) -> None:
+        self.remove(invalid.pid)
+
     @staticmethod
     def _checked(record: Record) -> Record | InvalidRecord:
         if names_a_launched_group(record):
             return record
-        return InvalidRecord(Path(str(record.pid)), NOT_A_LAUNCHED_GROUP)
+        return InvalidRecord(Path(str(record.pid)), NOT_A_LAUNCHED_GROUP, record.pid)

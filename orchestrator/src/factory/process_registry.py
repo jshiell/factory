@@ -20,6 +20,7 @@ class Record(NamedTuple):
 class InvalidRecord(NamedTuple):
     path: Path
     reason: str
+    pid: int | None = None
 
 
 def _procs_dir(state_dir) -> Path:
@@ -79,15 +80,40 @@ class ReapUncertain(Exception):
         super().__init__(f"cannot prove these processes dead: {detail}")
 
 
+class FileProcessRecords:
+    """Process records as one JSON file per pid under `state_dir/procs`."""
+
+    def __init__(self, state_dir):
+        self._state_dir = state_dir
+
+    def write(self, record: Record) -> None:
+        write_record(self._state_dir, record)
+
+    def load(self) -> list[Record | InvalidRecord]:
+        return load_records(self._state_dir)
+
+    def remove(self, pid: int) -> None:
+        _record_path(self._state_dir, pid).unlink(missing_ok=True)
+
+    def discard(self, invalid: InvalidRecord) -> None:
+        invalid.path.unlink()
+
+
+def as_records(target):
+    """A state directory means file records; anything else is already a records object."""
+    return FileProcessRecords(target) if isinstance(target, (str, Path)) else target
+
+
 def reap_orphans(state_dir, probe, kill, group_alive, sleep=time.sleep) -> ReapResult:
     """Kill each recorded process group whose original process is still alive; the caller holds the state lock.
 
     `probe(pid)` gives the process's start time (epoch seconds) or None if there is no such process, and raises
     `ProbeFailed` if it cannot tell. A record whose probe failed is kept and reported in `ReapUncertain`."""
+    records = as_records(state_dir)
     killed, discarded, uncertain = [], [], []
-    for record in load_records(state_dir):
+    for record in records.load():
         if isinstance(record, InvalidRecord):
-            record.path.unlink()
+            records.discard(record)
             discarded.append(record)
             continue
         try:
@@ -101,7 +127,7 @@ def reap_orphans(state_dir, probe, kill, group_alive, sleep=time.sleep) -> ReapR
                 uncertain.append((record, "its group still has live processes after the kill"))
                 continue
             killed.append(record)
-        _record_path(state_dir, record.pid).unlink()
+        records.remove(record.pid)
     if uncertain:
         raise ReapUncertain(killed, uncertain)
     return ReapResult(killed, discarded)
