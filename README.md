@@ -57,7 +57,7 @@ or its step cap. Agent spend is capped (see `cap_usd`) and every call is recorde
 | `costs [id]` | Spend by stage and by task, with assumed costs shown separately |
 | `migrate` | Copy the old JSON tasks and ledger under `<state_dir>` into `factory.db`. Refuses a database that already has rows; never deletes the old files |
 | `serve [--port N]` | Run the local HTTP server (below) |
-| `eval-audit` | Run the auditor over 25 labelled changes (default 3 runs each, about $2) and compare with the last comparable run. Exits `1` if a bad change is ever judged pass or a good one is judged fail by a majority, `3` if incomplete. Options: `--runs N`, `--only CASE`, `--max-usd X`, `--resume DIR`, `--compare DIR`, `--check-corpus` (runs the real gate on every case; needs `uv` and network). Results under `<state_dir>/evals/`; its own eval directory and lock, so it never reaps the server's agents |
+| `eval-audit` | Run the auditor over 25 labelled changes (default 3 runs each, about $2) and compare with the last comparable run. Exits `1` if a bad change is ever judged pass or a good one is judged fail by a majority, `3` if incomplete. Options: `--runs N`, `--only CASE`, `--max-usd X`, `--resume DIR` (same `--runs` and cases as the original), `--compare DIR`, `--check-corpus` (runs the real gate on every case; needs `uv` and network). Results under `<state_dir>/evals/`; its own eval directory and lock, so it never reaps the server's agents |
 
 Exit codes: `0` ok, `1` refused or failed (the reason is printed), `2` usage error (`eval-audit` also uses `3` for an incomplete run).
 
