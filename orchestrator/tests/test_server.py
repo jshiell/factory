@@ -296,3 +296,80 @@ def test_retry_of_a_task_that_is_not_failed_or_audited_is_409_and_creates_nothin
 
 def test_retry_of_an_unknown_task_is_404(client):
     assert client.post("/tasks/nope/retry").status_code == 404
+
+
+def _keepable(ctx, **changes):
+    task = Task(id="old", prompt="approved prompt", state=TaskState.FAILED, goal="g", plan="the plan", plan_digest=plan_digest("the plan"),
+                plan_risks=("r1",), review_findings=("RECOMMEND (required): fix x", "nit"), failure_reason="audit_rejected",
+                audit_findings=("gap one",))
+    task = replace(task, **changes)
+    ctx.store.save(task)
+    return task
+
+
+def test_retry_preview_shows_what_a_kept_plan_retry_would_send(client, ctx):
+    _keepable(ctx)
+
+    body = client.get("/tasks/old/retry-preview").json()
+
+    assert body["goal"] == "g" and body["plan"] == "the plan" and body["risks"] == ["r1"]
+    assert body["plan_digest"] == plan_digest("the plan")
+    assert body["review_findings"] == ["RECOMMEND (required): fix x", "nit"] and body["required"]
+    assert body["audit_gaps"] == ["gap one"] and body["failure_reason"] == "audit_rejected"
+    assert body["waived_findings"] == []
+
+
+def test_retry_preview_of_a_task_with_no_plan_is_409(client, ctx):
+    _keepable(ctx, plan=None, plan_digest=None)
+
+    assert client.get("/tasks/old/retry-preview").status_code == 409
+
+
+def test_retry_keeping_the_plan_queues_a_new_task_with_that_plan(client, ctx):
+    _keepable(ctx)
+
+    response = client.post("/tasks/old/retry", json={"keep_plan": True, "plan_digest": plan_digest("the plan")})
+
+    assert response.status_code == 201
+    new = ctx.store.load(response.json()["id"])
+    assert (new.state, new.plan, new.retry_of) == (TaskState.QUEUED, "the plan", "old")
+    assert new.prior_audit_findings == ("gap one",)
+
+
+def test_retry_keeping_the_plan_with_a_stale_digest_is_409_and_creates_nothing(client, ctx):
+    _keepable(ctx)
+
+    response = client.post("/tasks/old/retry", json={"keep_plan": True, "plan_digest": "stale"})
+
+    assert response.status_code == 409 and response.json()["error"] == "retry refused"
+    assert [t.id for t in ctx.store.list().tasks] == ["old"]
+
+
+def test_retry_keeping_the_plan_can_waive_a_required_note(client, ctx):
+    _keepable(ctx)
+
+    response = client.post("/tasks/old/retry", json={
+        "keep_plan": True, "plan_digest": plan_digest("the plan"), "waive": ["RECOMMEND (required): fix x"]})
+
+    new = ctx.store.load(response.json()["id"])
+    assert new.waived_findings == ("RECOMMEND (required): fix x",) and "RECOMMEND (required): fix x" not in new.review_findings
+
+
+def test_retry_keeping_the_plan_with_an_invalid_waiver_is_422(client, ctx):
+    _keepable(ctx)
+
+    response = client.post("/tasks/old/retry", json={
+        "keep_plan": True, "plan_digest": plan_digest("the plan"), "waive": ["not a note"]})
+
+    assert response.status_code == 422 and response.json()["error"] == "invalid waiver"
+    assert [t.id for t in ctx.store.list().tasks] == ["old"]
+
+
+def test_retry_keeping_the_plan_can_reinstate_a_waived_note(client, ctx):
+    _keepable(ctx, review_findings=("nit",), waived_findings=("RECOMMEND (required): fix x",))
+
+    response = client.post("/tasks/old/retry", json={
+        "keep_plan": True, "plan_digest": plan_digest("the plan"), "reinstate": ["RECOMMEND (required): fix x"]})
+
+    new = ctx.store.load(response.json()["id"])
+    assert "RECOMMEND (required): fix x" in new.review_findings and new.waived_findings == ()

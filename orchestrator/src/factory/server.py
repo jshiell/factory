@@ -11,7 +11,7 @@ from starlette.routing import Route
 
 from factory import service
 from factory.digest import plan_digest
-from factory.review_notes import capped_findings
+from factory.review_notes import capped_findings, dropped_required_warning
 from factory.waiver import InvalidWaiver, note_lines
 from factory.abandon_task import AbandonRefused, abandon_task
 from factory.advance import advance
@@ -20,7 +20,8 @@ from factory.rebase_task import RebaseRefused, rebase_task
 from factory.recover_task import RecoverRefused, recover_task
 from factory.merge_task import MergeRefused, merge_preview, merge_task
 from factory.worktrees import WorktreeManager
-from factory.retry_task import RetryRefused, retry_task
+from factory.audit_gaps import gaps_to_carry
+from factory.retry_task import RetryRefused, require_keepable_plan, retry_task, retry_with_plan
 from factory.clean_tasks import clean_candidates, clean_tasks, remove_orphan_caches
 from factory.gate_cache import orphan_caches
 from factory.audit_corpus import CASES as EVAL_CASES
@@ -208,11 +209,39 @@ def create_app(ctx) -> Starlette:
 
         return enqueue(request, "merge", (MergeRefused, InvalidTransition, subprocess.CalledProcessError), merge_now)
 
+    def keepable_task(task_id: str):
+        task = service.get_task(ctx.store, task_id)
+        try:
+            require_keepable_plan(task, plan_digest(task.plan or ""))
+        except RetryRefused as error:
+            raise ApiError(409, "retry refused", str(error)) from None
+        return task
+
+    async def retry_preview(request: Request) -> JSONResponse:
+        task = keepable_task(request.path_params["task_id"])
+        shown = capped_findings(task.review_findings)
+        return JSONResponse({
+            "state": task.state.value, "goal": task.goal, "plan": task.plan, "risks": list(task.plan_risks),
+            "review_findings": list(shown), "required": note_lines(shown)[1], "plan_digest": plan_digest(task.plan),
+            "waived_findings": list(task.waived_findings), "audit_gaps": list(gaps_to_carry(task)),
+            "failure_reason": task.failure_reason, "audit_findings": list(task.audit_findings),
+            "warning": dropped_required_warning(task.review_findings),
+        })
+
     async def retry(request: Request) -> JSONResponse:
         task_id = request.path_params["task_id"]
         service.get_task(ctx.store, task_id)
+        body = await _json_object(request) if await request.body() else {}
         try:
-            new = retry_task(task_id, ctx.store, ctx.clock)
+            if body.get("keep_plan"):
+                task = ctx.store.load(task_id)
+                new = retry_with_plan(
+                    task_id, ctx.store, ctx.clock, _required_string(body, "plan_digest"), shown_findings=task.review_findings,
+                    waived=_string_list(body, "waive"), shown_audit_gaps=gaps_to_carry(task), reinstated=_string_list(body, "reinstate"))
+            else:
+                new = retry_task(task_id, ctx.store, ctx.clock)
+        except InvalidWaiver as error:
+            raise ApiError(422, "invalid waiver", str(error)) from None
         except RetryRefused as error:
             raise ApiError(409, "retry refused", str(error)) from None
         return JSONResponse({"id": new.id}, status_code=201)
@@ -288,6 +317,7 @@ def create_app(ctx) -> Starlette:
         lifespan=lifespan,
         routes=[Route("/eval-audit", eval_audit, methods=["POST"]),
                 Route("/clean-preview", clean_preview, methods=["GET"]), Route("/clean", clean, methods=["POST"]),
+                Route("/tasks/{task_id}/retry-preview", retry_preview, methods=["GET"]),
                 Route("/tasks/{task_id}/retry", retry, methods=["POST"]),
                 Route("/tasks/{task_id}/merge", merge, methods=["POST"]),
                 Route("/tasks/{task_id}/merge-preview", merge_preview_view, methods=["GET"]),
