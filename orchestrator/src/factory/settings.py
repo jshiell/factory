@@ -35,6 +35,10 @@ class Settings:
         return self.state_dir / "gate-cache"
 
     @property
+    def db_path(self) -> Path:
+        return self.state_dir / "factory.db"
+
+    @property
     def tasks_dir(self) -> Path:
         return self.state_dir / "tasks"
 

@@ -27,6 +27,8 @@ from factory.ids import InvalidTaskId
 from factory.ledger import Ledger
 from factory.lock import AlreadyRunning, state_lock
 from factory.process import group_alive, kill_tree
+from factory.sqlite_ledger import SqliteLedger
+from factory.sqlite_store import SqliteTaskStore
 from factory.process_registry import ReapResult, ReapUncertain, ps_probe, reap_orphans
 from factory.merge_task import MergeRefused, merge_preview, merge_task
 from factory.review_notes import capped_findings, dropped_required_warning
@@ -603,8 +605,8 @@ _COMMANDS = {
 
 
 def build_context(settings: Settings) -> Context:
-    settings.tasks_dir.mkdir(parents=True, exist_ok=True)
-    store, ledger = TaskStore(settings.tasks_dir), Ledger(settings.ledger_path)
+    settings.state_dir.mkdir(parents=True, exist_ok=True)
+    store, ledger = SqliteTaskStore(settings.db_path), SqliteLedger(settings.db_path)
     runner = SubprocessRunner(
         settings.claude_executable, settings.project_subdir, settings.runner_timeout_s,
         sandbox_executable=settings.sandbox_executable, state_dir=settings.state_dir,

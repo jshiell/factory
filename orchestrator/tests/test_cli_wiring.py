@@ -142,11 +142,11 @@ def test_merge_from_a_non_terminal_changes_nothing(project):
 
 
 def test_the_implement_stage_runs_confined_with_no_shell_and_a_read_only_view_of_the_rest(project):
-    from factory.store import TaskStore
+    from factory.sqlite_store import SqliteTaskStore
     from factory.task import Task, TaskState
     repo, _, tmp_path = project
-    (tmp_path / "state" / "tasks").mkdir(parents=True)
-    TaskStore(tmp_path / "state" / "tasks").save(Task(id="t9", prompt="implement it", state=TaskState.QUEUED))
+    (tmp_path / "state").mkdir(parents=True)
+    SqliteTaskStore(tmp_path / "state" / "factory.db").save(Task(id="t9", prompt="implement it", state=TaskState.QUEUED))
 
     factory(project, "advance", "t9")
 
@@ -162,16 +162,16 @@ def test_the_implement_stage_runs_confined_with_no_shell_and_a_read_only_view_of
 
 def test_a_failing_gate_runs_one_confined_fix_round_and_the_tests_then_pass(project):
     import re
-    from factory.store import TaskStore
+    from factory.sqlite_store import SqliteTaskStore
     from factory.task import Task, TaskState
     repo, env, tmp_path = project
     config = repo / "factory.toml"
     config.write_text(config.read_text() + 'test_argv = ["sh", "-c", "echo NEEDS-FIX; test -f fixed"]\n')
     sh("git", "commit", "-q", "-am", "test_argv", cwd=repo, env=env)
     (repo / "target" / "code.py").write_text("changed by the implementer")
-    (tmp_path / "state" / "tasks").mkdir(parents=True)
+    (tmp_path / "state").mkdir(parents=True)
     base = sh("git", "rev-parse", "HEAD", cwd=repo, env=env).stdout.strip()
-    TaskStore(tmp_path / "state" / "tasks").save(
+    SqliteTaskStore(tmp_path / "state" / "factory.db").save(
         Task(id="t9", prompt="stored", state=TaskState.AGENT_DONE, worktree=str(repo), base_sha=base, goal="g", plan="p"))
 
     result = factory(project, "advance", "t9")
@@ -193,11 +193,11 @@ def test_a_task_that_kept_its_plan_is_implemented_with_the_approved_prompt_in_a_
     from factory.approve_plan import build_implementation_prompt
     from factory.digest import plan_digest
     from factory.retry_task import retry_with_plan
-    from factory.store import TaskStore
+    from factory.sqlite_store import SqliteTaskStore
     from factory.task import Task, TaskState
     _, _, tmp_path = project
-    (tmp_path / "state" / "tasks").mkdir(parents=True)
-    store = TaskStore(tmp_path / "state" / "tasks")
+    (tmp_path / "state").mkdir(parents=True)
+    store = SqliteTaskStore(tmp_path / "state" / "factory.db")
     plan = "1. add multiply\n2. test it"
     store.save(Task(id="t1", prompt=build_implementation_prompt("add multiply", plan), state=TaskState.FAILED,
                     goal="add multiply", plan=plan, plan_digest=plan_digest(plan), failure_reason="tests_failed"))
@@ -213,7 +213,7 @@ def test_a_task_that_kept_its_plan_is_implemented_with_the_approved_prompt_in_a_
 
 def test_an_agent_launched_by_the_real_cli_is_recorded_while_it_runs(project):
     from factory.process_registry import load_records
-    from factory.store import TaskStore
+    from factory.sqlite_store import SqliteTaskStore
     from factory.task import Task, TaskState
     repo, _, tmp_path = project
     seen = tmp_path / "seen-records"
@@ -222,8 +222,8 @@ def test_an_agent_launched_by_the_real_cli_is_recorded_while_it_runs(project):
     spy.chmod(spy.stat().st_mode | stat.S_IEXEC)
     config = repo / "factory.toml"
     config.write_text(config.read_text().replace("fake-claude", "spy-claude"))
-    (tmp_path / "state" / "tasks").mkdir(parents=True)
-    TaskStore(tmp_path / "state" / "tasks").save(Task(id="t9", prompt="implement it", state=TaskState.QUEUED))
+    (tmp_path / "state").mkdir(parents=True)
+    SqliteTaskStore(tmp_path / "state" / "factory.db").save(Task(id="t9", prompt="implement it", state=TaskState.QUEUED))
 
     factory(project, "advance", "t9")
 
@@ -233,7 +233,7 @@ def test_an_agent_launched_by_the_real_cli_is_recorded_while_it_runs(project):
 
 def test_a_gate_run_launched_by_the_real_cli_is_recorded_while_it_runs(project):
     from factory.process_registry import load_records
-    from factory.store import TaskStore
+    from factory.sqlite_store import SqliteTaskStore
     from factory.task import Task, TaskState
     repo, env, tmp_path = project
     seen = tmp_path / "seen-gate-records"
@@ -241,9 +241,9 @@ def test_a_gate_run_launched_by_the_real_cli_is_recorded_while_it_runs(project):
     config.write_text(config.read_text() + f'test_argv = ["sh", "-c", "cat {tmp_path}/state/procs/*.json > {seen}"]\n')
     sh("git", "commit", "-q", "-am", "test_argv", cwd=repo, env=env)
     (repo / "target" / "code.py").write_text("changed by the implementer")
-    (tmp_path / "state" / "tasks").mkdir(parents=True)
+    (tmp_path / "state").mkdir(parents=True)
     base = sh("git", "rev-parse", "HEAD", cwd=repo, env=env).stdout.strip()
-    TaskStore(tmp_path / "state" / "tasks").save(
+    SqliteTaskStore(tmp_path / "state" / "factory.db").save(
         Task(id="t9", prompt="stored", state=TaskState.AGENT_DONE, worktree=str(repo), base_sha=base, goal="g", plan="p"))
 
     factory(project, "advance", "t9")
