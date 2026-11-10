@@ -25,6 +25,7 @@ class Settings:
     allowed_tools: tuple[str, ...] = ()
     max_turns: int = 30
     fix_rounds: int = 2
+    server_port: int = 8765
 
     @property
     def ledger_path(self) -> Path:
@@ -47,7 +48,7 @@ _PATH_KEYS = ("repo", "state_dir", "worktree_root")
 _STRING_KEYS = ("project_subdir", "claude_executable", "sandbox_executable", "model")
 _FLOAT_KEYS = ("cap_usd", "gate_timeout_s", "runner_timeout_s", "budget_usd")
 _STRING_LIST_KEYS = ("test_argv", "allowed_tools")
-_INT_KEYS = ("max_turns", "fix_rounds")
+_INT_KEYS = ("max_turns", "fix_rounds", "server_port")
 _KNOWN = _PATH_KEYS + _STRING_KEYS + _FLOAT_KEYS + _STRING_LIST_KEYS + _INT_KEYS
 
 

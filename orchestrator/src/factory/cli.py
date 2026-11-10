@@ -144,7 +144,7 @@ def _parser() -> argparse.ArgumentParser:
     commands.add_parser("clean")
     commands.add_parser("migrate")
     serve = commands.add_parser("serve")
-    serve.add_argument("--port", type=int, default=8765)
+    serve.add_argument("--port", type=int)
     commands.add_parser("costs").add_argument("task_id", nargs="?")
     audit_eval = commands.add_parser("eval-audit")
     audit_eval.add_argument("--runs", type=int, default=3)
@@ -536,47 +536,52 @@ def _clean(args, io, ctx) -> int:
 
 
 def _merge(args, io, ctx) -> int:
-    task = _load(ctx, args.task_id)
+    task = task_from_dict(ctx.server.get(_task_path(args.task_id)))
     if not io.stdin.isatty():
         print("merge needs an interactive terminal", file=io.stderr)
         return 1
     if task.state is not TaskState.AUDITED:
         print(f"{task.id} is {task.state.value}, not audited", file=io.stderr)
         return 1
-    settings = ctx.settings
     try:
-        with _locked(ctx, io):
-            preview = merge_preview(args.task_id, ctx.store, settings.repo)
-            shown = "\n".join([f"MERGE {preview.task.id}: fast-forward main to {preview.task.audited_sha}",
-                               f"branch: {preview.branch}", "CHANGES:", preview.diffstat, "AUDIT FINDINGS:"]
-                              + [f"  - {f}" for f in preview.findings])
-            print(escape_control(shown), file=io.stdout)
-            print("Merge? [y/N] ", end="", file=io.stdout)
-            io.stdout.flush()
-            if io.stdin.readline().strip() != "y":
-                print("not merged", file=io.stdout)
-                return 1
-            worktrees = WorktreeManager(settings.repo, settings.worktree_root)
-            merged = merge_task(args.task_id, ctx.store, settings.repo, worktrees, shown_sha=preview.task.audited_sha)
-    except _Refused as refused:
-        print(escape_control(str(refused)), file=io.stderr)
+        preview = ctx.server.get(_task_path(args.task_id, "/merge-preview"))
+    except ServerRefused as refused:
+        if refused.error != "merge refused":
+            raise
+        print(escape_control(f"merge refused: {refused.detail}"), file=io.stderr)
         return 1
-    except (MergeRefused, InvalidTransition, subprocess.CalledProcessError) as error:
-        print(f"merge refused: {error}", file=io.stderr)
+    shown = "\n".join([f"MERGE {task.id}: fast-forward main to {preview['audited_sha']}",
+                       f"branch: {preview['branch']}", "CHANGES:", preview["diffstat"], "AUDIT FINDINGS:"]
+                      + [f"  - {f}" for f in preview["findings"]])
+    print(escape_control(shown), file=io.stdout)
+    print("Merge? [y/N] ", end="", file=io.stdout)
+    io.stdout.flush()
+    if io.stdin.readline().strip() != "y":
+        print("not merged", file=io.stdout)
         return 1
-    print(f"{merged.id}: merged; commits are unsigned: sign them before pushing", file=io.stdout)
+    try:
+        merged = _run_job(ctx, io, _task_path(args.task_id, "/merge"), {"audited_sha": preview["audited_sha"]})
+    except ServerRefused as refused:
+        if refused.error != "merge refused":
+            raise
+        print(escape_control(f"merge refused: {refused.detail}"), file=io.stderr)
+        return 1
+    if merged is None:
+        return 1
+    print(f"{task.id}: merged; commits are unsigned: sign them before pushing", file=io.stdout)
     return 0
 
 
 def _serve(args, io, ctx) -> int:
     from factory.server import StartRefused, TokenFileUnsafe, claim_state_dir, create_secured_app, load_or_create_token
+    port = args.port if args.port is not None else ctx.settings.server_port
     try:
         token = load_or_create_token(ctx.settings.state_dir)
         with claim_state_dir(ctx) as reaped:
             _print_reaped(reaped.killed, reaped.discarded, io)
-            print(f"serving on http://127.0.0.1:{args.port}; token in {ctx.settings.state_dir / 'token'}", file=io.stdout)
+            print(f"serving on http://127.0.0.1:{port}; token in {ctx.settings.state_dir / 'token'}", file=io.stdout)
             io.stdout.flush()
-            ctx.serve(create_secured_app(ctx, token), "127.0.0.1", args.port)
+            ctx.serve(create_secured_app(ctx, token), "127.0.0.1", port)
     except (StartRefused, TokenFileUnsafe) as refused:
         print(escape_control(str(refused)), file=io.stderr)
         return 1

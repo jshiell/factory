@@ -331,8 +331,8 @@ def merge_spy(ctx, monkeypatch):
     calls = []
     audited_task = Task(id="t1", prompt="", state=S.AUDITED, audited_sha="abc123", audit_findings=("fine\x1b[31m",))
     preview = Preview(audited_task, "factory/t1", " evil\x1b[2J.py | 1 +\n 1 file changed", audited_task.audit_findings)
-    monkeypatch.setattr("factory.cli.merge_preview", lambda *a, **k: preview)
-    monkeypatch.setattr("factory.cli.merge_task", lambda *a, **k: calls.append((a, k)) or replace(audited_task, state=S.MERGED))
+    monkeypatch.setattr("factory.server.merge_preview", lambda *a, **k: preview)
+    monkeypatch.setattr("factory.server.merge_task", lambda *a, **k: calls.append((a, k)) or replace(audited_task, state=S.MERGED))
     put(ctx, S.AUDITED, audited_sha="abc123")
     return calls
 
@@ -362,20 +362,11 @@ def test_anything_but_y_does_not_merge(ctx, merge_spy, answer):
 def test_a_refused_merge_exits_1_with_the_reason(ctx, merge_spy, monkeypatch):
     def refuse(*a, **k):
         raise cli.MergeRefused("main moved since the plan; re-run the task")
-    monkeypatch.setattr("factory.cli.merge_task", refuse)
+    monkeypatch.setattr("factory.server.merge_task", refuse)
 
     code, _, err = run(ctx, "merge", "t1", stdin="y\n")
 
     assert code == 1 and "main moved" in err
-
-
-def test_merge_exits_1_when_another_run_holds_the_lock(ctx, merge_spy):
-    from factory.lock import state_lock
-    with state_lock(ctx.settings.state_dir):
-        # flock is per open file description, so a second open in this process is refused
-        code, _, err = run(ctx, "merge", "t1", stdin="y\n")
-
-    assert code == 1 and "lock" in err and merge_spy == []
 
 
 @pytest.mark.parametrize("state", [S.MERGED, S.VERIFIED, S.FAILED])
@@ -853,22 +844,6 @@ def reaper(killed=(), discarded=(), uncertain=None):
 def orphan(pid=4242, task_id="t1", stage="implement"):
     from factory.process_registry import Record
     return Record(pid, pid, task_id, stage, 100.0, 100.5)
-
-
-REAPING_COMMANDS = [
-    (("merge", "t1"), S.AUDITED),
-]
-
-
-@pytest.mark.parametrize("argv, state", REAPING_COMMANDS, ids=[c[0][0] for c in REAPING_COMMANDS])
-def test_every_command_that_takes_the_lock_reaps_orphans_under_it_once(ctx, argv, state):
-    put(ctx, state)
-    ctx.stages.update(all_stages(ctx))
-    ctx.reap = reaper()
-
-    run(ctx, *argv)
-
-    assert ctx.reap.calls == [ctx.settings.state_dir]
 
 
 # --- plan 23: locking and reaping a directory other than the state dir ----------

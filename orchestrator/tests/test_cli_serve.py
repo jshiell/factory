@@ -109,3 +109,13 @@ def test_serve_says_which_orphaned_agents_it_killed_before_listening(ctx):
 
     assert out.splitlines()[0] == "killed orphan of t7 (implement), pid 4242"
     assert out.splitlines()[1].startswith("serving on ")
+
+
+def test_serve_defaults_to_the_configured_port_and_the_flag_overrides_it(ctx):
+    from dataclasses import replace
+    ctx.settings = replace(ctx.settings, server_port=9001)
+
+    serve(ctx)
+    serve(ctx, "--port", "9002")
+
+    assert [port for _, _, port in ctx.served] == [9001, 9002]
