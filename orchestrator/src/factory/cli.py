@@ -22,7 +22,6 @@ from factory.process import group_alive, kill_tree
 from factory.sqlite_ledger import SqliteLedger
 from factory.sqlite_store import SqliteTaskStore
 from factory.process_registry import ReapResult, ps_probe, reap_orphans
-from factory.merge_task import MergeRefused  # noqa: F401  (tests raise it via cli)
 from factory.runner import SubprocessRunner
 from factory.settings import Settings, SettingsError, load_settings
 from factory.stages import Deps, build_stages

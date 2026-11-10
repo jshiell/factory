@@ -10,6 +10,7 @@ from factory.client import ServerClient
 from factory.cli import IO, Context, escape_control, main
 from factory.digest import plan_digest
 from factory.ledger import Ledger
+from factory.merge_task import MergeRefused
 from factory.server import create_secured_app, load_or_create_token
 from factory.settings import Settings
 from factory.store import TaskStore
@@ -361,7 +362,7 @@ def test_anything_but_y_does_not_merge(ctx, merge_spy, answer):
 
 def test_a_refused_merge_exits_1_with_the_reason(ctx, merge_spy, monkeypatch):
     def refuse(*a, **k):
-        raise cli.MergeRefused("main moved since the plan; re-run the task")
+        raise MergeRefused("main moved since the plan; re-run the task")
     monkeypatch.setattr("factory.server.merge_task", refuse)
 
     code, _, err = run(ctx, "merge", "t1", stdin="y\n")
