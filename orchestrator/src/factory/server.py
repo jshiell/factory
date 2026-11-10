@@ -30,7 +30,7 @@ from factory.retry_task import RetryRefused, require_keepable_plan, retry_task, 
 from factory.clean_tasks import clean_candidates, clean_tasks, remove_orphan_caches
 from factory.gate_cache import orphan_caches
 from factory.audit_corpus import CASES as EVAL_CASES
-from factory.audit_eval import run_eval
+from factory.audit_eval import CorpusChanged, run_eval
 from factory.audit_report import exit_code as eval_exit_code, load_records, render
 from factory.cli import _new_eval_dir
 from factory.lock import AlreadyRunning, state_lock
@@ -317,7 +317,10 @@ def create_app(ctx) -> Starlette:
         def eval_now():
             with state_lock(eval_dir):
                 ctx.reap(eval_dir)
-                complete = run_eval(eval_dir, cases, runs, ctx.eval_runner(ctx.settings, eval_dir), max_usd)
+                try:
+                    complete = run_eval(eval_dir, cases, runs, ctx.eval_runner(ctx.settings, eval_dir), max_usd)
+                except CorpusChanged:
+                    raise RuntimeError(f"the eval corpus changed since {eval_dir.name} started; run a fresh eval") from None
             records = load_records(eval_dir)
             return {"eval_dir": str(eval_dir), "complete": complete, "exit_code": eval_exit_code(records, runs, complete, cases),
                     "report": render(records, cases)}

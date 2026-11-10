@@ -92,3 +92,15 @@ def test_resuming_something_that_is_not_an_earlier_eval_is_422_and_runs_nothing(
 
     assert response.status_code == 422 and "resume" in response.json()["detail"]
     assert ctx.built == [] and ctx.reap.calls == []
+
+
+def test_resuming_against_a_changed_corpus_fails_the_job_with_a_message_and_runs_nothing(client, ctx):
+    _first_eval(client)
+    meta = ctx.settings.state_dir / "evals" / "20260102T030405" / "meta.json"
+    meta.write_text(meta.read_text().replace('"corpus_hash": "', '"corpus_hash": "x'))
+    ctx.built.clear()
+
+    response = client.post("/eval-audit", json={"runs": 1, "only": ["case-01"], "resume": "20260102T030405"})
+
+    job = _wait(client, response.json()["job"]["id"])
+    assert job["state"] == "failed" and "corpus" in job["error"].lower()
