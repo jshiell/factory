@@ -11,6 +11,7 @@ from factory import service
 from factory.abandon_task import AbandonRefused, abandon_task
 from factory.advance import advance
 from factory.job_runner import JobRunner
+from factory.recover_task import RecoverRefused, recover_task
 from factory.job_store import Job, JobNotFound, JobStore
 from factory.ids import InvalidTaskId
 from factory.store import TaskNotFound, task_to_dict
@@ -109,11 +110,19 @@ def create_app(ctx) -> Starlette:
         job = runner.submit("advance", task_id, lambda: _advance_result_json(advance(task_id, ctx.store, ctx.stages)))
         return JSONResponse({"job": _job_json(job)}, status_code=202)
 
-    async def abandon(request: Request) -> JSONResponse:
+    def enqueue(request: Request, kind: str, refused: type[Exception], run_for) -> JSONResponse:
+        """Queue `kind` for the path's task (404 now if unknown); the domain's refusal ends the job as failed."""
         task_id = request.path_params["task_id"]
         service.get_task(ctx.store, task_id)
-        run = _refusal_as("abandon", AbandonRefused, lambda: _task_result_json(abandon_task(task_id, ctx.store)))
-        return JSONResponse({"job": _job_json(runner.submit("abandon", task_id, run))}, status_code=202)
+        run = _refusal_as(kind, refused, lambda: _task_result_json(run_for(task_id)))
+        return JSONResponse({"job": _job_json(runner.submit(kind, task_id, run))}, status_code=202)
+
+    async def abandon(request: Request) -> JSONResponse:
+        return enqueue(request, "abandon", AbandonRefused, lambda task_id: abandon_task(task_id, ctx.store))
+
+    async def recover(request: Request) -> JSONResponse:
+        return enqueue(request, "recover", RecoverRefused, lambda task_id: recover_task(
+            task_id, ctx.store, ctx.ledger, ctx.settings.budget_usd))
 
     async def list_jobs(request: Request) -> JSONResponse:
         return JSONResponse({"jobs": [_job_json(job) for job in jobs.list()]})
@@ -123,7 +132,8 @@ def create_app(ctx) -> Starlette:
 
     app = Starlette(
         lifespan=lifespan,
-        routes=[Route("/tasks/{task_id}/abandon", abandon, methods=["POST"]),
+        routes=[Route("/tasks/{task_id}/recover", recover, methods=["POST"]),
+                Route("/tasks/{task_id}/abandon", abandon, methods=["POST"]),
                 Route("/tasks/{task_id}/advance", advance_task, methods=["POST"]),
                 Route("/jobs", list_jobs, methods=["GET"]), Route("/jobs/{job_id}", show_job, methods=["GET"]),
                 Route("/costs", costs, methods=["GET"]), Route("/tasks", create_task, methods=["POST"]), Route("/tasks", list_tasks, methods=["GET"]),

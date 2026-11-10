@@ -158,3 +158,24 @@ def test_an_abandon_the_domain_refuses_ends_as_a_failed_job_with_the_reason(clie
     app.state.runner.wait_idle()
     job = client.get(f"/jobs/{response.json()['job']['id']}").json()
     assert (job["state"], job["error"]) == ("failed", "abandon refused: a is failed, already finished")
+
+
+def test_recover_marks_a_running_task_interrupted_and_records_the_assumed_cost(client, app, ctx):
+    ctx.store.save(Task(id="a", prompt="", state=TaskState.RUNNING))
+
+    response = client.post("/tasks/a/recover")
+
+    app.state.runner.wait_idle()
+    job = client.get(f"/jobs/{response.json()['job']['id']}").json()
+    assert (job["state"], job["result"]) == ("succeeded", {"state": "failed", "failure_reason": "interrupted"})
+    assert ctx.ledger.entries()[0]["assumed"] is True
+
+
+def test_a_recover_the_domain_refuses_ends_as_a_failed_job_with_the_reason(client, app, ctx):
+    ctx.store.save(Task(id="a", prompt="", state=TaskState.PLANNED))
+
+    response = client.post("/tasks/a/recover")
+
+    app.state.runner.wait_idle()
+    job = client.get(f"/jobs/{response.json()['job']['id']}").json()
+    assert (job["state"], job["error"]) == ("failed", "recover refused: a is planned, not running")
