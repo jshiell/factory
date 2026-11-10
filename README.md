@@ -82,7 +82,7 @@ Reads and quick actions answer at once; `advance`, `abandon`, `recover`, `rebase
 | `GET /jobs`, `GET /jobs/{id}` | job state: `queued`, `running`, `succeeded`, `failed`, `interrupted` |
 
 Errors are `{error, detail}`: 401 token, 403 host or origin, 404 unknown task or job, 409 wrong state or stale preview, 422 bad input.
-Every CLI command except `migrate` and `serve` is a client of this server and needs it running (`no factory server is running` otherwise); it reads the token from `<state_dir>/token`. Long commands wait for their job; Ctrl-C stops waiting and the job carries on. `eval-audit --resume` is not available through the server yet; `--compare` and `--check-corpus` work locally.
+Every CLI command except `migrate` and `serve` is a client of this server and needs it running (`no factory server is running` otherwise); it reads the token from `<state_dir>/token`. Long commands wait for their job; Ctrl-C stops waiting and the job carries on. `eval-audit --compare` and `--check-corpus` work locally.
 
 ### Configuration
 
