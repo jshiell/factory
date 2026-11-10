@@ -1,13 +1,12 @@
 from datetime import datetime
 
 import pytest
-from starlette.testclient import TestClient
 
 from factory.cli import Context
-from factory.server import create_app
 from factory.settings import Settings
 from factory.sqlite_ledger import SqliteLedger
 from factory.sqlite_store import SqliteTaskStore
+from serving import served
 from test_cli import LabelRunner, reaper
 
 
@@ -30,7 +29,7 @@ def ctx(tmp_path):
 
 @pytest.fixture
 def client(ctx):
-    with TestClient(create_app(ctx)) as client:
+    with served(ctx) as client:
         yield client
 
 

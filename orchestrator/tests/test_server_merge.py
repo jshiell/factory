@@ -3,12 +3,11 @@ from datetime import datetime
 from pathlib import Path
 
 import pytest
-from starlette.testclient import TestClient
 
 from gitutil import git
+from serving import served
 
 from factory.cli import Context
-from factory.server import create_app
 from factory.settings import Settings
 from factory.sqlite_ledger import SqliteLedger
 from factory.sqlite_store import SqliteTaskStore
@@ -38,7 +37,7 @@ def audited(ctx, repo):
 
 @pytest.fixture
 def client(ctx):
-    with TestClient(create_app(ctx)) as client:
+    with served(ctx) as client:
         yield client
 
 

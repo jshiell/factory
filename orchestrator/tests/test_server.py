@@ -2,16 +2,14 @@ from dataclasses import replace
 from datetime import datetime
 
 import pytest
-from starlette.testclient import TestClient
-
 from factory.cli import Context
 from factory.digest import plan_digest
 from factory.rebase_task import Rebased
-from factory.server import create_app
 from factory.settings import Settings
 from factory.sqlite_ledger import SqliteLedger
 from factory.sqlite_store import SqliteTaskStore
 from factory.task import Task, TaskState
+from serving import served
 
 
 @pytest.fixture
@@ -23,14 +21,14 @@ def ctx(tmp_path):
 
 
 @pytest.fixture
-def app(ctx):
-    return create_app(ctx)
+def client(ctx):
+    with served(ctx) as client:
+        yield client
 
 
 @pytest.fixture
-def client(app):
-    with TestClient(app) as client:  # entering runs the lifespan: the job worker starts
-        yield client
+def app(client):
+    return client.app
 
 
 def test_post_tasks_creates_a_proposed_task_and_returns_its_id(client, ctx):
