@@ -14,5 +14,5 @@ def migrate(old_store, old_ledger, new_store, new_ledger) -> MigrationReport:
         new_store.save(task)
     entries = old_ledger.entries()
     for entry in entries:
-        new_ledger.append(entry["task_id"], entry["cost_usd"], entry["assumed"], entry.get("stage"))
+        new_ledger.append(entry["task_id"], entry["cost_usd"], entry.get("assumed", False), entry.get("stage"))
     return MigrationReport(len(listing.tasks), len(entries), listing.skipped)

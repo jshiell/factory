@@ -28,3 +28,13 @@ def test_migrate_imports_every_task_and_ledger_entry_unchanged(tmp_path):
     assert new_store.list().tasks == old_store.list().tasks
     assert new_ledger.entries() == old_ledger.entries()
     assert (report.tasks, report.ledger_entries, report.skipped) == (2, 2, [])
+
+
+def test_a_legacy_ledger_line_without_the_assumed_flag_imports_as_not_assumed(tmp_path):
+    (tmp_path / "tasks").mkdir()
+    (tmp_path / "ledger.jsonl").write_text('{"task_id": "a", "cost_usd": 0.1}\n')
+    new_ledger = SqliteLedger(tmp_path / "factory.db")
+
+    migrate(TaskStore(tmp_path / "tasks"), Ledger(tmp_path / "ledger.jsonl"), SqliteTaskStore(tmp_path / "factory.db"), new_ledger)
+
+    assert new_ledger.entries() == [{"task_id": "a", "cost_usd": 0.1, "assumed": False}]
