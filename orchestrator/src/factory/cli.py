@@ -379,70 +379,72 @@ def _costs(args, io, ctx) -> int:
 
 
 def _retry(args, io, ctx) -> int:
-    task = _load(ctx, args.task_id)
+    ctx.server.get(_task_path(args.task_id))
     if args.keep_plan:
-        return _retry_keeping_plan(task, io, ctx)
+        return _retry_keeping_plan(args.task_id, io, ctx)
     try:
-        new = retry_task(args.task_id, ctx.store, ctx.clock)
-    except RetryRefused as error:
-        print(f"retry refused: {error}", file=io.stderr)
+        new = ctx.server.post(_task_path(args.task_id, "/retry"))
+    except ServerRefused as refused:
+        if refused.error != "retry refused":
+            raise
+        print(f"retry refused: {refused.detail}", file=io.stderr)
         return 1
-    print(new.id, file=io.stdout)
+    print(new["id"], file=io.stdout)
     return 0
 
 
-def _retry_keeping_plan(task: Task, io, ctx) -> int:
+def _retry_keeping_plan(task_id: str, io, ctx) -> int:
     if not io.stdin.isatty():
         print("keeping a plan needs an interactive terminal", file=io.stderr)
         return 1
     try:
-        require_keepable_plan(task, plan_digest(task.plan or ""))
-    except RetryRefused as error:
-        print(f"retry refused: {error}", file=io.stderr)
+        task = ctx.server.get(_task_path(task_id, "/retry-preview"))
+    except ServerRefused as refused:
+        if refused.error != "retry refused":
+            raise
+        print(f"retry refused: {refused.detail}", file=io.stderr)
         return 1
-    note_display, required = note_lines(capped_findings(task.review_findings))
+    waived_earlier = tuple(task["waived_findings"])
+    note_display, required = note_lines(tuple(task["review_findings"]))
     lines = [
-        f"RETRY of {task.id} ({task.state.value}), keeping its approved plan", f"GOAL:\n{task.goal}", f"PLAN:\n{task.plan}", "RISKS:",
-        *(f"  - {r}" for r in task.plan_risks), "REVIEWER NOTES (sent to the implementer):", *note_display,
+        f"RETRY of {task_id} ({task['state']}), keeping its approved plan", f"GOAL:\n{task['goal']}", f"PLAN:\n{task['plan']}", "RISKS:",
+        *(f"  - {r}" for r in task["risks"]), "REVIEWER NOTES (sent to the implementer):", *note_display,
     ]
-    if task.waived_findings:
-        lines += ["WAIVED EARLIER (not sent):", *(f"  - {f}" for f in task.waived_findings)]
-        lines += ["REINSTATE with r N:", *(f"  - [r{i}] {f}" for i, f in enumerate(task.waived_findings, 1))]
-    gaps = gaps_to_carry(task)
+    if waived_earlier:
+        lines += ["WAIVED EARLIER (not sent):", *(f"  - {f}" for f in waived_earlier)]
+        lines += ["REINSTATE with r N:", *(f"  - [r{i}] {f}" for i, f in enumerate(waived_earlier, 1))]
+    gaps = tuple(task["audit_gaps"])
     if gaps:
         lines += ["AUDIT FINDINGS (sent to the next attempt):", *(f"  - {g}" for g in gaps)]
-    if task.failure_reason:
-        lines.append(f"FAILED BECAUSE: {task.failure_reason}")
-    if task.state is TaskState.AUDITED:
-        lines += ["AUDIT FINDINGS:", *(f"  - {f}" for f in task.audit_findings),
-                  f"{task.id} is audited and still mergeable; abandon it if you take this retry"]
+    if task["failure_reason"]:
+        lines.append(f"FAILED BECAUSE: {task['failure_reason']}")
+    if task["state"] == TaskState.AUDITED.value:
+        lines += ["AUDIT FINDINGS:", *(f"  - {f}" for f in task["audit_findings"]),
+                  f"{task_id} is audited and still mergeable; abandon it if you take this retry"]
     print(escape_control("\n".join(lines)), file=io.stdout)
-    if warning := dropped_required_warning(task.review_findings):
-        print(warning, file=io.stdout)
+    if task["warning"]:
+        print(task["warning"], file=io.stdout)
     answered = _ask_with_waiver(
-        io, f"Queue this plan again as a new task (retry of {task.id})? [y/N]", "Waive these and queue? [y/N] ", required, "not queued",
-        task.waived_findings)
+        io, f"Queue this plan again as a new task (retry of {task_id})? [y/N]", "Waive these and queue? [y/N] ", required, "not queued",
+        waived_earlier)
     if answered is None:
         return 1
     waived, reinstated = answered
-    kwargs = {"waived": waived} if waived else {}
-    if reinstated:
-        kwargs["reinstated"] = reinstated
     for dropped in split_quoting_waived(gaps, waived)[1]:
         print(escape_control(f"dropped (quotes a waived note): {dropped}"), file=io.stdout)
-    if gaps:
-        kwargs["shown_audit_gaps"] = gaps
     try:
-        new = retry_with_plan(
-            task.id, ctx.store, ctx.clock, plan_digest(task.plan), shown_findings=task.review_findings, **kwargs)
-    except InvalidWaiver as error:
-        action = "reinstate" if reinstated else "waive"
-        print(f"cannot {action}: {escape_control(str(error))}; nothing queued", file=io.stderr)
+        new = ctx.server.post(_task_path(task_id, "/retry"), {
+            "keep_plan": True, "plan_digest": task["plan_digest"], "waive": list(waived), "reinstate": list(reinstated)})
+    except ServerRefused as refused:
+        if refused.error == "invalid waiver":
+            action = "reinstate" if reinstated else "waive"
+            print(f"cannot {action}: {escape_control(refused.detail)}; nothing queued", file=io.stderr)
+        elif refused.error == "retry refused":
+            print("plan changed since display; nothing queued", file=io.stderr)
+        else:
+            raise
         return 1
-    except RetryRefused:
-        print("plan changed since display; nothing queued", file=io.stderr)
-        return 1
-    print(f"{new.id}: queued with the approved plan; run: factory advance {new.id}", file=io.stdout)
+    print(f"{new['id']}: queued with the approved plan; run: factory advance {new['id']}", file=io.stdout)
     return 0
 
 

@@ -241,9 +241,11 @@ def create_app(ctx) -> Starlette:
         try:
             if body.get("keep_plan"):
                 task = ctx.store.load(task_id)
+                optional = {"waived": _string_list(body, "waive"), "shown_audit_gaps": gaps_to_carry(task),
+                            "reinstated": _string_list(body, "reinstate")}
                 new = retry_with_plan(
                     task_id, ctx.store, ctx.clock, _required_string(body, "plan_digest"), shown_findings=task.review_findings,
-                    waived=_string_list(body, "waive"), shown_audit_gaps=gaps_to_carry(task), reinstated=_string_list(body, "reinstate"))
+                    **{name: value for name, value in optional.items() if value})
             else:
                 new = retry_task(task_id, ctx.store, ctx.clock)
         except InvalidWaiver as error:

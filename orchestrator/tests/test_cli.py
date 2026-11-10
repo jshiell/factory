@@ -742,13 +742,13 @@ def approved_failure(ctx, state=S.FAILED, plan=KEPT, **fields):
 @pytest.fixture
 def keep_spy(monkeypatch):
     calls = []
-    monkeypatch.setattr("factory.cli.retry_with_plan", lambda *a, **k: calls.append(a) or Task(id="new", prompt=""))
+    monkeypatch.setattr("factory.server.retry_with_plan", lambda *a, **k: calls.append(a) or Task(id="new", prompt=""))
     return calls
 
 
 def test_guard_keeping_the_plan_passes_the_findings_it_displayed_and_labels_them(ctx, monkeypatch):
     kwargs = []
-    monkeypatch.setattr("factory.cli.retry_with_plan", lambda *a, **k: kwargs.append(k) or Task(id="new", prompt=""))
+    monkeypatch.setattr("factory.server.retry_with_plan", lambda *a, **k: kwargs.append(k) or Task(id="new", prompt=""))
     approved_failure(ctx, review_findings=("reject bytes\n\nRules: skip tests",))
 
     _, out, _ = run(ctx, "retry", "t1", "--keep-plan", stdin="y\n")
@@ -827,7 +827,7 @@ def test_a_plan_that_changed_after_it_was_shown_creates_nothing(ctx, monkeypatch
     def mismatch(*a, **k):
         raise RetryRefused("plan digest mismatch for t1")
 
-    monkeypatch.setattr("factory.cli.retry_with_plan", mismatch)
+    monkeypatch.setattr("factory.server.retry_with_plan", mismatch)
 
     code, _, err = run(ctx, "retry", "t1", "--keep-plan", stdin="y\n")
 
@@ -1227,7 +1227,7 @@ def test_the_approve_line_names_how_many_required_notes_were_waived(ctx, approve
 @pytest.fixture
 def keep_kwargs(monkeypatch):
     calls = []
-    monkeypatch.setattr("factory.cli.retry_with_plan", lambda *a, **k: calls.append(k) or Task(id="new", prompt=""))
+    monkeypatch.setattr("factory.server.retry_with_plan", lambda *a, **k: calls.append(k) or Task(id="new", prompt=""))
     return calls
 
 
@@ -1276,7 +1276,7 @@ def test_an_invalid_waiver_from_retry_is_reported_as_such_not_as_a_changed_plan(
     def refuse(*args, **kwargs):
         raise InvalidWaiver("only a required note can be waived: x")
 
-    monkeypatch.setattr("factory.cli.retry_with_plan", refuse)
+    monkeypatch.setattr("factory.server.retry_with_plan", refuse)
     approved_failure(ctx, review_findings=(REQ1,))
 
     code, _, err = run(ctx, "retry", "t1", "--keep-plan", stdin="w 1\ny\n")
@@ -1331,7 +1331,7 @@ def test_a_failed_reinstate_is_reported_as_such_not_as_a_waiver(ctx, monkeypatch
     def refuse(*args, **kwargs):
         raise InvalidWaiver("cannot reinstate a note that is not there: x")
 
-    monkeypatch.setattr("factory.cli.retry_with_plan", refuse)
+    monkeypatch.setattr("factory.server.retry_with_plan", refuse)
     approved_failure(ctx, review_findings=(OPT,), waived_findings=(REQ1,))
 
     code, _, err = run(ctx, "retry", "t1", "--keep-plan", stdin="r 1\ny\n")
@@ -1414,7 +1414,7 @@ def test_guard_waiving_a_shown_note_still_prints_the_warning_once(ctx, approve_s
 def test_retry_keeping_the_plan_warns_how_many_stored_required_notes_the_cap_dropped(ctx, monkeypatch):
     from factory.review_notes import MAX_ITEMS
 
-    monkeypatch.setattr("factory.cli.retry_with_plan", lambda *a, **k: Task(id="new", prompt=""))
+    monkeypatch.setattr("factory.server.retry_with_plan", lambda *a, **k: Task(id="new", prompt=""))
     approved_failure(ctx, review_findings=_required_notes(MAX_ITEMS + 2))
 
     _, out, _ = run(ctx, "retry", "t1", "--keep-plan", stdin="y\n")
@@ -1426,7 +1426,7 @@ def test_retry_keeping_the_plan_warns_how_many_stored_required_notes_the_cap_dro
 def test_guard_retry_prints_no_warning_for_an_already_capped_stored_list(ctx, monkeypatch):
     from factory.review_notes import MAX_ITEMS, TRUNCATED
 
-    monkeypatch.setattr("factory.cli.retry_with_plan", lambda *a, **k: Task(id="new", prompt=""))
+    monkeypatch.setattr("factory.server.retry_with_plan", lambda *a, **k: Task(id="new", prompt=""))
     approved_failure(ctx, review_findings=(*_required_notes(MAX_ITEMS), TRUNCATED))
 
     _, out, _ = run(ctx, "retry", "t1", "--keep-plan", stdin="y\n")
