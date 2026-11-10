@@ -31,6 +31,9 @@ class SqliteLedger:
         with transaction(self._db_path) as conn:
             return conn.execute("SELECT COALESCE(SUM(cost_usd), 0) FROM ledger").fetchone()[0]
 
+    def would_exceed(self, cap_usd: float, next_budget_usd: float) -> bool:
+        return self.total() + next_budget_usd > cap_usd
+
     @staticmethod
     def _entry(task_id: str, cost_usd: float, assumed: int, stage: str | None) -> dict:
         entry = {"task_id": task_id, "cost_usd": cost_usd, "assumed": bool(assumed)}

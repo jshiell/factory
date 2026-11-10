@@ -30,3 +30,11 @@ def test_total_sums_costs_and_is_zero_when_empty(tmp_path):
     ledger.append("t2", 0.5)
 
     assert ledger.total() == 0.75
+
+
+def test_would_exceed_only_when_total_plus_next_budget_is_over_cap(tmp_path):
+    ledger = SqliteLedger(tmp_path / "factory.db")
+    ledger.append("t1", 1.0)
+
+    assert not ledger.would_exceed(cap_usd=1.5, next_budget_usd=0.5)
+    assert ledger.would_exceed(cap_usd=1.5, next_budget_usd=0.51)
