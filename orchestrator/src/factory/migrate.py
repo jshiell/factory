@@ -1,6 +1,10 @@
 from typing import NamedTuple
 
 
+class DatabaseNotEmpty(Exception):
+    pass
+
+
 class MigrationReport(NamedTuple):
     tasks: int
     ledger_entries: int
@@ -9,6 +13,8 @@ class MigrationReport(NamedTuple):
 
 def migrate(old_store, old_ledger, new_store, new_ledger) -> MigrationReport:
     """Copy the file-backed tasks and ledger into the SQLite ones, leaving the old files alone."""
+    if new_store.list().tasks or new_store.list().skipped or new_ledger.entries():
+        raise DatabaseNotEmpty("the SQLite database already holds tasks or ledger entries")
     listing = old_store.list()
     for task in listing.tasks:
         new_store.save(task)

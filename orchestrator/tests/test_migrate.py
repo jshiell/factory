@@ -1,5 +1,7 @@
 from factory.ledger import Ledger
-from factory.migrate import migrate
+import pytest
+
+from factory.migrate import DatabaseNotEmpty, migrate
 from factory.sqlite_ledger import SqliteLedger
 from factory.sqlite_store import SqliteTaskStore
 from factory.store import TaskStore
@@ -38,3 +40,20 @@ def test_a_legacy_ledger_line_without_the_assumed_flag_imports_as_not_assumed(tm
     migrate(TaskStore(tmp_path / "tasks"), Ledger(tmp_path / "ledger.jsonl"), SqliteTaskStore(tmp_path / "factory.db"), new_ledger)
 
     assert new_ledger.entries() == [{"task_id": "a", "cost_usd": 0.1, "assumed": False}]
+
+
+@pytest.mark.parametrize("already", ["task", "ledger"])
+def test_migrate_refuses_a_database_that_already_has_data_and_changes_nothing(tmp_path, already):
+    old_store, old_ledger = old_state(tmp_path)
+    new_store = SqliteTaskStore(tmp_path / "factory.db")
+    new_ledger = SqliteLedger(tmp_path / "factory.db")
+    if already == "task":
+        new_store.save(Task(id="z", prompt="existing"))
+    else:
+        new_ledger.append("z", 1.0)
+
+    with pytest.raises(DatabaseNotEmpty):
+        migrate(old_store, old_ledger, new_store, new_ledger)
+
+    assert [t.id for t in new_store.list().tasks] == (["z"] if already == "task" else [])
+    assert len(new_ledger.entries()) == (1 if already == "ledger" else 0)
