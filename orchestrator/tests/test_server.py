@@ -373,3 +373,47 @@ def test_retry_keeping_the_plan_can_reinstate_a_waived_note(client, ctx):
 
     new = ctx.store.load(response.json()["id"])
     assert "RECOMMEND (required): fix x" in new.review_findings and new.waived_findings == ()
+
+
+# --- C10: a long job does not block the quick endpoints, and a queued job re-checks its task ----------------
+
+import threading
+
+
+@pytest.fixture
+def blocked(client):
+    """A running job that holds the single worker until released."""
+    started, release = threading.Event(), threading.Event()
+
+    def hold():
+        started.set()
+        release.wait(5)
+        return {}
+
+    client.app.state.runner.submit("advance", None, hold)
+    assert started.wait(5)
+    yield release
+    release.set()
+    client.app.state.runner.wait_idle()
+
+
+def test_quick_endpoints_answer_while_a_job_is_running(client, ctx, blocked):
+    assert client.post("/tasks", json={"goal": "g"}).status_code == 201
+    assert client.get("/tasks").status_code == 200
+    assert client.get("/jobs").status_code == 200
+    ctx.store.save(Task(id="r", prompt="", state=TaskState.REVIEWED, goal="g", plan="p", plan_digest=plan_digest("p")))
+    assert client.post("/tasks/r/reject").status_code == 200
+
+
+def test_a_queued_job_whose_task_changed_meanwhile_ends_failed_and_changes_nothing(client, ctx, blocked):
+    ctx.store.save(Task(id="t", prompt="", state=TaskState.RUNNING, worktree="w"))
+    job_id = client.post("/tasks/t/recover").json()["job"]["id"]
+    merged = Task(id="t", prompt="", state=TaskState.MERGED)
+    ctx.store.save(merged)
+
+    blocked.set()
+    client.app.state.runner.wait_idle()
+
+    job = client.get(f"/jobs/{job_id}").json()
+    assert job["state"] == "failed" and job["error"] == "recover refused: t is merged, not running"
+    assert ctx.store.load("t") == merged
