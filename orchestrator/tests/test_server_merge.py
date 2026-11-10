@@ -63,3 +63,47 @@ def test_merge_preview_of_a_task_that_is_not_audited_is_409(client, ctx, audited
 
 def test_merge_preview_of_an_unknown_task_is_404(client):
     assert client.get("/tasks/nope/merge-preview").status_code == 404
+
+
+def _wait(client, job_id):
+    client.app.state.runner.wait_idle()
+    return client.get(f"/jobs/{job_id}").json()
+
+
+def test_merge_with_the_shown_sha_fast_forwards_main_and_records_merged(client, ctx, audited, repo):
+    response = client.post("/tasks/t1/merge", json={"audited_sha": audited.audited_sha})
+
+    assert response.status_code == 202
+    job = _wait(client, response.json()["job"]["id"])
+    assert job["state"] == "succeeded"
+    assert ctx.store.load("t1").state is TaskState.MERGED
+    assert git(repo, "rev-parse", "HEAD") == audited.audited_sha
+
+
+def test_merge_with_a_stale_sha_is_409_and_changes_nothing(client, ctx, audited, repo):
+    response = client.post("/tasks/t1/merge", json={"audited_sha": "0" * 40})
+
+    assert response.status_code == 409
+    assert response.json()["error"] == "merge refused"
+    assert ctx.store.load("t1").state is TaskState.AUDITED
+    assert git(repo, "rev-parse", "HEAD") == audited.base_sha
+
+
+def test_merge_without_audited_sha_is_422(client, audited):
+    assert client.post("/tasks/t1/merge", json={}).status_code == 422
+
+
+def test_merge_of_an_unknown_task_is_404(client):
+    assert client.post("/tasks/nope/merge", json={"audited_sha": "x"}).status_code == 404
+
+
+def test_a_merge_that_main_outran_ends_the_job_failed_and_changes_nothing(client, ctx, audited, repo):
+    (repo / "c.txt").write_text("c")
+    git(repo, "add", "-A")
+    git(repo, "commit", "-q", "-m", "main moved")
+
+    job = _wait(client, client.post("/tasks/t1/merge", json={"audited_sha": audited.audited_sha}).json()["job"]["id"])
+
+    assert job["state"] == "failed"
+    assert job["error"].startswith("merge refused: ")
+    assert ctx.store.load("t1").state is TaskState.AUDITED

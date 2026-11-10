@@ -186,6 +186,19 @@ def create_app(ctx) -> Starlette:
         return JSONResponse({"branch": preview.branch, "audited_sha": preview.task.audited_sha,
                              "diffstat": preview.diffstat, "findings": list(preview.findings)})
 
+    async def merge(request: Request) -> JSONResponse:
+        task = service.get_task(ctx.store, request.path_params["task_id"])
+        shown_sha = _required_string(await _json_object(request), "audited_sha")
+        if shown_sha != task.audited_sha:
+            raise ApiError(409, "merge refused", "the commit shown is not the audited commit")
+        repo = ctx.settings.repo
+
+        def merge_now(task_id):
+            worktrees = WorktreeManager(repo, ctx.settings.worktree_root)
+            return merge_task(task_id, ctx.store, repo, worktrees, shown_sha=shown_sha)
+
+        return enqueue(request, "merge", (MergeRefused, InvalidTransition, subprocess.CalledProcessError), merge_now)
+
     async def list_jobs(request: Request) -> JSONResponse:
         return JSONResponse({"jobs": [_job_json(job) for job in jobs.list()]})
 
@@ -194,7 +207,8 @@ def create_app(ctx) -> Starlette:
 
     app = Starlette(
         lifespan=lifespan,
-        routes=[Route("/tasks/{task_id}/merge-preview", merge_preview_view, methods=["GET"]),
+        routes=[Route("/tasks/{task_id}/merge", merge, methods=["POST"]),
+                Route("/tasks/{task_id}/merge-preview", merge_preview_view, methods=["GET"]),
                 Route("/tasks/{task_id}/approval", approval_preview, methods=["GET"]),
                 Route("/tasks/{task_id}/approve", approve, methods=["POST"]),
                 Route("/tasks/{task_id}/reject", reject, methods=["POST"]),
