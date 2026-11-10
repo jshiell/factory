@@ -118,3 +118,16 @@ def test_resuming_through_a_symlink_is_422_and_runs_nothing(client, ctx, tmp_pat
 
     assert response.status_code == 422 and "resume" in response.json()["detail"]
     assert ctx.built == [] and ctx.reap.calls == []
+
+
+def test_resuming_a_directory_another_run_holds_fails_the_job_naming_it(client, ctx):
+    from factory.lock import state_lock
+    _first_eval(client)
+    ctx.built.clear()
+
+    with state_lock(ctx.settings.state_dir / "evals" / "20260102T030405"):
+        response = client.post("/eval-audit", json={"runs": 1, "only": ["case-01"], "resume": "20260102T030405"})
+        job = _wait(client, response.json()["job"]["id"])
+
+    assert job["state"] == "failed" and "20260102T030405" in job["error"] and "already" in job["error"]
+    assert ctx.built == []

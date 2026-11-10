@@ -316,12 +316,15 @@ def _build_app(ctx) -> Starlette:
         eval_dir = _resumed_eval_dir(evals_root, body["resume"]) if "resume" in body else _new_eval_dir(evals_root, ctx.clock)
 
         def eval_now():
-            with state_lock(eval_dir):
-                ctx.reap(eval_dir)
-                try:
-                    complete = run_eval(eval_dir, cases, runs, ctx.eval_runner(ctx.settings, eval_dir), max_usd)
-                except CorpusChanged:
-                    raise RuntimeError(f"the eval corpus changed since {eval_dir.name} started; run a fresh eval") from None
+            try:
+                with state_lock(eval_dir):
+                    ctx.reap(eval_dir)
+                    try:
+                        complete = run_eval(eval_dir, cases, runs, ctx.eval_runner(ctx.settings, eval_dir), max_usd)
+                    except CorpusChanged:
+                        raise RuntimeError(f"the eval corpus changed since {eval_dir.name} started; run a fresh eval") from None
+            except AlreadyRunning:
+                raise RuntimeError(f"an eval run already holds {eval_dir.name}; wait for it to finish") from None
             records = load_records(eval_dir)
             return {"eval_dir": str(eval_dir), "complete": complete, "exit_code": eval_exit_code(records, runs, complete, cases),
                     "report": render(records, cases)}
