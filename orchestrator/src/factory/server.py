@@ -114,9 +114,10 @@ _SAFE_EVAL_NAME = re.compile(r"[A-Za-z0-9_-]+")
 
 
 def _resumed_eval_dir(evals_root, name) -> Path:
-    if not isinstance(name, str) or not _SAFE_EVAL_NAME.fullmatch(name) or not (evals_root / name / "meta.json").is_file():
+    directory = evals_root / name if isinstance(name, str) and _SAFE_EVAL_NAME.fullmatch(name) else None
+    if directory is None or directory.is_symlink() or not (directory / "meta.json").is_file():
         raise ApiError(422, "invalid input", "resume must name an earlier eval directory")
-    return evals_root / name
+    return directory
 
 
 def _build_app(ctx) -> Starlette:

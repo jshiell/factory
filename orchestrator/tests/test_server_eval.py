@@ -103,3 +103,18 @@ def test_resuming_against_a_changed_corpus_fails_the_job_with_a_message_and_runs
 
     job = _wait(client, response.json()["job"]["id"])
     assert job["state"] == "failed" and "corpus" in job["error"].lower()
+
+
+def test_resuming_through_a_symlink_is_422_and_runs_nothing(client, ctx, tmp_path):
+    _first_eval(client)
+    outside = tmp_path / "elsewhere"
+    outside.mkdir()
+    (outside / "meta.json").write_text("{}")
+    (ctx.settings.state_dir / "evals" / "link").symlink_to(outside)
+    ctx.built.clear()
+    ctx.reap.calls.clear()
+
+    response = client.post("/eval-audit", json={"runs": 1, "resume": "link"})
+
+    assert response.status_code == 422 and "resume" in response.json()["detail"]
+    assert ctx.built == [] and ctx.reap.calls == []
