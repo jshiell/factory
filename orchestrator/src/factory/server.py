@@ -5,7 +5,7 @@ import secrets
 import stat
 from pathlib import Path
 import subprocess
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, contextmanager
 from dataclasses import asdict
 
 from starlette.applications import Starlette
@@ -32,7 +32,8 @@ from factory.audit_corpus import CASES as EVAL_CASES
 from factory.audit_eval import run_eval
 from factory.audit_report import exit_code as eval_exit_code, load_records, render
 from factory.cli import _new_eval_dir
-from factory.lock import state_lock
+from factory.lock import AlreadyRunning, state_lock
+from factory.process_registry import ReapUncertain
 from factory.job_store import Job, JobNotFound, JobStore
 from factory.ids import InvalidTaskId
 from factory.task import InvalidTransition, TaskState
@@ -406,3 +407,23 @@ def create_secured_app(ctx, token: str):
     guarded = _Guard(app, token)
     guarded.state = app.state
     return guarded
+
+
+class StartRefused(Exception):
+    pass
+
+
+@contextmanager
+def claim_state_dir(ctx):
+    """Own the state dir for the whole serve: the lock, one reap of orphaned agents, jobs a dead server left marked interrupted."""
+    state_dir = ctx.settings.state_dir
+    try:
+        with state_lock(state_dir):
+            try:
+                ctx.reap(state_dir)
+            except ReapUncertain as uncertain:
+                raise StartRefused(f"{uncertain}; nothing changed") from None
+            JobStore(ctx.settings.db_path).interrupt_unfinished()
+            yield
+    except AlreadyRunning:
+        raise StartRefused("another factory run holds the lock") from None
