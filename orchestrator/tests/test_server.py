@@ -5,6 +5,7 @@ import pytest
 from starlette.testclient import TestClient
 
 from factory.cli import Context
+from factory.digest import plan_digest
 from factory.rebase_task import Rebased
 from factory.server import create_app
 from factory.settings import Settings
@@ -203,3 +204,71 @@ def test_rebase_reports_the_new_state_and_the_old_audited_commit(client, app, ct
     app.state.runner.wait_idle()
     job = client.get(f"/jobs/{response.json()['job']['id']}").json()
     assert job["result"] == {"state": "agent_done", "failure_reason": None, "old_audited_sha": "abc123"}
+
+
+def reviewed(ctx, plan="1. do it", findings=("[required] add a test", "nice to have")):
+    task = Task(id="a", prompt="", state=TaskState.REVIEWED, goal="g", plan=plan, plan_digest=plan_digest(plan),
+                plan_risks=("r",), review_findings=findings)
+    ctx.store.save(task)
+    return task
+
+
+def test_approval_preview_shows_the_plan_notes_and_the_digest_to_echo_back(client, ctx):
+    task = reviewed(ctx)
+
+    response = client.get("/tasks/a/approval")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert (body["goal"], body["plan"], body["risks"]) == ("g", "1. do it", ["r"])
+    assert body["plan_digest"] == plan_digest(task.plan)
+    assert body["review_findings"] == list(task.review_findings)
+
+
+def test_approval_preview_of_a_task_not_reviewed_is_409(client, ctx):
+    ctx.store.save(Task(id="a", prompt="", state=TaskState.PLANNED))
+
+    assert client.get("/tasks/a/approval").status_code == 409
+
+
+def test_approve_with_the_shown_digest_queues_the_task(client, ctx):
+    task = reviewed(ctx)
+
+    response = client.post("/tasks/a/approve", json={"plan_digest": plan_digest(task.plan)})
+
+    assert response.status_code == 200
+    assert response.json() == {"id": "a", "state": "queued"}
+    assert ctx.store.load("a").state is TaskState.QUEUED
+
+
+def test_approve_with_a_stale_digest_is_409_and_approves_nothing(client, ctx):
+    reviewed(ctx)
+
+    response = client.post("/tasks/a/approve", json={"plan_digest": plan_digest("another plan")})
+
+    assert response.status_code == 409
+    assert response.json()["error"] == "plan changed"
+    assert ctx.store.load("a").state is TaskState.REVIEWED
+
+
+def test_approve_without_a_digest_is_422(client, ctx):
+    reviewed(ctx)
+
+    assert client.post("/tasks/a/approve", json={}).status_code == 422
+
+
+def test_approve_waiving_a_note_that_is_not_required_is_422_and_approves_nothing(client, ctx):
+    task = reviewed(ctx)
+
+    response = client.post("/tasks/a/approve", json={"plan_digest": plan_digest(task.plan), "waive": ["nice to have"]})
+
+    assert response.status_code == 422
+    assert ctx.store.load("a").state is TaskState.REVIEWED
+
+
+def test_reject_fails_a_reviewed_task_and_a_task_not_reviewed_is_409(client, ctx):
+    reviewed(ctx)
+
+    assert client.post("/tasks/a/reject").status_code == 200
+    assert ctx.store.load("a").failure_reason == "plan_rejected_by_human"
+    assert client.post("/tasks/a/reject").status_code == 409

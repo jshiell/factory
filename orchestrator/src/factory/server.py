@@ -9,6 +9,9 @@ from starlette.responses import JSONResponse
 from starlette.routing import Route
 
 from factory import service
+from factory.digest import plan_digest
+from factory.review_notes import capped_findings
+from factory.waiver import InvalidWaiver, note_lines
 from factory.abandon_task import AbandonRefused, abandon_task
 from factory.advance import advance
 from factory.job_runner import JobRunner
@@ -16,7 +19,7 @@ from factory.rebase_task import RebaseRefused, rebase_task
 from factory.recover_task import RecoverRefused, recover_task
 from factory.job_store import Job, JobNotFound, JobStore
 from factory.ids import InvalidTaskId
-from factory.task import InvalidTransition
+from factory.task import InvalidTransition, TaskState
 from factory.store import TaskNotFound, task_to_dict
 
 
@@ -41,6 +44,17 @@ async def _json_object(request: Request) -> dict:
     if not isinstance(body, dict):
         raise ApiError(422, "invalid input", "body must be a JSON object")
     return body
+
+
+def _string_list(body: dict, key: str) -> tuple[str, ...]:
+    value = body.get(key, [])
+    if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
+        raise ApiError(422, "invalid input", f"{key} must be a list of strings")
+    return tuple(value)
+
+
+def _not_reviewed(request: Request, error: Exception) -> JSONResponse:
+    return JSONResponse({"error": "wrong state", "detail": str(error)}, status_code=409)
 
 
 def _required_string(body: dict, key: str) -> str:
@@ -133,6 +147,33 @@ def create_app(ctx) -> Starlette:
             lambda task_id: rebase_task(task_id, ctx.store, ctx.settings.repo),
             lambda rebased: {**_task_result_json(rebased.task), "old_audited_sha": rebased.old_audited_sha})
 
+    async def approval_preview(request: Request) -> JSONResponse:
+        task = service.get_task(ctx.store, request.path_params["task_id"])
+        if task.state is not TaskState.REVIEWED:
+            raise service.NotReviewed(task)
+        shown = capped_findings(task.review_findings)
+        return JSONResponse({
+            "goal": task.goal, "plan": task.plan, "risks": list(task.plan_risks), "review_findings": list(shown),
+            "required": note_lines(shown)[1], "plan_digest": plan_digest(task.plan),
+        })
+
+    async def approve(request: Request) -> JSONResponse:
+        task = service.get_task(ctx.store, request.path_params["task_id"])
+        body = await _json_object(request)
+        shown_digest = _required_string(body, "plan_digest")
+        waived = _string_list(body, "waive")
+        try:
+            approved = service.approve(ctx.store, task.id, shown_digest, task.review_findings, waived)
+        except InvalidWaiver as error:
+            raise ApiError(422, "invalid waiver", str(error)) from None
+        except service.PlanChanged as error:
+            raise ApiError(409, "plan changed", str(error)) from None
+        return JSONResponse({"id": approved.id, "state": approved.state.value})
+
+    async def reject(request: Request) -> JSONResponse:
+        task = service.reject_plan(ctx.store, request.path_params["task_id"])
+        return JSONResponse({"id": task.id, "state": ctx.store.load(task.id).state.value})
+
     async def list_jobs(request: Request) -> JSONResponse:
         return JSONResponse({"jobs": [_job_json(job) for job in jobs.list()]})
 
@@ -141,7 +182,10 @@ def create_app(ctx) -> Starlette:
 
     app = Starlette(
         lifespan=lifespan,
-        routes=[Route("/tasks/{task_id}/rebase", rebase, methods=["POST"]),
+        routes=[Route("/tasks/{task_id}/approval", approval_preview, methods=["GET"]),
+                Route("/tasks/{task_id}/approve", approve, methods=["POST"]),
+                Route("/tasks/{task_id}/reject", reject, methods=["POST"]),
+                Route("/tasks/{task_id}/rebase", rebase, methods=["POST"]),
                 Route("/tasks/{task_id}/recover", recover, methods=["POST"]),
                 Route("/tasks/{task_id}/abandon", abandon, methods=["POST"]),
                 Route("/tasks/{task_id}/advance", advance_task, methods=["POST"]),
@@ -149,7 +193,8 @@ def create_app(ctx) -> Starlette:
                 Route("/costs", costs, methods=["GET"]), Route("/tasks", create_task, methods=["POST"]), Route("/tasks", list_tasks, methods=["GET"]),
                 Route("/tasks/{task_id}", show_task, methods=["GET"])],
         exception_handlers={ApiError: _error_response, TaskNotFound: _unknown_task, InvalidTaskId: _unknown_task,
-                           JobNotFound: _unknown_job},
+                           JobNotFound: _unknown_job,
+                           service.NotReviewed: _not_reviewed},
     )
     app.state.runner = runner
     return app
