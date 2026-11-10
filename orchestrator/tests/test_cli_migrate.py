@@ -41,3 +41,14 @@ def test_migrate_imports_the_old_files_and_reports_the_counts(ctx):
     assert out == "migrated 1 tasks, 1 ledger entries\n"
     assert ctx.store.load("t1").goal == "old goal"
     assert ctx.ledger.total() == 0.25
+
+
+def test_migrate_refuses_a_database_that_already_holds_tasks(ctx):
+    seed_old_files(ctx.settings)
+    ctx.store.save(Task(id="t2", prompt="", state=TaskState.PROPOSED))
+
+    code, out, err = run(ctx, "migrate")
+
+    assert code == 1
+    assert out == ""
+    assert err == "the SQLite database already holds tasks or ledger entries; nothing changed\n"

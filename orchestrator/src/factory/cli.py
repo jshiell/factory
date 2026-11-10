@@ -25,7 +25,7 @@ from factory.digest import plan_digest
 from factory.gate import check_gate
 from factory.ids import InvalidTaskId
 from factory.ledger import Ledger
-from factory.migrate import migrate
+from factory.migrate import DatabaseNotEmpty, migrate
 from factory.lock import AlreadyRunning, state_lock
 from factory.process import group_alive, kill_tree
 from factory.sqlite_ledger import SqliteLedger
@@ -165,7 +165,11 @@ def _new(args, io, ctx) -> int:
 
 
 def _migrate(args, io, ctx) -> int:
-    report = migrate(TaskStore(ctx.settings.tasks_dir), Ledger(ctx.settings.ledger_path), ctx.store, ctx.ledger)
+    try:
+        report = migrate(TaskStore(ctx.settings.tasks_dir), Ledger(ctx.settings.ledger_path), ctx.store, ctx.ledger)
+    except DatabaseNotEmpty as refused:
+        print(f"{refused}; nothing changed", file=io.stderr)
+        return 1
     print(f"migrated {report.tasks} tasks, {report.ledger_entries} ledger entries", file=io.stdout)
     return 0
 
