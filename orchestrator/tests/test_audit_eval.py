@@ -252,6 +252,17 @@ def test_resuming_with_a_different_number_of_runs_is_refused_before_anything_run
     assert runner.order == [] and (eval_dir / "meta.json").read_text() == before
 
 
+def test_resuming_with_a_different_set_of_cases_is_refused_before_anything_runs(tmp_path):
+    eval_dir = tmp_path / "eval"
+    run_eval(eval_dir, THREE, 1, VerdictRunner(), 5.0)
+    runner = VerdictRunner()
+
+    with pytest.raises(CorpusChanged):
+        run_eval(eval_dir, THREE[:2], 1, runner, 5.0)
+
+    assert runner.order == []
+
+
 from factory.audit_eval import check_corpus
 from factory.gate import GateResult
 
