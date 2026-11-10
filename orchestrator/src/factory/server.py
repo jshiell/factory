@@ -421,10 +421,10 @@ def claim_state_dir(ctx):
     try:
         with state_lock(state_dir):
             try:
-                ctx.reap(state_dir)
+                reaped = ctx.reap(state_dir)
             except ReapUncertain as uncertain:
                 raise StartRefused(f"{uncertain}; nothing changed") from None
             JobStore(ctx.settings.db_path).interrupt_unfinished()
-            yield
+            yield reaped
     except AlreadyRunning:
         raise StartRefused("another factory run holds the lock") from None

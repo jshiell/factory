@@ -99,3 +99,13 @@ def test_serve_refuses_a_token_file_others_can_read(ctx):
     code, out, err = serve(ctx)
 
     assert code == 1 and "readable by others" in err and ctx.served == []
+
+
+def test_serve_says_which_orphaned_agents_it_killed_before_listening(ctx):
+    from factory.process_registry import Record
+    ctx.reap = lambda directory: ReapResult([Record(4242, 4242, "t7", "implement", 100.0, 100.5)], [])
+
+    _, out, _ = serve(ctx)
+
+    assert out.splitlines()[0] == "killed orphan of t7 (implement), pid 4242"
+    assert out.splitlines()[1].startswith("serving on ")

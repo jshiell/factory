@@ -565,7 +565,8 @@ def _serve(args, io, ctx) -> int:
     from factory.server import StartRefused, TokenFileUnsafe, claim_state_dir, create_secured_app, load_or_create_token
     try:
         token = load_or_create_token(ctx.settings.state_dir)
-        with claim_state_dir(ctx):
+        with claim_state_dir(ctx) as reaped:
+            _print_reaped(reaped.killed, reaped.discarded, io)
             print(f"serving on http://127.0.0.1:{args.port}; token in {ctx.settings.state_dir / 'token'}", file=io.stdout)
             io.stdout.flush()
             ctx.serve(create_secured_app(ctx, token), "127.0.0.1", args.port)
