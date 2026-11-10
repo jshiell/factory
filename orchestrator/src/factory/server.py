@@ -119,7 +119,7 @@ def _resumed_eval_dir(evals_root, name) -> Path:
     return evals_root / name
 
 
-def create_app(ctx) -> Starlette:
+def _build_app(ctx) -> Starlette:
     jobs = JobStore(ctx.settings.db_path)
     runner = JobRunner(jobs)
 
@@ -419,7 +419,7 @@ class _Guard:
 
 def create_secured_app(ctx, token: str):
     """The app `factory serve` runs: every request needs the token, a loopback Host and no Origin."""
-    app = create_app(ctx)
+    app = _build_app(ctx)
     guarded = _Guard(app, token)
     guarded.state = app.state
     return guarded

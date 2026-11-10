@@ -81,3 +81,9 @@ def test_loopback_hosts_are_served(client, token, host):
 @pytest.mark.parametrize("origin", ["http://evil.example", "http://127.0.0.1:8765", "null"])
 def test_any_origin_header_is_403_even_with_the_token(client, token, origin):
     assert client.get("/tasks", headers={**auth(token), "Origin": origin}).status_code == 403
+
+
+def test_there_is_no_public_way_to_build_the_app_without_the_guard():
+    import factory.server as server
+
+    assert not hasattr(server, "create_app")
