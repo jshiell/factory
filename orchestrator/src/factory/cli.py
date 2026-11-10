@@ -1,9 +1,7 @@
 import argparse
 import signal
-import subprocess
 import sys
 from collections.abc import Callable
-from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -14,36 +12,26 @@ from factory.textsafe import escape_control  # noqa: F401  (re-exported)
 from factory.advance import advance
 from factory.client import ServerClient, ServerRefused, ServerUnreachable
 from factory.audit_compare import compare, find_previous
-from factory.audit_gaps import gaps_to_carry, split_quoting_waived
+from factory.audit_gaps import split_quoting_waived
 from factory.audit_corpus import CASES as EVAL_CASES, PROJECT_SUBDIR
-from factory.audit_eval import CorpusChanged, check_corpus, run_eval
-from factory.audit_report import exit_code as eval_exit_code, load_records, render
-from factory.abandon_task import AbandonRefused, abandon_task
-from factory.rebase_task import RebaseRefused, rebase_task
-from factory.clean_tasks import clean_candidates, clean_tasks, remove_orphan_caches
-from factory.gate_cache import orphan_caches
+from factory.audit_eval import check_corpus
 from factory.digest import plan_digest
 from factory.gate import check_gate
 from factory.ids import InvalidTaskId, require_safe_id
 from factory.ledger import Ledger
-from factory import service
 from factory.migrate import DatabaseNotEmpty, migrate
-from factory.lock import AlreadyRunning, state_lock
 from factory.process import group_alive, kill_tree
 from factory.sqlite_ledger import SqliteLedger
 from factory.sqlite_store import SqliteTaskStore
-from factory.process_registry import ReapResult, ReapUncertain, ps_probe, reap_orphans
-from factory.merge_task import MergeRefused, merge_preview, merge_task
-from factory.review_notes import capped_findings, dropped_required_warning
-from factory.retry_task import RetryRefused, require_keepable_plan, retry_task, retry_with_plan
-from factory.recover_task import RecoverRefused, recover_task
+from factory.process_registry import ReapResult, ps_probe, reap_orphans
+from factory.merge_task import MergeRefused  # noqa: F401  (tests raise it via cli)
 from factory.runner import SubprocessRunner
 from factory.settings import Settings, SettingsError, load_settings
 from factory.stages import Deps, build_stages
 from factory.step import Runner
 from factory.store import TaskNotFound, TaskStore, task_from_dict
-from factory.task import InvalidTransition, Task, TaskState
-from factory.waiver import InvalidWaiver, Refuse, Reinstate, Waive, approval_prompt, note_lines, parse_answer
+from factory.task import Task, TaskState
+from factory.waiver import Refuse, Reinstate, Waive, approval_prompt, note_lines, parse_answer
 from factory.worktrees import WorktreeManager
 
 
@@ -85,27 +73,6 @@ class Context:
     eval_runner: Callable[[Settings, Path], Runner] = _real_eval_runner
     serve: Callable[[object, str, int], None] = _serve_with_uvicorn
     server: ServerClient | None = None
-
-
-class _Refused(Exception):
-    """The lock could not be taken, or orphans could not be proven dead: the command must change nothing."""
-
-
-@contextmanager
-def _locked(ctx: "Context", io: "IO", state_dir: Path | None = None):
-    """Hold the lock on `state_dir` (default: the state dir), first killing agents or gate runs a SIGKILLed driver left behind."""
-    directory = state_dir or ctx.settings.state_dir
-    try:
-        with state_lock(directory):
-            try:
-                result = ctx.reap(directory)
-            except ReapUncertain as uncertain:
-                _print_reaped(uncertain.killed, [], io)
-                raise _Refused(f"{uncertain}; nothing changed") from None
-            _print_reaped(result.killed, result.discarded, io)
-            yield
-    except AlreadyRunning:
-        raise _Refused("another factory run holds the lock") from None
 
 
 def _print_reaped(killed, discarded, io) -> None:
@@ -641,26 +608,27 @@ def _eval_audit(args, io, ctx) -> int:
         return 2
     if args.check_corpus:
         return _check_corpus(io, ctx)
+    if args.resume:
+        print("usage error: --resume is not supported through the server yet", file=io.stderr)
+        return 2
     cases = [c for c in EVAL_CASES if not args.only or c.id in args.only]
-    eval_dir = args.resume or _new_eval_dir(evals_root, ctx.clock)
+    body = {"runs": args.runs, "max_usd": args.max_usd, **({"only": args.only} if args.only else {})}
+    queued = ctx.server.post("/eval-audit", body)
+    eval_dir = Path(queued["eval_dir"])
     print(f"eval directory: {eval_dir}", file=io.stdout)
     try:
-        with _locked(ctx, io, state_dir=eval_dir):
-            runner = ctx.eval_runner(ctx.settings, eval_dir)
-            complete = run_eval(eval_dir, cases, args.runs, runner, args.max_usd)
-    except _Refused as refused:
-        print(escape_control(str(refused)), file=io.stderr)
+        job = ctx.server.wait(queued["job"]["id"])
+    except KeyboardInterrupt:
+        raise _StoppedWaiting(queued["job"]["id"]) from None
+    if job["state"] != "succeeded":
+        print(escape_control(job["error"] or f"job {job['state']}"), file=io.stderr)
         return 1
-    except CorpusChanged:
-        print("usage error: the corpus changed since this eval started; begin a new one", file=io.stderr)
-        return 2
-    records = load_records(eval_dir)
-    for line in render(records, cases):
+    for line in job["result"]["report"]:
         print(line, file=io.stdout)
     previous = args.compare or find_previous(evals_root, eval_dir, [c.id for c in EVAL_CASES])
     for line in compare(previous, eval_dir) if previous else ["\nno earlier complete run to compare with"]:
         print(line, file=io.stdout)
-    return eval_exit_code(records, args.runs, complete, cases)
+    return job["result"]["exit_code"]
 
 
 _COMMANDS = {

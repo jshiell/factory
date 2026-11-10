@@ -846,24 +846,6 @@ def orphan(pid=4242, task_id="t1", stage="implement"):
     return Record(pid, pid, task_id, stage, 100.0, 100.5)
 
 
-# --- plan 23: locking and reaping a directory other than the state dir ----------
-
-def test_locked_with_an_explicit_directory_locks_and_reaps_that_directory_only(ctx, tmp_path):
-    from factory.lock import AlreadyRunning, state_lock
-    elsewhere = tmp_path / "evals" / "one"
-    ctx.reap = reaper()
-    out, err = io.StringIO(), io.StringIO()
-
-    with cli._locked(ctx, IO(FakeStdin(), out, err), state_dir=elsewhere):
-        with state_lock(ctx.settings.state_dir):  # the real state dir stays free
-            pass
-        with pytest.raises(AlreadyRunning):
-            with state_lock(elsewhere):
-                pass
-
-    assert ctx.reap.calls == [elsewhere]
-
-
 
 def test_a_context_has_a_defaulted_eval_runner_factory(ctx):
     assert callable(ctx.eval_runner)
@@ -955,18 +937,6 @@ def test_the_real_state_dir_stays_free_and_untouched_while_an_eval_runs(ctx, eva
     assert not ctx.settings.ledger_path.exists()
 
 
-def test_a_second_eval_on_the_same_directory_is_refused(ctx, evals):
-    from factory.lock import state_lock
-    evals(LabelRunner())
-    run(ctx, "eval-audit", "--runs", "1", "--only", "case-01")
-    (eval_dir,) = eval_dirs(ctx)
-
-    with state_lock(eval_dir):
-        code, _, err = run(ctx, "eval-audit", "--runs", "1", "--only", "case-01", "--resume", str(eval_dir))
-
-    assert code == 1 and "holds the lock" in err
-
-
 @pytest.mark.parametrize("args, message", [
     (("--only", "case-99"), "unknown case"),
     (("--runs", "0"), "--runs"),
@@ -981,6 +951,18 @@ def test_bad_options_are_usage_errors_and_nothing_runs(ctx, evals, args, message
     code, out, err = run(ctx, "eval-audit", *args)
 
     assert code == 2 and message in err and runner.seen == [] and eval_dirs(ctx) == []
+
+
+def test_resuming_is_not_offered_through_the_server_and_nothing_runs(ctx, evals):
+    evals(LabelRunner())
+    run(ctx, "eval-audit", "--runs", "1", "--only", "case-01")
+    (eval_dir,) = eval_dirs(ctx)
+    runner = LabelRunner()
+    evals(runner)
+
+    code, _, err = run(ctx, "eval-audit", "--runs", "1", "--resume", str(eval_dir))
+
+    assert code == 2 and "--resume" in err and "server" in err and runner.seen == []
 
 
 def test_a_bad_case_judged_pass_exits_one(ctx, evals):
@@ -1008,20 +990,6 @@ def test_the_next_eval_is_compared_with_the_last_complete_full_one(ctx, evals):
     code, out, _ = run(ctx, "eval-audit", "--runs", "1")
 
     assert "compared with 20260102T030405" in out and "case-01: pass -> fail" in out and code == 1
-
-
-def test_resuming_with_a_changed_corpus_is_refused(ctx, evals, monkeypatch):
-    evals(LabelRunner())
-    run(ctx, "eval-audit", "--runs", "1", "--only", "case-01")
-    (eval_dir,) = eval_dirs(ctx)
-    from dataclasses import replace as _replace
-    monkeypatch.setattr(cli, "EVAL_CASES", [_replace(EVAL_CASES[0], plan="a different plan"), *EVAL_CASES[1:]])
-    runner = LabelRunner()
-    evals(runner)
-
-    code, _, err = run(ctx, "eval-audit", "--runs", "1", "--only", "case-01", "--resume", str(eval_dir))
-
-    assert code == 2 and "corpus changed" in err and runner.seen == []
 
 
 
