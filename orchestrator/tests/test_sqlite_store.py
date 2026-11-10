@@ -74,3 +74,14 @@ def test_list_skips_and_reports_a_row_that_cannot_be_read(tmp_path):
 
     assert [t.id for t in listing.tasks] == ["ok"]
     assert listing.skipped == ["corrupt", "partial"]
+
+
+def test_save_replaces_an_existing_task(tmp_path):
+    # guard (green on arrival): save already is INSERT OR REPLACE
+    store = SqliteTaskStore(tmp_path / "factory.db")
+    store.save(Task(id="t1", prompt="old"))
+
+    store.save(Task(id="t1", prompt="new", state=TaskState.FAILED))
+
+    assert store.load("t1").prompt == "new" and store.load("t1").state is TaskState.FAILED
+    assert len(store.list().tasks) == 1
