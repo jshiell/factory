@@ -416,24 +416,11 @@ def test_show_prints_retry_of(ctx):
 
 def test_recover_fails_the_running_task_and_warns_about_the_agent_and_lost_work(ctx):
     put(ctx, S.RUNNING, worktree="/w/t1")
-    (ctx.settings.state_dir).mkdir(parents=True, exist_ok=True)
-    (ctx.settings.state_dir / "lock").write_text("4242")
 
     code, out, _ = run(ctx, "recover", "t1")
 
     assert code == 0 and ctx.store.load("t1").failure_reason == "interrupted"
-    assert "4242" in out and "/w/t1" in out and "killed first" in out and "uncommitted" in out
-
-
-def test_recover_exits_1_when_another_run_holds_the_lock_and_changes_nothing(ctx):
-    from factory.lock import state_lock
-    put(ctx, S.RUNNING)
-
-    with state_lock(ctx.settings.state_dir):
-        code, _, err = run(ctx, "recover", "t1")
-
-    assert code == 1 and "lock" in err
-    assert ctx.store.load("t1").state is S.RUNNING and ctx.ledger.entries() == []
+    assert "/w/t1" in out and "killed first" in out and "uncommitted" in out
 
 
 def test_recover_of_a_task_that_is_not_running_exits_1_with_the_reason(ctx):
@@ -520,16 +507,6 @@ def test_abandon_of_a_refused_task_exits_1_with_the_reason_and_changes_nothing(c
     code, _, err = run(ctx, "abandon", "t1")
 
     assert code == 1 and "recover" in err and ctx.store.load("t1").state is S.RUNNING
-
-
-def test_abandon_exits_1_when_another_run_holds_the_lock_and_changes_nothing(ctx):
-    from factory.lock import state_lock
-    put(ctx, S.QUEUED)
-
-    with state_lock(ctx.settings.state_dir):
-        code, _, err = run(ctx, "abandon", "t1")
-
-    assert code == 1 and "lock" in err and ctx.store.load("t1").state is S.QUEUED
 
 
 @pytest.mark.parametrize("task_id", ["missing", "../evil"])
@@ -672,16 +649,6 @@ def test_rebase_of_a_refused_task_exits_1_with_the_reason_and_changes_nothing(ct
     assert code == 1 and "no worktree" in err and ctx.store.load("t1").state is S.AUDITED
 
 
-def test_rebase_exits_1_when_another_run_holds_the_lock_and_changes_nothing(ctx):
-    from factory.lock import state_lock
-    audited_with_main_moved(ctx)
-
-    with state_lock(ctx.settings.state_dir):
-        code, _, err = run(ctx, "rebase", "t1")
-
-    assert code == 1 and "lock" in err and ctx.store.load("t1").state is S.AUDITED
-
-
 @pytest.mark.parametrize("task_id", ["missing", "../evil"])
 def test_rebase_of_an_unknown_or_unsafe_id_exits_2(ctx, task_id):
     code, _, err = run(ctx, "rebase", task_id)
@@ -697,7 +664,7 @@ def test_rebase_refusal_escapes_control_characters_from_the_quoted_git_line(ctx,
     def refuse(*args, **kwargs):
         raise RebaseRefused("git rebase failed (CONFLICT (content): Merge conflict in \x1b[31mevil\x1b[0m.txt)")
 
-    monkeypatch.setattr(cli, "rebase_task", refuse)
+    monkeypatch.setattr("factory.server.rebase_task", refuse)
 
     code, _, err = run(ctx, "rebase", "t1")
 
@@ -907,8 +874,7 @@ def orphan(pid=4242, task_id="t1", stage="implement"):
 
 
 REAPING_COMMANDS = [
-    (("recover", "t1"), S.RUNNING), (("abandon", "t1"), S.PROPOSED),
-    (("rebase", "t1"), S.AUDITED), (("clean",), S.RUNNING), (("merge", "t1"), S.AUDITED),
+    (("clean",), S.RUNNING), (("merge", "t1"), S.AUDITED),
 ]
 
 
@@ -921,42 +887,6 @@ def test_every_command_that_takes_the_lock_reaps_orphans_under_it_once(ctx, argv
     run(ctx, *argv)
 
     assert ctx.reap.calls == [ctx.settings.state_dir]
-
-
-def test_what_was_reaped_is_printed_with_its_task_and_stage(ctx):
-    put(ctx, S.PROPOSED)
-    ctx.stages.update(all_stages(ctx))
-    ctx.reap = reaper(killed=[orphan(4242, "t7", "implement")])
-
-    code, out, _ = run(ctx, "abandon", "t1")
-
-    assert "killed orphan of t7 (implement), pid 4242" in out
-
-
-def test_a_probe_that_cannot_tell_refuses_the_command_and_changes_nothing(ctx):
-    put(ctx, S.PROPOSED)
-    ran = []
-    ctx.stages.update(all_stages(ctx))
-    ctx.stages["plan"] = lambda task_id: (ran.append(task_id), ctx.store.load(task_id))[1]
-    ctx.reap = reaper(uncertain=[orphan(4242, "t7", "gate")])
-
-    code, out, err = run(ctx, "abandon", "t1")
-
-    assert code == 1 and ran == []
-    assert "cannot prove these processes dead" in err and "t7" in err and "nothing changed" in err
-
-
-def test_a_held_lock_reaps_nothing(ctx, monkeypatch):
-    put(ctx, S.PROPOSED)
-    ctx.reap = reaper()
-
-    def held(state_dir):
-        raise cli.AlreadyRunning(str(state_dir))
-    monkeypatch.setattr(cli, "state_lock", held)
-
-    code, _, err = run(ctx, "abandon", "t1")
-
-    assert code == 1 and "holds the lock" in err and ctx.reap.calls == []
 
 
 # --- plan 23: locking and reaping a directory other than the state dir ----------

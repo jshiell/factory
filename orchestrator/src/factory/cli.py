@@ -447,52 +447,28 @@ def _retry_keeping_plan(task: Task, io, ctx) -> int:
 
 
 def _recover(args, io, ctx) -> int:
-    task = _load(ctx, args.task_id)
-    lock_file = ctx.settings.state_dir / "lock"
-    last_driver = lock_file.read_text().strip() if lock_file.exists() else "unknown"  # read before taking the lock
-    try:
-        with _locked(ctx, io):
-            recover_task(args.task_id, ctx.store, ctx.ledger, ctx.settings.budget_usd)
-    except _Refused as refused:
-        print(escape_control(str(refused)), file=io.stderr)
+    task = task_from_dict(ctx.server.get(_task_path(args.task_id)))
+    if _run_job(ctx, io, _task_path(args.task_id, "/recover")) is None:
         return 1
-    except RecoverRefused as error:
-        print(f"recover refused: {error}", file=io.stderr)
-        return 1
-    print(f"{task.id}: marked failed (interrupted); last driver pid {last_driver}, worktree {task.worktree}", file=io.stdout)
+    print(f"{task.id}: marked failed (interrupted); worktree {task.worktree}", file=io.stdout)
     print("Agents the dead driver recorded were killed first; one launched in the instant before SIGKILL may be unrecorded: check before cleaning.", file=io.stdout)
     print("Its work is uncommitted in the worktree; `factory clean` would discard it.", file=io.stdout)
     return 0
 
 
 def _abandon(args, io, ctx) -> int:
-    _load(ctx, args.task_id)
-    try:
-        with _locked(ctx, io):
-            task = abandon_task(args.task_id, ctx.store)
-    except _Refused as refused:
-        print(escape_control(str(refused)), file=io.stderr)
+    if _run_job(ctx, io, _task_path(args.task_id, "/abandon")) is None:
         return 1
-    except AbandonRefused as error:
-        print(f"abandon refused: {error}", file=io.stderr)
-        return 1
-    print(f"{task.id}: abandoned; `factory clean` removes its worktree (a killed driver may have left an agent running)", file=io.stdout)
+    print(f"{args.task_id}: abandoned; `factory clean` removes its worktree (a killed driver may have left an agent running)", file=io.stdout)
     return 0
 
 
 def _rebase(args, io, ctx) -> int:
-    _load(ctx, args.task_id)
-    try:
-        with _locked(ctx, io):
-            rebased = rebase_task(args.task_id, ctx.store, ctx.settings.repo)
-    except _Refused as refused:
-        print(escape_control(str(refused)), file=io.stderr)
-        return 1
-    except (RebaseRefused, InvalidTransition, subprocess.CalledProcessError) as error:
-        print(escape_control(f"rebase refused: {error}"), file=io.stderr)
+    rebased = _run_job(ctx, io, _task_path(args.task_id, "/rebase"))
+    if rebased is None:
         return 1
     print(f"{args.task_id}: rebased onto main, back to agent_done; run `factory advance {args.task_id}` to re-verify and re-audit", file=io.stdout)
-    print(f"the previously audited commit was {rebased.old_audited_sha}; it is unreachable once the branch is cleaned", file=io.stdout)
+    print(f"the previously audited commit was {rebased['old_audited_sha']}; it is unreachable once the branch is cleaned", file=io.stdout)
     return 0
 
 
