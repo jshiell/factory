@@ -171,6 +171,8 @@ def _migrate(args, io, ctx) -> int:
         print(f"{refused}; nothing changed", file=io.stderr)
         return 1
     print(f"migrated {report.tasks} tasks, {report.ledger_entries} ledger entries", file=io.stdout)
+    for name in report.skipped:
+        print(f"skipped: {name}", file=io.stdout)
     return 0
 
 

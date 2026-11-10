@@ -52,3 +52,14 @@ def test_migrate_refuses_a_database_that_already_holds_tasks(ctx):
     assert code == 1
     assert out == ""
     assert err == "the SQLite database already holds tasks or ledger entries; nothing changed\n"
+
+
+def test_migrate_reports_unreadable_task_files_and_leaves_them(ctx):
+    seed_old_files(ctx.settings)
+    (ctx.settings.tasks_dir / "broken.json").write_text("{not json")
+
+    code, out, _ = run(ctx, "migrate")
+
+    assert code == 0
+    assert out == "migrated 1 tasks, 1 ledger entries\nskipped: broken.json\n"
+    assert (ctx.settings.tasks_dir / "broken.json").exists()
