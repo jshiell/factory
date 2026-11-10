@@ -7,6 +7,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
+from types import SimpleNamespace
 
 from factory.textsafe import escape_control  # noqa: F401  (re-exported)
 from factory.advance import advance
@@ -22,7 +23,7 @@ from factory.clean_tasks import clean_candidates, clean_tasks, remove_orphan_cac
 from factory.gate_cache import orphan_caches
 from factory.digest import plan_digest
 from factory.gate import check_gate
-from factory.ids import InvalidTaskId
+from factory.ids import InvalidTaskId, require_safe_id
 from factory.ledger import Ledger
 from factory import service
 from factory.migrate import DatabaseNotEmpty, migrate
@@ -39,7 +40,7 @@ from factory.runner import SubprocessRunner
 from factory.settings import Settings, SettingsError, load_settings
 from factory.stages import Deps, build_stages
 from factory.step import Runner
-from factory.store import TaskNotFound, TaskStore
+from factory.store import TaskNotFound, TaskStore, task_from_dict
 from factory.task import InvalidTransition, Task, TaskState
 from factory.waiver import InvalidWaiver, Refuse, Reinstate, Waive, approval_prompt, note_lines, parse_answer
 from factory.worktrees import WorktreeManager
@@ -161,9 +162,18 @@ def main(argv: list[str], io: IO, ctx: Context) -> int:
     except (TaskNotFound, InvalidTaskId) as error:
         print(f"unknown task: {error}", file=io.stderr)
         return 2
+    except ServerRefused as refused:
+        if refused.error == "unknown task":
+            print(f"unknown task: {refused.detail}", file=io.stderr)
+            return 2
+        raise
     except ServerUnreachable:
         print("no factory server is running; start one with: factory serve", file=io.stderr)
         return 1
+
+
+def _task_path(task_id: str, suffix: str = "") -> str:
+    return f"/tasks/{require_safe_id(task_id)}{suffix}"
 
 
 def _load(ctx: Context, task_id: str) -> Task:
@@ -171,9 +181,7 @@ def _load(ctx: Context, task_id: str) -> Task:
 
 
 def _new(args, io, ctx) -> int:
-    ctx.settings.tasks_dir.mkdir(parents=True, exist_ok=True)
-    task = service.create_task(ctx.store, ctx.clock, args.goal)
-    print(task.id, file=io.stdout)
+    print(ctx.server.post("/tasks", {"goal": args.goal})["id"], file=io.stdout)
     return 0
 
 
@@ -221,7 +229,8 @@ def _describe(task: Task) -> list[str]:
 
 
 def _show(args, io, ctx) -> int:
-    print(escape_control("\n".join(_describe(service.get_task(ctx.store, args.task_id)))), file=io.stdout)
+    task = task_from_dict(ctx.server.get(_task_path(args.task_id)))
+    print(escape_control("\n".join(_describe(task))), file=io.stdout)
     return 0
 
 
@@ -252,10 +261,13 @@ def _not_reviewed(task: Task, io) -> int:
 
 def _reject(args, io, ctx) -> int:
     try:
-        task = service.reject_plan(ctx.store, args.task_id)
-    except service.NotReviewed as error:
-        return _not_reviewed(error.task, io)
-    print(f"{task.id}: plan rejected", file=io.stdout)
+        task = ctx.server.post(_task_path(args.task_id, "/reject"))
+    except ServerRefused as refused:
+        if refused.error != "wrong state":
+            raise
+        print(refused.detail, file=io.stderr)
+        return 1
+    print(f"{task['id']}: plan rejected", file=io.stdout)
     return 0
 
 
@@ -327,7 +339,7 @@ def _approve(args, io, ctx) -> int:
 
 
 def _costs(args, io, ctx) -> int:
-    report = service.cost_report(ctx.store, ctx.ledger, args.task_id)
+    report = SimpleNamespace(**ctx.server.get("/costs", **({"task_id": require_safe_id(args.task_id)} if args.task_id else {})))
     print("by stage:", file=io.stdout)
     for stage, cost in sorted(report.by_stage.items()):
         print(f"  {stage}  ${cost:.4f}", file=io.stdout)

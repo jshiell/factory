@@ -32,7 +32,7 @@ def ctx(tmp_path):
     settings = Settings(repo=tmp_path, state_dir=tmp_path / "state", worktree_root=tmp_path / "wt")
     store = TaskStore(settings.tasks_dir)
     context = Context(settings, store, Ledger(settings.ledger_path), stages={}, clock=lambda: datetime(2026, 1, 2, 3, 4, 5))
-    settings.state_dir.mkdir()
+    settings.tasks_dir.mkdir(parents=True)
     token = load_or_create_token(settings.state_dir)
     with TestClient(create_secured_app(context, token), base_url="http://127.0.0.1:8765") as http:
         context.server = ServerClient(http, token, sleep=lambda seconds: None)
