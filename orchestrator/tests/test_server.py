@@ -136,3 +136,25 @@ def test_get_unknown_job_is_404_with_the_error_shape(client):
 
     assert response.status_code == 404
     assert response.json()["error"] == "unknown job"
+
+
+def test_abandon_runs_as_a_job_and_fails_the_task_as_abandoned(client, app, ctx):
+    ctx.store.save(Task(id="a", prompt="", state=TaskState.PLANNED))
+
+    response = client.post("/tasks/a/abandon")
+
+    assert response.status_code == 202
+    app.state.runner.wait_idle()
+    job = client.get(f"/jobs/{response.json()['job']['id']}").json()
+    assert (job["state"], job["kind"], job["result"]) == ("succeeded", "abandon", {"state": "failed", "failure_reason": "abandoned"})
+    assert ctx.store.load("a").state is TaskState.FAILED
+
+
+def test_an_abandon_the_domain_refuses_ends_as_a_failed_job_with_the_reason(client, app, ctx):
+    ctx.store.save(Task(id="a", prompt="", state=TaskState.FAILED))
+
+    response = client.post("/tasks/a/abandon")
+
+    app.state.runner.wait_idle()
+    job = client.get(f"/jobs/{response.json()['job']['id']}").json()
+    assert (job["state"], job["error"]) == ("failed", "abandon refused: a is failed, already finished")

@@ -8,6 +8,7 @@ from starlette.responses import JSONResponse
 from starlette.routing import Route
 
 from factory import service
+from factory.abandon_task import AbandonRefused, abandon_task
 from factory.advance import advance
 from factory.job_runner import JobRunner
 from factory.job_store import Job, JobNotFound, JobStore
@@ -59,6 +60,20 @@ def _advance_result_json(result) -> dict:
             "state": task.state.value, "failure_reason": task.failure_reason, "stopped": result.stopped}
 
 
+def _task_result_json(task) -> dict:
+    return {"state": task.state.value, "failure_reason": task.failure_reason}
+
+
+def _refusal_as(prefix: str, refused: type[Exception], run):
+    """Run `run`, turning the domain's refusal into the CLI's `<prefix> refused: <reason>` message."""
+    def wrapped():
+        try:
+            return run()
+        except refused as error:
+            raise RuntimeError(f"{prefix} refused: {error}") from None
+    return wrapped
+
+
 def create_app(ctx) -> Starlette:
     jobs = JobStore(ctx.settings.db_path)
     runner = JobRunner(jobs)
@@ -94,6 +109,12 @@ def create_app(ctx) -> Starlette:
         job = runner.submit("advance", task_id, lambda: _advance_result_json(advance(task_id, ctx.store, ctx.stages)))
         return JSONResponse({"job": _job_json(job)}, status_code=202)
 
+    async def abandon(request: Request) -> JSONResponse:
+        task_id = request.path_params["task_id"]
+        service.get_task(ctx.store, task_id)
+        run = _refusal_as("abandon", AbandonRefused, lambda: _task_result_json(abandon_task(task_id, ctx.store)))
+        return JSONResponse({"job": _job_json(runner.submit("abandon", task_id, run))}, status_code=202)
+
     async def list_jobs(request: Request) -> JSONResponse:
         return JSONResponse({"jobs": [_job_json(job) for job in jobs.list()]})
 
@@ -102,7 +123,8 @@ def create_app(ctx) -> Starlette:
 
     app = Starlette(
         lifespan=lifespan,
-        routes=[Route("/tasks/{task_id}/advance", advance_task, methods=["POST"]),
+        routes=[Route("/tasks/{task_id}/abandon", abandon, methods=["POST"]),
+                Route("/tasks/{task_id}/advance", advance_task, methods=["POST"]),
                 Route("/jobs", list_jobs, methods=["GET"]), Route("/jobs/{job_id}", show_job, methods=["GET"]),
                 Route("/costs", costs, methods=["GET"]), Route("/tasks", create_task, methods=["POST"]), Route("/tasks", list_tasks, methods=["GET"]),
                 Route("/tasks/{task_id}", show_task, methods=["GET"])],
