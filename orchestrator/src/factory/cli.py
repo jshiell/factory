@@ -63,6 +63,14 @@ def _real_eval_runner(settings: Settings, eval_dir: Path) -> SubprocessRunner:
     )
 
 
+def _serve_with_uvicorn(app, host: str, port: int) -> None:
+    import uvicorn
+    server = uvicorn.Server(uvicorn.Config(app, host=host, port=port, log_level="warning"))
+    # uvicorn handles SIGINT and SIGTERM itself; a hangup must also shut down cleanly or the job worker's agent outlives us
+    signal.signal(signal.SIGHUP, lambda signum, frame: setattr(server, "should_exit", True))
+    server.run()
+
+
 @dataclass
 class Context:
     settings: Settings
@@ -72,6 +80,7 @@ class Context:
     clock: Callable[[], datetime] = datetime.now
     reap: Callable[[Path], ReapResult] = _reap_with_the_real_process_table
     eval_runner: Callable[[Settings, Path], Runner] = _real_eval_runner
+    serve: Callable[[object, str, int], None] = _serve_with_uvicorn
 
 
 class _Refused(Exception):
@@ -123,6 +132,8 @@ def _parser() -> argparse.ArgumentParser:
     retry.add_argument("--keep-plan", action="store_true")
     commands.add_parser("clean")
     commands.add_parser("migrate")
+    serve = commands.add_parser("serve")
+    serve.add_argument("--port", type=int, default=8765)
     commands.add_parser("costs").add_argument("task_id", nargs="?")
     audit_eval = commands.add_parser("eval-audit")
     audit_eval.add_argument("--runs", type=int, default=3)
@@ -530,6 +541,20 @@ def _merge(args, io, ctx) -> int:
     return 0
 
 
+def _serve(args, io, ctx) -> int:
+    from factory.server import StartRefused, TokenFileUnsafe, claim_state_dir, create_secured_app, load_or_create_token
+    try:
+        token = load_or_create_token(ctx.settings.state_dir)
+        with claim_state_dir(ctx):
+            print(f"serving on http://127.0.0.1:{args.port}; token in {ctx.settings.state_dir / 'token'}", file=io.stdout)
+            io.stdout.flush()
+            ctx.serve(create_secured_app(ctx, token), "127.0.0.1", args.port)
+    except (StartRefused, TokenFileUnsafe) as refused:
+        print(escape_control(str(refused)), file=io.stderr)
+        return 1
+    return 0
+
+
 def _eval_usage_error(args, evals_root: Path) -> str | None:
     unknown = [case_id for case_id in args.only or [] if case_id not in {c.id for c in EVAL_CASES}]
     if unknown:
@@ -603,7 +628,7 @@ def _eval_audit(args, io, ctx) -> int:
 
 _COMMANDS = {
     "new": _new, "list": _list, "show": _show, "advance": _advance,
-    "approve": _approve, "reject": _reject, "merge": _merge, "retry": _retry, "recover": _recover, "abandon": _abandon, "rebase": _rebase, "clean": _clean, "migrate": _migrate, "costs": _costs, "eval-audit": _eval_audit,
+    "approve": _approve, "reject": _reject, "merge": _merge, "retry": _retry, "recover": _recover, "abandon": _abandon, "rebase": _rebase, "clean": _clean, "migrate": _migrate, "costs": _costs, "eval-audit": _eval_audit, "serve": _serve,
 }
 
 
