@@ -47,9 +47,16 @@ def _read(path: Path) -> Record | InvalidRecord:
         record = Record(**json.loads(path.read_text()))
     except (ValueError, TypeError) as error:
         return InvalidRecord(path, f"unreadable: {error}")
-    if record.pid <= 1 or record.pgid != record.pid or record.pgid == os.getpgrp():
-        return InvalidRecord(path, "pid and pgid do not name a process group this factory launched")
+    if not names_a_launched_group(record):
+        return InvalidRecord(path, NOT_A_LAUNCHED_GROUP)
     return record
+
+
+NOT_A_LAUNCHED_GROUP = "pid and pgid do not name a process group this factory launched"
+
+
+def names_a_launched_group(record: Record) -> bool:
+    return record.pid > 1 and record.pgid == record.pid and record.pgid != os.getpgrp()
 
 
 EMPTY_POLL_INTERVAL_S, EMPTY_POLLS = 0.1, 30  # wait up to three seconds for a killed group to go
