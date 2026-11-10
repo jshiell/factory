@@ -25,6 +25,7 @@ from factory.digest import plan_digest
 from factory.gate import check_gate
 from factory.ids import InvalidTaskId
 from factory.ledger import Ledger
+from factory.migrate import migrate
 from factory.lock import AlreadyRunning, state_lock
 from factory.process import group_alive, kill_tree
 from factory.sqlite_ledger import SqliteLedger
@@ -122,6 +123,7 @@ def _parser() -> argparse.ArgumentParser:
     retry.add_argument("task_id")
     retry.add_argument("--keep-plan", action="store_true")
     commands.add_parser("clean")
+    commands.add_parser("migrate")
     commands.add_parser("costs").add_argument("task_id", nargs="?")
     audit_eval = commands.add_parser("eval-audit")
     audit_eval.add_argument("--runs", type=int, default=3)
@@ -159,6 +161,12 @@ def _new(args, io, ctx) -> int:
         ctx.store, ctx.clock, lambda task_id: Task(id=task_id, prompt="", state=TaskState.PROPOSED, goal=args.goal)
     )
     print(task.id, file=io.stdout)
+    return 0
+
+
+def _migrate(args, io, ctx) -> int:
+    report = migrate(TaskStore(ctx.settings.tasks_dir), Ledger(ctx.settings.ledger_path), ctx.store, ctx.ledger)
+    print(f"migrated {report.tasks} tasks, {report.ledger_entries} ledger entries", file=io.stdout)
     return 0
 
 
@@ -600,7 +608,7 @@ def _eval_audit(args, io, ctx) -> int:
 
 _COMMANDS = {
     "new": _new, "list": _list, "show": _show, "advance": _advance,
-    "approve": _approve, "reject": _reject, "merge": _merge, "retry": _retry, "recover": _recover, "abandon": _abandon, "rebase": _rebase, "clean": _clean, "costs": _costs, "eval-audit": _eval_audit,
+    "approve": _approve, "reject": _reject, "merge": _merge, "retry": _retry, "recover": _recover, "abandon": _abandon, "rebase": _rebase, "clean": _clean, "migrate": _migrate, "costs": _costs, "eval-audit": _eval_audit,
 }
 
 
