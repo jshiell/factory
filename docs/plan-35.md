@@ -26,6 +26,8 @@ Task state is small, row-at-a-time, transactional, with a few writer threads. Th
 - Starlette `TestClient` can drive sync handlers and a background worker thread deterministically.
 - uvicorn's own signal handling lets us run shutdown code that kills the agent tree and marks the running job interrupted.
 
+**C0 result (docs/spike-findings.md):** assumptions 1 and 2 hold. Assumption 3 holds for SIGTERM and SIGINT but not SIGHUP: `serve` installs its own SIGHUP handler. Starlette 1.10 has no `on_startup`/`on_shutdown`; use `lifespan`.
+
 ## Design
 1. **Storage.** `factory.db` in `state_dir`. Tables: `tasks(id PK, state, data JSON, updated_at)` (the existing dict serialisation, so `Task` and its loader are unchanged; `state` is a column only for listing and filtering), `ledger(seq, task_id, cost_usd, assumed, stage, at)`, `processes(pid PK, ...Record fields)`, `jobs(id PK, kind, task_id, status, result JSON, started_at, finished_at)`. `SqliteTaskStore` and `SqliteLedger` keep today's method signatures so `stages.py` and every domain module are untouched. `create` is `INSERT` and maps `IntegrityError` to `TaskExists`.
 2. **Migration.** `factory migrate` imports `tasks/*.json` and `ledger.jsonl` into the DB, refusing if the DB already has tasks; old files are left alone (never deleted by us). Unreadable task files are reported, as `list` reports `skipped` today.

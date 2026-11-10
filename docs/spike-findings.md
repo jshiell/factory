@@ -430,3 +430,14 @@ Three real `factory new/advance/approve/advance` runs on `target/calc`, none mer
 - **Evidence.** Unit and CLI tests only, no real run and no spend. Red tests: reinstating puts the note in the prompt, the audit prompt and the stored list; `parse_answer("r 2 1", ...)`; waiving plus reinstating; the over-cap refusal; the CLI `r 1` then `y`; a failed reinstate worded as one. The rest started green and are labelled guards, each shown to fail under a deliberate mutation. The over-cap refusal cannot be reached through the app paths (they store at most 10 required notes between the two lists), so its test builds the task by hand.
 - **Reviewer findings.** Numbering the existing waived block would have broken a passing test (so a separate block); the over-cap case is a defensive guard, not a behaviour; the stored list needed rebuilding, not appending to.
 - **Known limits.** Undo exists only at a kept-plan retry, not on a queued task. Notes the cap dropped before the first waiver stay lost: they are in neither list, `r` cannot recover them, and plan 33's warning does not repeat for them. A fresh audit gap that quotes a reinstated note is sent; gaps stored from an earlier retry were filtered then and do not come back. Paraphrased waivers are unchanged.
+
+## Plan 35 C0: server assumptions (throwaway spike, discarded)
+
+- **Run.** One script in the scratchpad, `uv run --with starlette --with uvicorn --with httpx`, on macOS. Versions: starlette 1.10.0, uvicorn 0.54.0, httpx 0.28.1. No project code touched.
+- **SQLite WAL.** Eight threads, one connection each, inserting the same primary key: exactly 1 win and 7 `IntegrityError`s, no `database is locked`. `journal_mode` reads back `wal`. So `create` can map `IntegrityError` to `TaskExists`.
+- **Starlette TestClient + worker.** A worker thread started in a lifespan handler, a 202 POST that queues a job, and polling GET reached `done` deterministically. **`on_startup`/`on_shutdown` no longer exist in starlette 1.10 (TypeError); use `lifespan`.** `TestClient` with httpx warns that `httpx2` is the supported client (deprecation, not a failure).
+- **Signals under uvicorn** (a job running a `sleep` in its own session, killed from the lifespan shutdown code):
+  - SIGTERM: shutdown code ran, child killed, job marked interrupted; the process exits -15 (uvicorn re-raises the signal).
+  - SIGINT: same, exit 0.
+  - **SIGHUP: uvicorn does not handle it. The process died at once, the shutdown code did not run, the child survived and the job stayed unmarked.** `serve` must install its own SIGHUP handler that triggers the same shutdown (the CLI does this today by raising `SystemExit`).
+- **Not shown.** SIGKILL of the server (orphan reaping at next start is the plan's answer, covered in C15). Windows. Real agent process trees; the child here was a plain `sleep`.
