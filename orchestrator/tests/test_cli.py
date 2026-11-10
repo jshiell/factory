@@ -162,39 +162,6 @@ def test_advance_exits_1_when_the_task_fails_and_when_a_stage_stops(ctx):
     assert code == 1 and "plan: no progress" in out
 
 
-def test_advance_refuses_to_run_while_another_driver_holds_the_lock(ctx, monkeypatch):
-    put(ctx)
-    ctx.stages.update(all_stages(ctx))
-
-    def locked(*a, **k):
-        raise cli.AlreadyRunning("state")
-
-    monkeypatch.setattr("factory.cli.state_lock", locked)
-
-    code, _, err = run(ctx, "advance", "t1")
-
-    assert code == 1 and "another factory" in err and ctx.store.load("t1").state is S.PROPOSED
-
-
-def test_advance_holds_the_lock_while_the_stages_run(ctx, monkeypatch):
-    from contextlib import contextmanager
-    events = []
-
-    @contextmanager
-    def fake_lock(directory):
-        events.append("lock")
-        yield
-        events.append("unlock")
-
-    monkeypatch.setattr("factory.cli.state_lock", fake_lock)
-    put(ctx)
-    ctx.stages.update({**all_stages(ctx), "plan": lambda tid: (events.append("plan"), moving(ctx, S.PLANNED)(tid))[1]})
-
-    run(ctx, "advance", "t1")
-
-    assert events[:2] == ["lock", "plan"] and events[-1] == "unlock"
-
-
 # --- reject / costs -----------------------------------------------------------
 
 def test_reject_fails_a_reviewed_task_without_needing_a_terminal(ctx):
@@ -936,7 +903,7 @@ def orphan(pid=4242, task_id="t1", stage="implement"):
 
 
 REAPING_COMMANDS = [
-    (("advance", "t1"), S.PROPOSED), (("recover", "t1"), S.RUNNING), (("abandon", "t1"), S.PROPOSED),
+    (("recover", "t1"), S.RUNNING), (("abandon", "t1"), S.PROPOSED),
     (("rebase", "t1"), S.AUDITED), (("clean",), S.RUNNING), (("merge", "t1"), S.AUDITED),
 ]
 
@@ -957,7 +924,7 @@ def test_what_was_reaped_is_printed_with_its_task_and_stage(ctx):
     ctx.stages.update(all_stages(ctx))
     ctx.reap = reaper(killed=[orphan(4242, "t7", "implement")])
 
-    code, out, _ = run(ctx, "advance", "t1")
+    code, out, _ = run(ctx, "abandon", "t1")
 
     assert "killed orphan of t7 (implement), pid 4242" in out
 
@@ -969,7 +936,7 @@ def test_a_probe_that_cannot_tell_refuses_the_command_and_changes_nothing(ctx):
     ctx.stages["plan"] = lambda task_id: (ran.append(task_id), ctx.store.load(task_id))[1]
     ctx.reap = reaper(uncertain=[orphan(4242, "t7", "gate")])
 
-    code, out, err = run(ctx, "advance", "t1")
+    code, out, err = run(ctx, "abandon", "t1")
 
     assert code == 1 and ran == []
     assert "cannot prove these processes dead" in err and "t7" in err and "nothing changed" in err
@@ -983,7 +950,7 @@ def test_a_held_lock_reaps_nothing(ctx, monkeypatch):
         raise cli.AlreadyRunning(str(state_dir))
     monkeypatch.setattr(cli, "state_lock", held)
 
-    code, _, err = run(ctx, "advance", "t1")
+    code, _, err = run(ctx, "abandon", "t1")
 
     assert code == 1 and "holds the lock" in err and ctx.reap.calls == []
 

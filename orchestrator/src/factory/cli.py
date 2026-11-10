@@ -114,6 +114,14 @@ def _print_reaped(killed, discarded, io) -> None:
         print(f"discarded invalid process record {record.path.name}: {record.reason}", file=io.stdout)
 
 
+class _StoppedWaiting(Exception):
+    """The user interrupted the wait; the job carries on in the server."""
+
+    def __init__(self, job_id: str):
+        super().__init__(job_id)
+        self.job_id = job_id
+
+
 class _UsageError(Exception):
     pass
 
@@ -162,6 +170,9 @@ def main(argv: list[str], io: IO, ctx: Context) -> int:
     except (TaskNotFound, InvalidTaskId) as error:
         print(f"unknown task: {error}", file=io.stderr)
         return 2
+    except _StoppedWaiting as stopped:
+        print(f"stopped waiting; job {stopped.job_id} is still running on the server", file=io.stderr)
+        return 130
     except ServerRefused as refused:
         if refused.error == "unknown task":
             print(f"unknown task: {refused.detail}", file=io.stderr)
@@ -234,24 +245,33 @@ def _show(args, io, ctx) -> int:
     return 0
 
 
-def _advance(args, io, ctx) -> int:
-    _load(ctx, args.task_id)
+def _run_job(ctx, io, path: str, body: dict | None = None) -> dict | None:
+    """Queue the job, wait for it, and return its result; None (after saying why on stderr) when it did not succeed."""
+    job_id = ctx.server.post(path, body)["job"]["id"]
     try:
-        with _locked(ctx, io):
-            result = advance(args.task_id, ctx.store, ctx.stages)
-    except _Refused as refused:
-        print(escape_control(str(refused)), file=io.stderr)
+        job = ctx.server.wait(job_id)
+    except KeyboardInterrupt:
+        raise _StoppedWaiting(job_id) from None
+    if job["state"] != "succeeded":
+        print(escape_control(job["error"] or f"job {job['state']}"), file=io.stderr)
+        return None
+    return job["result"]
+
+
+def _advance(args, io, ctx) -> int:
+    result = _run_job(ctx, io, _task_path(args.task_id, "/advance"))
+    if result is None:
         return 1
-    for step in result.steps:
-        print(f"{step.stage} -> {step.state.value}", file=io.stdout)
-    task = result.task
-    print(f"state: {task.state.value}" + (f" ({task.failure_reason})" if task.failure_reason else ""), file=io.stdout)
-    if result.stopped:
-        print(f"stopped: {result.stopped}", file=io.stdout)
+    for step in result["steps"]:
+        print(f"{step['stage']} -> {step['state']}", file=io.stdout)
+    reason = result["failure_reason"]
+    print(f"state: {result['state']}" + (f" ({reason})" if reason else ""), file=io.stdout)
+    if result["stopped"]:
+        print(f"stopped: {result['stopped']}", file=io.stdout)
         return 1
-    if task.state is TaskState.REVIEWED:
-        print(f"review passed; run: factory approve {task.id}", file=io.stdout)
-    return 1 if task.state is TaskState.FAILED else 0
+    if result["state"] == TaskState.REVIEWED.value:
+        print(f"review passed; run: factory approve {args.task_id}", file=io.stdout)
+    return 1 if result["state"] == TaskState.FAILED.value else 0
 
 
 def _not_reviewed(task: Task, io) -> int:

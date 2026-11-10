@@ -34,3 +34,20 @@ def test_a_command_with_no_server_running_says_to_start_one(ctx):
 
     assert (code, out) == (1, "")
     assert "no factory server" in err and "factory serve" in err
+
+
+def test_ctrl_c_while_waiting_stops_waiting_and_names_the_job_that_keeps_running(ctx):
+    def handler(request):
+        if request.method == "POST":
+            return httpx.Response(202, json={"job": {"id": "j7", "state": "queued"}})
+        return httpx.Response(200, json={"id": "j7", "state": "running", "result": None, "error": None})
+
+    def interrupted(seconds):
+        raise KeyboardInterrupt
+
+    http = httpx.Client(transport=httpx.MockTransport(handler), base_url="http://127.0.0.1:8765")
+    ctx.server = ServerClient(http, "tok", sleep=interrupted)
+
+    code, out, err = run(ctx, "advance", "t1")
+
+    assert code == 130 and "j7" in err and "still running" in err
