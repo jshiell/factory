@@ -132,3 +132,13 @@ def test_resuming_a_directory_another_run_holds_fails_the_job_naming_it(client, 
 
     assert job["state"] == "failed" and "20260102T030405" in job["error"] and "already" in job["error"]
     assert ctx.built == []
+
+
+def test_resuming_with_different_runs_fails_the_job_with_a_message_and_runs_nothing(client, ctx):
+    _first_eval(client)
+    ctx.built.clear()
+
+    response = client.post("/eval-audit", json={"runs": 2, "only": ["case-01"], "resume": "20260102T030405"})
+
+    job = _wait(client, response.json()["job"]["id"])
+    assert job["state"] == "failed" and "runs=2" in job["error"] and "runs=1" in job["error"]
