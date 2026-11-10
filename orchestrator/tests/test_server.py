@@ -1,3 +1,4 @@
+from dataclasses import replace
 from datetime import datetime
 
 import pytest
@@ -20,8 +21,14 @@ def ctx(tmp_path):
 
 
 @pytest.fixture
-def client(ctx):
-    return TestClient(create_app(ctx))
+def app(ctx):
+    return create_app(ctx)
+
+
+@pytest.fixture
+def client(app):
+    with TestClient(app) as client:  # entering runs the lifespan: the job worker starts
+        yield client
 
 
 def test_post_tasks_creates_a_proposed_task_and_returns_its_id(client, ctx):
@@ -92,3 +99,40 @@ def test_get_costs_reports_spend_by_stage_and_task(client, ctx):
 
 def test_get_costs_for_an_unknown_task_is_404(client):
     assert client.get("/costs", params={"task_id": "nope"}).status_code == 404
+
+
+def stage_to(ctx, state):
+    def run(task_id):
+        moved = replace(ctx.store.load(task_id), state=state, plan="1. do it")
+        ctx.store.save(moved)
+        return moved
+    return run
+
+
+def test_advance_returns_202_with_a_job_that_then_succeeds_with_the_steps(client, app, ctx):
+    ctx.stages["plan"] = stage_to(ctx, TaskState.PLANNED)
+    ctx.stages["review"] = stage_to(ctx, TaskState.REVIEWED)
+    ctx.store.save(Task(id="a", prompt="", state=TaskState.PROPOSED))
+
+    response = client.post("/tasks/a/advance")
+
+    assert response.status_code == 202
+    job_id = response.json()["job"]["id"]
+    app.state.runner.wait_idle()
+    job = client.get(f"/jobs/{job_id}").json()
+    assert (job["state"], job["kind"], job["task_id"]) == ("succeeded", "advance", "a")
+    assert job["result"] == {"steps": [{"stage": "plan", "state": "planned"}, {"stage": "review", "state": "reviewed"}],
+                             "state": "reviewed",
+                             "failure_reason": None, "stopped": None}
+
+
+def test_advance_on_an_unknown_task_is_404_and_queues_nothing(client):
+    assert client.post("/tasks/nope/advance").status_code == 404
+    assert client.get("/jobs").json() == {"jobs": []}
+
+
+def test_get_unknown_job_is_404_with_the_error_shape(client):
+    response = client.get("/jobs/nope")
+
+    assert response.status_code == 404
+    assert response.json()["error"] == "unknown job"
