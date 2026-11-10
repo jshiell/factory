@@ -302,7 +302,7 @@ def create_app(ctx) -> Starlette:
                 raise ApiError(422, "invalid input", f"unknown case: {', '.join(unknown)}")
         cases = [c for c in EVAL_CASES if not only or c.id in only]
         evals_root = ctx.settings.state_dir / "evals"
-        eval_dir = _new_eval_dir(evals_root, ctx.clock)
+        eval_dir = evals_root / body["resume"] if "resume" in body else _new_eval_dir(evals_root, ctx.clock)
 
         def eval_now():
             with state_lock(eval_dir):
