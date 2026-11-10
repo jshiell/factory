@@ -3,7 +3,7 @@ import sqlite3
 from contextlib import closing, contextmanager
 from pathlib import Path
 
-from factory.store import TaskExists, task_from_dict, task_to_dict
+from factory.store import TaskExists, TaskNotFound, task_from_dict, task_to_dict
 from factory.task import Task
 
 
@@ -34,6 +34,8 @@ class SqliteTaskStore:
     def load(self, task_id: str) -> Task:
         with self._transaction() as conn:
             row = conn.execute("SELECT data FROM tasks WHERE id = ?", (task_id,)).fetchone()
+        if row is None:
+            raise TaskNotFound(task_id)
         return task_from_dict(json.loads(row[0]))
 
     def _connect(self) -> sqlite3.Connection:

@@ -1,7 +1,8 @@
 import pytest
 
 from factory.sqlite_store import SqliteTaskStore
-from factory.store import TaskExists
+from factory.ids import InvalidTaskId
+from factory.store import TaskExists, TaskNotFound
 from factory.task import Task, TaskState
 
 
@@ -29,3 +30,9 @@ def test_create_never_overwrites_an_existing_task(tmp_path):
         store.create(Task(id="t1", prompt="second"))
 
     assert store.load("t1").prompt == "first"
+
+
+def test_loading_a_missing_task_raises_task_not_found(tmp_path):
+    with pytest.raises(TaskNotFound):
+        SqliteTaskStore(tmp_path / "factory.db").load("nope")
+
