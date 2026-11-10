@@ -6,6 +6,8 @@ from starlette.responses import JSONResponse
 from starlette.routing import Route
 
 from factory import service
+from factory.ids import InvalidTaskId
+from factory.store import TaskNotFound, task_to_dict
 
 
 class ApiError(Exception):
@@ -15,6 +17,10 @@ class ApiError(Exception):
 
 def _error_response(request: Request, error: ApiError) -> JSONResponse:
     return JSONResponse({"error": error.error, "detail": error.detail}, status_code=error.status)
+
+
+def _unknown_task(request: Request, error: Exception) -> JSONResponse:
+    return JSONResponse({"error": "unknown task", "detail": str(error)}, status_code=404)
 
 
 async def _json_object(request: Request) -> dict:
@@ -45,7 +51,11 @@ def create_app(ctx) -> Starlette:
         tasks = [{"id": t.id, "state": t.state.value, "failure_reason": t.failure_reason} for t in listing.tasks]
         return JSONResponse({"tasks": tasks, "skipped": listing.skipped})
 
+    async def show_task(request: Request) -> JSONResponse:
+        return JSONResponse(task_to_dict(service.get_task(ctx.store, request.path_params["task_id"])))
+
     return Starlette(
-        routes=[Route("/tasks", create_task, methods=["POST"]), Route("/tasks", list_tasks, methods=["GET"])],
-        exception_handlers={ApiError: _error_response},
+        routes=[Route("/tasks", create_task, methods=["POST"]), Route("/tasks", list_tasks, methods=["GET"]),
+                Route("/tasks/{task_id}", show_task, methods=["GET"])],
+        exception_handlers={ApiError: _error_response, TaskNotFound: _unknown_task, InvalidTaskId: _unknown_task},
     )

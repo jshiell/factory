@@ -59,3 +59,21 @@ def test_get_tasks_lists_ids_states_and_unreadable_rows(client, ctx):
                   {"id": "b", "state": "failed", "failure_reason": "gate_failed"}],
         "skipped": [],
     }
+
+
+def test_get_task_returns_every_field_of_the_task(client, ctx):
+    ctx.store.save(Task(id="a", prompt="", state=TaskState.REVIEWED, goal="g", plan="p", plan_risks=("r",)))
+
+    response = client.get("/tasks/a")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert (body["id"], body["state"], body["goal"], body["plan"], body["plan_risks"]) == ("a", "reviewed", "g", "p", ["r"])
+
+
+@pytest.mark.parametrize("path", ["/tasks/nope", "/tasks/a.b"])
+def test_get_unknown_or_unsafe_task_id_is_404_with_the_error_shape(client, path):
+    response = client.get(path)
+
+    assert response.status_code == 404
+    assert response.json()["error"] == "unknown task"
