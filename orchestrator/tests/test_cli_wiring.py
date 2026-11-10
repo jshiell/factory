@@ -1,5 +1,6 @@
 import json
 import os
+import socket
 import stat
 import subprocess
 import sys
@@ -43,6 +44,12 @@ def sh(*args, cwd, env=None, stdin=subprocess.DEVNULL):
     return subprocess.run(args, cwd=cwd, env=env, capture_output=True, text=True, stdin=stdin)
 
 
+def _free_port() -> int:
+    with socket.socket() as probe:
+        probe.bind(("127.0.0.1", 0))
+        return probe.getsockname()[1]
+
+
 @pytest.fixture
 def project(tmp_path):
     repo = tmp_path / "repo"
@@ -58,15 +65,34 @@ def project(tmp_path):
     nono.write_text(FAKE_NONO)
     nono.chmod(nono.stat().st_mode | stat.S_IEXEC)
     (repo / "factory.toml").write_text(f'claude_executable = "{fake}"\nsandbox_executable = "{nono}"\nstate_dir = "{tmp_path / "state"}"\n'
-                                       f'worktree_root = "{tmp_path / "wt"}"\n')
+                                       f'worktree_root = "{tmp_path / "wt"}"\nserver_port = {_free_port()}\n')
     sh("git", "init", "-q", "-b", "main", cwd=repo, env=env)
     sh("git", "add", "-A", cwd=repo, env=env)
     sh("git", "commit", "-q", "-m", "init", cwd=repo, env=env)
-    return repo, env, tmp_path
+    yield repo, env, tmp_path
+    if server := _SERVERS.pop(repo, None):
+        server.terminate()
+        server.wait(timeout=30)
 
 
-def factory(project, *args, stdin=subprocess.DEVNULL):
+_SERVERS: dict[Path, subprocess.Popen] = {}
+
+
+def _serving(repo: Path, env) -> None:
+    """Start the project's server on first use, so it reads the config the test finished writing."""
+    if repo in _SERVERS:
+        return
+    server = subprocess.Popen(["uv", "run", "--project", str(ORCHESTRATOR), "factory", "serve"], cwd=repo, env=env,
+                              stdout=subprocess.PIPE, stderr=subprocess.PIPE, stdin=subprocess.DEVNULL, text=True)
+    _SERVERS[repo] = server
+    announced = server.stdout.readline()
+    assert announced.startswith("serving on "), announced + server.stderr.read()
+
+
+def factory(project, *args, stdin=subprocess.DEVNULL, served=True):
     repo, env, _ = project
+    if served and args[0] not in ("--help", "migrate"):
+        _serving(repo, env)
     return sh("uv", "run", "--project", str(ORCHESTRATOR), "factory", *args, cwd=repo, env=env, stdin=stdin)
 
 
@@ -127,7 +153,7 @@ def test_a_bad_config_file_exits_2_naming_the_key(project):
     repo, _, _ = project
     (repo / "factory.toml").write_text("bogus = 1\n")
 
-    result = factory(project, "list")
+    result = factory(project, "list", served=False)  # the server could not start on this config either
 
     assert result.returncode == 2 and "bogus" in result.stderr
 
@@ -145,7 +171,7 @@ def test_the_implement_stage_runs_confined_with_no_shell_and_a_read_only_view_of
     from factory.sqlite_store import SqliteTaskStore
     from factory.task import Task, TaskState
     repo, _, tmp_path = project
-    (tmp_path / "state").mkdir(parents=True)
+    (tmp_path / "state").mkdir(parents=True, exist_ok=True)
     SqliteTaskStore(tmp_path / "state" / "factory.db").save(Task(id="t9", prompt="implement it", state=TaskState.QUEUED))
 
     factory(project, "advance", "t9")
@@ -169,7 +195,7 @@ def test_a_failing_gate_runs_one_confined_fix_round_and_the_tests_then_pass(proj
     config.write_text(config.read_text() + 'test_argv = ["sh", "-c", "echo NEEDS-FIX; test -f fixed"]\n')
     sh("git", "commit", "-q", "-am", "test_argv", cwd=repo, env=env)
     (repo / "target" / "code.py").write_text("changed by the implementer")
-    (tmp_path / "state").mkdir(parents=True)
+    (tmp_path / "state").mkdir(parents=True, exist_ok=True)
     base = sh("git", "rev-parse", "HEAD", cwd=repo, env=env).stdout.strip()
     SqliteTaskStore(tmp_path / "state" / "factory.db").save(
         Task(id="t9", prompt="stored", state=TaskState.AGENT_DONE, worktree=str(repo), base_sha=base, goal="g", plan="p"))
@@ -196,7 +222,7 @@ def test_a_task_that_kept_its_plan_is_implemented_with_the_approved_prompt_in_a_
     from factory.sqlite_store import SqliteTaskStore
     from factory.task import Task, TaskState
     _, _, tmp_path = project
-    (tmp_path / "state").mkdir(parents=True)
+    (tmp_path / "state").mkdir(parents=True, exist_ok=True)
     store = SqliteTaskStore(tmp_path / "state" / "factory.db")
     plan = "1. add multiply\n2. test it"
     store.save(Task(id="t1", prompt=build_implementation_prompt("add multiply", plan), state=TaskState.FAILED,
@@ -222,7 +248,7 @@ def test_an_agent_launched_by_the_real_cli_is_recorded_while_it_runs(project):
     spy.chmod(spy.stat().st_mode | stat.S_IEXEC)
     config = repo / "factory.toml"
     config.write_text(config.read_text().replace("fake-claude", "spy-claude"))
-    (tmp_path / "state").mkdir(parents=True)
+    (tmp_path / "state").mkdir(parents=True, exist_ok=True)
     SqliteTaskStore(tmp_path / "state" / "factory.db").save(Task(id="t9", prompt="implement it", state=TaskState.QUEUED))
 
     factory(project, "advance", "t9")
@@ -241,7 +267,7 @@ def test_a_gate_run_launched_by_the_real_cli_is_recorded_while_it_runs(project):
     config.write_text(config.read_text() + f'test_argv = ["sh", "-c", "cat {tmp_path}/state/procs/*.json > {seen}"]\n')
     sh("git", "commit", "-q", "-am", "test_argv", cwd=repo, env=env)
     (repo / "target" / "code.py").write_text("changed by the implementer")
-    (tmp_path / "state").mkdir(parents=True)
+    (tmp_path / "state").mkdir(parents=True, exist_ok=True)
     base = sh("git", "rev-parse", "HEAD", cwd=repo, env=env).stdout.strip()
     SqliteTaskStore(tmp_path / "state" / "factory.db").save(
         Task(id="t9", prompt="stored", state=TaskState.AGENT_DONE, worktree=str(repo), base_sha=base, goal="g", plan="p"))

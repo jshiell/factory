@@ -51,3 +51,16 @@ def test_ctrl_c_while_waiting_stops_waiting_and_names_the_job_that_keeps_running
     code, out, err = run(ctx, "advance", "t1")
 
     assert code == 130 and "j7" in err and "still running" in err
+
+
+def test_a_server_that_refuses_the_token_says_where_the_token_comes_from(ctx):
+    def unauthorized(request):
+        return httpx.Response(401, json={"error": "unauthorized", "detail": "bearer token required"})
+
+    http = httpx.Client(transport=httpx.MockTransport(unauthorized), base_url="http://127.0.0.1:8765")
+    ctx.server = ServerClient(http, "stale")
+
+    code, out, err = run(ctx, "list")
+
+    assert (code, out) == (1, "")
+    assert str(ctx.settings.state_dir / "token") in err

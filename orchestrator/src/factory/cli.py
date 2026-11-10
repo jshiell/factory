@@ -9,6 +9,7 @@ from datetime import datetime
 from pathlib import Path
 from types import SimpleNamespace
 
+import httpx
 from factory.textsafe import escape_control  # noqa: F401  (re-exported)
 from factory.advance import advance
 from factory.client import ServerClient, ServerRefused, ServerUnreachable
@@ -174,6 +175,9 @@ def main(argv: list[str], io: IO, ctx: Context) -> int:
         print(f"stopped waiting; job {stopped.job_id} is still running on the server", file=io.stderr)
         return 130
     except ServerRefused as refused:
+        if refused.status == 401:
+            print(f"the server refused the token in {ctx.settings.state_dir / 'token'}; restart `factory serve` or check the file", file=io.stderr)
+            return 1
         if refused.error == "unknown task":
             print(f"unknown task: {refused.detail}", file=io.stderr)
             return 2
@@ -665,6 +669,13 @@ _COMMANDS = {
 }
 
 
+def _server_client(settings: Settings) -> ServerClient:
+    token_file = settings.state_dir / "token"
+    token = token_file.read_text().strip() if token_file.exists() else ""  # no token means no server has ever run here
+    http = httpx.Client(base_url=f"http://127.0.0.1:{settings.server_port}", timeout=30.0)
+    return ServerClient(http, token)
+
+
 def build_context(settings: Settings) -> Context:
     settings.state_dir.mkdir(parents=True, exist_ok=True)
     store, ledger = SqliteTaskStore(settings.db_path), SqliteLedger(settings.db_path)
@@ -674,7 +685,7 @@ def build_context(settings: Settings) -> Context:
     )
     worktrees = WorktreeManager(settings.repo, settings.worktree_root)
     stages = build_stages(settings, Deps(store, ledger, runner, worktrees))
-    return Context(settings, store, ledger, stages)
+    return Context(settings, store, ledger, stages, server=_server_client(settings))
 
 
 def _exit_on_signal(signum, frame):
