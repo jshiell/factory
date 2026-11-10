@@ -77,3 +77,18 @@ def test_get_unknown_or_unsafe_task_id_is_404_with_the_error_shape(client, path)
 
     assert response.status_code == 404
     assert response.json()["error"] == "unknown task"
+
+
+def test_get_costs_reports_spend_by_stage_and_task(client, ctx):
+    ctx.ledger.append("a", 0.25, stage="plan")
+    ctx.ledger.append("a", 0.5, assumed=True, stage="implement")
+
+    response = client.get("/costs")
+
+    assert response.status_code == 200
+    assert response.json() == {"by_stage": {"plan": 0.25, "implement": 0.5}, "by_task": {"a": 0.75},
+                               "assumed": 0.5, "total": 0.75}
+
+
+def test_get_costs_for_an_unknown_task_is_404(client):
+    assert client.get("/costs", params={"task_id": "nope"}).status_code == 404

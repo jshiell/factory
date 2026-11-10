@@ -54,8 +54,12 @@ def create_app(ctx) -> Starlette:
     async def show_task(request: Request) -> JSONResponse:
         return JSONResponse(task_to_dict(service.get_task(ctx.store, request.path_params["task_id"])))
 
+    async def costs(request: Request) -> JSONResponse:
+        report = service.cost_report(ctx.store, ctx.ledger, request.query_params.get("task_id"))
+        return JSONResponse(report._asdict())
+
     return Starlette(
-        routes=[Route("/tasks", create_task, methods=["POST"]), Route("/tasks", list_tasks, methods=["GET"]),
+        routes=[Route("/costs", costs, methods=["GET"]), Route("/tasks", create_task, methods=["POST"]), Route("/tasks", list_tasks, methods=["GET"]),
                 Route("/tasks/{task_id}", show_task, methods=["GET"])],
         exception_handlers={ApiError: _error_response, TaskNotFound: _unknown_task, InvalidTaskId: _unknown_task},
     )
