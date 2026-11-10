@@ -95,6 +95,10 @@ class CorpusChanged(Exception):
     """A result directory was made from different cases: its results cannot be mixed with new ones."""
 
 
+class RunsChanged(Exception):
+    """A result directory was started with another number of runs: a resume continues the same experiment."""
+
+
 def meta_path(eval_dir: Path) -> Path:
     return eval_dir / "meta.json"
 
@@ -129,6 +133,8 @@ def run_eval(eval_dir: Path, cases: list[Case], runs: int, runner: Runner, cap_u
     (eval_dir / "tasks").mkdir(parents=True, exist_ok=True)
     if meta_path(eval_dir).exists() and load_meta(eval_dir)["corpus_hash"] != corpus_hash(cases):
         raise CorpusChanged(str(eval_dir))
+    if meta_path(eval_dir).exists() and load_meta(eval_dir)["runs"] != runs:
+        raise RunsChanged(str(eval_dir))
     _write_atomically(meta_path(eval_dir), json.dumps(_meta(cases, runs, complete=False), indent=1))
     store, ledger = TaskStore(eval_dir / "tasks"), Ledger(eval_dir / "ledger.jsonl")
     with tempfile.TemporaryDirectory() as tmp:

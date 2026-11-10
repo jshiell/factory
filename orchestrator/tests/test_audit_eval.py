@@ -163,7 +163,7 @@ def test_the_result_is_written_through_a_temporary_file_so_a_kill_cannot_leave_h
 from dataclasses import replace
 
 from factory.audit_corpus import corpus_hash
-from factory.audit_eval import CorpusChanged, load_meta, run_eval
+from factory.audit_eval import CorpusChanged, RunsChanged, load_meta, run_eval
 
 
 class VerdictRunner:
@@ -239,6 +239,18 @@ def test_resuming_against_a_changed_corpus_is_refused_before_anything_runs(tmp_p
 
 
 # --- the corpus gate check ------------------------------------------------------------
+
+def test_resuming_with_a_different_number_of_runs_is_refused_before_anything_runs(tmp_path):
+    eval_dir = tmp_path / "eval"
+    run_eval(eval_dir, THREE, 1, VerdictRunner(), 5.0)
+    before = (eval_dir / "meta.json").read_text()
+    runner = VerdictRunner()
+
+    with pytest.raises(RunsChanged):
+        run_eval(eval_dir, THREE, 2, runner, 5.0)
+
+    assert runner.order == [] and (eval_dir / "meta.json").read_text() == before
+
 
 from factory.audit_eval import check_corpus
 from factory.gate import GateResult
