@@ -325,36 +325,43 @@ def _ask_with_waiver(io, question: str, confirm_question: str, required: list[st
 
 
 def _approve(args, io, ctx) -> int:
-    task = _load(ctx, args.task_id)
+    ctx.server.get(_task_path(args.task_id))
     if not io.stdin.isatty():
         print("approval needs an interactive terminal", file=io.stderr)
         return 1
-    if task.state is not TaskState.REVIEWED:
-        return _not_reviewed(task, io)
-    note_display, required = note_lines(capped_findings(task.review_findings))
+    try:
+        preview = ctx.server.get(_task_path(args.task_id, "/approval"))
+    except ServerRefused as refused:
+        if refused.error != "wrong state":
+            raise
+        print(refused.detail, file=io.stderr)
+        return 1
+    note_display, required = note_lines(tuple(preview["review_findings"]))
     shown = "\n".join(
-        [f"GOAL:\n{task.goal}", f"PLAN:\n{task.plan}", "RISKS:"] + [f"  - {r}" for r in task.plan_risks]
+        [f"GOAL:\n{preview['goal']}", f"PLAN:\n{preview['plan']}", "RISKS:"] + [f"  - {r}" for r in preview["risks"]]
         + ["REVIEWER NOTES (sent to the implementer):"] + note_display
     )
     print(escape_control(shown), file=io.stdout)
-    if warning := dropped_required_warning(task.review_findings):
-        print(warning, file=io.stdout)
+    if preview["warning"]:
+        print(preview["warning"], file=io.stdout)
     answered = _ask_with_waiver(io, "Approve this plan? [y/N]", "Waive these and approve? [y/N] ", required, "not approved")
     if answered is None:
         return 1
     waived, _ = answered
     try:
-        service.approve(ctx.store, task.id, plan_digest(task.plan), task.review_findings, waived)
-    except InvalidWaiver as error:
-        print(f"cannot waive: {escape_control(str(error))}; nothing approved", file=io.stderr)
+        ctx.server.post(_task_path(args.task_id, "/approve"), {"plan_digest": preview["plan_digest"], "waive": list(waived)})
+    except ServerRefused as refused:
+        if refused.error == "invalid waiver":
+            print(f"cannot waive: {escape_control(refused.detail)}; nothing approved", file=io.stderr)
+        elif refused.error == "plan changed":
+            print("plan changed since display; nothing approved", file=io.stderr)
+        elif refused.error == "wrong state":
+            print(refused.detail, file=io.stderr)
+        else:
+            raise
         return 1
-    except service.PlanChanged:
-        print("plan changed since display; nothing approved", file=io.stderr)
-        return 1
-    except service.NotReviewed as error:
-        return _not_reviewed(error.task, io)
     waived_note = f" ({len(waived)} required note{'s' if len(waived) != 1 else ''} waived)" if waived else ""
-    print(f"{task.id}: approved and queued{waived_note}; run: factory advance {task.id}", file=io.stdout)
+    print(f"{args.task_id}: approved and queued{waived_note}; run: factory advance {args.task_id}", file=io.stdout)
     return 0
 
 

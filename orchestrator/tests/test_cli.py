@@ -215,10 +215,14 @@ def reviewed(ctx, plan=PLAN):
         plan_risks=("risky",), review_findings=("looks fine",))
 
 
+def approved_task():
+    return Task(id="t1", prompt="", state=S.QUEUED)
+
+
 @pytest.fixture
 def approve_spy(monkeypatch):
     calls = []
-    monkeypatch.setattr("factory.service.approve_plan", lambda *a, **k: calls.append(a))
+    monkeypatch.setattr("factory.service.approve_plan", lambda *a, **k: calls.append(a) or approved_task())
     return calls
 
 
@@ -243,7 +247,7 @@ def test_approve_displays_goal_plan_risks_and_findings_then_approves_on_y(ctx, a
 
 def test_approve_passes_the_findings_it_displayed(ctx, monkeypatch):
     kwargs = []
-    monkeypatch.setattr("factory.service.approve_plan", lambda *a, **k: kwargs.append(k))
+    monkeypatch.setattr("factory.service.approve_plan", lambda *a, **k: kwargs.append(k) or approved_task())
     reviewed(ctx)
 
     run(ctx, "approve", "t1", stdin="y\n")
@@ -1199,7 +1203,7 @@ def test_approve_without_a_required_note_shows_no_numbers_and_no_waive_offer(ctx
 @pytest.fixture
 def approve_kwargs(monkeypatch):
     calls = []
-    monkeypatch.setattr("factory.service.approve_plan", lambda *a, **k: calls.append(k))
+    monkeypatch.setattr("factory.service.approve_plan", lambda *a, **k: calls.append(k) or approved_task())
     return calls
 
 
