@@ -439,8 +439,8 @@ def clean_spy(ctx, monkeypatch):
     calls = []
     failed = Task(id="t1", prompt="", state=S.FAILED, worktree="/w/t1")
     candidates = [Candidate(failed, directory_exists=True, dirty=True, commits_ahead=2, branch_exists=True)]
-    monkeypatch.setattr("factory.cli.clean_candidates", lambda *a, **k: candidates)
-    monkeypatch.setattr("factory.cli.clean_tasks", lambda *a, **k: calls.append(a) or [Outcome("t1", done=["removed worktree"])])
+    monkeypatch.setattr("factory.server.clean_candidates", lambda *a, **k: candidates)
+    monkeypatch.setattr("factory.server.clean_tasks", lambda *a, **k: calls.append(a) or [Outcome("t1", done=["removed worktree"])])
     return calls
 
 
@@ -464,16 +464,8 @@ def test_anything_but_y_does_not_clean(ctx, clean_spy, answer):
     assert code == 1 and clean_spy == []
 
 
-def test_clean_exits_1_when_another_run_holds_the_lock(ctx, clean_spy):
-    from factory.lock import state_lock
-    with state_lock(ctx.settings.state_dir):
-        code, _, err = run(ctx, "clean", stdin="y\n")
-
-    assert code == 1 and "lock" in err and clean_spy == []
-
-
 def test_clean_with_nothing_to_clean_says_so_and_exits_0(ctx, monkeypatch):
-    monkeypatch.setattr("factory.cli.clean_candidates", lambda *a, **k: [])
+    monkeypatch.setattr("factory.server.clean_candidates", lambda *a, **k: [])
 
     code, out, _ = run(ctx, "clean", stdin="y\n")
 
@@ -482,7 +474,7 @@ def test_clean_with_nothing_to_clean_says_so_and_exits_0(ctx, monkeypatch):
 
 def test_clean_exits_1_and_prints_the_problems_when_a_task_could_not_be_cleaned(ctx, clean_spy, monkeypatch):
     from factory.clean_tasks import Outcome
-    monkeypatch.setattr("factory.cli.clean_tasks", lambda *a, **k: [Outcome("t1", problems=["worktree kept: git failed"])])
+    monkeypatch.setattr("factory.server.clean_tasks", lambda *a, **k: [Outcome("t1", problems=["worktree kept: git failed"])])
 
     code, out, _ = run(ctx, "clean", stdin="y\n")
 
@@ -569,16 +561,6 @@ def test_clean_with_no_worktrees_branches_or_caches_says_nothing_to_clean(ctx):
     code, out, _ = run(ctx, "clean", stdin="y\n")
 
     assert code == 0 and "nothing to clean" in out
-
-
-def test_clean_holding_the_lock_leaves_the_caches_alone(ctx):
-    from factory.lock import state_lock
-    orphan = make_gate_cache(ctx, "gone")
-
-    with state_lock(ctx.settings.state_dir):
-        code, _, err = run(ctx, "clean", stdin="y\n")
-
-    assert code == 1 and "lock" in err and orphan.exists()
 
 
 def describe(**fields):
@@ -874,7 +856,7 @@ def orphan(pid=4242, task_id="t1", stage="implement"):
 
 
 REAPING_COMMANDS = [
-    (("clean",), S.RUNNING), (("merge", "t1"), S.AUDITED),
+    (("merge", "t1"), S.AUDITED),
 ]
 
 

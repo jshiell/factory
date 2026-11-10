@@ -494,40 +494,45 @@ def _describe_candidate(candidate) -> str:
     return f"{candidate.task.id}  {candidate.task.state.value}: " + ", ".join(flags)
 
 
+def _candidate_from_view(view: dict) -> SimpleNamespace:
+    fields = {name: value for name, value in view.items() if name not in ("id", "state")}
+    return SimpleNamespace(task=SimpleNamespace(id=view["id"], state=TaskState(view["state"])), **fields)
+
+
 def _clean(args, io, ctx) -> int:
     if not io.stdin.isatty():
         print("clean needs an interactive terminal", file=io.stderr)
         return 1
-    settings = ctx.settings
-    cache_root = settings.gate_cache_dir
-    try:
-        with _locked(ctx, io):
-            candidates = clean_candidates(ctx.store, settings.repo, settings.worktree_root, cache_root)
-            scan = orphan_caches(ctx.store, cache_root)
-            if not (candidates or scan.orphans or scan.skipped):
-                print("nothing to clean", file=io.stdout)
-                return 0
-            lines = [_describe_candidate(c) for c in candidates]
-            lines += [f"orphan gate cache {o.name}: {o.size} bytes, no task record" for o in scan.orphans]
-            lines += [f"skipped cache entry {name}: not a plain directory with a readable task record" for name in scan.skipped]
-            print(escape_control("\n".join(lines)), file=io.stdout)
-            if not (candidates or scan.orphans):
-                return 1
-            print("Clean these? [y/N] ", end="", file=io.stdout)
-            io.stdout.flush()
-            if io.stdin.readline().strip() != "y":
-                print("not cleaned", file=io.stdout)
-                return 1
-            worktrees = WorktreeManager(settings.repo, settings.worktree_root)
-            outcomes = clean_tasks(candidates, ctx.store, worktrees, settings.repo, settings.worktree_root, cache_root)
-            outcomes += remove_orphan_caches(ctx.store, cache_root, scan.orphans)
-    except _Refused as refused:
-        print(escape_control(str(refused)), file=io.stderr)
+    preview = ctx.server.get("/clean-preview")
+    candidates = [_candidate_from_view(c) for c in preview["candidates"]]
+    orphans, skipped = preview["orphans"], preview["skipped"]
+    if not (candidates or orphans or skipped):
+        print("nothing to clean", file=io.stdout)
+        return 0
+    lines = [_describe_candidate(c) for c in candidates]
+    lines += [f"orphan gate cache {o['name']}: {o['size']} bytes, no task record" for o in orphans]
+    lines += [f"skipped cache entry {name}: not a plain directory with a readable task record" for name in skipped]
+    print(escape_control("\n".join(lines)), file=io.stdout)
+    if not (candidates or orphans):
         return 1
-    for outcome in outcomes:
-        for line in outcome.done + outcome.problems:
-            print(escape_control(f"{outcome.task_id}: {line}"), file=io.stdout)
-    return 1 if scan.skipped or any(o.problems for o in outcomes) else 0
+    print("Clean these? [y/N] ", end="", file=io.stdout)
+    io.stdout.flush()
+    if io.stdin.readline().strip() != "y":
+        print("not cleaned", file=io.stdout)
+        return 1
+    try:
+        result = _run_job(ctx, io, "/clean", {"token": preview["token"]})
+    except ServerRefused as refused:
+        if refused.error != "clean refused":
+            raise
+        print(f"clean refused: {refused.detail}", file=io.stderr)
+        return 1
+    if result is None:
+        return 1
+    for outcome in result["outcomes"]:
+        for line in outcome["done"] + outcome["problems"]:
+            print(escape_control(f"{outcome['task_id']}: {line}"), file=io.stdout)
+    return 1 if skipped or any(o["problems"] for o in result["outcomes"]) else 0
 
 
 def _merge(args, io, ctx) -> int:
