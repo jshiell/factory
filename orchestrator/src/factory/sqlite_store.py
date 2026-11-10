@@ -3,6 +3,7 @@ import sqlite3
 from contextlib import closing, contextmanager
 from pathlib import Path
 
+from factory.ids import require_safe_id
 from factory.store import TaskExists, TaskNotFound, task_from_dict, task_to_dict
 from factory.task import Task
 
@@ -14,6 +15,7 @@ class SqliteTaskStore:
             conn.execute("CREATE TABLE IF NOT EXISTS tasks (id TEXT PRIMARY KEY, state TEXT NOT NULL, data TEXT NOT NULL)")
 
     def save(self, task: Task) -> None:
+        require_safe_id(task.id)
         with self._transaction() as conn:
             conn.execute(
                 "INSERT OR REPLACE INTO tasks (id, state, data) VALUES (?, ?, ?)",
@@ -22,6 +24,7 @@ class SqliteTaskStore:
 
     def create(self, task: Task) -> None:
         """Save a new task, never overwriting an existing one."""
+        require_safe_id(task.id)
         try:
             with self._transaction() as conn:
                 conn.execute(
@@ -32,6 +35,7 @@ class SqliteTaskStore:
             raise TaskExists(task.id) from None
 
     def load(self, task_id: str) -> Task:
+        require_safe_id(task_id)
         with self._transaction() as conn:
             row = conn.execute("SELECT data FROM tasks WHERE id = ?", (task_id,)).fetchone()
         if row is None:

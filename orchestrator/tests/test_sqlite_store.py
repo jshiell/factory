@@ -36,3 +36,14 @@ def test_loading_a_missing_task_raises_task_not_found(tmp_path):
     with pytest.raises(TaskNotFound):
         SqliteTaskStore(tmp_path / "factory.db").load("nope")
 
+
+@pytest.mark.parametrize("task_id", ["a/b", "..", "../evil", ""])
+def test_unsafe_task_ids_are_rejected(tmp_path, task_id):
+    store = SqliteTaskStore(tmp_path / "factory.db")
+
+    with pytest.raises(InvalidTaskId):
+        store.load(task_id)
+    with pytest.raises(InvalidTaskId):
+        store.save(Task(id=task_id, prompt="p"))
+    with pytest.raises(InvalidTaskId):
+        store.create(Task(id=task_id, prompt="p"))
