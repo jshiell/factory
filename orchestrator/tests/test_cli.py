@@ -3,11 +3,14 @@ from dataclasses import replace
 from datetime import datetime
 
 import pytest
+from starlette.testclient import TestClient
 
 from factory import cli
+from factory.client import ServerClient
 from factory.cli import IO, Context, escape_control, main
 from factory.digest import plan_digest
 from factory.ledger import Ledger
+from factory.server import create_secured_app, load_or_create_token
 from factory.settings import Settings
 from factory.store import TaskStore
 from factory.task import Task, TaskState
@@ -28,7 +31,12 @@ class FakeStdin(io.StringIO):
 def ctx(tmp_path):
     settings = Settings(repo=tmp_path, state_dir=tmp_path / "state", worktree_root=tmp_path / "wt")
     store = TaskStore(settings.tasks_dir)
-    return Context(settings, store, Ledger(settings.ledger_path), stages={}, clock=lambda: datetime(2026, 1, 2, 3, 4, 5))
+    context = Context(settings, store, Ledger(settings.ledger_path), stages={}, clock=lambda: datetime(2026, 1, 2, 3, 4, 5))
+    settings.state_dir.mkdir()
+    token = load_or_create_token(settings.state_dir)
+    with TestClient(create_secured_app(context, token), base_url="http://127.0.0.1:8765") as http:
+        context.server = ServerClient(http, token, sleep=lambda seconds: None)
+        yield context
 
 
 def run(ctx, *argv, stdin="", tty=True):

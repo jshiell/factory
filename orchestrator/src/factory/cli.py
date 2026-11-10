@@ -10,6 +10,7 @@ from pathlib import Path
 
 from factory.textsafe import escape_control  # noqa: F401  (re-exported)
 from factory.advance import advance
+from factory.client import ServerClient, ServerRefused, ServerUnreachable
 from factory.audit_compare import compare, find_previous
 from factory.audit_gaps import gaps_to_carry, split_quoting_waived
 from factory.audit_corpus import CASES as EVAL_CASES, PROJECT_SUBDIR
@@ -81,6 +82,7 @@ class Context:
     reap: Callable[[Path], ReapResult] = _reap_with_the_real_process_table
     eval_runner: Callable[[Settings, Path], Runner] = _real_eval_runner
     serve: Callable[[object, str, int], None] = _serve_with_uvicorn
+    server: ServerClient | None = None
 
 
 class _Refused(Exception):
@@ -159,6 +161,9 @@ def main(argv: list[str], io: IO, ctx: Context) -> int:
     except (TaskNotFound, InvalidTaskId) as error:
         print(f"unknown task: {error}", file=io.stderr)
         return 2
+    except ServerUnreachable:
+        print("no factory server is running; start one with: factory serve", file=io.stderr)
+        return 1
 
 
 def _load(ctx: Context, task_id: str) -> Task:
@@ -185,11 +190,11 @@ def _migrate(args, io, ctx) -> int:
 
 
 def _list(args, io, ctx) -> int:
-    listing = service.list_tasks(ctx.store)
-    for task in listing.tasks:
-        reason = f"  {task.failure_reason}" if task.failure_reason else ""
-        print(f"{task.id}  {task.state.value}{reason}", file=io.stdout)
-    for name in listing.skipped:
+    listing = ctx.server.get("/tasks")
+    for task in listing["tasks"]:
+        reason = f"  {task['failure_reason']}" if task["failure_reason"] else ""
+        print(f"{task['id']}  {task['state']}{reason}", file=io.stdout)
+    for name in listing["skipped"]:
         print(f"skipped: {name}", file=io.stdout)
     return 0
 
