@@ -1,5 +1,6 @@
 from dataclasses import replace
 from datetime import datetime
+from pathlib import Path
 
 import pytest
 from starlette.testclient import TestClient
@@ -107,3 +108,60 @@ def test_a_merge_that_main_outran_ends_the_job_failed_and_changes_nothing(client
     assert job["state"] == "failed"
     assert job["error"].startswith("merge refused: ")
     assert ctx.store.load("t1").state is TaskState.AUDITED
+
+
+@pytest.fixture
+def failed(ctx, repo):
+    worktree, base = WorktreeManager(repo, ctx.settings.worktree_root).create("f1")
+    (worktree / "scratch.txt").write_text("uncommitted")
+    task = Task(id="f1", prompt="p", state=TaskState.FAILED, worktree=str(worktree), base_sha=base)
+    ctx.store.save(task)
+    return task
+
+
+def _another_failed_task(ctx, repo):
+    worktree, base = WorktreeManager(repo, ctx.settings.worktree_root).create("f2")
+    ctx.store.save(Task(id="f2", prompt="p", state=TaskState.FAILED, worktree=str(worktree), base_sha=base))
+
+
+def test_clean_preview_lists_what_would_be_removed_with_a_token(client, failed):
+    body = client.get("/clean-preview").json()
+
+    assert [(c["id"], c["state"], c["dirty"], c["directory_exists"]) for c in body["candidates"]] == [("f1", "failed", True, True)]
+    assert body["orphans"] == [] and body["skipped"] == []
+    assert body["token"]
+
+
+def test_clean_preview_token_is_stable_until_something_changes(client, ctx, repo, failed):
+    first = client.get("/clean-preview").json()["token"]
+    assert client.get("/clean-preview").json()["token"] == first
+    _another_failed_task(ctx, repo)
+
+    assert client.get("/clean-preview").json()["token"] != first
+
+
+def test_clean_with_the_shown_token_removes_the_worktree(client, ctx, failed):
+    token = client.get("/clean-preview").json()["token"]
+
+    response = client.post("/clean", json={"token": token})
+
+    assert response.status_code == 202
+    job = _wait(client, response.json()["job"]["id"])
+    assert job["state"] == "succeeded"
+    assert not Path(failed.worktree).exists()
+    assert ctx.store.load("f1").worktree is None
+
+
+def test_clean_with_a_stale_token_is_409_and_removes_nothing(client, ctx, repo, failed):
+    token = client.get("/clean-preview").json()["token"]
+    _another_failed_task(ctx, repo)
+
+    response = client.post("/clean", json={"token": token})
+
+    assert response.status_code == 409
+    assert response.json()["error"] == "clean refused"
+    assert Path(failed.worktree).exists()
+
+
+def test_clean_without_a_token_is_422(client):
+    assert client.post("/clean", json={}).status_code == 422

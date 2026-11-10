@@ -1,3 +1,4 @@
+import hashlib
 import json
 import subprocess
 from contextlib import asynccontextmanager
@@ -20,6 +21,8 @@ from factory.recover_task import RecoverRefused, recover_task
 from factory.merge_task import MergeRefused, merge_preview, merge_task
 from factory.worktrees import WorktreeManager
 from factory.retry_task import RetryRefused, retry_task
+from factory.clean_tasks import clean_candidates, clean_tasks, remove_orphan_caches
+from factory.gate_cache import orphan_caches
 from factory.job_store import Job, JobNotFound, JobStore
 from factory.ids import InvalidTaskId
 from factory.task import InvalidTransition, TaskState
@@ -209,6 +212,40 @@ def create_app(ctx) -> Starlette:
             raise ApiError(409, "retry refused", str(error)) from None
         return JSONResponse({"id": new.id}, status_code=201)
 
+    def clean_scan():
+        settings = ctx.settings
+        candidates = clean_candidates(ctx.store, settings.repo, settings.worktree_root, settings.gate_cache_dir)
+        return candidates, orphan_caches(ctx.store, settings.gate_cache_dir)
+
+    def clean_view(candidates, scan) -> dict:
+        view = {"candidates": [{"id": c.task.id, "state": c.task.state.value, "directory_exists": c.directory_exists,
+                                "dirty": c.dirty, "commits_ahead": c.commits_ahead, "branch_exists": c.branch_exists,
+                                "outside_root": c.outside_root, "cache_bytes": c.cache_bytes, "branch_empty": c.branch_empty}
+                               for c in candidates],
+                "orphans": [{"name": o.name, "size": o.size} for o in scan.orphans], "skipped": list(scan.skipped)}
+        view["token"] = hashlib.sha256(json.dumps(view, sort_keys=True).encode()).hexdigest()
+        return view
+
+    async def clean_preview(request: Request) -> JSONResponse:
+        return JSONResponse(clean_view(*clean_scan()))
+
+    async def clean(request: Request) -> JSONResponse:
+        shown_token = _required_string(await _json_object(request), "token")
+        if clean_view(*clean_scan())["token"] != shown_token:
+            raise ApiError(409, "clean refused", "what would be cleaned changed since the preview")
+
+        def clean_now():
+            settings = ctx.settings
+            candidates, scan = clean_scan()
+            if clean_view(candidates, scan)["token"] != shown_token:
+                raise RuntimeError("clean refused: what would be cleaned changed since the preview")
+            worktrees = WorktreeManager(settings.repo, settings.worktree_root)
+            outcomes = clean_tasks(candidates, ctx.store, worktrees, settings.repo, settings.worktree_root, settings.gate_cache_dir)
+            outcomes += remove_orphan_caches(ctx.store, settings.gate_cache_dir, scan.orphans)
+            return {"outcomes": [{"task_id": o.task_id, "done": o.done, "problems": o.problems} for o in outcomes]}
+
+        return JSONResponse({"job": _job_json(runner.submit("clean", None, clean_now))}, status_code=202)
+
     async def list_jobs(request: Request) -> JSONResponse:
         return JSONResponse({"jobs": [_job_json(job) for job in jobs.list()]})
 
@@ -217,7 +254,8 @@ def create_app(ctx) -> Starlette:
 
     app = Starlette(
         lifespan=lifespan,
-        routes=[Route("/tasks/{task_id}/retry", retry, methods=["POST"]),
+        routes=[Route("/clean-preview", clean_preview, methods=["GET"]), Route("/clean", clean, methods=["POST"]),
+                Route("/tasks/{task_id}/retry", retry, methods=["POST"]),
                 Route("/tasks/{task_id}/merge", merge, methods=["POST"]),
                 Route("/tasks/{task_id}/merge-preview", merge_preview_view, methods=["GET"]),
                 Route("/tasks/{task_id}/approval", approval_preview, methods=["GET"]),
