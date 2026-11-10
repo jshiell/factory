@@ -1,0 +1,36 @@
+import json
+import sqlite3
+from contextlib import closing, contextmanager
+from pathlib import Path
+
+from factory.store import task_from_dict, task_to_dict
+from factory.task import Task
+
+
+class SqliteTaskStore:
+    def __init__(self, db_path: Path):
+        self._db_path = db_path
+        with self._transaction() as conn:
+            conn.execute("CREATE TABLE IF NOT EXISTS tasks (id TEXT PRIMARY KEY, state TEXT NOT NULL, data TEXT NOT NULL)")
+
+    def save(self, task: Task) -> None:
+        with self._transaction() as conn:
+            conn.execute(
+                "INSERT OR REPLACE INTO tasks (id, state, data) VALUES (?, ?, ?)",
+                (task.id, task.state.value, json.dumps(task_to_dict(task))),
+            )
+
+    def load(self, task_id: str) -> Task:
+        with self._transaction() as conn:
+            row = conn.execute("SELECT data FROM tasks WHERE id = ?", (task_id,)).fetchone()
+        return task_from_dict(json.loads(row[0]))
+
+    def _connect(self) -> sqlite3.Connection:
+        conn = sqlite3.connect(self._db_path, timeout=5)
+        conn.execute("PRAGMA journal_mode=WAL")
+        return conn
+
+    @contextmanager
+    def _transaction(self):
+        with closing(self._connect()) as conn, conn:
+            yield conn

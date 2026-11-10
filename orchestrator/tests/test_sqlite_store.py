@@ -1,0 +1,18 @@
+from factory.sqlite_store import SqliteTaskStore
+from factory.task import Task, TaskState
+
+
+def test_saved_task_with_every_field_set_loads_back_equal(tmp_path):
+    store = SqliteTaskStore(tmp_path / "factory.db")
+    task = Task(
+        id="t1", prompt="do it", state=TaskState.AUDITED, attempts=2, failure_reason="x",
+        denials=({"path": "/etc", "op": "read"},), worktree="/w", base_sha="abc",
+        audit_findings=("a", "b"), audited_sha="def", audit_error="e", goal="g", plan="p",
+        plan_risks=("r",), plan_digest="d", plan_error="pe", review_findings=("rf",),
+        review_error="re", retry_of="t0", fix_rounds_used=1, fix_in_flight=True,
+        fix_frozen_sha="fff", waived_findings=("w",), prior_audit_findings=("pa",),
+    )
+
+    store.save(task)
+
+    assert store.load("t1") == task

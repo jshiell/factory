@@ -24,6 +24,21 @@ class Listing:
     skipped: list[str]
 
 
+def task_to_dict(task: Task) -> dict:
+    data = asdict(task)
+    data["state"] = task.state.value
+    return data
+
+
+def task_from_dict(data: dict) -> Task:
+    data = dict(data)
+    data["state"] = TaskState(data["state"])
+    data["denials"] = tuple(data["denials"])
+    for field in ("audit_findings", "plan_risks", "review_findings", "waived_findings", "prior_audit_findings"):
+        data[field] = tuple(data.get(field, ()))
+    return Task(**data)
+
+
 def new_task_id(now: datetime, suffix: str = "") -> str:
     return f"{now:%Y%m%d-%H%M%S}" + (f"-{suffix}" if suffix else "")
 
@@ -45,14 +60,11 @@ class TaskStore:
         self._directory = directory
 
     def save(self, task: Task) -> None:
-        data = asdict(task)
-        data["state"] = task.state.value
-        self._write_atomically(self._path(task.id), json.dumps(data))
+        self._write_atomically(self._path(task.id), json.dumps(task_to_dict(task)))
 
     def create(self, task: Task) -> None:
         """Save a new task, never overwriting an existing one."""
-        data = asdict(task)
-        data["state"] = task.state.value
+        data = task_to_dict(task)
         path = self._path(task.id)
         fd, temp_name = tempfile.mkstemp(dir=path.parent, suffix=".tmp")
         try:
@@ -79,11 +91,7 @@ class TaskStore:
             data = json.loads(self._path(task_id).read_text())
         except FileNotFoundError:
             raise TaskNotFound(task_id) from None
-        data["state"] = TaskState(data["state"])
-        data["denials"] = tuple(data["denials"])
-        for field in ("audit_findings", "plan_risks", "review_findings", "waived_findings", "prior_audit_findings"):
-            data[field] = tuple(data.get(field, ()))
-        return Task(**data)
+        return task_from_dict(data)
 
     def _path(self, task_id: str) -> Path:
         require_safe_id(task_id)
