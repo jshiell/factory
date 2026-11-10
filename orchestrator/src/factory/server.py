@@ -23,6 +23,11 @@ from factory.worktrees import WorktreeManager
 from factory.retry_task import RetryRefused, retry_task
 from factory.clean_tasks import clean_candidates, clean_tasks, remove_orphan_caches
 from factory.gate_cache import orphan_caches
+from factory.audit_corpus import CASES as EVAL_CASES
+from factory.audit_eval import run_eval
+from factory.audit_report import exit_code as eval_exit_code, load_records, render
+from factory.cli import _new_eval_dir
+from factory.lock import state_lock
 from factory.job_store import Job, JobNotFound, JobStore
 from factory.ids import InvalidTaskId
 from factory.task import InvalidTransition, TaskState
@@ -246,6 +251,33 @@ def create_app(ctx) -> Starlette:
 
         return JSONResponse({"job": _job_json(runner.submit("clean", None, clean_now))}, status_code=202)
 
+    async def eval_audit(request: Request) -> JSONResponse:
+        body = await _json_object(request)
+        runs, max_usd, only = body.get("runs", 3), body.get("max_usd", 6.0), body.get("only")
+        if isinstance(runs, bool) or not isinstance(runs, int) or runs <= 0:
+            raise ApiError(422, "invalid input", "runs must be a positive integer")
+        if isinstance(max_usd, bool) or not isinstance(max_usd, (int, float)) or max_usd <= 0:
+            raise ApiError(422, "invalid input", "max_usd must be a positive number")
+        if only is not None:
+            only = list(_string_list(body, "only"))
+            unknown = [case_id for case_id in only if case_id not in {c.id for c in EVAL_CASES}]
+            if unknown:
+                raise ApiError(422, "invalid input", f"unknown case: {', '.join(unknown)}")
+        cases = [c for c in EVAL_CASES if not only or c.id in only]
+        evals_root = ctx.settings.state_dir / "evals"
+        eval_dir = _new_eval_dir(evals_root, ctx.clock)
+
+        def eval_now():
+            with state_lock(eval_dir):
+                ctx.reap(eval_dir)
+                complete = run_eval(eval_dir, cases, runs, ctx.eval_runner(ctx.settings, eval_dir), max_usd)
+            records = load_records(eval_dir)
+            return {"eval_dir": str(eval_dir), "complete": complete, "exit_code": eval_exit_code(records, runs, complete, cases),
+                    "report": render(records, cases)}
+
+        job = runner.submit("eval-audit", None, eval_now)
+        return JSONResponse({"job": _job_json(job), "eval_dir": str(eval_dir)}, status_code=202)
+
     async def list_jobs(request: Request) -> JSONResponse:
         return JSONResponse({"jobs": [_job_json(job) for job in jobs.list()]})
 
@@ -254,7 +286,8 @@ def create_app(ctx) -> Starlette:
 
     app = Starlette(
         lifespan=lifespan,
-        routes=[Route("/clean-preview", clean_preview, methods=["GET"]), Route("/clean", clean, methods=["POST"]),
+        routes=[Route("/eval-audit", eval_audit, methods=["POST"]),
+                Route("/clean-preview", clean_preview, methods=["GET"]), Route("/clean", clean, methods=["POST"]),
                 Route("/tasks/{task_id}/retry", retry, methods=["POST"]),
                 Route("/tasks/{task_id}/merge", merge, methods=["POST"]),
                 Route("/tasks/{task_id}/merge-preview", merge_preview_view, methods=["GET"]),
