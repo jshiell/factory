@@ -67,7 +67,8 @@ Task state is small, row-at-a-time, transactional, with a few writer threads. Th
   - C5 (red): `build_context` uses SQLite; existing `test_cli.py` passes unedited (if a test builds the file store directly it keeps doing so; any needed edit goes to you as an edit list first).
 - **Phase 2: service layer**
   - C6 (refactor, green): move read-only handlers' logic (`list`, `show`, `costs`) into `service` returning data; CLI handlers print it; `test_cli.py` byte-for-byte unchanged.
-  - C7+ (refactor, green, one per command): `approve`/`reject`, `retry`, `merge`, `recover`/`abandon`/`rebase`, `clean`. Each extracts preview building and orchestration; prompts stay in the CLI. Before each, grep `test_cli.py` for the exact strings it touches and list those tests in the commit message.
+  - C7 (done): `new`, `reject`, `approve` moved into `service` (approve's five `test_cli.py` patches and the approval tripwire retargeted to `service.py`, approved by the user).
+  - C7+ dropped (user decision): `retry`, `recover`, `abandon`, `rebase`, `merge`, `clean` already wrap domain functions with typed errors, so the CLI call sites and their `test_cli.py` patches stay. Phase 3 adds `service` functions only where the server needs data the CLI only prints (merge, retry and clean previews, the echoed digest/sha/token); endpoints call the domain functions through them.
 - **Phase 3: server, jobs**
   - C8 (red): `GET/POST` for `new`, `list`, `show` through `TestClient`, 404 on unknown id, error shape.
   - C9 (red): job table and executor: `advance` returns 202, job goes `queued` -> `running` -> `succeeded` with the `AdvanceResult` steps; a second job queues FIFO; `GET /jobs/{id}` unknown is 404. Stages are stubs; a job that raises an unexpected error is `failed` with its message (the worker survives).
