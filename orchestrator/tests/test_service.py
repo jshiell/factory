@@ -54,3 +54,22 @@ def test_create_task_stores_a_proposed_task_under_a_timestamp_id(store):
     assert task.id == "20260102-030405"
     assert store.load(task.id).goal == "add multiply"
     assert store.load(task.id).state is TaskState.PROPOSED
+
+
+def test_reject_plan_returns_a_reviewed_task_to_proposed(store):
+    store.save(Task(id="a", prompt="", state=TaskState.REVIEWED, plan="p"))
+
+    task = service.reject_plan(store, "a")
+
+    assert task.id == "a"
+    assert store.load("a").state is not TaskState.REVIEWED
+
+
+def test_reject_plan_on_a_task_not_reviewed_raises_with_the_task(store):
+    store.save(Task(id="a", prompt="", state=TaskState.PROPOSED))
+
+    with pytest.raises(service.NotReviewed) as raised:
+        service.reject_plan(store, "a")
+
+    assert raised.value.task.id == "a"
+    assert store.load("a").state is TaskState.PROPOSED

@@ -15,7 +15,7 @@ from factory.audit_gaps import gaps_to_carry, split_quoting_waived
 from factory.audit_corpus import CASES as EVAL_CASES, PROJECT_SUBDIR
 from factory.audit_eval import CorpusChanged, check_corpus, run_eval
 from factory.audit_report import exit_code as eval_exit_code, load_records, render
-from factory.approve_plan import approve_plan, reject_plan
+from factory.approve_plan import approve_plan
 from factory.abandon_task import AbandonRefused, abandon_task
 from factory.rebase_task import RebaseRefused, rebase_task
 from factory.clean_tasks import clean_candidates, clean_tasks, remove_orphan_caches
@@ -236,10 +236,10 @@ def _not_reviewed(task: Task, io) -> int:
 
 
 def _reject(args, io, ctx) -> int:
-    task = _load(ctx, args.task_id)
-    if task.state is not TaskState.REVIEWED:
-        return _not_reviewed(task, io)
-    reject_plan(args.task_id, ctx.store)
+    try:
+        task = service.reject_plan(ctx.store, args.task_id)
+    except service.NotReviewed as error:
+        return _not_reviewed(error.task, io)
     print(f"{task.id}: plan rejected", file=io.stdout)
     return 0
 

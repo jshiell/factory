@@ -4,8 +4,15 @@ from typing import NamedTuple
 from collections.abc import Callable
 from datetime import datetime
 
+from factory.approve_plan import reject_plan as reject_reviewed_plan
 from factory.store import Listing, create_with_fresh_id
 from factory.task import Task, TaskState
+
+
+class NotReviewed(Exception):
+    def __init__(self, task: Task):
+        super().__init__(f"{task.id} is {task.state.value}, not reviewed")
+        self.task = task
 
 
 class CostReport(NamedTuple):
@@ -40,3 +47,11 @@ def cost_report(store, ledger, task_id: str | None = None) -> CostReport:
         by_task[entry["task_id"]] += entry["cost_usd"]
     assumed = sum(e["cost_usd"] for e in entries if e.get("assumed"))
     return CostReport(dict(by_stage), dict(by_task), assumed, sum(e["cost_usd"] for e in entries))
+
+
+def reject_plan(store, task_id: str) -> Task:
+    task = store.load(task_id)
+    if task.state is not TaskState.REVIEWED:
+        raise NotReviewed(task)
+    reject_reviewed_plan(task_id, store)
+    return task
