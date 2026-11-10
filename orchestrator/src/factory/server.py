@@ -2,9 +2,10 @@ import hashlib
 import json
 import os
 import secrets
+import re
 import stat
-from pathlib import Path
 import subprocess
+from pathlib import Path
 from contextlib import asynccontextmanager, contextmanager
 from dataclasses import asdict
 
@@ -107,6 +108,15 @@ def _refusal_as(prefix: str, refused: type[Exception] | tuple[type[Exception], .
         except refused as error:
             raise RuntimeError(f"{prefix} refused: {error}") from None
     return wrapped
+
+
+_SAFE_EVAL_NAME = re.compile(r"[A-Za-z0-9_-]+")
+
+
+def _resumed_eval_dir(evals_root, name) -> Path:
+    if not isinstance(name, str) or not _SAFE_EVAL_NAME.fullmatch(name) or not (evals_root / name / "meta.json").is_file():
+        raise ApiError(422, "invalid input", "resume must name an earlier eval directory")
+    return evals_root / name
 
 
 def create_app(ctx) -> Starlette:
@@ -302,7 +312,7 @@ def create_app(ctx) -> Starlette:
                 raise ApiError(422, "invalid input", f"unknown case: {', '.join(unknown)}")
         cases = [c for c in EVAL_CASES if not only or c.id in only]
         evals_root = ctx.settings.state_dir / "evals"
-        eval_dir = evals_root / body["resume"] if "resume" in body else _new_eval_dir(evals_root, ctx.clock)
+        eval_dir = _resumed_eval_dir(evals_root, body["resume"]) if "resume" in body else _new_eval_dir(evals_root, ctx.clock)
 
         def eval_now():
             with state_lock(eval_dir):

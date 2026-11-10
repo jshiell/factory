@@ -79,3 +79,16 @@ def test_resuming_reuses_the_earlier_directory_and_reruns_nothing_valid(client, 
     assert job["state"] == "succeeded" and job["result"]["complete"] is True
     assert ctx.reap.calls == [ctx.settings.state_dir / "evals" / "20260102T030405"]
     assert len(list((ctx.settings.state_dir / "evals").iterdir())) == 1
+
+
+@pytest.mark.parametrize("resume", ["../evals", "a/b", "..", ".", "", "missing", 7, "no-meta"])
+def test_resuming_something_that_is_not_an_earlier_eval_is_422_and_runs_nothing(client, ctx, resume):
+    _first_eval(client)
+    (ctx.settings.state_dir / "evals" / "no-meta").mkdir()
+    ctx.built.clear()
+    ctx.reap.calls.clear()
+
+    response = client.post("/eval-audit", json={"runs": 1, "resume": resume})
+
+    assert response.status_code == 422 and "resume" in response.json()["detail"]
+    assert ctx.built == [] and ctx.reap.calls == []
