@@ -1,4 +1,5 @@
 import json
+import subprocess
 from contextlib import asynccontextmanager
 from dataclasses import asdict
 
@@ -11,9 +12,11 @@ from factory import service
 from factory.abandon_task import AbandonRefused, abandon_task
 from factory.advance import advance
 from factory.job_runner import JobRunner
+from factory.rebase_task import RebaseRefused, rebase_task
 from factory.recover_task import RecoverRefused, recover_task
 from factory.job_store import Job, JobNotFound, JobStore
 from factory.ids import InvalidTaskId
+from factory.task import InvalidTransition
 from factory.store import TaskNotFound, task_to_dict
 
 
@@ -65,7 +68,7 @@ def _task_result_json(task) -> dict:
     return {"state": task.state.value, "failure_reason": task.failure_reason}
 
 
-def _refusal_as(prefix: str, refused: type[Exception], run):
+def _refusal_as(prefix: str, refused: type[Exception] | tuple[type[Exception], ...], run):
     """Run `run`, turning the domain's refusal into the CLI's `<prefix> refused: <reason>` message."""
     def wrapped():
         try:
@@ -110,11 +113,11 @@ def create_app(ctx) -> Starlette:
         job = runner.submit("advance", task_id, lambda: _advance_result_json(advance(task_id, ctx.store, ctx.stages)))
         return JSONResponse({"job": _job_json(job)}, status_code=202)
 
-    def enqueue(request: Request, kind: str, refused: type[Exception], run_for) -> JSONResponse:
+    def enqueue(request: Request, kind: str, refused, run_for, to_json=_task_result_json) -> JSONResponse:
         """Queue `kind` for the path's task (404 now if unknown); the domain's refusal ends the job as failed."""
         task_id = request.path_params["task_id"]
         service.get_task(ctx.store, task_id)
-        run = _refusal_as(kind, refused, lambda: _task_result_json(run_for(task_id)))
+        run = _refusal_as(kind, refused, lambda: to_json(run_for(task_id)))
         return JSONResponse({"job": _job_json(runner.submit(kind, task_id, run))}, status_code=202)
 
     async def abandon(request: Request) -> JSONResponse:
@@ -124,6 +127,12 @@ def create_app(ctx) -> Starlette:
         return enqueue(request, "recover", RecoverRefused, lambda task_id: recover_task(
             task_id, ctx.store, ctx.ledger, ctx.settings.budget_usd))
 
+    async def rebase(request: Request) -> JSONResponse:
+        return enqueue(
+            request, "rebase", (RebaseRefused, InvalidTransition, subprocess.CalledProcessError),
+            lambda task_id: rebase_task(task_id, ctx.store, ctx.settings.repo),
+            lambda rebased: {**_task_result_json(rebased.task), "old_audited_sha": rebased.old_audited_sha})
+
     async def list_jobs(request: Request) -> JSONResponse:
         return JSONResponse({"jobs": [_job_json(job) for job in jobs.list()]})
 
@@ -132,7 +141,8 @@ def create_app(ctx) -> Starlette:
 
     app = Starlette(
         lifespan=lifespan,
-        routes=[Route("/tasks/{task_id}/recover", recover, methods=["POST"]),
+        routes=[Route("/tasks/{task_id}/rebase", rebase, methods=["POST"]),
+                Route("/tasks/{task_id}/recover", recover, methods=["POST"]),
                 Route("/tasks/{task_id}/abandon", abandon, methods=["POST"]),
                 Route("/tasks/{task_id}/advance", advance_task, methods=["POST"]),
                 Route("/jobs", list_jobs, methods=["GET"]), Route("/jobs/{job_id}", show_job, methods=["GET"]),

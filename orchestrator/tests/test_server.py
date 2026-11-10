@@ -5,6 +5,7 @@ import pytest
 from starlette.testclient import TestClient
 
 from factory.cli import Context
+from factory.rebase_task import Rebased
 from factory.server import create_app
 from factory.settings import Settings
 from factory.sqlite_ledger import SqliteLedger
@@ -179,3 +180,26 @@ def test_a_recover_the_domain_refuses_ends_as_a_failed_job_with_the_reason(clien
     app.state.runner.wait_idle()
     job = client.get(f"/jobs/{response.json()['job']['id']}").json()
     assert (job["state"], job["error"]) == ("failed", "recover refused: a is planned, not running")
+
+
+def test_rebase_on_a_task_in_the_wrong_state_ends_as_a_failed_job_with_the_reason(client, app, ctx):
+    ctx.store.save(Task(id="a", prompt="", state=TaskState.PLANNED))
+
+    response = client.post("/tasks/a/rebase")
+
+    app.state.runner.wait_idle()
+    job = client.get(f"/jobs/{response.json()['job']['id']}").json()
+    assert job["state"] == "failed"
+    assert job["error"].startswith("rebase refused: ")
+
+
+def test_rebase_reports_the_new_state_and_the_old_audited_commit(client, app, ctx, monkeypatch):
+    task = Task(id="a", prompt="", state=TaskState.AGENT_DONE)
+    ctx.store.save(task)
+    monkeypatch.setattr("factory.server.rebase_task", lambda *args: Rebased(task, "abc123"))
+
+    response = client.post("/tasks/a/rebase")
+
+    app.state.runner.wait_idle()
+    job = client.get(f"/jobs/{response.json()['job']['id']}").json()
+    assert job["result"] == {"state": "agent_done", "failure_reason": None, "old_audited_sha": "abc123"}
