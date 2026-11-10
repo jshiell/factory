@@ -1,3 +1,5 @@
+import sqlite3
+
 import pytest
 
 from factory.sqlite_store import SqliteTaskStore
@@ -58,3 +60,17 @@ def test_list_returns_tasks_sorted_by_id_and_an_empty_store_lists_nothing(tmp_pa
     listing = store.list()
 
     assert [t.id for t in listing.tasks] == ["a", "b", "c"] and listing.skipped == []
+
+
+def test_list_skips_and_reports_a_row_that_cannot_be_read(tmp_path):
+    db = tmp_path / "factory.db"
+    store = SqliteTaskStore(db)
+    store.save(Task(id="ok", prompt="p"))
+    with sqlite3.connect(db) as conn:  # simulates a damaged row; no public way to write one
+        conn.execute("INSERT INTO tasks (id, state, data) VALUES ('corrupt', 'queued', '{not json')")
+        conn.execute("INSERT INTO tasks (id, state, data) VALUES ('partial', 'queued', '{}')")
+
+    listing = store.list()
+
+    assert [t.id for t in listing.tasks] == ["ok"]
+    assert listing.skipped == ["corrupt", "partial"]

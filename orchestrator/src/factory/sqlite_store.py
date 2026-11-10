@@ -36,8 +36,14 @@ class SqliteTaskStore:
 
     def list(self) -> Listing:
         with self._transaction() as conn:
-            rows = conn.execute("SELECT data FROM tasks ORDER BY id").fetchall()
-        return Listing([task_from_dict(json.loads(data)) for (data,) in rows], [])
+            rows = conn.execute("SELECT id, data FROM tasks ORDER BY id").fetchall()
+        tasks, skipped = [], []
+        for task_id, data in rows:
+            try:
+                tasks.append(task_from_dict(json.loads(data)))
+            except (ValueError, KeyError, TypeError):
+                skipped.append(task_id)
+        return Listing(tasks, skipped)
 
     def load(self, task_id: str) -> Task:
         require_safe_id(task_id)
