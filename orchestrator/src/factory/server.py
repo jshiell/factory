@@ -19,6 +19,7 @@ from factory.rebase_task import RebaseRefused, rebase_task
 from factory.recover_task import RecoverRefused, recover_task
 from factory.merge_task import MergeRefused, merge_preview, merge_task
 from factory.worktrees import WorktreeManager
+from factory.retry_task import RetryRefused, retry_task
 from factory.job_store import Job, JobNotFound, JobStore
 from factory.ids import InvalidTaskId
 from factory.task import InvalidTransition, TaskState
@@ -199,6 +200,15 @@ def create_app(ctx) -> Starlette:
 
         return enqueue(request, "merge", (MergeRefused, InvalidTransition, subprocess.CalledProcessError), merge_now)
 
+    async def retry(request: Request) -> JSONResponse:
+        task_id = request.path_params["task_id"]
+        service.get_task(ctx.store, task_id)
+        try:
+            new = retry_task(task_id, ctx.store, ctx.clock)
+        except RetryRefused as error:
+            raise ApiError(409, "retry refused", str(error)) from None
+        return JSONResponse({"id": new.id}, status_code=201)
+
     async def list_jobs(request: Request) -> JSONResponse:
         return JSONResponse({"jobs": [_job_json(job) for job in jobs.list()]})
 
@@ -207,7 +217,8 @@ def create_app(ctx) -> Starlette:
 
     app = Starlette(
         lifespan=lifespan,
-        routes=[Route("/tasks/{task_id}/merge", merge, methods=["POST"]),
+        routes=[Route("/tasks/{task_id}/retry", retry, methods=["POST"]),
+                Route("/tasks/{task_id}/merge", merge, methods=["POST"]),
                 Route("/tasks/{task_id}/merge-preview", merge_preview_view, methods=["GET"]),
                 Route("/tasks/{task_id}/approval", approval_preview, methods=["GET"]),
                 Route("/tasks/{task_id}/approve", approve, methods=["POST"]),

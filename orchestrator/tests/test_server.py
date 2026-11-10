@@ -272,3 +272,27 @@ def test_reject_fails_a_reviewed_task_and_a_task_not_reviewed_is_409(client, ctx
     assert client.post("/tasks/a/reject").status_code == 200
     assert ctx.store.load("a").failure_reason == "plan_rejected_by_human"
     assert client.post("/tasks/a/reject").status_code == 409
+
+
+def test_retry_of_a_failed_task_creates_a_new_proposed_task_with_its_goal(client, ctx):
+    ctx.store.save(Task(id="old", prompt="", state=TaskState.FAILED, goal="add multiply"))
+
+    response = client.post("/tasks/old/retry")
+
+    assert response.status_code == 201
+    new = ctx.store.load(response.json()["id"])
+    assert (new.state, new.goal, new.retry_of) == (TaskState.PROPOSED, "add multiply", "old")
+
+
+def test_retry_of_a_task_that_is_not_failed_or_audited_is_409_and_creates_nothing(client, ctx):
+    ctx.store.save(Task(id="old", prompt="", state=TaskState.PROPOSED, goal="g"))
+
+    response = client.post("/tasks/old/retry")
+
+    assert response.status_code == 409
+    assert response.json()["error"] == "retry refused"
+    assert [t.id for t in ctx.store.list().tasks] == ["old"]
+
+
+def test_retry_of_an_unknown_task_is_404(client):
+    assert client.post("/tasks/nope/retry").status_code == 404
