@@ -15,7 +15,6 @@ from factory.audit_gaps import gaps_to_carry, split_quoting_waived
 from factory.audit_corpus import CASES as EVAL_CASES, PROJECT_SUBDIR
 from factory.audit_eval import CorpusChanged, check_corpus, run_eval
 from factory.audit_report import exit_code as eval_exit_code, load_records, render
-from factory.approve_plan import approve_plan
 from factory.abandon_task import AbandonRefused, abandon_task
 from factory.rebase_task import RebaseRefused, rebase_task
 from factory.clean_tasks import clean_candidates, clean_tasks, remove_orphan_caches
@@ -296,17 +295,16 @@ def _approve(args, io, ctx) -> int:
     if answered is None:
         return 1
     waived, _ = answered
-    kwargs = {"waived": waived} if waived else {}
     try:
-        approve_plan(task.id, ctx.store, plan_digest(task.plan), shown_findings=task.review_findings, **kwargs)
+        service.approve(ctx.store, task.id, plan_digest(task.plan), task.review_findings, waived)
     except InvalidWaiver as error:
         print(f"cannot waive: {escape_control(str(error))}; nothing approved", file=io.stderr)
         return 1
-    except ValueError:
+    except service.PlanChanged:
         print("plan changed since display; nothing approved", file=io.stderr)
         return 1
-    except InvalidTransition:
-        return _not_reviewed(ctx.store.load(task.id), io)
+    except service.NotReviewed as error:
+        return _not_reviewed(error.task, io)
     waived_note = f" ({len(waived)} required note{'s' if len(waived) != 1 else ''} waived)" if waived else ""
     print(f"{task.id}: approved and queued{waived_note}; run: factory advance {task.id}", file=io.stdout)
     return 0

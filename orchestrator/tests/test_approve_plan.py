@@ -74,7 +74,7 @@ def test_rejecting_fails_the_task_as_plan_rejected_by_human(store):
     assert store.load("t1") == task
 
 
-def test_tripwire_approval_is_only_wired_in_approve_plan_and_exactly_once_in_the_cli():
+def test_tripwire_approval_is_only_wired_in_approve_plan_and_exactly_once_in_the_service():
     """A tripwire, not a guarantee: 'human-only' is enforced by process (see plans 4 and 5)."""
     source = Path(__file__).parent.parent / "src" / "factory"
     calls = {
@@ -88,7 +88,7 @@ def test_tripwire_approval_is_only_wired_in_approve_plan_and_exactly_once_in_the
         if path.name not in ("approve_plan.py", "task.py") and "Event.APPROVED" in path.read_text()
     ]
 
-    assert {name: count for name, count in calls.items() if count} == {"cli.py": 1}
+    assert {name: count for name, count in calls.items() if count} == {"service.py": 1}
     assert event_users == []
 
 

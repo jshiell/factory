@@ -243,7 +243,7 @@ def reviewed(ctx, plan=PLAN):
 @pytest.fixture
 def approve_spy(monkeypatch):
     calls = []
-    monkeypatch.setattr("factory.cli.approve_plan", lambda *a, **k: calls.append(a))
+    monkeypatch.setattr("factory.service.approve_plan", lambda *a, **k: calls.append(a))
     return calls
 
 
@@ -268,7 +268,7 @@ def test_approve_displays_goal_plan_risks_and_findings_then_approves_on_y(ctx, a
 
 def test_approve_passes_the_findings_it_displayed(ctx, monkeypatch):
     kwargs = []
-    monkeypatch.setattr("factory.cli.approve_plan", lambda *a, **k: kwargs.append(k))
+    monkeypatch.setattr("factory.service.approve_plan", lambda *a, **k: kwargs.append(k))
     reviewed(ctx)
 
     run(ctx, "approve", "t1", stdin="y\n")
@@ -310,7 +310,7 @@ def test_a_digest_mismatch_exits_1_saying_the_plan_changed(ctx, monkeypatch):
     def mismatch(*a, **k):
         raise ValueError("plan digest mismatch")
 
-    monkeypatch.setattr("factory.cli.approve_plan", mismatch)
+    monkeypatch.setattr("factory.service.approve_plan", mismatch)
 
     code, _, err = run(ctx, "approve", "t1", stdin="y\n")
 
@@ -1224,7 +1224,7 @@ def test_approve_without_a_required_note_shows_no_numbers_and_no_waive_offer(ctx
 @pytest.fixture
 def approve_kwargs(monkeypatch):
     calls = []
-    monkeypatch.setattr("factory.cli.approve_plan", lambda *a, **k: calls.append(k))
+    monkeypatch.setattr("factory.service.approve_plan", lambda *a, **k: calls.append(k))
     return calls
 
 
@@ -1297,7 +1297,7 @@ def test_an_invalid_waiver_from_approve_is_reported_as_such_not_as_a_changed_pla
     def refuse(*args, **kwargs):
         raise InvalidWaiver("only a required note can be waived: x")
 
-    monkeypatch.setattr("factory.cli.approve_plan", refuse)
+    monkeypatch.setattr("factory.service.approve_plan", refuse)
     reviewed_with_notes(ctx, REQ1)
 
     code, _, err = run(ctx, "approve", "t1", stdin="w 1\ny\n")

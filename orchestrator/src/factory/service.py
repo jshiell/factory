@@ -4,15 +4,20 @@ from typing import NamedTuple
 from collections.abc import Callable
 from datetime import datetime
 
-from factory.approve_plan import reject_plan as reject_reviewed_plan
+from factory.approve_plan import approve_plan, reject_plan as reject_reviewed_plan
 from factory.store import Listing, create_with_fresh_id
-from factory.task import Task, TaskState
+from factory.task import InvalidTransition, Task, TaskState
+from factory.waiver import InvalidWaiver
 
 
 class NotReviewed(Exception):
     def __init__(self, task: Task):
         super().__init__(f"{task.id} is {task.state.value}, not reviewed")
         self.task = task
+
+
+class PlanChanged(Exception):
+    """The plan or review notes differ from what the approver was shown."""
 
 
 class CostReport(NamedTuple):
@@ -55,3 +60,16 @@ def reject_plan(store, task_id: str) -> Task:
         raise NotReviewed(task)
     reject_reviewed_plan(task_id, store)
     return task
+
+
+def approve(store, task_id: str, shown_digest: str, shown_findings: tuple[str, ...], waived: tuple[str, ...] = ()) -> Task:
+    """Queue a reviewed task whose plan and notes match what the approver was shown."""
+    kwargs = {"waived": waived} if waived else {}
+    try:
+        return approve_plan(task_id, store, shown_digest, shown_findings=shown_findings, **kwargs)
+    except InvalidTransition:
+        raise NotReviewed(store.load(task_id)) from None
+    except InvalidWaiver:
+        raise
+    except ValueError as error:
+        raise PlanChanged(str(error)) from None

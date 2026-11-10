@@ -3,6 +3,7 @@ from datetime import datetime
 import pytest
 
 from factory import service
+from factory.digest import plan_digest
 from factory.sqlite_ledger import SqliteLedger
 from factory.sqlite_store import SqliteTaskStore
 from factory.store import TaskNotFound
@@ -73,3 +74,35 @@ def test_reject_plan_on_a_task_not_reviewed_raises_with_the_task(store):
 
     assert raised.value.task.id == "a"
     assert store.load("a").state is TaskState.PROPOSED
+
+
+def reviewed(store, plan="1. do it"):
+    task = Task(id="a", prompt="", state=TaskState.REVIEWED, goal="g", plan=plan, plan_digest=plan_digest(plan),
+                review_findings=("note",))
+    store.save(task)
+    return task
+
+
+def test_approve_queues_a_reviewed_task_whose_digest_was_shown(store):
+    task = reviewed(store)
+
+    approved = service.approve(store, "a", plan_digest(task.plan), task.review_findings)
+
+    assert approved.state is TaskState.QUEUED
+    assert store.load("a").state is TaskState.QUEUED
+
+
+def test_approve_with_a_stale_digest_raises_plan_changed_and_changes_nothing(store):
+    task = reviewed(store)
+
+    with pytest.raises(service.PlanChanged):
+        service.approve(store, "a", plan_digest("another plan"), task.review_findings)
+
+    assert store.load("a").state is TaskState.REVIEWED
+
+
+def test_approve_on_a_task_not_reviewed_raises_not_reviewed(store):
+    store.save(Task(id="a", prompt="", state=TaskState.PROPOSED))
+
+    with pytest.raises(service.NotReviewed):
+        service.approve(store, "a", plan_digest(""), ())
