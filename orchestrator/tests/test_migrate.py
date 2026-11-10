@@ -57,3 +57,16 @@ def test_migrate_refuses_a_database_that_already_has_data_and_changes_nothing(tm
 
     assert [t.id for t in new_store.list().tasks] == (["z"] if already == "task" else [])
     assert len(new_ledger.entries()) == (1 if already == "ledger" else 0)
+
+
+def test_guard_unreadable_task_files_are_reported_and_the_old_files_stay(tmp_path):
+    # guard (green on arrival): the file store's list already skips and names them
+    old_store, old_ledger = old_state(tmp_path)
+    (tmp_path / "tasks" / "corrupt.json").write_text("{not json")
+    new_store = SqliteTaskStore(tmp_path / "factory.db")
+
+    report = migrate(old_store, old_ledger, new_store, SqliteLedger(tmp_path / "factory.db"))
+
+    assert report.skipped == ["corrupt.json"] and report.tasks == 2
+    assert sorted(p.name for p in (tmp_path / "tasks").iterdir()) == ["a.json", "b.json", "corrupt.json"]
+    assert (tmp_path / "ledger.jsonl").exists()
