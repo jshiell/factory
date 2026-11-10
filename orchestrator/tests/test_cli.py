@@ -953,16 +953,16 @@ def test_bad_options_are_usage_errors_and_nothing_runs(ctx, evals, args, message
     assert code == 2 and message in err and runner.seen == [] and eval_dirs(ctx) == []
 
 
-def test_resuming_is_not_offered_through_the_server_and_nothing_runs(ctx, evals):
+def test_resuming_continues_the_earlier_directory_through_the_server(ctx, evals):
     evals(LabelRunner())
     run(ctx, "eval-audit", "--runs", "1", "--only", "case-01")
     (eval_dir,) = eval_dirs(ctx)
     runner = LabelRunner()
     evals(runner)
 
-    code, _, err = run(ctx, "eval-audit", "--runs", "1", "--resume", str(eval_dir))
+    code, out, _ = run(ctx, "eval-audit", "--runs", "1", "--only", "case-01", "--resume", str(eval_dir))
 
-    assert code == 2 and "--resume" in err and "server" in err and runner.seen == []
+    assert code == 0 and str(eval_dir) in out and runner.seen == [] and eval_dirs(ctx) == [eval_dir]
 
 
 def test_a_bad_case_judged_pass_exits_one(ctx, evals):
