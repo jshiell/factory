@@ -1,6 +1,6 @@
 import os
 
-from factory.process_registry import InvalidRecord, Record, reap_orphans
+from factory.process_registry import InvalidRecord, Record, Tracker, reap_orphans
 from factory.sqlite_process_records import SqliteProcessRecords
 
 
@@ -41,4 +41,13 @@ def test_reap_orphans_kills_a_live_orphan_and_discards_invalid_rows_from_the_tab
 
     assert killed == [4242]
     assert [r.pid for r in result.killed] == [4242] and len(result.discarded) == 1
+    assert records.load() == []
+
+
+def test_a_tracker_records_the_group_only_while_the_block_runs(tmp_path):
+    records = SqliteProcessRecords(tmp_path / "factory.db")
+
+    with Tracker(records, "t1", "implement").launched(4242, 100.0, 100.5):
+        assert records.load() == [record()]
+
     assert records.load() == []

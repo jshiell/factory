@@ -179,12 +179,12 @@ class Tracker:
     """Records a launched process group for as long as the `with` block runs, so a later command can find an orphan."""
 
     def __init__(self, state_dir, task_id: str, stage: str):
-        self._state_dir, self._task_id, self._stage = state_dir, task_id, stage
+        self._records, self._task_id, self._stage = as_records(state_dir), task_id, stage
 
     @contextmanager
     def launched(self, pid: int, launched_after: float, launched_before: float):
-        write_record(self._state_dir, Record(pid, pid, self._task_id, self._stage, launched_after, launched_before))
+        self._records.write(Record(pid, pid, self._task_id, self._stage, launched_after, launched_before))
         try:
             yield
         finally:
-            _record_path(self._state_dir, pid).unlink(missing_ok=True)
+            self._records.remove(pid)
