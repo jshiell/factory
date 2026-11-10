@@ -30,3 +30,18 @@ def test_post_tasks_creates_a_proposed_task_and_returns_its_id(client, ctx):
     assert response.status_code == 201
     assert response.json() == {"id": "20260102-030405"}
     assert ctx.store.load("20260102-030405").goal == "add multiply"
+
+
+@pytest.mark.parametrize("body", [{}, {"goal": ""}, {"goal": 5}, [], "text"])
+def test_post_tasks_without_a_goal_string_is_422_and_creates_nothing(client, ctx, body):
+    response = client.post("/tasks", json=body)
+
+    assert response.status_code == 422
+    assert response.json()["error"] == "invalid input"
+    assert ctx.store.list().tasks == []
+
+
+def test_post_tasks_with_a_body_that_is_not_json_is_422(client):
+    response = client.post("/tasks", content=b"{nope", headers={"content-type": "application/json"})
+
+    assert response.status_code == 422
