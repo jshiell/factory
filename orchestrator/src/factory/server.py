@@ -1,5 +1,9 @@
 import hashlib
 import json
+import os
+import secrets
+import stat
+from pathlib import Path
 import subprocess
 from contextlib import asynccontextmanager
 from dataclasses import asdict
@@ -337,3 +341,68 @@ def create_app(ctx) -> Starlette:
     )
     app.state.runner = runner
     return app
+
+
+class TokenFileUnsafe(Exception):
+    pass
+
+
+def load_or_create_token(state_dir) -> str:
+    """The bearer token in `state_dir/token`: created once with mode 0600, refused if anyone else can read it."""
+    path = Path(state_dir) / "token"
+    try:
+        descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    except FileExistsError:
+        if stat.S_IMODE(os.stat(path).st_mode) & 0o077:
+            raise TokenFileUnsafe(f"{path} is readable by others; chmod 600 it or delete it") from None
+        return path.read_text().strip()
+    token = secrets.token_urlsafe(32)
+    with os.fdopen(descriptor, "w") as token_file:
+        token_file.write(token)
+    return token
+
+
+_LOOPBACK_HOSTS = {"127.0.0.1", "localhost", "[::1]"}
+
+
+def _host_name(host: str) -> str:
+    if host.startswith("["):  # a bracketed IPv6 literal, with or without a port
+        return host[:host.find("]") + 1]
+    return host.partition(":")[0]
+
+
+class _Guard:
+    """Pure ASGI gate: loopback Host (DNS rebinding), no Origin (browsers), then the bearer token."""
+
+    def __init__(self, app, token: str):
+        self._app, self._token = app, token
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            await self._app(scope, receive, send)
+            return
+        headers = {name.decode("latin-1").lower(): value.decode("latin-1") for name, value in scope["headers"]}
+        refusal = self._refusal(headers)
+        if refusal:
+            await refusal(scope, receive, send)
+            return
+        await self._app(scope, receive, send)
+
+    def _refusal(self, headers):
+        if _host_name(headers.get("host", "")) not in _LOOPBACK_HOSTS:
+            return JSONResponse({"error": "forbidden", "detail": "host must be loopback"}, status_code=403)
+        if "origin" in headers:
+            return JSONResponse({"error": "forbidden", "detail": "browser requests are not accepted"}, status_code=403)
+        scheme, _, presented = headers.get("authorization", "").partition(" ")
+        if scheme != "Bearer" or not presented or not secrets.compare_digest(presented.encode(), self._token.encode()):
+            return JSONResponse({"error": "unauthorized", "detail": "bearer token required"}, status_code=401,
+                                headers={"WWW-Authenticate": "Bearer"})
+        return None
+
+
+def create_secured_app(ctx, token: str):
+    """The app `factory serve` runs: every request needs the token, a loopback Host and no Origin."""
+    app = create_app(ctx)
+    guarded = _Guard(app, token)
+    guarded.state = app.state
+    return guarded
