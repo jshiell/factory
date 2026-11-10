@@ -39,7 +39,7 @@ from factory.runner import SubprocessRunner
 from factory.settings import Settings, SettingsError, load_settings
 from factory.stages import Deps, build_stages
 from factory.step import Runner
-from factory.store import TaskNotFound, TaskStore, create_with_fresh_id
+from factory.store import TaskNotFound, TaskStore
 from factory.task import InvalidTransition, Task, TaskState
 from factory.waiver import InvalidWaiver, Refuse, Reinstate, Waive, approval_prompt, note_lines, parse_answer
 from factory.worktrees import WorktreeManager
@@ -157,9 +157,7 @@ def _load(ctx: Context, task_id: str) -> Task:
 
 def _new(args, io, ctx) -> int:
     ctx.settings.tasks_dir.mkdir(parents=True, exist_ok=True)
-    task = create_with_fresh_id(
-        ctx.store, ctx.clock, lambda task_id: Task(id=task_id, prompt="", state=TaskState.PROPOSED, goal=args.goal)
-    )
+    task = service.create_task(ctx.store, ctx.clock, args.goal)
     print(task.id, file=io.stdout)
     return 0
 

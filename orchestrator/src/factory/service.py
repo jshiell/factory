@@ -1,8 +1,11 @@
 from collections import defaultdict
 from typing import NamedTuple
 
-from factory.store import Listing
-from factory.task import Task
+from collections.abc import Callable
+from datetime import datetime
+
+from factory.store import Listing, create_with_fresh_id
+from factory.task import Task, TaskState
 
 
 class CostReport(NamedTuple):
@@ -10,6 +13,12 @@ class CostReport(NamedTuple):
     by_task: dict[str, float]
     assumed: float
     total: float
+
+
+def create_task(store, clock: Callable[[], datetime], goal: str) -> Task:
+    return create_with_fresh_id(
+        store, clock, lambda task_id: Task(id=task_id, prompt="", state=TaskState.PROPOSED, goal=goal)
+    )
 
 
 def list_tasks(store) -> Listing:

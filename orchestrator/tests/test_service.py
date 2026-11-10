@@ -1,3 +1,5 @@
+from datetime import datetime
+
 import pytest
 
 from factory import service
@@ -44,3 +46,11 @@ def test_cost_report_for_one_task_counts_only_its_entries(store, ledger):
 def test_cost_report_for_an_unknown_task_raises_not_found(store, ledger):
     with pytest.raises(TaskNotFound):
         service.cost_report(store, ledger, "nope")
+
+
+def test_create_task_stores_a_proposed_task_under_a_timestamp_id(store):
+    task = service.create_task(store, lambda: datetime(2026, 1, 2, 3, 4, 5), "add multiply")
+
+    assert task.id == "20260102-030405"
+    assert store.load(task.id).goal == "add multiply"
+    assert store.load(task.id).state is TaskState.PROPOSED
