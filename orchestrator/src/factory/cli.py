@@ -9,13 +9,11 @@ from types import SimpleNamespace
 
 import httpx
 from factory.textsafe import escape_control  # noqa: F401  (re-exported)
-from factory.advance import advance
 from factory.client import ServerClient, ServerRefused, ServerUnreachable
 from factory.audit_compare import compare, find_previous
 from factory.audit_gaps import split_quoting_waived
 from factory.audit_corpus import CASES as EVAL_CASES, PROJECT_SUBDIR
 from factory.audit_eval import check_corpus
-from factory.digest import plan_digest
 from factory.gate import check_gate
 from factory.ids import InvalidTaskId, require_safe_id
 from factory.ledger import Ledger
@@ -65,8 +63,8 @@ def _serve_with_uvicorn(app, host: str, port: int) -> None:
 @dataclass
 class Context:
     settings: Settings
-    store: TaskStore
-    ledger: Ledger
+    store: TaskStore | SqliteTaskStore
+    ledger: Ledger | SqliteLedger
     stages: dict
     clock: Callable[[], datetime] = datetime.now
     reap: Callable[[Path], ReapResult] = _reap_with_the_real_process_table
