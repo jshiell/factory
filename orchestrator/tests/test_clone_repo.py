@@ -21,3 +21,24 @@ def test_the_github_ssh_form_keeps_ssh_in_the_canonical_url(spec):
 def test_names_that_could_escape_the_home_or_pose_as_options_are_refused(spec):
     with pytest.raises(RepositoryError):
         parse_repository(spec)
+
+
+@pytest.mark.parametrize(
+    "spec",
+    [
+        "https://gitlab.com/owner/repo",
+        "http://github.com/owner/repo",
+        "https://user:pw@github.com/owner/repo",
+        "https://github.com/owner/repo/extra",
+        "owner/repo/extra",
+        "ssh://git@github.com/owner/repo",
+        "owner/re po",
+        "owner/repo;x",
+        "owner/",
+        "repo",
+        "",
+    ],
+)
+def test_anything_but_a_plain_github_repository_is_refused(spec):
+    with pytest.raises(RepositoryError):
+        parse_repository(spec)
