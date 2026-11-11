@@ -110,7 +110,13 @@ runner_timeout_s = 300
 claude_executable = "claude"
 sandbox_executable = "nono"
 allowed_tools = []
+append_system_prompt = "..."   # optional; appended to every stage's system prompt
+
+[stage_prompts]                # optional; appended for that stage only (plan, review, implement, audit)
+implement = "..."              # also reaches the fixer, which runs as the implementer
 ```
+
+Appended text follows the built-in prompt: built-in, then `append_system_prompt`, then the stage's entry, separated by blank lines. Values must be non-empty strings; an unknown stage name is an error. `eval-audit` ignores both, so its runs stay comparable.
 
 ## Design
 
