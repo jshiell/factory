@@ -126,7 +126,7 @@ def test_old_file_records_stop_the_start_and_leave_jobs_alone_until_migrated(ctx
     (ctx.settings.state_dir / "procs").mkdir()
     (ctx.settings.state_dir / "procs" / leftover).write_text("{}")
 
-    with pytest.raises(StartRefused, match="factory migrate"):
+    with pytest.raises(StartRefused, match="`factory migrate` first; nothing changed"):
         with claim_state_dir(ctx):
             pass
 
