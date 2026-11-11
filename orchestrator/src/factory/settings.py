@@ -31,6 +31,7 @@ class Settings:
     stage_prompts: dict[str, str] = field(default_factory=dict)
     plugins: tuple[str, ...] = ()
     plugin_dirs: tuple[Path, ...] = ()
+    stage_plugins: dict[str, tuple[str, ...]] = field(default_factory=dict)
 
     @property
     def ledger_path(self) -> Path:
@@ -56,7 +57,7 @@ _STAGES = ("plan", "review", "implement", "audit")
 _FLOAT_KEYS = ("cap_usd", "gate_timeout_s", "runner_timeout_s", "budget_usd")
 _STRING_LIST_KEYS = ("test_argv", "allowed_tools", "plugins")
 _INT_KEYS = ("max_turns", "fix_rounds", "server_port")
-_KNOWN = _PATH_KEYS + _STRING_KEYS + _PROMPT_KEYS + ("stage_prompts",) + _FLOAT_KEYS + _STRING_LIST_KEYS + _INT_KEYS
+_KNOWN = _PATH_KEYS + _STRING_KEYS + _PROMPT_KEYS + ("stage_prompts", "stage_plugins") + _FLOAT_KEYS + _STRING_LIST_KEYS + _INT_KEYS
 
 
 def load_settings(path: Path | None, cwd: Path) -> Settings:
@@ -175,6 +176,12 @@ def _typed(key: str, value):
             isinstance(text, str) and text for text in value.values()
         ):
             return dict(value)
+    elif key == "stage_plugins":
+        if isinstance(value, dict) and set(value) <= set(_STAGES) and all(
+            isinstance(names, list) and names and all(isinstance(name, str) for name in names) and _plugin_names_ok(names)
+            for names in value.values()
+        ):
+            return {stage: tuple(names) for stage, names in value.items()}
     elif key in _PATH_KEYS or key in _STRING_KEYS:
         if isinstance(value, str):
             return value

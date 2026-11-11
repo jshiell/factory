@@ -418,3 +418,34 @@ def test_a_missing_plugin_directory_is_an_error_naming_it(repo_dir, global_confi
 
     with pytest.raises(SettingsError, match="nope"):
         load_settings(None, cwd=repo_dir)
+
+
+def make_plugins(home, *names):
+    for name in names:
+        (home / ".harness" / "_shared" / "plugins" / name).mkdir(parents=True, exist_ok=True)
+
+
+def test_stage_plugins_default_to_empty_and_can_be_set_per_stage(repo_dir, isolated_home):
+    assert load_settings(None, cwd=repo_dir).stage_plugins == {}
+    make_plugins(isolated_home, "a", "b", "c")
+    (repo_dir / "factory.toml").write_text('[stage_plugins]\nreview = ["a", "b"]\naudit = ["c"]\n')
+
+    assert load_settings(None, cwd=repo_dir).stage_plugins == {"review": ("a", "b"), "audit": ("c",)}
+
+
+@pytest.mark.parametrize(
+    "toml",
+    [
+        'stage_plugins = "x"',
+        '[stage_plugins]\nbogus = ["a"]',
+        "[stage_plugins]\nreview = []",
+        '[stage_plugins]\nreview = "a"',
+        '[stage_plugins]\nreview = ["../x"]',
+        '[stage_plugins]\nreview = ["a", "a"]',
+    ],
+)
+def test_bad_stage_plugins_are_rejected_naming_the_key(repo_dir, toml):
+    (repo_dir / "factory.toml").write_text(toml + "\n")
+
+    with pytest.raises(SettingsError, match="wrong type for setting: stage_plugins"):
+        load_settings(None, cwd=repo_dir)
