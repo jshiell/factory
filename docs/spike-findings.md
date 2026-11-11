@@ -447,3 +447,7 @@ Run by hand with `nolabs-ai/claude`, throwaway repo, worktree at `~/.harness/spi
 - Agent-style run (`--allow-cwd --read <wt> --allow <wt>`): write inside the worktree succeeded.
 - Gate-style run from `<wt>/target` (`--allow <state>/gate-cache/t1`, `UV_CACHE_DIR` under it): `uv run pytest -q` created its venv and passed.
 - Not covered: a real `claude` agent run.
+
+### Plan 36: HOME edge cases (run in Python 3.14, 2026-11-11)
+- `HOME` unset: `Path.home()` and `Path("~/x").expanduser()` fall back to the user database (`/Users/<user>`); nothing raises, so no handling is needed.
+- `HOME=""`: both return `/` (`/x` for `~/x`). The default home rejects this with `SettingsError`; `~` in config paths is not guarded.
