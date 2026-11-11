@@ -125,3 +125,21 @@ def test_an_existing_target_is_refused_and_left_untouched(github, harness):
     assert out == ""
     assert err == f"{harness / 'r' / 'repo'} already exists; not overwriting\n"
     assert [p.name for p in (harness / "r" / "repo").iterdir()] == ["mine.txt"]
+
+
+def test_a_failed_clone_exits_1_and_leaves_nothing_it_created(github, harness):
+    code, _, _ = run_clone("o/missing")
+
+    assert code == 1
+    assert not harness.exists()
+
+
+def test_a_failed_clone_keeps_what_was_already_in_the_project_directory(github, harness):
+    (harness / "r" / "state").mkdir(parents=True)
+    (harness / "r" / "state" / "x").write_text("keep")
+
+    code, _, _ = run_clone("missing/r")
+
+    assert code == 1
+    assert not (harness / "r" / "repo").exists()
+    assert (harness / "r" / "state" / "x").read_text() == "keep"

@@ -1,5 +1,6 @@
 import re
 import subprocess
+from pathlib import Path
 
 from factory.settings import harness_home
 
@@ -36,6 +37,23 @@ def clone_repository(spec: str, io) -> int:
     if destination.exists():
         print(f"{destination} already exists; not overwriting", file=io.stderr)
         return 1
-    subprocess.run(["git", "clone", "--", url, str(destination)], stdin=subprocess.DEVNULL, check=True)
+    created = _missing_ancestors(destination)
+    completed = subprocess.run(["git", "clone", "--", url, str(destination)], stdin=subprocess.DEVNULL)
+    if completed.returncode != 0:
+        for directory in created:
+            _remove_if_empty(directory)
+        return 1
     print(f"cloned {url} into {destination}", file=io.stdout)
     return 0
+
+
+def _missing_ancestors(path: Path) -> list[Path]:
+    """The directories above path that do not exist yet, deepest first."""
+    return [parent for parent in path.parents if not parent.exists()]
+
+
+def _remove_if_empty(directory: Path) -> None:
+    try:
+        directory.rmdir()
+    except OSError:
+        pass
