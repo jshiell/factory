@@ -1,3 +1,4 @@
+import os
 import subprocess
 import tomllib
 from dataclasses import dataclass, replace
@@ -64,12 +65,18 @@ def load_settings(path: Path | None, cwd: Path) -> Settings:
         if key in typed:
             typed[key] = base / _expanded(key, typed[key])
     repo = typed.pop("repo", None) or _git_toplevel(cwd)
-    home = typed.pop("home", None)
+    configured_home = typed.pop("home", None)
+    home = _environment_home() or configured_home
     state_dir = typed.pop("state_dir", None) or _project_dir(repo, home) / "state"
     worktree_root = typed.pop("worktree_root", None) or _project_dir(repo, home) / "worktrees"
     settings = replace(Settings(repo, state_dir, worktree_root), **typed)
     _check_project_subdir(settings.project_subdir)
     return settings
+
+
+def _environment_home() -> Path | None:
+    value = os.environ.get("FACTORY_HOME")
+    return Path(value) if value else None
 
 
 def _expanded(key: str, value: str) -> Path:

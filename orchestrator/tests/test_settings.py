@@ -200,3 +200,14 @@ def test_a_tilde_in_state_dir_and_worktree_root_expands(tmp_path, repo_dir, isol
     settings = load_settings(config, cwd=tmp_path)
 
     assert (settings.state_dir, settings.worktree_root) == (isolated_home / "s", isolated_home / "w")
+
+
+def test_factory_home_beats_the_home_in_the_config(tmp_path, repo_dir, monkeypatch):
+    env_home = tmp_path / "env-home"
+    monkeypatch.setenv("FACTORY_HOME", str(env_home))
+    config = tmp_path / "factory.toml"
+    config.write_text(f'repo = "{repo_dir}"\nhome = "h"\n')
+
+    settings = load_settings(config, cwd=tmp_path)
+
+    assert settings.state_dir == env_home / "repo" / "state"
