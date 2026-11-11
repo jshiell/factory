@@ -76,7 +76,12 @@ def load_settings(path: Path | None, cwd: Path) -> Settings:
 
 def _environment_home() -> Path | None:
     value = os.environ.get("FACTORY_HOME")
-    return Path(value) if value else None
+    if not value:
+        return None
+    path = Path(value)
+    if not path.is_absolute():
+        raise SettingsError("FACTORY_HOME must be an absolute path")
+    return path
 
 
 def _expanded(key: str, value: str) -> Path:

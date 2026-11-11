@@ -211,3 +211,18 @@ def test_factory_home_beats_the_home_in_the_config(tmp_path, repo_dir, monkeypat
     settings = load_settings(config, cwd=tmp_path)
 
     assert settings.state_dir == env_home / "repo" / "state"
+
+
+def test_an_empty_factory_home_is_ignored(repo_dir, isolated_home, monkeypatch):
+    monkeypatch.setenv("FACTORY_HOME", "")
+
+    settings = load_settings(None, cwd=repo_dir)
+
+    assert settings.state_dir == isolated_home / ".harness" / "repo" / "state"
+
+
+def test_a_relative_factory_home_is_rejected_naming_the_variable(repo_dir, monkeypatch):
+    monkeypatch.setenv("FACTORY_HOME", "relative/dir")
+
+    with pytest.raises(SettingsError, match="FACTORY_HOME"):
+        load_settings(None, cwd=repo_dir)
