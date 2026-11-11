@@ -23,19 +23,20 @@ def repo_dir(tmp_path):
     return repo
 
 
-def test_defaults_come_from_the_git_toplevel_of_the_cwd(repo_dir):
+def test_defaults_come_from_the_git_toplevel_and_the_harness_home(repo_dir, isolated_home):
     (repo_dir / "sub").mkdir()
 
     settings = load_settings(None, cwd=repo_dir / "sub")
 
     assert settings.repo == repo_dir
-    assert settings.state_dir == repo_dir / ".factory"
-    assert settings.worktree_root == repo_dir / ".worktrees"
+    project = isolated_home / ".harness" / "repo"
+    assert settings.state_dir == project / "state"
+    assert settings.worktree_root == project / "worktrees"
     assert settings.project_subdir == "target"
     assert settings.test_argv == ("uv", "run", "pytest", "-q")
     assert settings.claude_executable == "claude"
-    assert settings.ledger_path == repo_dir / ".factory" / "ledger.jsonl"
-    assert settings.tasks_dir == repo_dir / ".factory" / "tasks"
+    assert settings.ledger_path == project / "state" / "ledger.jsonl"
+    assert settings.tasks_dir == project / "state" / "tasks"
 
 
 def test_outside_a_git_repository_without_a_configured_repo_is_an_error(tmp_path):

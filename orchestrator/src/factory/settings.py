@@ -64,11 +64,15 @@ def load_settings(path: Path | None, cwd: Path) -> Settings:
         if key in typed:
             typed[key] = base / typed[key]
     repo = typed.pop("repo", None) or _git_toplevel(cwd)
-    state_dir = typed.pop("state_dir", repo / ".factory")
-    worktree_root = typed.pop("worktree_root", repo / ".worktrees")
+    state_dir = typed.pop("state_dir", None) or _project_dir(repo) / "state"
+    worktree_root = typed.pop("worktree_root", None) or _project_dir(repo) / "worktrees"
     settings = replace(Settings(repo, state_dir, worktree_root), **typed)
     _check_project_subdir(settings.project_subdir)
     return settings
+
+
+def _project_dir(repo: Path) -> Path:
+    return Path.home() / ".harness" / repo.resolve().name
 
 
 def _read(path: Path) -> dict:
