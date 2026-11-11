@@ -496,6 +496,17 @@ def test_a_plugin_with_hooks_or_mcp_servers_is_refused_naming_it(repo_dir, isola
         load_settings(None, cwd=repo_dir)
 
 
+def test_a_plugin_with_an_unreadable_manifest_is_refused(repo_dir, isolated_home):
+    make_plugins(isolated_home, "bad")
+    plugin = isolated_home / ".harness" / "_shared" / "plugins" / "bad"
+    (plugin / ".claude-plugin").mkdir()
+    (plugin / ".claude-plugin" / "plugin.json").write_text("{not json")
+    (repo_dir / "factory.toml").write_text('plugins = ["bad"]\n')
+
+    with pytest.raises(SettingsError, match="bad.*plugin.json"):
+        load_settings(None, cwd=repo_dir)
+
+
 def test_a_plugin_with_only_skills_and_agents_is_accepted(repo_dir, isolated_home):
     make_plugins(isolated_home, "ok")
     plugin = isolated_home / ".harness" / "_shared" / "plugins" / "ok"

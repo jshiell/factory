@@ -221,7 +221,7 @@ def _runs_code(plugin: Path) -> str | None:
         try:
             declared = json.loads(manifest.read_text())
         except ValueError:
-            return None
+            return "an unreadable plugin.json"
         for key in ("hooks", "mcpServers"):
             if isinstance(declared, dict) and key in declared:
                 return key
