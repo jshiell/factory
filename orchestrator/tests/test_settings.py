@@ -6,6 +6,15 @@ import pytest
 from factory.settings import Settings, SettingsError, load_settings
 
 
+@pytest.fixture(autouse=True)
+def isolated_home(tmp_path, monkeypatch):
+    home = tmp_path / "home"
+    home.mkdir()
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.delenv("FACTORY_HOME", raising=False)
+    return home
+
+
 @pytest.fixture
 def repo_dir(tmp_path):
     repo = (tmp_path / "repo").resolve()
