@@ -139,6 +139,18 @@ def test_clone_refuses_a_non_github_repository_and_an_init_with_extra_arguments_
     assert not (tmp_path / "factory-home" / "factory.toml").exists()
 
 
+def test_clone_refuses_an_existing_target_through_the_cli(project):
+    _, env, tmp_path = project
+    target = tmp_path / "factory-home" / "r" / "repo"
+    target.mkdir(parents=True)
+
+    result = sh("uv", "run", "--project", str(ORCHESTRATOR), "factory", "clone", "o/r", cwd=tmp_path, env=env,
+                stdin=subprocess.DEVNULL)
+
+    assert result.returncode == 1
+    assert f"{target} already exists; not overwriting" in result.stderr
+
+
 def test_new_list_show_work_against_a_fresh_state_directory(project):
     created = factory(project, "new", "add multiply")
     task_id = created.stdout.strip()
