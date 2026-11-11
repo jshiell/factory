@@ -234,3 +234,10 @@ def test_a_tilde_in_factory_home_expands(repo_dir, isolated_home, monkeypatch):
     settings = load_settings(None, cwd=repo_dir)
 
     assert settings.state_dir == isolated_home / "fh" / "repo" / "state"
+
+
+def test_an_empty_HOME_is_rejected_instead_of_writing_under_root(repo_dir, monkeypatch):
+    monkeypatch.setenv("HOME", "")
+
+    with pytest.raises(SettingsError, match="HOME"):
+        load_settings(None, cwd=repo_dir)

@@ -89,11 +89,17 @@ def _expanded(key: str, value: str) -> Path:
     return path if key == "repo" else path.expanduser()
 
 
+def _default_home() -> Path:
+    if os.environ.get("HOME") == "":
+        raise SettingsError("HOME is empty; set FACTORY_HOME or home in factory.toml")
+    return Path.home() / ".harness"
+
+
 def _project_dir(repo: Path, home: Path | None) -> Path:
     key = repo.resolve().name
     if not key:
         raise SettingsError("repo has no directory name to key the project by")
-    return (home or Path.home() / ".harness") / key
+    return (home or _default_home()) / key
 
 
 def _read(path: Path) -> dict:
