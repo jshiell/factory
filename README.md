@@ -55,7 +55,7 @@ or its step cap. Agent spend is capped (see `cap_usd`) and every call is recorde
 | `recover <id>` | Mark a task whose driver died (`running`) as failed, charging an assumed cost |
 | `clean` | After a preview and confirmation, remove worktrees, gate caches, orphan caches and branches of finished tasks |
 | `costs [id]` | Spend by stage and by task, with assumed costs shown separately |
-| `migrate` | Copy the old JSON tasks and ledger under `<state_dir>` into `factory.db`. Refuses a database that already has rows; never deletes the old files |
+| `migrate` | Copy the old JSON tasks and ledger under `<state_dir>` (for in-repo state, `<repo>/.factory`; point `state_dir` at it) into `factory.db`. Refuses a database that already has rows; never deletes the old files |
 | `serve [--port N]` | Run the local HTTP server (below) |
 | `eval-audit` | Run the auditor over 25 labelled changes (default 3 runs each, about $2) and compare with the last comparable run. Exits `1` if a bad change is ever judged pass or a good one is judged fail by a majority, `3` if incomplete. Options: `--runs N`, `--only CASE`, `--max-usd X`, `--resume DIR` (same `--runs` and cases as the original), `--compare DIR`, `--check-corpus` (runs the real gate on every case; needs `uv` and network). Results under `<state_dir>/evals/`; its own eval directory and lock, so it never reaps the server's agents |
 
@@ -184,7 +184,7 @@ flowchart TB
         audit_task
     end
     task["task.py<br/>state machine"]
-    store["store.py<br/>one JSON file per task, atomic writes"]
+    store["sqlite_store.py<br/>one row per task, in factory.db"]
     runner["runner.py / command.py<br/>build and run `claude -p` under nono"]
     gate["gate.py, gate_sandbox.py,<br/>worktree_clean.py<br/>the trusted checker"]
     wt["worktrees.py<br/>git worktree per task, hardened git"]
@@ -225,7 +225,7 @@ flowchart TB
 - **Moved main.** `merge` never merges; if `main` moved it refuses. `rebase` replays the audited commits and returns the task to
   `agent_done`, so it must pass the gate and a fresh audit again before `merge` will accept it. `rebase` grants no authority,
   so it needs no TTY, but it is never called by `advance`.
-- **Money.** Every call is metered into `ledger.jsonl`; a global cap (the sum over every task) stops further calls. Interrupted calls are charged an
+- **Money.** Every call is metered into the ledger table of `factory.db`; a global cap (the sum over every task) stops further calls. Interrupted calls are charged an
   assumed cost so a crash cannot hide spend.
 - **One driver at a time.** A lock in the state directory stops two factory processes mutating tasks concurrently; killing the
   driver (Ctrl-C, TERM, HUP) kills the agent tree. After a SIGKILL the next `factory serve` finds the agents and
