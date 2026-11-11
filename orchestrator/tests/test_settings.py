@@ -508,6 +508,16 @@ def test_a_skill_or_agent_with_frontmatter_hooks_is_refused_naming_it(repo_dir, 
         load_settings(None, cwd=repo_dir)
 
 
+def test_a_skill_that_only_mentions_hooks_outside_its_frontmatter_is_accepted(repo_dir, isolated_home):
+    make_plugins(isolated_home, "ok")
+    plugin = isolated_home / ".harness" / "_shared" / "plugins" / "ok"
+    (plugin / "skills" / "s").mkdir(parents=True)
+    (plugin / "skills" / "s" / "SKILL.md").write_text("---\nname: s\n---\nhooks:\n  are discussed here\n")
+    (repo_dir / "factory.toml").write_text('plugins = ["ok"]\n')
+
+    assert load_settings(None, cwd=repo_dir).plugin_dirs == (plugin,)
+
+
 def test_a_plugin_with_an_unreadable_manifest_is_refused(repo_dir, isolated_home):
     make_plugins(isolated_home, "bad")
     plugin = isolated_home / ".harness" / "_shared" / "plugins" / "bad"
