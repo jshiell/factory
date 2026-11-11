@@ -86,13 +86,18 @@ Every CLI command except `migrate` and `serve` is a client of this server and ne
 
 ### Configuration
 
-Optional `factory.toml` in the working directory (or `--config <file>`). Relative paths resolve against the file. Unknown keys are an error.
+Optional `factory.toml` in the working directory (or `--config <file>`). Relative paths resolve against the file; `~` is expanded in `home`, `state_dir` and `worktree_root`. Unknown keys are an error.
+
+State and worktrees live outside the repo, one subdirectory per project: `<home>/<project>/state` and `<home>/<project>/worktrees`, where `<project>` is the repo directory's name (resolved, so symlinks and `..` follow the real directory). The home is, in order: the `FACTORY_HOME` environment variable (absolute, `~` allowed; empty is ignored), `home` in `factory.toml`, then `~/.harness`. Two repos with the same directory name share a project directory; give one of them its own `home` or `state_dir`. Worktrees are no longer beside the repo's `.git`.
+
+Upgrading from in-repo state: move `<repo>/.factory` to `<home>/<project>/state`, and keep `worktree_root = ".worktrees"` in `factory.toml` until the old tasks are cleaned (otherwise `clean` skips them as `outside_root`). Nothing is migrated or refused automatically; an old `.factory` is silently ignored.
 
 ```toml
 repo = "."                     # default: the git toplevel
-state_dir = ".factory"         # database, token, gate caches, lock
+home = "~/.harness"            # default; FACTORY_HOME overrides it
+state_dir = "..."              # default: <home>/<project>/state (database, token, gate caches, lock)
 server_port = 8765             # where `serve` listens and the CLI connects
-worktree_root = ".worktrees"   # one git worktree per task
+worktree_root = "..."          # default: <home>/<project>/worktrees (one git worktree per task)
 project_subdir = "target"      # where the agent works and the tests run
 test_argv = ["uv", "run", "pytest", "-q"]
 model = "sonnet"
@@ -111,7 +116,7 @@ allowed_tools = []
 
 ### Task lifecycle
 
-Every task is a JSON file in `.factory/tasks/`; all changes go through one state machine (`task.py`), so an
+Every task is a row in the state directory's SQLite database; all changes go through one state machine (`task.py`), so an
 illegal move is an error, not a bug waiting to happen.
 
 ```mermaid
@@ -224,7 +229,7 @@ flowchart TB
   assumed cost so a crash cannot hide spend.
 - **One driver at a time.** A lock in the state directory stops two factory processes mutating tasks concurrently; killing the
   driver (Ctrl-C, TERM, HUP) kills the agent tree. After a SIGKILL the next `factory serve` finds the agents and
-  gate runs it recorded in `.factory/procs/` and kills them first; if it cannot prove them dead (for example `ps` is blocked)
+  gate runs it recorded in `<state_dir>/procs/` and kills them first; if it cannot prove them dead (for example `ps` is blocked)
   it refuses and changes nothing.
 
 ### Why this shape

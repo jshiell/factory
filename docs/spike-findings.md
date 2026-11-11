@@ -441,3 +441,9 @@ Three real `factory new/advance/approve/advance` runs on `target/calc`, none mer
   - SIGINT: same, exit 0.
   - **SIGHUP: uvicorn does not handle it. The process died at once, the shutdown code did not run, the child survived and the job stayed unmarked.** `serve` must install its own SIGHUP handler that triggers the same shutdown (the CLI does this today by raising `SystemExit`).
 - **Not shown.** SIGKILL of the server (orphan reaping at next start is the plan's answer, covered in C15). Windows. Real agent process trees; the child here was a plain `sleep`.
+
+## Plan 36: real nono under ~/.harness (2026-11-11)
+Run by hand with `nolabs-ai/claude`, throwaway repo, worktree at `~/.harness/spike-nono/worktrees/t1`.
+- Agent-style run (`--allow-cwd --read <wt> --allow <wt>`): write inside the worktree succeeded.
+- Gate-style run from `<wt>/target` (`--allow <state>/gate-cache/t1`, `UV_CACHE_DIR` under it): `uv run pytest -q` created its venv and passed.
+- Not covered: a real `claude` agent run.
