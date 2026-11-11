@@ -299,3 +299,16 @@ def test_the_agent_record_names_the_task_and_its_state(tmp_path, task, monkeypat
     result = runner.run(replace(task, state=TaskState.QUEUED), CONFIG)
 
     assert '"task_id": "t1"' in result.stdout and '"stage": "queued"' in result.stdout
+
+
+def test_guard_an_agent_whose_record_cannot_be_written_is_killed_and_the_run_raises(tmp_path, task):
+    class UnwritableRecords:
+        def write(self, record):
+            raise OSError("database is locked")
+
+    runner = SubprocessRunner(fake_claude(tmp_path, "exec sleep 29.4712"), project_subdir="proj", timeout_s=10, state_dir=UnwritableRecords())
+
+    with pytest.raises(OSError, match="database is locked"):
+        runner.run(replace(task, state=TaskState.QUEUED), CONFIG)
+
+    assert subprocess.run(["pgrep", "-f", "sleep 29.4712"], capture_output=True).returncode != 0
