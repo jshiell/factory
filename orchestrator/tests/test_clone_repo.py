@@ -1,6 +1,10 @@
+import io
+
 import pytest
 
-from factory.clone_repo import RepositoryError, parse_repository
+from factory.cli import IO
+from factory.clone_repo import RepositoryError, clone_repository, parse_repository
+from gitutil import git
 
 
 def test_owner_slash_repo_becomes_the_canonical_https_url_and_the_repo_name():
@@ -48,3 +52,41 @@ def test_anything_but_a_plain_github_repository_is_refused(spec):
 def test_names_that_collide_with_the_homes_own_files_are_refused(name):
     with pytest.raises(RepositoryError):
         parse_repository(f"owner/{name}")
+
+
+@pytest.fixture
+def github(tmp_path, monkeypatch):
+    """Redirect github.com to local bare repositories under tmp_path/remotes; no network."""
+    remotes = tmp_path / "remotes"
+    monkeypatch.setenv("GIT_TERMINAL_PROMPT", "0")
+    monkeypatch.setenv("GIT_CONFIG_COUNT", "2")
+    for index, prefix in enumerate(("https://github.com/", "git@github.com:")):
+        monkeypatch.setenv(f"GIT_CONFIG_KEY_{index}", f"url.file://{remotes}/.insteadOf")
+        monkeypatch.setenv(f"GIT_CONFIG_VALUE_{index}", prefix)
+    work = tmp_path / "work"
+    work.mkdir()
+    git(work, "init", "-q")
+    (work / "hello.txt").write_text("hi")
+    git(work, "add", ".")
+    git(work, "commit", "-q", "-m", "init")
+    (remotes / "o").mkdir(parents=True)
+    git(tmp_path, "clone", "-q", "--bare", str(work), str(remotes / "o" / "r.git"))
+
+
+@pytest.fixture
+def harness(tmp_path, monkeypatch):
+    monkeypatch.setenv("FACTORY_HOME", str(tmp_path / "fh"))
+    return tmp_path / "fh"
+
+
+def run_clone(spec):
+    out, err = io.StringIO(), io.StringIO()
+    return clone_repository(spec, IO(None, out, err)), out.getvalue(), err.getvalue()
+
+
+def test_clone_puts_the_repository_in_a_project_directory_of_the_harness_home(github, harness):
+    code, out, _ = run_clone("o/r")
+
+    assert code == 0
+    assert (harness / "r" / "repo" / "hello.txt").read_text() == "hi"
+    assert str(harness / "r" / "repo") in out
