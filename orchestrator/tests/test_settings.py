@@ -529,6 +529,36 @@ def test_a_plugin_with_an_unreadable_manifest_is_refused(repo_dir, isolated_home
         load_settings(None, cwd=repo_dir)
 
 
+def test_a_plugin_manifest_that_cannot_be_read_is_refused_not_a_crash(repo_dir, isolated_home):
+    make_plugins(isolated_home, "bad")
+    plugin = isolated_home / ".harness" / "_shared" / "plugins" / "bad"
+    (plugin / ".claude-plugin").mkdir()
+    manifest = plugin / ".claude-plugin" / "plugin.json"
+    manifest.write_text('{"name": "bad"}')
+    manifest.chmod(0)
+    (repo_dir / "factory.toml").write_text('plugins = ["bad"]\n')
+    try:
+        with pytest.raises(SettingsError, match="bad.*plugin.json"):
+            load_settings(None, cwd=repo_dir)
+    finally:
+        manifest.chmod(0o644)
+
+
+def test_a_skill_file_that_cannot_be_read_is_refused_not_a_crash(repo_dir, isolated_home):
+    make_plugins(isolated_home, "bad")
+    plugin = isolated_home / ".harness" / "_shared" / "plugins" / "bad"
+    (plugin / "skills" / "s").mkdir(parents=True)
+    skill = plugin / "skills" / "s" / "SKILL.md"
+    skill.write_text("---\nname: s\n---\n")
+    skill.chmod(0)
+    (repo_dir / "factory.toml").write_text('plugins = ["bad"]\n')
+    try:
+        with pytest.raises(SettingsError, match=r"bad.*skills/s/SKILL.md"):
+            load_settings(None, cwd=repo_dir)
+    finally:
+        skill.chmod(0o644)
+
+
 def test_a_plugin_with_only_skills_and_agents_is_accepted(repo_dir, isolated_home):
     make_plugins(isolated_home, "ok")
     plugin = isolated_home / ".harness" / "_shared" / "plugins" / "ok"

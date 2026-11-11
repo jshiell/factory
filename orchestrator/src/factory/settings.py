@@ -220,14 +220,19 @@ def _runs_code(plugin: Path) -> str | None:
     if manifest.is_file():
         try:
             declared = json.loads(manifest.read_text())
-        except ValueError:
+        except (OSError, ValueError):
             return "an unreadable plugin.json"
         for key in ("hooks", "mcpServers"):
             if isinstance(declared, dict) and key in declared:
                 return key
     for markdown in (*sorted(plugin.glob("skills/*/SKILL.md")), *sorted(plugin.glob("agents/*.md"))):
-        if _frontmatter_declares_hooks(markdown):
-            return f"frontmatter hooks in {markdown.relative_to(plugin).as_posix()}"
+        name = markdown.relative_to(plugin).as_posix()
+        try:
+            declares_hooks = _frontmatter_declares_hooks(markdown)
+        except OSError:
+            return f"an unreadable {name}"
+        if declares_hooks:
+            return f"frontmatter hooks in {name}"
     return None
 
 
