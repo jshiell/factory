@@ -34,7 +34,7 @@ from factory.audit_eval import CorpusChanged, RunsChanged, load_meta, run_eval
 from factory.audit_report import exit_code as eval_exit_code, load_records, render
 from factory.cli import _new_eval_dir
 from factory.lock import AlreadyRunning, state_lock
-from factory.process_registry import ReapUncertain
+from factory.process_registry import ReapUncertain, leftover_file_records
 from factory.sqlite_process_records import SqliteProcessRecords
 from factory.job_store import Job, JobNotFound, JobStore
 from factory.ids import InvalidTaskId
@@ -443,6 +443,10 @@ def claim_state_dir(ctx):
     state_dir = ctx.settings.state_dir
     try:
         with state_lock(state_dir):
+            leftovers = leftover_file_records(state_dir)
+            if leftovers:
+                raise StartRefused(f"old process records in {leftovers[0].parent} ({', '.join(p.name for p in leftovers)}); "
+                                   "run `factory migrate` first; nothing changed")
             try:
                 reaped = ctx.reap(SqliteProcessRecords(ctx.settings.db_path))
             except ReapUncertain as uncertain:

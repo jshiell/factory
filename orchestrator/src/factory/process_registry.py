@@ -36,6 +36,14 @@ def write_record(state_dir, record: Record) -> None:
     os.replace(temp, directory / f"{record.pid}.json")
 
 
+def leftover_file_records(state_dir) -> list[Path]:
+    """Records (and half-written temp files) the file backend left in `state_dir/procs`; this directory only."""
+    directory = _procs_dir(state_dir)
+    if not directory.is_dir():
+        return []
+    return sorted([*directory.glob("*.json"), *directory.glob(".*.tmp")])
+
+
 def load_records(state_dir) -> list[Record | InvalidRecord]:
     directory = _procs_dir(state_dir)
     if not directory.is_dir():
