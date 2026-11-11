@@ -33,6 +33,9 @@ def parse_repository(spec: str) -> tuple[str, str]:
 def clone_repository(spec: str, io) -> int:
     url, name = parse_repository(spec)
     destination = harness_home() / name / "repo"
+    if destination.exists():
+        print(f"{destination} already exists; not overwriting", file=io.stderr)
+        return 1
     subprocess.run(["git", "clone", "--", url, str(destination)], stdin=subprocess.DEVNULL, check=True)
     print(f"cloned {url} into {destination}", file=io.stdout)
     return 0

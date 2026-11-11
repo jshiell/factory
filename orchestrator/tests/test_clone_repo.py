@@ -113,3 +113,15 @@ def test_factory_home_wins_over_the_global_configs_home(github, harness, tmp_pat
     assert code == 0
     assert (harness / "r" / "repo" / "hello.txt").exists()
     assert not (tmp_path / "elsewhere").exists()
+
+
+def test_an_existing_target_is_refused_and_left_untouched(github, harness):
+    (harness / "r" / "repo").mkdir(parents=True)
+    (harness / "r" / "repo" / "mine.txt").write_text("keep")
+
+    code, out, err = run_clone("o/r")
+
+    assert code == 1
+    assert out == ""
+    assert err == f"{harness / 'r' / 'repo'} already exists; not overwriting\n"
+    assert [p.name for p in (harness / "r" / "repo").iterdir()] == ["mine.txt"]
