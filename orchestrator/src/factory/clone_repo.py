@@ -6,6 +6,9 @@ _SPEC = re.compile(
 )
 
 
+_RESERVED = ("_shared", "factory.toml")
+
+
 class RepositoryError(ValueError):
     pass
 
@@ -18,5 +21,7 @@ def parse_repository(spec: str) -> tuple[str, str]:
     for part in (owner, name):
         if part in (".", "..", ".git") or part.startswith("-"):
             raise RepositoryError(f"not a usable repository name: {part}")
+    if name.casefold() in _RESERVED:
+        raise RepositoryError(f"{name} is reserved in the harness home")
     prefix = (match["prefix"] or "https://github.com/").lower()
     return f"{prefix}{owner}/{name}.git", name

@@ -42,3 +42,9 @@ def test_names_that_could_escape_the_home_or_pose_as_options_are_refused(spec):
 def test_anything_but_a_plain_github_repository_is_refused(spec):
     with pytest.raises(RepositoryError):
         parse_repository(spec)
+
+
+@pytest.mark.parametrize("name", ["_shared", "_SHARED", "factory.toml", "Factory.TOML"])
+def test_names_that_collide_with_the_homes_own_files_are_refused(name):
+    with pytest.raises(RepositoryError):
+        parse_repository(f"owner/{name}")
