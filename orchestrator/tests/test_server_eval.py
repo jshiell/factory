@@ -142,3 +142,10 @@ def test_resuming_with_different_runs_fails_the_job_with_a_message_and_runs_noth
 
     job = _wait(client, response.json()["job"]["id"])
     assert job["state"] == "failed" and "runs=2" in job["error"] and "runs=1" in job["error"]
+
+
+def test_guard_the_eval_reaps_its_own_directory_and_never_makes_a_database_there(client, ctx):
+    eval_dir = Path(_first_eval(client))
+
+    assert ctx.reap.calls == [eval_dir]
+    assert not (eval_dir / "factory.db").exists()
