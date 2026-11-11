@@ -264,3 +264,29 @@ def test_the_fixer_gets_the_implement_prompt(setup, monkeypatch):
     build_stages(settings, deps)["verify"]("t1")
 
     assert seen["fix_config"].append_system_prompt.endswith("\n\nS.")
+
+
+def test_the_plugin_dirs_are_added_to_a_stage_config_as_strings(setup):
+    settings = replace(setup[2], plugin_dirs=(Path("/h/_shared/plugins/a"),))
+
+    config = stage_config(PLAN_CONFIG, settings, "plan")
+
+    assert config.plugin_dirs == ("/h/_shared/plugins/a",)
+    assert replace(config, plugin_dirs=()) == PLAN_CONFIG
+
+
+def test_every_agent_stage_and_the_fixer_get_the_plugin_dirs(setup, monkeypatch):
+    store, runner, settings, deps, repo, base = setup
+    settings = replace(settings, plugin_dirs=(Path("/p/a"),))
+    save(store, repo, base, TaskState.PROPOSED, goal="g", plan="p", plan_digest=plan_digest("p"))
+    stages = build_stages(settings, deps)
+    seen = {}
+    monkeypatch.setattr("factory.stages.verify_task", lambda *a, **k: seen.update(k))
+
+    stages["plan"]("t1")
+    store.save(Task(id="t1", prompt="do it"))
+    stages["implement"]("t1")
+    stages["verify"]("t1")
+
+    assert [config.plugin_dirs for config in runner.configs] == [("/p/a",), ("/p/a",)]
+    assert seen["fix_config"].plugin_dirs == ("/p/a",)
