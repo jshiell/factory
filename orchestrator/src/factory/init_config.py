@@ -14,6 +14,9 @@ TEMPLATE = '''\
 # allowed_tools = ["Read", "Grep"]
 # append_system_prompt = "Text appended to every stage's system prompt."
 
+# Plugins (skills and agents) to give every stage, by directory name under <home>/_shared/plugins/.
+# plugins = ["my-plugin"]
+
 # Per-stage additions: plan, review, implement, audit.
 # [stage_prompts]
 # implement = "Text appended to the implementer's system prompt."
@@ -29,5 +32,6 @@ def init_global_config(io) -> int:
     except FileExistsError:
         print(f"{path} already exists; not overwriting", file=io.stderr)
         return 1
+    (path.parent / "_shared" / "plugins").mkdir(parents=True, exist_ok=True)
     print(f"wrote {path}", file=io.stdout)
     return 0

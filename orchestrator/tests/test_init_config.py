@@ -29,8 +29,8 @@ def test_init_writes_the_template_into_the_harness_home(harness):
 
 def test_every_commented_example_in_the_template_is_a_valid_global_setting(harness, repo):
     lines = [re.sub(r"^# ", "", line) for line in TEMPLATE.splitlines() if re.match(r"^# (\[\w+\]|\w+ = )", line)]
-    assert lines
-    harness.mkdir()
+    assert any(line.startswith("plugins = ") for line in lines)
+    (harness / "_shared" / "plugins" / "my-plugin").mkdir(parents=True)
     (harness / "factory.toml").write_text("\n".join(lines) + "\n")
 
     load_settings(None, cwd=repo)
@@ -45,3 +45,18 @@ def test_init_refuses_to_overwrite_an_existing_global_config(harness):
     assert code == 1
     assert (harness / "factory.toml").read_text() == 'model = "opus"\n'
     assert str(harness / "factory.toml") in err and out == ""
+
+
+def test_init_creates_the_shared_plugins_directory(harness):
+    run_init()
+
+    assert (harness / "_shared" / "plugins").is_dir()
+
+
+def test_init_leaves_existing_plugins_alone_when_it_refuses(harness):
+    (harness / "_shared" / "plugins" / "keep").mkdir(parents=True)
+    (harness / "factory.toml").write_text("")
+
+    run_init()
+
+    assert (harness / "_shared" / "plugins" / "keep").is_dir()
