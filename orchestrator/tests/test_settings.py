@@ -359,3 +359,11 @@ def test_a_relative_path_in_the_global_config_resolves_against_its_own_directory
     settings = load_settings(None, cwd=repo_dir)
 
     assert settings.state_dir == global_config.parent / "projects" / "repo" / "state"
+
+
+@pytest.mark.parametrize("key", ["repo", "state_dir", "worktree_root"])
+def test_per_repo_paths_are_rejected_in_the_global_config(repo_dir, global_config, key):
+    global_config.write_text(f'{key} = "x"\n')
+
+    with pytest.raises(SettingsError, match=f"{key}.*global|global.*{key}"):
+        load_settings(None, cwd=repo_dir)

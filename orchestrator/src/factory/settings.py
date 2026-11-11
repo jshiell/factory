@@ -61,7 +61,7 @@ def load_settings(path: Path | None, cwd: Path) -> Settings:
     if path is None and (cwd / "factory.toml").exists():
         path = cwd / "factory.toml"
     global_path = _global_config_path()
-    global_layer = _layer(global_path) if global_path and global_path.exists() else {}
+    global_layer = _layer(global_path, per_repo_allowed=False) if global_path and global_path.exists() else {}
     typed = _merged(global_layer, {} if path is None else _layer(path))
     repo = typed.pop("repo", None) or _git_toplevel(cwd)
     configured_home = typed.pop("home", None)
@@ -72,8 +72,13 @@ def load_settings(path: Path | None, cwd: Path) -> Settings:
     return settings
 
 
-def _layer(path: Path) -> dict:
+_PER_REPO_KEYS = ("repo", "state_dir", "worktree_root")
+
+
+def _layer(path: Path, per_repo_allowed: bool = True) -> dict:
     values = _read(path)
+    if not per_repo_allowed and (misplaced := sorted(set(values) & set(_PER_REPO_KEYS))):
+        raise SettingsError(f"{misplaced[0]} is per-repo and not allowed in the global config {path}")
     unknown = sorted(set(values) - set(_KNOWN))
     if unknown:
         raise SettingsError(f"unknown setting: {unknown[0]}")
