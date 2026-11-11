@@ -858,6 +858,8 @@ import json as _json
 
 from factory.audit_corpus import CASES as EVAL_CASES
 
+FIRST_EVAL = "20260102T030405"  # the directory name for the fixtures' clock, 2026-01-02 03:04:05
+
 
 def _verdict_json(verdict, cost=0.03):
     return _json.dumps({"type": "result", "subtype": "success", "is_error": False, "total_cost_usd": cost,
@@ -906,7 +908,7 @@ def test_a_clean_eval_prints_its_directory_then_the_report_and_exits_zero(ctx, e
     code, out, err = run(ctx, "eval-audit", "--runs", "1")
 
     (eval_dir,) = eval_dirs(ctx)
-    assert code == 0 and eval_dir.name == "20260102T030405"
+    assert code == 0 and eval_dir.name == FIRST_EVAL
     assert out.splitlines()[0] == f"eval directory: {eval_dir}"
     assert "false-pass" in out and "false-fail" in out and "no earlier complete run" in out
     assert len(list(eval_dir.glob("case-*-r1.json"))) == 25
@@ -990,7 +992,7 @@ def test_the_next_eval_is_compared_with_the_last_complete_full_one(ctx, evals):
 
     code, out, _ = run(ctx, "eval-audit", "--runs", "1")
 
-    assert "compared with 20260102T030405" in out and "case-01: pass -> fail" in out and code == 1
+    assert f"compared with {FIRST_EVAL}" in out and "case-01: pass -> fail" in out and code == 1
 
 
 

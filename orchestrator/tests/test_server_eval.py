@@ -8,7 +8,7 @@ from factory.settings import Settings
 from factory.sqlite_ledger import SqliteLedger
 from factory.sqlite_store import SqliteTaskStore
 from serving import served
-from test_cli import LabelRunner, reaper
+from test_cli import FIRST_EVAL, LabelRunner, reaper
 
 
 @pytest.fixture
@@ -44,7 +44,7 @@ def test_eval_audit_runs_a_job_in_its_own_directory_and_reaps_only_that_director
 
     assert response.status_code == 202
     body = response.json()
-    eval_dir = ctx.settings.state_dir / "evals" / "20260102T030405"
+    eval_dir = ctx.settings.state_dir / "evals" / FIRST_EVAL
     assert body["eval_dir"] == str(eval_dir)
     job = _wait(client, body["job"]["id"])
     assert job["state"] == "succeeded"
@@ -96,11 +96,11 @@ def test_resuming_something_that_is_not_an_earlier_eval_is_422_and_runs_nothing(
 
 def test_resuming_against_a_changed_corpus_fails_the_job_with_a_message_and_runs_nothing(client, ctx):
     _first_eval(client)
-    meta = ctx.settings.state_dir / "evals" / "20260102T030405" / "meta.json"
+    meta = ctx.settings.state_dir / "evals" / FIRST_EVAL / "meta.json"
     meta.write_text(meta.read_text().replace('"corpus_hash": "', '"corpus_hash": "x'))
     ctx.built.clear()
 
-    response = client.post("/eval-audit", json={"runs": 1, "only": ["case-01"], "resume": "20260102T030405"})
+    response = client.post("/eval-audit", json={"runs": 1, "only": ["case-01"], "resume": FIRST_EVAL})
 
     job = _wait(client, response.json()["job"]["id"])
     assert job["state"] == "failed" and "corpus" in job["error"].lower()
@@ -126,11 +126,11 @@ def test_resuming_a_directory_another_run_holds_fails_the_job_naming_it(client, 
     _first_eval(client)
     ctx.built.clear()
 
-    with state_lock(ctx.settings.state_dir / "evals" / "20260102T030405"):
-        response = client.post("/eval-audit", json={"runs": 1, "only": ["case-01"], "resume": "20260102T030405"})
+    with state_lock(ctx.settings.state_dir / "evals" / FIRST_EVAL):
+        response = client.post("/eval-audit", json={"runs": 1, "only": ["case-01"], "resume": FIRST_EVAL})
         job = _wait(client, response.json()["job"]["id"])
 
-    assert job["state"] == "failed" and "20260102T030405" in job["error"] and "already" in job["error"]
+    assert job["state"] == "failed" and FIRST_EVAL in job["error"] and "already" in job["error"]
     assert ctx.built == []
 
 
@@ -138,7 +138,7 @@ def test_resuming_with_different_runs_fails_the_job_with_a_message_and_runs_noth
     _first_eval(client)
     ctx.built.clear()
 
-    response = client.post("/eval-audit", json={"runs": 2, "only": ["case-01"], "resume": "20260102T030405"})
+    response = client.post("/eval-audit", json={"runs": 2, "only": ["case-01"], "resume": FIRST_EVAL})
 
     job = _wait(client, response.json()["job"]["id"])
     assert job["state"] == "failed" and "runs=2" in job["error"] and "runs=1" in job["error"]
