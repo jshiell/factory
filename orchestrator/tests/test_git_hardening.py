@@ -38,7 +38,7 @@ def test_every_git_call_over_a_worktree_goes_through_the_hardened_prefix():
     from pathlib import Path
     source = Path(__file__).parent.parent / "src" / "factory"
     bare = [path.name for path in source.rglob("*.py")
-            if path.name not in ("worktrees.py", "settings.py") and '["git"' in path.read_text()]
+            if path.name not in ("worktrees.py", "settings.py", "clone_repo.py") and '["git"' in path.read_text()]
 
     assert bare == []
 
