@@ -16,6 +16,7 @@ class RunnerConfig:
     max_turns: int | None = None
     disallowed_tools: tuple[str, ...] = ()
     confine: bool = False
+    plugin_dirs: tuple[str, ...] = ()
 
 
 def build_command(
@@ -41,6 +42,8 @@ def build_command(
         argv += ["--disallowedTools", " ".join(config.disallowed_tools)]
     for directory in add_dirs:
         argv += ["--add-dir", directory]
+    for directory in config.plugin_dirs:
+        argv += ["--plugin-dir", directory]
     return argv, {"CLAUDE_CODE_DISABLE_CLAUDE_MDS": "1"}
 
 

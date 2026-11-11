@@ -116,3 +116,12 @@ def test_a_profile_less_sandbox_prefix_grants_write_to_the_given_dirs_and_read_t
     pairs = list(zip(prefix, prefix[1:]))
     assert [b for a, b in pairs if a == "--allow"] == ["/p/target", "/p/cache"]
     assert [b for a, b in pairs if a == "--read"] == [str(tmp_path.resolve()), "/py", "/uvpy"]
+
+
+def test_each_plugin_dir_becomes_a_plugin_dir_flag_and_none_adds_nothing():
+    assert "--plugin-dir" not in build_command("p", RunnerConfig(model="sonnet"))[0]
+
+    argv, _env = build_command("p", RunnerConfig(model="sonnet", plugin_dirs=("/a b", "/c")))
+
+    pairs = [argv[i : i + 2] for i, arg in enumerate(argv) if arg == "--plugin-dir"]
+    assert pairs == [["--plugin-dir", "/a b"], ["--plugin-dir", "/c"]]
