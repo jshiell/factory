@@ -66,7 +66,7 @@ Exit codes: `0` ok, `1` refused or failed (the reason is printed), `2` usage err
 `factory serve [--port N]` (default `server_port`, 8765) listens on `127.0.0.1` only and holds the state-dir lock for as long as it runs. It can spend money and merge code, so every request needs `Authorization: Bearer <token>`, where the
 token is the file `<state_dir>/token` (created with mode 0600 on first start; a more permissive file is refused). A
 non-loopback `Host` or any `Origin` header is refused with 403, which keeps other web pages and DNS rebinding out.
-Stopping it with SIGINT, SIGTERM or SIGHUP shuts it down; jobs it left unfinished are marked `interrupted` at the next start.
+Stopping it with SIGINT, SIGTERM or SIGHUP shuts it down; jobs it left unfinished are marked `interrupted` at the next start. When an agent cannot be launched at all (a `runner_error` failure), the exception text is logged as a warning on the server's stderr, with the task id and stage; the task itself only records `runner_error`.
 
 Reads and quick actions answer at once; `advance`, `abandon`, `recover`, `rebase`, `merge`, `clean` and `eval-audit` return
 `202 {job}` and run one at a time, in order. Poll `GET /jobs/{id}`.
