@@ -165,3 +165,20 @@ def test_a_repo_with_no_usable_name_is_rejected_naming_repo(tmp_path):
 
     with pytest.raises(SettingsError, match="repo"):
         load_settings(config, cwd=tmp_path)
+
+
+def test_a_home_in_the_config_is_relative_to_the_config_directory(tmp_path, repo_dir):
+    config = tmp_path / "factory.toml"
+    config.write_text(f'repo = "{repo_dir}"\nhome = "h"\n')
+
+    settings = load_settings(config, cwd=tmp_path)
+
+    assert settings.state_dir == tmp_path / "h" / "repo" / "state"
+    assert settings.worktree_root == tmp_path / "h" / "repo" / "worktrees"
+
+
+def test_a_non_string_home_is_rejected_naming_the_key(repo_dir):
+    (repo_dir / "factory.toml").write_text("home = 3\n")
+
+    with pytest.raises(SettingsError, match="home"):
+        load_settings(None, cwd=repo_dir)

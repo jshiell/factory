@@ -44,7 +44,7 @@ class Settings:
         return self.state_dir / "tasks"
 
 
-_PATH_KEYS = ("repo", "state_dir", "worktree_root")
+_PATH_KEYS = ("repo", "state_dir", "worktree_root", "home")
 _STRING_KEYS = ("project_subdir", "claude_executable", "sandbox_executable", "model")
 _FLOAT_KEYS = ("cap_usd", "gate_timeout_s", "runner_timeout_s", "budget_usd")
 _STRING_LIST_KEYS = ("test_argv", "allowed_tools")
@@ -64,18 +64,19 @@ def load_settings(path: Path | None, cwd: Path) -> Settings:
         if key in typed:
             typed[key] = base / typed[key]
     repo = typed.pop("repo", None) or _git_toplevel(cwd)
-    state_dir = typed.pop("state_dir", None) or _project_dir(repo) / "state"
-    worktree_root = typed.pop("worktree_root", None) or _project_dir(repo) / "worktrees"
+    home = typed.pop("home", None)
+    state_dir = typed.pop("state_dir", None) or _project_dir(repo, home) / "state"
+    worktree_root = typed.pop("worktree_root", None) or _project_dir(repo, home) / "worktrees"
     settings = replace(Settings(repo, state_dir, worktree_root), **typed)
     _check_project_subdir(settings.project_subdir)
     return settings
 
 
-def _project_dir(repo: Path) -> Path:
+def _project_dir(repo: Path, home: Path | None) -> Path:
     key = repo.resolve().name
     if not key:
         raise SettingsError("repo has no directory name to key the project by")
-    return Path.home() / ".harness" / key
+    return (home or Path.home() / ".harness") / key
 
 
 def _read(path: Path) -> dict:
