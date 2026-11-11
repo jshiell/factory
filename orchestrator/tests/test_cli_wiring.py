@@ -294,13 +294,14 @@ def test_a_gate_run_launched_by_the_real_cli_is_recorded_while_it_runs(project):
 
 
 FAKE_AUDITOR = r'''#!/usr/bin/env python3
-import glob, json, os, sys
+import glob, json, os, sqlite3, sys
 argv = sys.argv[1:]
 state = os.environ["FAKE_STATE_DIR"]
+rows = sqlite3.connect(state + "/factory.db").execute("select pid from processes").fetchall()  # fails if there is no table
 with open(os.environ["FAKE_CLAUDE_LOG"], "a") as log:
     log.write(json.dumps({"argv": argv, "cwd": os.getcwd(),
                           "eval_records": sorted(glob.glob(state + "/evals/*/procs/*.json")),
-                          "real_records": sorted(glob.glob(state + "/procs/*.json"))}) + "\n")
+                          "real_records": rows}) + "\n")
 print(json.dumps({"type": "result", "subtype": "success", "is_error": False, "total_cost_usd": 0.01,
                   "structured_output": {"verdict": "pass", "findings": []}}))
 '''
@@ -330,3 +331,4 @@ def test_eval_audit_runs_the_real_runner_in_the_corpus_project_and_records_under
     assert not (tmp_path / "state" / "ledger.jsonl").exists()
     assert list((tmp_path / "state" / "tasks").glob("*.json")) == []
     assert list((eval_dir / "procs").glob("*.json")) == [] and (eval_dir / "case-01-r1.json").is_file()
+    assert not (eval_dir / "factory.db").exists()
