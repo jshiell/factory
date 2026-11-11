@@ -1,3 +1,4 @@
+import logging
 from dataclasses import dataclass, replace
 
 from factory.classify import Outcome, classify
@@ -23,7 +24,8 @@ def call_agent(
     """Run the agent with `prompt` (never saved on the task); every outcome is charged to the ledger."""
     try:
         result = runner.run(replace(task, prompt=prompt), config)
-    except Exception:
+    except Exception as error:
+        logging.getLogger("factory").warning("agent run failed for task %s, stage %s: %r", task.id, stage, error)
         return _assumed_failure("runner_error", task, config, ledger, stage)
     if result.timed_out:
         return _assumed_failure("timeout", task, config, ledger, stage)
