@@ -63,7 +63,11 @@ def load_settings(path: Path | None, cwd: Path) -> Settings:
     values, base = ({}, cwd) if path is None else (_read(path), path.parent)
     global_path = _global_config_path()
     if global_path and global_path.exists():
-        values = {**_read(global_path), **values}
+        global_values = _read(global_path)
+        merged = {**global_values, **values}
+        if isinstance(global_values.get("stage_prompts"), dict) and isinstance(values.get("stage_prompts"), dict):
+            merged["stage_prompts"] = {**global_values["stage_prompts"], **values["stage_prompts"]}
+        values = merged
     unknown = sorted(set(values) - set(_KNOWN))
     if unknown:
         raise SettingsError(f"unknown setting: {unknown[0]}")

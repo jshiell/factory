@@ -333,3 +333,12 @@ def test_a_local_key_overrides_the_global_one_and_other_global_keys_survive(repo
     settings = load_settings(None, cwd=repo_dir)
 
     assert (settings.cap_usd, settings.model) == (2.0, "opus")
+
+
+def test_stage_prompts_merge_per_stage_with_the_local_one_winning(repo_dir, global_config):
+    global_config.write_text('[stage_prompts]\nplan = "G plan."\naudit = "G audit."\n')
+    (repo_dir / "factory.toml").write_text('[stage_prompts]\nplan = "L plan."\n')
+
+    settings = load_settings(None, cwd=repo_dir)
+
+    assert settings.stage_prompts == {"plan": "L plan.", "audit": "G audit."}
