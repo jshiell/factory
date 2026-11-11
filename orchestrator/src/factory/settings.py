@@ -27,6 +27,7 @@ class Settings:
     max_turns: int = 30
     fix_rounds: int = 2
     server_port: int = 8765
+    append_system_prompt: str | None = None
 
     @property
     def ledger_path(self) -> Path:
@@ -46,7 +47,7 @@ class Settings:
 
 
 _PATH_KEYS = ("repo", "state_dir", "worktree_root", "home")
-_STRING_KEYS = ("project_subdir", "claude_executable", "sandbox_executable", "model")
+_STRING_KEYS = ("project_subdir", "claude_executable", "sandbox_executable", "model", "append_system_prompt")
 _FLOAT_KEYS = ("cap_usd", "gate_timeout_s", "runner_timeout_s", "budget_usd")
 _STRING_LIST_KEYS = ("test_argv", "allowed_tools")
 _INT_KEYS = ("max_turns", "fix_rounds", "server_port")

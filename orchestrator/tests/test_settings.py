@@ -271,3 +271,10 @@ def test_a_bad_factory_home_is_harmless_when_both_paths_are_overridden(tmp_path,
     settings = load_settings(config, cwd=tmp_path)
 
     assert settings.state_dir == tmp_path / "s"
+
+
+def test_append_system_prompt_defaults_to_none_and_can_be_set(repo_dir):
+    assert load_settings(None, cwd=repo_dir).append_system_prompt is None
+    (repo_dir / "factory.toml").write_text('append_system_prompt = "Be terse."\n')
+
+    assert load_settings(None, cwd=repo_dir).append_system_prompt == "Be terse."
