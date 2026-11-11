@@ -286,3 +286,26 @@ def test_a_bad_append_system_prompt_is_rejected_naming_the_key(repo_dir, value):
 
     with pytest.raises(SettingsError, match="append_system_prompt"):
         load_settings(None, cwd=repo_dir)
+
+
+def test_stage_prompts_default_to_empty_and_can_be_set_per_stage(repo_dir):
+    assert load_settings(None, cwd=repo_dir).stage_prompts == {}
+    (repo_dir / "factory.toml").write_text('[stage_prompts]\nplan = "Plan well."\naudit = "Be strict."\n')
+
+    assert load_settings(None, cwd=repo_dir).stage_prompts == {"plan": "Plan well.", "audit": "Be strict."}
+
+
+@pytest.mark.parametrize(
+    "toml",
+    [
+        'stage_prompts = "x"',
+        '[stage_prompts]\nbogus = "x"',
+        '[stage_prompts]\nplan = ""',
+        "[stage_prompts]\nplan = 3",
+    ],
+)
+def test_bad_stage_prompts_are_rejected_naming_the_key(repo_dir, toml):
+    (repo_dir / "factory.toml").write_text(toml + "\n")
+
+    with pytest.raises(SettingsError, match="stage_prompts"):
+        load_settings(None, cwd=repo_dir)

@@ -1,7 +1,7 @@
 import os
 import subprocess
 import tomllib
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from pathlib import Path, PurePosixPath
 
 
@@ -28,6 +28,7 @@ class Settings:
     fix_rounds: int = 2
     server_port: int = 8765
     append_system_prompt: str | None = None
+    stage_prompts: dict[str, str] = field(default_factory=dict)
 
     @property
     def ledger_path(self) -> Path:
@@ -49,10 +50,11 @@ class Settings:
 _PATH_KEYS = ("repo", "state_dir", "worktree_root", "home")
 _STRING_KEYS = ("project_subdir", "claude_executable", "sandbox_executable", "model")
 _PROMPT_KEYS = ("append_system_prompt",)
+_STAGES = ("plan", "review", "implement", "audit")
 _FLOAT_KEYS = ("cap_usd", "gate_timeout_s", "runner_timeout_s", "budget_usd")
 _STRING_LIST_KEYS = ("test_argv", "allowed_tools")
 _INT_KEYS = ("max_turns", "fix_rounds", "server_port")
-_KNOWN = _PATH_KEYS + _STRING_KEYS + _PROMPT_KEYS + _FLOAT_KEYS + _STRING_LIST_KEYS + _INT_KEYS
+_KNOWN = _PATH_KEYS + _STRING_KEYS + _PROMPT_KEYS + ("stage_prompts",) + _FLOAT_KEYS + _STRING_LIST_KEYS + _INT_KEYS
 
 
 def load_settings(path: Path | None, cwd: Path) -> Settings:
@@ -113,7 +115,12 @@ def _read(path: Path) -> dict:
 
 
 def _typed(key: str, value):
-    if key in _PATH_KEYS or key in _STRING_KEYS:
+    if key == "stage_prompts":
+        if isinstance(value, dict) and set(value) <= set(_STAGES) and all(
+            isinstance(text, str) and text for text in value.values()
+        ):
+            return dict(value)
+    elif key in _PATH_KEYS or key in _STRING_KEYS:
         if isinstance(value, str):
             return value
     elif key in _PROMPT_KEYS:
