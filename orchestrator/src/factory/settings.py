@@ -103,8 +103,9 @@ def _layer(path: Path, per_repo_allowed: bool = True) -> dict:
 
 def _merged(base: dict, override: dict) -> dict:
     merged = {**base, **override}
-    if "stage_prompts" in base and "stage_prompts" in override:
-        merged["stage_prompts"] = {**base["stage_prompts"], **override["stage_prompts"]}
+    for table in ("stage_prompts", "stage_plugins"):
+        if table in base and table in override:
+            merged[table] = {**base[table], **override[table]}
     return merged
 
 

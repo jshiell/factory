@@ -449,3 +449,11 @@ def test_bad_stage_plugins_are_rejected_naming_the_key(repo_dir, toml):
 
     with pytest.raises(SettingsError, match="wrong type for setting: stage_plugins"):
         load_settings(None, cwd=repo_dir)
+
+
+def test_stage_plugins_merge_per_stage_with_the_local_list_replacing_the_global_one(repo_dir, global_config):
+    make_plugins(global_config.parent.parent, "a", "b", "c")
+    global_config.write_text('[stage_plugins]\nreview = ["a"]\naudit = ["b"]\n')
+    (repo_dir / "factory.toml").write_text('[stage_plugins]\nreview = ["c"]\n')
+
+    assert load_settings(None, cwd=repo_dir).stage_plugins == {"review": ("c",), "audit": ("b",)}
