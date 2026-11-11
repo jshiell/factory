@@ -367,3 +367,11 @@ def test_per_repo_paths_are_rejected_in_the_global_config(repo_dir, global_confi
 
     with pytest.raises(SettingsError, match=f"{key}.*global|global.*{key}"):
         load_settings(None, cwd=repo_dir)
+
+
+@pytest.mark.parametrize("content", ["bogus = 1\n", "cap_usd = 'x'\n"])
+def test_a_bad_global_config_names_the_file_in_its_error(repo_dir, global_config, content):
+    global_config.write_text(content)
+
+    with pytest.raises(SettingsError, match=str(global_config)):
+        load_settings(None, cwd=repo_dir)

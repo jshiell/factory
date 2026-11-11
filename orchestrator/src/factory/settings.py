@@ -61,7 +61,7 @@ def load_settings(path: Path | None, cwd: Path) -> Settings:
     if path is None and (cwd / "factory.toml").exists():
         path = cwd / "factory.toml"
     global_path = _global_config_path()
-    global_layer = _layer(global_path, per_repo_allowed=False) if global_path and global_path.exists() else {}
+    global_layer = _global_layer(global_path) if global_path and global_path.exists() else {}
     typed = _merged(global_layer, {} if path is None else _layer(path))
     repo = typed.pop("repo", None) or _git_toplevel(cwd)
     configured_home = typed.pop("home", None)
@@ -70,6 +70,14 @@ def load_settings(path: Path | None, cwd: Path) -> Settings:
     settings = replace(Settings(repo, state_dir, worktree_root), **typed)
     _check_project_subdir(settings.project_subdir)
     return settings
+
+
+def _global_layer(path: Path) -> dict:
+    try:
+        return _layer(path, per_repo_allowed=False)
+    except SettingsError as error:
+        message = str(error)
+        raise SettingsError(message if str(path) in message else f"{message} (in {path})") from None
 
 
 _PER_REPO_KEYS = ("repo", "state_dir", "worktree_root")
