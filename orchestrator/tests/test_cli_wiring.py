@@ -124,6 +124,21 @@ def test_clone_without_a_repository_argument_is_a_usage_error_needing_no_repo_or
     assert "usage error" in result.stderr
 
 
+def test_clone_refuses_a_non_github_repository_and_an_init_with_extra_arguments_is_a_usage_error(project):
+    _, env, tmp_path = project
+
+    def run(*args):
+        return sh("uv", "run", "--project", str(ORCHESTRATOR), "factory", *args, cwd=tmp_path, env=env,
+                  stdin=subprocess.DEVNULL)
+
+    refused = run("clone", "https://gitlab.com/o/r")
+    extra = run("init", "extra")
+
+    assert refused.returncode == 1 and "not a GitHub repository" in refused.stderr
+    assert extra.returncode == 2 and "usage error" in extra.stderr
+    assert not (tmp_path / "factory-home" / "factory.toml").exists()
+
+
 def test_new_list_show_work_against_a_fresh_state_directory(project):
     created = factory(project, "new", "add multiply")
     task_id = created.stdout.strip()
