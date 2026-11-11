@@ -237,14 +237,29 @@ def test_a_task_that_kept_its_plan_is_implemented_with_the_approved_prompt_in_a_
     assert worktree.name == child.id
 
 
+QUERY_RECORDS = """#!{python}
+import sqlite3, sys
+rows = sqlite3.connect(sys.argv[1]).execute("select task_id, stage from processes order by pid").fetchall()
+open(sys.argv[2], "w").write("".join(f"{{task}},{{stage}}\\n" for task, stage in rows))
+"""
+
+
+def query_records_script(tmp_path):
+    """A script that writes `task,stage` for every row of the process table: `script DB OUT`."""
+    script = tmp_path / "query-records"
+    script.write_text(QUERY_RECORDS.format(python=sys.executable))
+    script.chmod(script.stat().st_mode | stat.S_IEXEC)
+    return script
+
+
 def test_an_agent_launched_by_the_real_cli_is_recorded_while_it_runs(project):
-    from factory.process_registry import load_records
+    from factory.sqlite_process_records import SqliteProcessRecords
     from factory.sqlite_store import SqliteTaskStore
     from factory.task import Task, TaskState
     repo, _, tmp_path = project
     seen = tmp_path / "seen-records"
     spy = tmp_path / "spy-claude"
-    spy.write_text(f'#!/bin/sh\nls "{tmp_path}/state/procs" > "{seen}"\n')
+    spy.write_text(f'#!/bin/sh\n"{query_records_script(tmp_path)}" "{tmp_path}/state/factory.db" "{seen}"\n')
     spy.chmod(spy.stat().st_mode | stat.S_IEXEC)
     config = repo / "factory.toml"
     config.write_text(config.read_text().replace("fake-claude", "spy-claude"))
@@ -253,18 +268,18 @@ def test_an_agent_launched_by_the_real_cli_is_recorded_while_it_runs(project):
 
     factory(project, "advance", "t9")
 
-    assert seen.read_text().strip().endswith(".json")
-    assert load_records(tmp_path / "state") == []
+    assert seen.read_text() == "t9,running\n"
+    assert SqliteProcessRecords(tmp_path / "state" / "factory.db").load() == []
 
 
 def test_a_gate_run_launched_by_the_real_cli_is_recorded_while_it_runs(project):
-    from factory.process_registry import load_records
+    from factory.sqlite_process_records import SqliteProcessRecords
     from factory.sqlite_store import SqliteTaskStore
     from factory.task import Task, TaskState
     repo, env, tmp_path = project
     seen = tmp_path / "seen-gate-records"
     config = repo / "factory.toml"
-    config.write_text(config.read_text() + f'test_argv = ["sh", "-c", "cat {tmp_path}/state/procs/*.json > {seen}"]\n')
+    config.write_text(config.read_text() + f'test_argv = ["{query_records_script(tmp_path)}", "{tmp_path}/state/factory.db", "{seen}"]\n')
     sh("git", "commit", "-q", "-am", "test_argv", cwd=repo, env=env)
     (repo / "target" / "code.py").write_text("changed by the implementer")
     (tmp_path / "state").mkdir(parents=True, exist_ok=True)
@@ -274,8 +289,8 @@ def test_a_gate_run_launched_by_the_real_cli_is_recorded_while_it_runs(project):
 
     factory(project, "advance", "t9")
 
-    assert '"task_id": "t9"' in seen.read_text() and '"stage": "gate"' in seen.read_text()
-    assert load_records(tmp_path / "state") == []
+    assert seen.read_text() == "t9,gate\n"
+    assert SqliteProcessRecords(tmp_path / "state" / "factory.db").load() == []
 
 
 FAKE_AUDITOR = r'''#!/usr/bin/env python3

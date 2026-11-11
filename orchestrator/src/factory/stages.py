@@ -12,6 +12,7 @@ from factory.review_plan import REVIEW_CONFIG, review_plan
 from factory.run_task import run_task
 from factory.settings import Settings
 from factory.step import Runner
+from factory.sqlite_process_records import SqliteProcessRecords
 from factory.store import TaskStore
 from factory.task import Task
 from factory.verify_task import verify_task
@@ -68,7 +69,7 @@ def build_stages(settings: Settings, deps: Deps) -> dict[str, Callable[[str], Ta
             sandbox=gate_sandbox_for(settings), runner=runner, ledger=ledger, fix_config=implementer,
             cap_usd=cap, fix_rounds=settings.fix_rounds,
             factory_paths=(settings.state_dir, settings.worktree_root),
-            state_dir=settings.state_dir,
+            state_dir=SqliteProcessRecords(settings.db_path),
         ),
         "audit": lambda task_id: audit_task(
             task_id, store, ledger, runner, AUDIT_CONFIG, cap, settings.project_subdir

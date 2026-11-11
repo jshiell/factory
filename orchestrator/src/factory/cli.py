@@ -668,7 +668,7 @@ def build_context(settings: Settings) -> Context:
     store, ledger = SqliteTaskStore(settings.db_path), SqliteLedger(settings.db_path)
     runner = SubprocessRunner(
         settings.claude_executable, settings.project_subdir, settings.runner_timeout_s,
-        sandbox_executable=settings.sandbox_executable, state_dir=settings.state_dir,
+        sandbox_executable=settings.sandbox_executable, state_dir=SqliteProcessRecords(settings.db_path),
     )
     worktrees = WorktreeManager(settings.repo, settings.worktree_root)
     stages = build_stages(settings, Deps(store, ledger, runner, worktrees))
