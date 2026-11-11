@@ -25,6 +25,7 @@ from factory.sqlite_process_records import SqliteProcessRecords
 from factory.sqlite_store import SqliteTaskStore
 from factory.process_registry import FileRecordsBlocked, ReapResult, clear_file_records, ps_probe, reap_orphans
 from factory.runner import SubprocessRunner
+from factory.init_config import init_global_config
 from factory.settings import Settings, SettingsError, load_settings
 from factory.stages import Deps, build_stages
 from factory.step import Runner
@@ -112,6 +113,7 @@ def _parser() -> argparse.ArgumentParser:
     retry.add_argument("--keep-plan", action="store_true")
     commands.add_parser("clean")
     commands.add_parser("migrate")
+    commands.add_parser("init")
     serve = commands.add_parser("serve")
     serve.add_argument("--port", type=int)
     commands.add_parser("costs").add_argument("task_id", nargs="?")
@@ -653,6 +655,7 @@ def _eval_audit(args, io, ctx) -> int:
 _COMMANDS = {
     "new": _new, "list": _list, "show": _show, "advance": _advance,
     "approve": _approve, "reject": _reject, "merge": _merge, "retry": _retry, "recover": _recover, "abandon": _abandon, "rebase": _rebase, "clean": _clean, "migrate": _migrate, "costs": _costs, "eval-audit": _eval_audit, "serve": _serve,
+    "init": lambda args, io, ctx: init_global_config(io),
 }
 
 
@@ -684,6 +687,12 @@ def run() -> None:
     pre.add_argument("--config", type=Path)
     known, rest = pre.parse_known_args(sys.argv[1:])
     io = IO(sys.stdin, sys.stdout, sys.stderr)
+    if rest == ["init"]:
+        try:
+            sys.exit(init_global_config(io))
+        except SettingsError as error:
+            print(f"settings error: {error}", file=sys.stderr)
+            sys.exit(2)
     try:
         ctx = build_context(load_settings(known.config, cwd=Path.cwd()))
     except SettingsError as error:

@@ -104,6 +104,16 @@ def test_help_exits_0_and_names_the_commands(project):
         assert command in result.stdout
 
 
+def test_init_writes_the_global_template_without_needing_a_repo_or_a_server(project):
+    _, env, tmp_path = project
+
+    result = sh("uv", "run", "--project", str(ORCHESTRATOR), "factory", "init", cwd=tmp_path, env=env,
+                stdin=subprocess.DEVNULL)
+
+    assert result.returncode == 0, result.stderr
+    assert (tmp_path / "factory-home" / "factory.toml").read_text().startswith("# Global factory settings")
+
+
 def test_new_list_show_work_against_a_fresh_state_directory(project):
     created = factory(project, "new", "add multiply")
     task_id = created.stdout.strip()
