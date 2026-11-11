@@ -135,3 +135,33 @@ def test_server_port_defaults_to_8765_and_comes_from_the_config(tmp_path):
 
     config.write_text(f'repo = "{tmp_path}"\nserver_port = 9001\n')
     assert load_settings(config, tmp_path).server_port == 9001
+
+
+def test_the_project_key_is_the_resolved_basename_of_a_dotdot_repo(tmp_path, isolated_home):
+    nested = tmp_path / "proj" / "inner"
+    nested.mkdir(parents=True)
+    config = nested / "factory.toml"
+    config.write_text('repo = ".."\n')
+
+    settings = load_settings(config, cwd=tmp_path)
+
+    assert settings.state_dir == isolated_home / ".harness" / "proj" / "state"
+
+
+def test_the_project_key_follows_a_symlinked_repo(tmp_path, repo_dir, isolated_home):
+    link = tmp_path / "alias"
+    link.symlink_to(repo_dir)
+    config = tmp_path / "factory.toml"
+    config.write_text(f'repo = "{link}"\n')
+
+    settings = load_settings(config, cwd=tmp_path)
+
+    assert settings.worktree_root == isolated_home / ".harness" / "repo" / "worktrees"
+
+
+def test_a_repo_with_no_usable_name_is_rejected_naming_repo(tmp_path):
+    config = tmp_path / "factory.toml"
+    config.write_text('repo = "/"\n')
+
+    with pytest.raises(SettingsError, match="repo"):
+        load_settings(config, cwd=tmp_path)

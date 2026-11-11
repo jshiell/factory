@@ -72,7 +72,10 @@ def load_settings(path: Path | None, cwd: Path) -> Settings:
 
 
 def _project_dir(repo: Path) -> Path:
-    return Path.home() / ".harness" / repo.resolve().name
+    key = repo.resolve().name
+    if not key:
+        raise SettingsError("repo has no directory name to key the project by")
+    return Path.home() / ".harness" / key
 
 
 def _read(path: Path) -> dict:
