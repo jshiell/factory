@@ -57,7 +57,7 @@ def project(tmp_path):
     (repo / "target" / "code.py").write_text("x")
     env = {**os.environ, "GIT_CONFIG_GLOBAL": "/dev/null", "GIT_CONFIG_SYSTEM": "/dev/null",
            "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t", "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t",
-           "FAKE_CLAUDE_LOG": str(tmp_path / "argv.log"), "FAKE_NONO_LOG": str(tmp_path / "nono.log")}
+           "FACTORY_HOME": str(tmp_path / "factory-home"), "FAKE_CLAUDE_LOG": str(tmp_path / "argv.log"), "FAKE_NONO_LOG": str(tmp_path / "nono.log")}
     fake = tmp_path / "fake-claude"
     fake.write_text(FAKE_CLAUDE)
     fake.chmod(fake.stat().st_mode | stat.S_IEXEC)
