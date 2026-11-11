@@ -16,6 +16,8 @@ from factory.stages import Deps, build_stages, implementer_config
 from factory.step import RunResult
 from factory.store import TaskStore
 from factory.task import Task, TaskState
+from factory.process_registry import Record
+from factory.sqlite_process_records import SqliteProcessRecords
 
 
 class RecordingRunner:
@@ -175,7 +177,9 @@ def test_the_verify_stage_gets_the_state_dir_so_gate_runs_are_recorded(setup, mo
 
     build_stages(settings, deps)["verify"]("t1")
 
-    assert seen["state_dir"] == settings.state_dir
+    record = Record(4242, 4242, "t1", "gate", 100.0, 100.5)
+    SqliteProcessRecords(settings.db_path).write(record)
+    assert seen["state_dir"].load() == [record]
 
 
 def test_the_implementer_is_told_to_stay_inside_the_project(setup):
