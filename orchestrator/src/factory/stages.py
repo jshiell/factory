@@ -1,6 +1,6 @@
 import os
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 from factory.audit_task import AUDIT_CONFIG, audit_task
@@ -24,6 +24,13 @@ class Deps:
     ledger: Ledger
     runner: Runner
     worktrees: object  # anything with create(task_id) -> (path, base_sha)
+
+
+def stage_config(config: RunnerConfig, settings: Settings, stage: str) -> RunnerConfig:
+    extras = [settings.append_system_prompt, settings.stage_prompts.get(stage)]
+    parts = [config.append_system_prompt, *extras]
+    joined = "\n\n".join(part for part in parts if part)
+    return replace(config, append_system_prompt=joined) if any(extras) else config
 
 
 def implementer_config(settings: Settings) -> RunnerConfig:

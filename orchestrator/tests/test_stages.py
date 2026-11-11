@@ -14,7 +14,7 @@ from factory.process_registry import Record
 from factory.review_plan import REVIEW_CONFIG
 from factory.settings import Settings
 from factory.sqlite_process_records import SqliteProcessRecords
-from factory.stages import Deps, build_stages, implementer_config
+from factory.stages import Deps, build_stages, implementer_config, stage_config
 from factory.step import RunResult
 from factory.store import TaskStore
 from factory.task import Task, TaskState
@@ -197,3 +197,30 @@ def test_the_implementer_is_told_not_to_touch_uv_config(setup):
 
     for name in ("uv.toml", ".python-version", "[tool.uv]"):
         assert name in config.append_system_prompt
+
+
+def extended(settings, **fields):
+    return stage_config(PLAN_CONFIG, replace(settings, **fields), "plan")
+
+
+def test_a_config_is_unchanged_when_no_extra_prompt_is_set(setup):
+    assert extended(setup[2]) == PLAN_CONFIG
+
+
+def test_the_global_prompt_follows_the_built_in_one(setup):
+    config = extended(setup[2], append_system_prompt="Global.")
+
+    assert config.append_system_prompt == PLAN_CONFIG.append_system_prompt + "\n\nGlobal."
+
+
+def test_the_stage_prompt_applies_only_to_its_own_stage(setup):
+    settings = replace(setup[2], stage_prompts={"audit": "Strict."})
+
+    assert stage_config(PLAN_CONFIG, settings, "plan") == PLAN_CONFIG
+    assert stage_config(AUDIT_CONFIG, settings, "audit").append_system_prompt.endswith("\n\nStrict.")
+
+
+def test_global_then_stage_prompts_follow_the_built_in_one(setup):
+    config = extended(setup[2], append_system_prompt="Global.", stage_prompts={"plan": "Stage."})
+
+    assert config.append_system_prompt == PLAN_CONFIG.append_system_prompt + "\n\nGlobal.\n\nStage."
