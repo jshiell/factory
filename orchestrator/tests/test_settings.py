@@ -457,3 +457,21 @@ def test_stage_plugins_merge_per_stage_with_the_local_list_replacing_the_global_
     (repo_dir / "factory.toml").write_text('[stage_plugins]\nreview = ["c"]\n')
 
     assert load_settings(None, cwd=repo_dir).stage_plugins == {"review": ("c",), "audit": ("b",)}
+
+
+def test_stage_plugin_names_resolve_to_directories_per_stage(repo_dir, isolated_home):
+    make_plugins(isolated_home, "a", "b")
+    shared = isolated_home / ".harness" / "_shared" / "plugins"
+    (repo_dir / "factory.toml").write_text('[stage_plugins]\nreview = ["a", "b"]\naudit = ["b"]\n')
+
+    settings = load_settings(None, cwd=repo_dir)
+
+    assert settings.stage_plugin_dirs == {"review": (shared / "a", shared / "b"), "audit": (shared / "b",)}
+    assert load_settings(None, cwd=repo_dir).plugin_dirs == ()
+
+
+def test_a_missing_stage_plugin_directory_is_an_error_naming_it(repo_dir, isolated_home):
+    (repo_dir / "factory.toml").write_text('[stage_plugins]\nreview = ["nope"]\n')
+
+    with pytest.raises(SettingsError, match="nope"):
+        load_settings(None, cwd=repo_dir)

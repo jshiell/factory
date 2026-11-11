@@ -32,6 +32,7 @@ class Settings:
     plugins: tuple[str, ...] = ()
     plugin_dirs: tuple[Path, ...] = ()
     stage_plugins: dict[str, tuple[str, ...]] = field(default_factory=dict)
+    stage_plugin_dirs: dict[str, tuple[Path, ...]] = field(default_factory=dict)
 
     @property
     def ledger_path(self) -> Path:
@@ -71,7 +72,12 @@ def load_settings(path: Path | None, cwd: Path) -> Settings:
     state_dir = typed.pop("state_dir", None) or _project_dir(repo, configured_home) / "state"
     worktree_root = typed.pop("worktree_root", None) or _project_dir(repo, configured_home) / "worktrees"
     plugin_dirs = _plugin_dirs(typed.get("plugins", ()), configured_home)
-    settings = replace(Settings(repo, state_dir, worktree_root), plugin_dirs=plugin_dirs, **typed)
+    stage_plugin_dirs = {
+        stage: _plugin_dirs(names, configured_home) for stage, names in typed.get("stage_plugins", {}).items()
+    }
+    settings = replace(
+        Settings(repo, state_dir, worktree_root), plugin_dirs=plugin_dirs, stage_plugin_dirs=stage_plugin_dirs, **typed
+    )
     _check_project_subdir(settings.project_subdir)
     return settings
 
