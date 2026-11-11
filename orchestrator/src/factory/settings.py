@@ -30,6 +30,7 @@ class Settings:
     append_system_prompt: str | None = None
     stage_prompts: dict[str, str] = field(default_factory=dict)
     plugins: tuple[str, ...] = ()
+    plugin_dirs: tuple[Path, ...] = ()
 
     @property
     def ledger_path(self) -> Path:
@@ -68,7 +69,8 @@ def load_settings(path: Path | None, cwd: Path) -> Settings:
     configured_home = typed.pop("home", None)
     state_dir = typed.pop("state_dir", None) or _project_dir(repo, configured_home) / "state"
     worktree_root = typed.pop("worktree_root", None) or _project_dir(repo, configured_home) / "worktrees"
-    settings = replace(Settings(repo, state_dir, worktree_root), **typed)
+    plugin_dirs = _plugin_dirs(typed.get("plugins", ()), configured_home)
+    settings = replace(Settings(repo, state_dir, worktree_root), plugin_dirs=plugin_dirs, **typed)
     _check_project_subdir(settings.project_subdir)
     return settings
 
@@ -137,11 +139,25 @@ def _default_home() -> Path:
     return Path.home() / ".harness"
 
 
+def _harness_home(configured_home: Path | None) -> Path:
+    return _environment_home() or configured_home or _default_home()
+
+
 def _project_dir(repo: Path, configured_home: Path | None) -> Path:
     key = repo.resolve().name
     if not key:
         raise SettingsError("repo has no directory name to key the project by")
-    return (_environment_home() or configured_home or _default_home()) / key
+    return _harness_home(configured_home) / key
+
+
+def _plugin_dirs(names: tuple[str, ...], configured_home: Path | None) -> tuple[Path, ...]:
+    if not names:
+        return ()
+    shared = _harness_home(configured_home) / "_shared" / "plugins"
+    for name in names:
+        if not (shared / name).is_dir():
+            raise SettingsError(f"plugin directory not found: {shared / name}")
+    return tuple(shared / name for name in names)
 
 
 def _read(path: Path) -> dict:

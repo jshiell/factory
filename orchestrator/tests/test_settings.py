@@ -379,6 +379,8 @@ def test_a_bad_global_config_names_the_file_in_its_error(repo_dir, global_config
 
 def test_plugins_default_to_none_and_come_from_the_config_with_local_replacing_global(repo_dir, global_config):
     assert load_settings(None, cwd=repo_dir).plugins == ()
+    for name in "abc":
+        (global_config.parent / "_shared" / "plugins" / name).mkdir(parents=True)
     global_config.write_text('plugins = ["a", "b"]\n')
     assert load_settings(None, cwd=repo_dir).plugins == ("a", "b")
     (repo_dir / "factory.toml").write_text('plugins = ["c"]\n')
@@ -391,4 +393,28 @@ def test_bad_plugin_names_are_rejected_naming_the_key(repo_dir, value):
     (repo_dir / "factory.toml").write_text(f"plugins = {value}\n")
 
     with pytest.raises(SettingsError, match="wrong type for setting: plugins"):
+        load_settings(None, cwd=repo_dir)
+
+
+def test_plugin_names_resolve_to_directories_under_the_shared_plugins_dir(repo_dir, global_config):
+    shared = global_config.parent / "_shared" / "plugins"
+    (shared / "a").mkdir(parents=True)
+    (shared / "b").mkdir()
+    (repo_dir / "factory.toml").write_text('plugins = ["a", "b"]\n')
+
+    assert load_settings(None, cwd=repo_dir).plugin_dirs == (shared / "a", shared / "b")
+
+
+def test_plugin_dirs_follow_a_configured_home(repo_dir, tmp_path):
+    shared = tmp_path / "myhome" / "_shared" / "plugins"
+    (shared / "a").mkdir(parents=True)
+    (repo_dir / "factory.toml").write_text(f'home = "{tmp_path / "myhome"}"\nplugins = ["a"]\n')
+
+    assert load_settings(None, cwd=repo_dir).plugin_dirs == (shared / "a",)
+
+
+def test_a_missing_plugin_directory_is_an_error_naming_it(repo_dir, global_config):
+    (repo_dir / "factory.toml").write_text('plugins = ["nope"]\n')
+
+    with pytest.raises(SettingsError, match="nope"):
         load_settings(None, cwd=repo_dir)
