@@ -107,6 +107,51 @@ class FileProcessRecords:
         invalid.path.unlink()
 
 
+def still_running(record: Record, probe, group_alive) -> bool:
+    """Whether a recorded group is ours and alive, by the reaper's own rule; raises `ProbeFailed` if it cannot tell."""
+    return _is_ours_and_alive(record, probe(record.pid), group_alive)
+
+
+class FileRecordsCleared(NamedTuple):
+    removed: list[Path]
+    discarded: list[InvalidRecord]
+
+
+class FileRecordsBlocked(Exception):
+    """Old file records that cannot be cleared; nothing was removed."""
+
+    def __init__(self, blocking: list[str]):
+        super().__init__("; ".join(blocking))
+        self.blocking = blocking
+
+
+def clear_file_records(state_dir, probe, group_alive) -> FileRecordsCleared:
+    """Remove the old `procs/` file records, never killing anything; if any could belong to a live agent, remove none."""
+    removed, discarded, blocking = [], [], []
+    for record in FileProcessRecords(state_dir).load():
+        if isinstance(record, InvalidRecord):
+            discarded.append(record)
+            continue
+        try:
+            if still_running(record, probe, group_alive):
+                blocking.append(f"pid {record.pid} (task {record.task_id}, {record.stage}) may still be running")
+                continue
+        except ProbeFailed as error:
+            blocking.append(f"cannot tell whether pid {record.pid} (task {record.task_id}, {record.stage}) is running: {error}")
+            continue
+        removed.append(_record_path(state_dir, record.pid))
+    for temporary in leftover_file_records(state_dir):
+        if temporary.suffix == ".tmp":
+            blocking.append(f"{temporary.name} may describe a live agent; check it, then delete it")
+    if blocking:
+        raise FileRecordsBlocked(blocking)
+    for path in removed:
+        path.unlink(missing_ok=True)
+    for invalid in discarded:
+        invalid.path.unlink(missing_ok=True)
+    return FileRecordsCleared(removed, discarded)
+
+
 def as_records(target):
     """A state directory means file records; anything else is already a records object."""
     return FileProcessRecords(target) if isinstance(target, (str, Path)) else target

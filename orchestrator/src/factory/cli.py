@@ -18,11 +18,12 @@ from factory.gate import check_gate
 from factory.ids import InvalidTaskId, require_safe_id
 from factory.ledger import Ledger
 from factory.migrate import DatabaseNotEmpty, migrate
+from factory.lock import AlreadyRunning, state_lock
 from factory.process import group_alive, kill_tree
 from factory.sqlite_ledger import SqliteLedger
 from factory.sqlite_process_records import SqliteProcessRecords
 from factory.sqlite_store import SqliteTaskStore
-from factory.process_registry import ReapResult, ps_probe, reap_orphans
+from factory.process_registry import FileRecordsBlocked, ReapResult, clear_file_records, ps_probe, reap_orphans
 from factory.runner import SubprocessRunner
 from factory.settings import Settings, SettingsError, load_settings
 from factory.stages import Deps, build_stages
@@ -71,6 +72,8 @@ class Context:
     eval_runner: Callable[[Settings, Path], Runner] = _real_eval_runner
     serve: Callable[[object, str, int], None] = _serve_with_uvicorn
     server: ServerClient | None = None
+    probe: Callable[[int], float | None] = ps_probe()
+    group_alive: Callable[[int], bool] = group_alive
 
 
 def _print_reaped(killed, discarded, io) -> None:
@@ -166,6 +169,21 @@ def _new(args, io, ctx) -> int:
 
 
 def _migrate(args, io, ctx) -> int:
+    try:
+        with state_lock(ctx.settings.state_dir):
+            cleared = clear_file_records(ctx.settings.state_dir, ctx.probe, ctx.group_alive)
+            for path in cleared.removed:
+                print(f"removed stale process record {path.name}", file=io.stdout)
+            return _copy_old_files(io, ctx)
+    except FileRecordsBlocked as blocked:
+        print(f"old process records remain: {blocked}; nothing changed", file=io.stderr)
+        return 1
+    except AlreadyRunning:
+        print("another factory run holds the lock; nothing changed", file=io.stderr)
+        return 1
+
+
+def _copy_old_files(io, ctx) -> int:
     try:
         report = migrate(TaskStore(ctx.settings.tasks_dir), Ledger(ctx.settings.ledger_path), ctx.store, ctx.ledger)
     except DatabaseNotEmpty as refused:
