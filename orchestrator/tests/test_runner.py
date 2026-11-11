@@ -312,3 +312,19 @@ def test_guard_an_agent_whose_record_cannot_be_written_is_killed_and_the_run_rai
         runner.run(replace(task, state=TaskState.QUEUED), CONFIG)
 
     assert subprocess.run(["pgrep", "-f", "sleep 29.4712"], capture_output=True).returncode != 0
+
+
+def test_each_plugin_dir_is_granted_read_only_to_the_sandbox(tmp_path, task):
+    log = tmp_path / "wrapper.log"
+    runner = SubprocessRunner(
+        fake_claude(tmp_path, "echo ok"), project_subdir="proj", timeout_s=10,
+        sandbox_executable=fake_wrapper(tmp_path, log),
+    )
+
+    runner.run(task, replace(CONFIG, confine=True, plugin_dirs=("/h/p a", "/h/p b")))
+
+    lines = log.read_text().splitlines()
+    before_command = lines[: lines.index("--")]
+    reads = [before_command[i + 1] for i, arg in enumerate(before_command) if arg == "--read"]
+    assert reads[1:] == ["/h/p a", "/h/p b"]
+    assert [lines[i + 1] for i, arg in enumerate(lines) if arg == "--plugin-dir"] == ["/h/p a", "/h/p b"]

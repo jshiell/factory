@@ -26,7 +26,7 @@ class SubprocessRunner:
         add_dirs = (worktree,) if config.confine else ()
         argv, env_overlay = build_command(task.prompt, config, executable=self._executable, add_dirs=add_dirs)
         if config.confine:
-            argv = sandbox_prefix(self._sandbox_executable, worktree) + argv
+            argv = sandbox_prefix(self._sandbox_executable, worktree, read=config.plugin_dirs) + argv
         cwd = Path(task.worktree) / self._project_subdir
         tracker = Tracker(self._records, task.id, task.state.value) if self._records else None
         with tempfile.TemporaryFile("w+") as stdout_file:
