@@ -278,3 +278,11 @@ def test_append_system_prompt_defaults_to_none_and_can_be_set(repo_dir):
     (repo_dir / "factory.toml").write_text('append_system_prompt = "Be terse."\n')
 
     assert load_settings(None, cwd=repo_dir).append_system_prompt == "Be terse."
+
+
+@pytest.mark.parametrize("value", ['""', "3"])
+def test_a_bad_append_system_prompt_is_rejected_naming_the_key(repo_dir, value):
+    (repo_dir / "factory.toml").write_text(f"append_system_prompt = {value}\n")
+
+    with pytest.raises(SettingsError, match="append_system_prompt"):
+        load_settings(None, cwd=repo_dir)

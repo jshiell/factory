@@ -47,11 +47,12 @@ class Settings:
 
 
 _PATH_KEYS = ("repo", "state_dir", "worktree_root", "home")
-_STRING_KEYS = ("project_subdir", "claude_executable", "sandbox_executable", "model", "append_system_prompt")
+_STRING_KEYS = ("project_subdir", "claude_executable", "sandbox_executable", "model")
+_PROMPT_KEYS = ("append_system_prompt",)
 _FLOAT_KEYS = ("cap_usd", "gate_timeout_s", "runner_timeout_s", "budget_usd")
 _STRING_LIST_KEYS = ("test_argv", "allowed_tools")
 _INT_KEYS = ("max_turns", "fix_rounds", "server_port")
-_KNOWN = _PATH_KEYS + _STRING_KEYS + _FLOAT_KEYS + _STRING_LIST_KEYS + _INT_KEYS
+_KNOWN = _PATH_KEYS + _STRING_KEYS + _PROMPT_KEYS + _FLOAT_KEYS + _STRING_LIST_KEYS + _INT_KEYS
 
 
 def load_settings(path: Path | None, cwd: Path) -> Settings:
@@ -114,6 +115,9 @@ def _read(path: Path) -> dict:
 def _typed(key: str, value):
     if key in _PATH_KEYS or key in _STRING_KEYS:
         if isinstance(value, str):
+            return value
+    elif key in _PROMPT_KEYS:
+        if isinstance(value, str) and value:
             return value
     elif key in _FLOAT_KEYS:
         if isinstance(value, (int, float)) and not isinstance(value, bool):
