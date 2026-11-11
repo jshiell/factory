@@ -29,6 +29,7 @@ class Settings:
     server_port: int = 8765
     append_system_prompt: str | None = None
     stage_prompts: dict[str, str] = field(default_factory=dict)
+    plugins: tuple[str, ...] = ()
 
     @property
     def ledger_path(self) -> Path:
@@ -52,7 +53,7 @@ _STRING_KEYS = ("project_subdir", "claude_executable", "sandbox_executable", "mo
 _PROMPT_KEYS = ("append_system_prompt",)
 _STAGES = ("plan", "review", "implement", "audit")
 _FLOAT_KEYS = ("cap_usd", "gate_timeout_s", "runner_timeout_s", "budget_usd")
-_STRING_LIST_KEYS = ("test_argv", "allowed_tools")
+_STRING_LIST_KEYS = ("test_argv", "allowed_tools", "plugins")
 _INT_KEYS = ("max_turns", "fix_rounds", "server_port")
 _KNOWN = _PATH_KEYS + _STRING_KEYS + _PROMPT_KEYS + ("stage_prompts",) + _FLOAT_KEYS + _STRING_LIST_KEYS + _INT_KEYS
 
@@ -171,8 +172,15 @@ def _typed(key: str, value):
         if isinstance(value, int) and not isinstance(value, bool) and (value >= 0 or key == "max_turns"):
             return value
     elif isinstance(value, list) and value and all(isinstance(item, str) for item in value):
-        return tuple(value)
+        if key != "plugins" or _plugin_names_ok(value):
+            return tuple(value)
     raise SettingsError(f"wrong type for setting: {key}")
+
+
+def _plugin_names_ok(names: list[str]) -> bool:
+    return len(set(names)) == len(names) and all(
+        name not in ("", ".", "..") and "/" not in name and "\\" not in name for name in names
+    )
 
 
 def _check_project_subdir(subdir: str) -> None:

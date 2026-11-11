@@ -375,3 +375,20 @@ def test_a_bad_global_config_names_the_file_in_its_error(repo_dir, global_config
 
     with pytest.raises(SettingsError, match=str(global_config)):
         load_settings(None, cwd=repo_dir)
+
+
+def test_plugins_default_to_none_and_come_from_the_config_with_local_replacing_global(repo_dir, global_config):
+    assert load_settings(None, cwd=repo_dir).plugins == ()
+    global_config.write_text('plugins = ["a", "b"]\n')
+    assert load_settings(None, cwd=repo_dir).plugins == ("a", "b")
+    (repo_dir / "factory.toml").write_text('plugins = ["c"]\n')
+
+    assert load_settings(None, cwd=repo_dir).plugins == ("c",)
+
+
+@pytest.mark.parametrize("value", ["[]", '"a"', "[1]", '["../x"]', '["a/b"]', '[""]', '["."]', '[".."]', '["a", "a"]'])
+def test_bad_plugin_names_are_rejected_naming_the_key(repo_dir, value):
+    (repo_dir / "factory.toml").write_text(f"plugins = {value}\n")
+
+    with pytest.raises(SettingsError, match="wrong type for setting: plugins"):
+        load_settings(None, cwd=repo_dir)
