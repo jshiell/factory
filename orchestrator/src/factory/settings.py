@@ -225,7 +225,22 @@ def _runs_code(plugin: Path) -> str | None:
         for key in ("hooks", "mcpServers"):
             if isinstance(declared, dict) and key in declared:
                 return key
+    for markdown in (*sorted(plugin.glob("skills/*/SKILL.md")), *sorted(plugin.glob("agents/*.md"))):
+        if _frontmatter_declares_hooks(markdown):
+            return f"frontmatter hooks in {markdown.relative_to(plugin).as_posix()}"
     return None
+
+
+def _frontmatter_declares_hooks(markdown: Path) -> bool:
+    lines = markdown.read_text(errors="replace").splitlines()
+    if not lines or lines[0].strip() != "---":
+        return False
+    for line in lines[1:]:
+        if line.strip() == "---":
+            return False
+        if line.startswith("hooks:"):
+            return True
+    return False
 
 
 def _plugin_names_ok(names: list[str]) -> bool:

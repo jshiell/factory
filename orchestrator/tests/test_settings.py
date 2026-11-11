@@ -496,6 +496,18 @@ def test_a_plugin_with_hooks_or_mcp_servers_is_refused_naming_it(repo_dir, isola
         load_settings(None, cwd=repo_dir)
 
 
+@pytest.mark.parametrize("relative", ["skills/s/SKILL.md", "agents/a.md"])
+def test_a_skill_or_agent_with_frontmatter_hooks_is_refused_naming_it(repo_dir, isolated_home, relative):
+    make_plugins(isolated_home, "bad")
+    plugin = isolated_home / ".harness" / "_shared" / "plugins" / "bad"
+    (plugin / relative).parent.mkdir(parents=True)
+    (plugin / relative).write_text("---\nname: x\nhooks:\n  PreToolUse: []\n---\nBody\n")
+    (repo_dir / "factory.toml").write_text('plugins = ["bad"]\n')
+
+    with pytest.raises(SettingsError, match=f"bad.*frontmatter hooks.*{relative}"):
+        load_settings(None, cwd=repo_dir)
+
+
 def test_a_plugin_with_an_unreadable_manifest_is_refused(repo_dir, isolated_home):
     make_plugins(isolated_home, "bad")
     plugin = isolated_home / ".harness" / "_shared" / "plugins" / "bad"
