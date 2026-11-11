@@ -33,4 +33,4 @@ class SqliteProcessRecords:
     def _checked(record: Record) -> Record | InvalidRecord:
         if names_a_launched_group(record):
             return record
-        return InvalidRecord(Path(str(record.pid)), NOT_A_LAUNCHED_GROUP, record.pid)
+        return InvalidRecord(Path(f"pid {record.pid}"), NOT_A_LAUNCHED_GROUP, record.pid)

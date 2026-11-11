@@ -119,3 +119,16 @@ def test_serve_defaults_to_the_configured_port_and_the_flag_overrides_it(ctx):
     serve(ctx, "--port", "9002")
 
     assert [port for _, _, port in ctx.served] == [9001, 9002]
+
+
+def test_serve_names_an_invalid_database_row_by_its_pid_when_it_discards_it(ctx):
+    from factory.cli import _reap_with_the_real_process_table
+    from factory.process_registry import Record
+    from factory.sqlite_process_records import SqliteProcessRecords
+    ctx.reap = _reap_with_the_real_process_table
+    SqliteProcessRecords(ctx.settings.db_path).write(Record(1, 1, "t7", "implement", 100.0, 100.5))
+
+    _, out, _ = serve(ctx)
+
+    assert out.splitlines()[0].startswith("discarded invalid process record pid 1: ")
+    assert SqliteProcessRecords(ctx.settings.db_path).load() == []
