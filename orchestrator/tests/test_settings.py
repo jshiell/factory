@@ -342,3 +342,20 @@ def test_stage_prompts_merge_per_stage_with_the_local_one_winning(repo_dir, glob
     settings = load_settings(None, cwd=repo_dir)
 
     assert settings.stage_prompts == {"plan": "L plan.", "audit": "G audit."}
+
+
+def test_the_global_config_lives_in_factory_home_and_its_home_key_does_not_move_it(repo_dir, tmp_path, monkeypatch):
+    env_home = tmp_path / "fh"
+    env_home.mkdir()
+    monkeypatch.setenv("FACTORY_HOME", str(env_home))
+    (env_home / "factory.toml").write_text(f'model = "opus"\nhome = "{tmp_path / "elsewhere"}"\n')
+
+    assert load_settings(None, cwd=repo_dir).model == "opus"
+
+
+def test_a_relative_path_in_the_global_config_resolves_against_its_own_directory(repo_dir, global_config):
+    global_config.write_text('home = "projects"\n')
+
+    settings = load_settings(None, cwd=repo_dir)
+
+    assert settings.state_dir == global_config.parent / "projects" / "repo" / "state"

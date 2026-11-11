@@ -60,21 +60,9 @@ _KNOWN = _PATH_KEYS + _STRING_KEYS + _PROMPT_KEYS + ("stage_prompts",) + _FLOAT_
 def load_settings(path: Path | None, cwd: Path) -> Settings:
     if path is None and (cwd / "factory.toml").exists():
         path = cwd / "factory.toml"
-    values, base = ({}, cwd) if path is None else (_read(path), path.parent)
     global_path = _global_config_path()
-    if global_path and global_path.exists():
-        global_values = _read(global_path)
-        merged = {**global_values, **values}
-        if isinstance(global_values.get("stage_prompts"), dict) and isinstance(values.get("stage_prompts"), dict):
-            merged["stage_prompts"] = {**global_values["stage_prompts"], **values["stage_prompts"]}
-        values = merged
-    unknown = sorted(set(values) - set(_KNOWN))
-    if unknown:
-        raise SettingsError(f"unknown setting: {unknown[0]}")
-    typed = {key: _typed(key, value) for key, value in values.items()}
-    for key in _PATH_KEYS:
-        if key in typed:
-            typed[key] = base / _expanded(key, typed[key])
+    global_layer = _layer(global_path) if global_path and global_path.exists() else {}
+    typed = _merged(global_layer, {} if path is None else _layer(path))
     repo = typed.pop("repo", None) or _git_toplevel(cwd)
     configured_home = typed.pop("home", None)
     state_dir = typed.pop("state_dir", None) or _project_dir(repo, configured_home) / "state"
@@ -82,6 +70,25 @@ def load_settings(path: Path | None, cwd: Path) -> Settings:
     settings = replace(Settings(repo, state_dir, worktree_root), **typed)
     _check_project_subdir(settings.project_subdir)
     return settings
+
+
+def _layer(path: Path) -> dict:
+    values = _read(path)
+    unknown = sorted(set(values) - set(_KNOWN))
+    if unknown:
+        raise SettingsError(f"unknown setting: {unknown[0]}")
+    typed = {key: _typed(key, value) for key, value in values.items()}
+    for key in _PATH_KEYS:
+        if key in typed:
+            typed[key] = path.parent / _expanded(key, typed[key])
+    return typed
+
+
+def _merged(base: dict, override: dict) -> dict:
+    merged = {**base, **override}
+    if "stage_prompts" in base and "stage_prompts" in override:
+        merged["stage_prompts"] = {**base["stage_prompts"], **override["stage_prompts"]}
+    return merged
 
 
 def _environment_home() -> Path | None:
