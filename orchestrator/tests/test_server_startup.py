@@ -1,8 +1,12 @@
+import os
+import signal
+import subprocess
+import time
 from datetime import datetime
 
 import pytest
 
-from factory.cli import Context
+from factory.cli import Context, _reap_with_the_real_process_table
 from factory.job_store import JobStore
 from factory.process_registry import ReapResult, ReapUncertain, Record
 from factory.server import StartRefused, claim_state_dir
@@ -82,3 +86,33 @@ def test_agents_that_cannot_be_proved_dead_stop_the_start_and_leave_jobs_alone(c
             pass
 
     assert jobs.get(running.id).state == "running"
+
+
+def _ps_works():
+    try:
+        return subprocess.run(["ps", "-o", "lstart=", "-p", str(os.getpid())], capture_output=True).returncode == 0
+    except OSError:
+        return False
+
+
+@pytest.mark.skipif(not _ps_works(), reason="the process table cannot be read here (a sandbox blocks ps)")
+def test_claiming_kills_a_live_orphan_recorded_in_the_database_and_empties_the_table(ctx):
+    ctx.reap = _reap_with_the_real_process_table
+    before = time.time()
+    leader = subprocess.Popen(["sh", "-c", "sleep 60 & echo $!"], stdout=subprocess.PIPE, text=True, start_new_session=True)
+    member = int(leader.stdout.readline())
+    leader.wait()
+    records = SqliteProcessRecords(ctx.settings.db_path)
+    records.write(Record(leader.pid, leader.pid, "t1", "implement", before, time.time()))
+    try:
+        with claim_state_dir(ctx) as reaped:
+            pass
+        assert [record.pid for record in reaped.killed] == [leader.pid]
+        assert records.load() == []
+        with pytest.raises(ProcessLookupError):
+            os.kill(member, 0)
+    finally:
+        try:
+            os.kill(member, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
