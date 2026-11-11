@@ -1,5 +1,6 @@
 import calendar
 import json
+import logging
 import os
 import subprocess
 import time
@@ -246,4 +247,7 @@ class Tracker:
         try:
             yield
         finally:
-            self._records.remove(pid)
+            try:
+                self._records.remove(pid)
+            except Exception as error:  # the tree is dead: a stale row is dropped by the next serve, a failed paid run is not
+                logging.getLogger(__name__).warning("could not remove the process record for pid %s: %s", pid, error)

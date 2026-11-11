@@ -141,3 +141,18 @@ def test_a_record_that_cannot_be_written_kills_the_launched_command_and_raises(t
         run_to_exit(["sleep", "29.4711"], tmp_path, None, 30, tracker=Tracker(UnwritableRecords(), "t1", "gate"))
 
     assert not _running("sleep 29.4711")
+
+
+class StuckRecords:
+    def write(self, record):
+        pass
+
+    def remove(self, pid):
+        raise OSError("database is locked")
+
+
+def test_a_record_that_cannot_be_removed_after_the_command_is_dead_is_logged_and_the_run_still_succeeds(tmp_path, caplog):
+    result = run_to_exit(["true"], tmp_path, None, 10, tracker=Tracker(StuckRecords(), "t1", "gate"))
+
+    assert result.exit_code == 0
+    assert "could not remove the process record" in caplog.text and "database is locked" in caplog.text
