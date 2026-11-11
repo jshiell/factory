@@ -60,7 +60,7 @@ _KNOWN = _PATH_KEYS + _STRING_KEYS + _PROMPT_KEYS + ("stage_prompts",) + _FLOAT_
 def load_settings(path: Path | None, cwd: Path) -> Settings:
     if path is None and (cwd / "factory.toml").exists():
         path = cwd / "factory.toml"
-    global_path = _global_config_path()
+    global_path = _usable_global_config_path()
     global_layer = _global_layer(global_path) if global_path and global_path.exists() else {}
     typed = _merged(global_layer, {} if path is None else _layer(path))
     repo = typed.pop("repo", None) or _git_toplevel(cwd)
@@ -114,9 +114,13 @@ def _environment_home() -> Path | None:
     return path
 
 
-def _global_config_path() -> Path | None:
+def global_config_path() -> Path:
+    return (_environment_home() or _default_home()) / "factory.toml"
+
+
+def _usable_global_config_path() -> Path | None:
     try:
-        return (_environment_home() or _default_home()) / "factory.toml"
+        return global_config_path()
     except SettingsError:
         return None  # an unusable home is reported only where the home is needed
 
