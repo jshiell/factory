@@ -122,3 +122,22 @@ def test_the_record_goes_after_an_interruption(tmp_path):
         signal.signal(signal.SIGALRM, previous)
 
     assert load_records(tmp_path) == []
+
+
+class UnwritableRecords:
+    def write(self, record):
+        raise OSError("database is locked")
+
+    def remove(self, pid):
+        raise AssertionError("nothing was recorded, so nothing is removed")
+
+
+def _running(marker):
+    return subprocess.run(["pgrep", "-f", marker], capture_output=True).returncode == 0
+
+
+def test_a_record_that_cannot_be_written_kills_the_launched_command_and_raises(tmp_path):
+    with pytest.raises(OSError, match="database is locked"):
+        run_to_exit(["sleep", "29.4711"], tmp_path, None, 30, tracker=Tracker(UnwritableRecords(), "t1", "gate"))
+
+    assert not _running("sleep 29.4711")

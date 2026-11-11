@@ -7,6 +7,8 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import NamedTuple
 
+from factory.process import kill_tree
+
 
 class Record(NamedTuple):
     pid: int
@@ -236,7 +238,11 @@ class Tracker:
 
     @contextmanager
     def launched(self, pid: int, launched_after: float, launched_before: float):
-        self._records.write(Record(pid, pid, self._task_id, self._stage, launched_after, launched_before))
+        try:
+            self._records.write(Record(pid, pid, self._task_id, self._stage, launched_after, launched_before))
+        except BaseException:
+            kill_tree(pid)  # it was launched before it could be recorded: never leave it running unrecorded
+            raise
         try:
             yield
         finally:
