@@ -20,6 +20,10 @@ TEMPLATE = '''\
 # Per-stage additions: plan, review, implement, audit.
 # [stage_prompts]
 # implement = "Text appended to the implementer's system prompt."
+
+# Per-stage plugins, added to the global plugins for that stage only.
+# [stage_plugins]
+# review = ["my-plugin"]
 '''
 
 

@@ -30,6 +30,7 @@ def test_init_writes_the_template_into_the_harness_home(harness):
 def test_every_commented_example_in_the_template_is_a_valid_global_setting(harness, repo):
     lines = [re.sub(r"^# ", "", line) for line in TEMPLATE.splitlines() if re.match(r"^# (\[\w+\]|\w+ = )", line)]
     assert any(line.startswith("plugins = ") for line in lines)
+    assert "[stage_plugins]" in lines
     (harness / "_shared" / "plugins" / "my-plugin").mkdir(parents=True)
     (harness / "factory.toml").write_text("\n".join(lines) + "\n")
 
