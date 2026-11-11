@@ -131,3 +131,15 @@ def test_old_file_records_stop_the_start_and_leave_jobs_alone_until_migrated(ctx
             pass
 
     assert ctx.reaped == [] and jobs.get(running.id).state == "running"
+
+
+def test_guard_eval_records_and_an_empty_procs_directory_do_not_block_the_start(ctx):
+    (ctx.settings.state_dir / "procs").mkdir()
+    eval_procs = ctx.settings.state_dir / "evals" / "x" / "procs"
+    eval_procs.mkdir(parents=True)
+    (eval_procs / "1.json").write_text("{}")
+
+    with claim_state_dir(ctx):
+        pass
+
+    assert len(ctx.reaped) == 1
