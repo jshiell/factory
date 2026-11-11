@@ -4,7 +4,7 @@ A personal "agentic software factory": a small Python orchestrator that takes a 
 [Claude Code](https://claude.com/claude-code) agents (`claude -p`) through **plan → review → implement → verify → audit → merge**,
 with a human approving the plan and the merge.
 
-It is a learning project, built plan by plan (`docs/plan-1.md` … `docs/plan-34.md`), test-first. The point is to find out how far you
+It is a learning project, built plan by plan (`docs/plan-1.md` … `docs/plan-36.md`), test-first. The point is to find out how far you
 can trust unattended agents when every step is sandboxed, every result is checked by something that is not the agent, and the
 only things that need a person are the two decisions that matter: *is this the right plan* and *should this land on main*.
 
@@ -12,7 +12,7 @@ only things that need a person are the two decisions that matter: *is this the r
 
 | Path | What it is |
 |---|---|
-| `orchestrator/` | The factory: a Python 3.14 package, CLI `factory`, standard library only, ~1240 tests |
+| `orchestrator/` | The factory: a Python 3.14 package, CLI `factory`; the standard library plus `httpx`, `starlette` and `uvicorn` for the server; ~1000 tests |
 | `target/` | A tiny Python project (`calc`) the agents work on. Replace it with any `uv` + `pytest` project |
 | `docs/` | One `plan-N.md` per increment (decisions, cycles, reviewer findings) and `spike-findings.md` (what was measured, known gaps) |
 | `spike/` | Throwaway probes and end-to-end scripts. Not production code; several make real API calls or need a terminal |
@@ -55,6 +55,7 @@ or its step cap. Agent spend is capped (see `cap_usd`) and every call is recorde
 | `recover <id>` | Mark a task whose driver died (`running`) as failed, charging an assumed cost |
 | `clean` | After a preview and confirmation, remove worktrees, gate caches, orphan caches and branches of finished tasks |
 | `costs [id]` | Spend by stage and by task, with assumed costs shown separately |
+| `init` | Write a commented global `<home>/factory.toml` template and the shared plugins directory. Needs no repo or server; refuses to overwrite an existing file |
 | `migrate` | Copy the old JSON tasks and ledger under `<state_dir>` (for in-repo state, `<repo>/.factory`; point `state_dir` at it) into `factory.db`. Refuses a database that already has rows; never deletes the old files |
 | `serve [--port N]` | Run the local HTTP server (below) |
 | `eval-audit` | Run the auditor over 25 labelled changes (default 3 runs each, about $2) and compare with the last comparable run. Exits `1` if a bad change is ever judged pass or a good one is judged fail by a majority, `3` if incomplete. Options: `--runs N`, `--only CASE`, `--max-usd X`, `--resume DIR` (same `--runs` and cases as the original), `--compare DIR`, `--check-corpus` (runs the real gate on every case; needs `uv` and network). Results under `<state_dir>/evals/`; its own eval directory and lock, so it never reaps the server's agents |
@@ -82,7 +83,7 @@ Reads and quick actions answer at once; `advance`, `abandon`, `recover`, `rebase
 | `GET /jobs`, `GET /jobs/{id}` | job state: `queued`, `running`, `succeeded`, `failed`, `interrupted` |
 
 Errors are `{error, detail}`: 401 token, 403 host or origin, 404 unknown task or job, 409 wrong state or stale preview, 422 bad input.
-Every CLI command except `migrate` and `serve` is a client of this server and needs it running (`no factory server is running` otherwise); it reads the token from `<state_dir>/token`. Each state dir has its own token, so a CLI pointed at a different state dir than the running server is refused with a 401. Long commands wait for their job; Ctrl-C stops waiting and the job carries on. `eval-audit --compare` and `--check-corpus` work locally.
+Every CLI command except `init`, `migrate` and `serve` is a client of this server and needs it running (`no factory server is running` otherwise); it reads the token from `<state_dir>/token`. Each state dir has its own token, so a CLI pointed at a different state dir than the running server is refused with a 401. Long commands wait for their job; Ctrl-C stops waiting and the job carries on. `eval-audit --compare` and `--check-corpus` work locally.
 
 ### Configuration
 
@@ -114,6 +115,7 @@ runner_timeout_s = 300
 claude_executable = "claude"
 sandbox_executable = "nono"
 allowed_tools = []
+plugins = []                   # plugin directory names under <home>/_shared/plugins
 append_system_prompt = "..."   # optional; appended to every stage's system prompt
 
 [stage_prompts]                # optional; appended for that stage only (plan, review, implement, audit)
@@ -244,8 +246,8 @@ flowchart TB
 
 ### Why this shape
 
-- *Plain files and a state machine* so everything is inspectable and a crashed run is recoverable by hand.
-- *Standard library only* in the orchestrator, to keep the trusted core small.
+- *A SQLite file and a state machine* so everything is inspectable and a crashed run is recoverable by hand.
+- *Few dependencies* in the orchestrator (`httpx`, `starlette`, `uvicorn`, only for the server and its client), to keep the trusted core small.
 - *One git worktree and branch (`factory/<id>`) per task* so agents never touch each other or the main checkout, and a rejected
   task is just a directory to delete (`clean`).
 - *Every stage is a function of the task file* (`task_id → Task`), which makes each stage testable with fakes and `advance` a loop.
@@ -253,7 +255,7 @@ flowchart TB
 ## Development
 
 ```sh
-cd orchestrator && uv run pytest -q      # ~970 tests, real git in temp repos
+cd orchestrator && uv run pytest -q      # ~1000 tests, real git in temp repos
 cd target && uv run pytest -q
 ```
 
