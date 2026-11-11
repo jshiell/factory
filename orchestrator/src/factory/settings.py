@@ -66,9 +66,8 @@ def load_settings(path: Path | None, cwd: Path) -> Settings:
             typed[key] = base / _expanded(key, typed[key])
     repo = typed.pop("repo", None) or _git_toplevel(cwd)
     configured_home = typed.pop("home", None)
-    home = _environment_home() or configured_home
-    state_dir = typed.pop("state_dir", None) or _project_dir(repo, home) / "state"
-    worktree_root = typed.pop("worktree_root", None) or _project_dir(repo, home) / "worktrees"
+    state_dir = typed.pop("state_dir", None) or _project_dir(repo, configured_home) / "state"
+    worktree_root = typed.pop("worktree_root", None) or _project_dir(repo, configured_home) / "worktrees"
     settings = replace(Settings(repo, state_dir, worktree_root), **typed)
     _check_project_subdir(settings.project_subdir)
     return settings
@@ -95,11 +94,11 @@ def _default_home() -> Path:
     return Path.home() / ".harness"
 
 
-def _project_dir(repo: Path, home: Path | None) -> Path:
+def _project_dir(repo: Path, configured_home: Path | None) -> Path:
     key = repo.resolve().name
     if not key:
         raise SettingsError("repo has no directory name to key the project by")
-    return (home or _default_home()) / key
+    return (_environment_home() or configured_home or _default_home()) / key
 
 
 def _read(path: Path) -> dict:

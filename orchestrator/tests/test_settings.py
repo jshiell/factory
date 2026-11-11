@@ -241,3 +241,33 @@ def test_an_empty_HOME_is_rejected_instead_of_writing_under_root(repo_dir, monke
 
     with pytest.raises(SettingsError, match="HOME"):
         load_settings(None, cwd=repo_dir)
+
+
+def test_setting_only_state_dir_still_derives_the_worktree_root(tmp_path, repo_dir, isolated_home):
+    config = tmp_path / "factory.toml"
+    config.write_text(f'repo = "{repo_dir}"\nstate_dir = "s"\n')
+
+    settings = load_settings(config, cwd=tmp_path)
+
+    assert settings.state_dir == tmp_path / "s"
+    assert settings.worktree_root == isolated_home / ".harness" / "repo" / "worktrees"
+
+
+def test_setting_only_worktree_root_still_derives_the_state_dir(tmp_path, repo_dir, isolated_home):
+    config = tmp_path / "factory.toml"
+    config.write_text(f'repo = "{repo_dir}"\nworktree_root = "w"\n')
+
+    settings = load_settings(config, cwd=tmp_path)
+
+    assert settings.worktree_root == tmp_path / "w"
+    assert settings.state_dir == isolated_home / ".harness" / "repo" / "state"
+
+
+def test_a_bad_factory_home_is_harmless_when_both_paths_are_overridden(tmp_path, repo_dir, monkeypatch):
+    monkeypatch.setenv("FACTORY_HOME", "relative")
+    config = tmp_path / "factory.toml"
+    config.write_text(f'repo = "{repo_dir}"\nstate_dir = "s"\nworktree_root = "w"\n')
+
+    settings = load_settings(config, cwd=tmp_path)
+
+    assert settings.state_dir == tmp_path / "s"
