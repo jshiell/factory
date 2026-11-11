@@ -1,3 +1,4 @@
+import logging
 from pathlib import Path
 
 import pytest
@@ -148,6 +149,16 @@ def test_timeout_fails_the_task_and_records_an_assumed_double_budget_cost(store,
     assert task.failure_reason == "timeout"
     assert ledger.total() == 1.0
     assert ledger.entries()[0]["assumed"] is True
+
+
+def test_a_runner_exception_in_step_is_logged_with_its_text(store, ledger, caplog):
+    def explode(task):
+        raise FileNotFoundError("no such cwd: /w/target")
+
+    with caplog.at_level(logging.WARNING, logger="factory"):
+        step("t1", store, ledger, FakeRunner(on_run=explode), CONFIG, cap_usd=10)
+
+    assert any("t1" in r.getMessage() and "implement" in r.getMessage() and "no such cwd: /w/target" in r.getMessage() for r in caplog.records)
 
 
 def test_runner_exception_fails_the_task_instead_of_leaving_it_running(store, ledger):

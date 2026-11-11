@@ -1,3 +1,4 @@
+import logging
 from dataclasses import dataclass, replace
 from typing import Protocol
 
@@ -58,7 +59,8 @@ def step(
     store.save(running)
     try:
         result = runner.run(running, config)
-    except Exception:
+    except Exception as error:
+        logging.getLogger("factory").warning("agent run failed for task %s, stage implement: %r", task_id, error)
         return _fail_with_assumed_cost(running, "runner_error", store, ledger, config)
     if result.timed_out:
         return _fail_with_assumed_cost(running, "timeout", store, ledger, config)
