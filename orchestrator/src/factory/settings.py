@@ -159,10 +159,14 @@ def harness_home() -> Path:
 
 
 def _project_dir(repo: Path, configured_home: Path | None) -> Path:
-    key = repo.resolve().name
+    home = _harness_home(configured_home)
+    resolved = repo.resolve()
+    key = resolved.name
+    if key == "repo" and resolved.parent.parent == home.resolve():
+        key = resolved.parent.name  # a clone made by `factory clone` lives at <home>/<project>/repo
     if not key:
         raise SettingsError("repo has no directory name to key the project by")
-    return _harness_home(configured_home) / key
+    return home / key
 
 
 def _plugin_dirs(names: tuple[str, ...], configured_home: Path | None) -> tuple[Path, ...]:

@@ -569,3 +569,14 @@ def test_a_plugin_with_only_skills_and_agents_is_accepted(repo_dir, isolated_hom
     (repo_dir / "factory.toml").write_text('plugins = ["ok"]\n')
 
     assert load_settings(None, cwd=repo_dir).plugin_dirs == (plugin,)
+
+
+def test_a_repo_cloned_into_the_home_is_keyed_by_its_project_directory(isolated_home):
+    clone = isolated_home / ".harness" / "myproj" / "repo"
+    clone.mkdir(parents=True)
+    subprocess.run(["git", "init", "-q"], cwd=clone, check=True)
+
+    settings = load_settings(None, cwd=clone)
+
+    assert settings.state_dir == isolated_home / ".harness" / "myproj" / "state"
+    assert settings.worktree_root == isolated_home / ".harness" / "myproj" / "worktrees"
