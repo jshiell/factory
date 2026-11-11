@@ -1,3 +1,4 @@
+import json
 import os
 import subprocess
 import tomllib
@@ -165,6 +166,8 @@ def _plugin_dirs(names: tuple[str, ...], configured_home: Path | None) -> tuple[
     for name in names:
         if not (shared / name).is_dir():
             raise SettingsError(f"plugin directory not found: {shared / name}")
+        if feature := _runs_code(shared / name):
+            raise SettingsError(f"plugin {name} is refused: it carries {feature}, which runs outside the tool rules")
     return tuple(shared / name for name in names)
 
 
@@ -205,6 +208,24 @@ def _typed(key: str, value):
         if key != "plugins" or _plugin_names_ok(value):
             return tuple(value)
     raise SettingsError(f"wrong type for setting: {key}")
+
+
+def _runs_code(plugin: Path) -> str | None:
+    """Best effort: the plugin features known to run code (hooks, MCP servers); not a proof the plugin is safe."""
+    if (plugin / "hooks").exists():
+        return "hooks"
+    if (plugin / ".mcp.json").exists():
+        return ".mcp.json"
+    manifest = plugin / ".claude-plugin" / "plugin.json"
+    if manifest.is_file():
+        try:
+            declared = json.loads(manifest.read_text())
+        except ValueError:
+            return None
+        for key in ("hooks", "mcpServers"):
+            if isinstance(declared, dict) and key in declared:
+                return key
+    return None
 
 
 def _plugin_names_ok(names: list[str]) -> bool:

@@ -475,3 +475,34 @@ def test_a_missing_stage_plugin_directory_is_an_error_naming_it(repo_dir, isolat
 
     with pytest.raises(SettingsError, match="nope"):
         load_settings(None, cwd=repo_dir)
+
+
+@pytest.mark.parametrize(
+    "setup_plugin,reason",
+    [
+        (lambda d: (d / "hooks").mkdir(), "hooks"),
+        (lambda d: (d / ".mcp.json").write_text("{}"), ".mcp.json"),
+        (lambda d: (d / ".claude-plugin").mkdir() or (d / ".claude-plugin" / "plugin.json").write_text('{"hooks": {}}'), "hooks"),
+        (lambda d: (d / ".claude-plugin").mkdir() or (d / ".claude-plugin" / "plugin.json").write_text('{"mcpServers": {}}'), "mcpServers"),
+    ],
+)
+@pytest.mark.parametrize("toml", ['plugins = ["bad"]', '[stage_plugins]\nreview = ["bad"]'])
+def test_a_plugin_with_hooks_or_mcp_servers_is_refused_naming_it(repo_dir, isolated_home, toml, setup_plugin, reason):
+    make_plugins(isolated_home, "bad")
+    setup_plugin(isolated_home / ".harness" / "_shared" / "plugins" / "bad")
+    (repo_dir / "factory.toml").write_text(toml + "\n")
+
+    with pytest.raises(SettingsError, match=f"bad.*{reason}"):
+        load_settings(None, cwd=repo_dir)
+
+
+def test_a_plugin_with_only_skills_and_agents_is_accepted(repo_dir, isolated_home):
+    make_plugins(isolated_home, "ok")
+    plugin = isolated_home / ".harness" / "_shared" / "plugins" / "ok"
+    (plugin / "skills" / "s").mkdir(parents=True)
+    (plugin / "agents").mkdir()
+    (plugin / ".claude-plugin").mkdir()
+    (plugin / ".claude-plugin" / "plugin.json").write_text('{"name": "ok"}')
+    (repo_dir / "factory.toml").write_text('plugins = ["ok"]\n')
+
+    assert load_settings(None, cwd=repo_dir).plugin_dirs == (plugin,)
