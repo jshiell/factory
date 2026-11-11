@@ -10,14 +10,14 @@ from factory.digest import plan_digest
 from factory.gate_sandbox import UvTooling
 from factory.ledger import Ledger
 from factory.plan_task import PLAN_CONFIG
+from factory.process_registry import Record
 from factory.review_plan import REVIEW_CONFIG
 from factory.settings import Settings
+from factory.sqlite_process_records import SqliteProcessRecords
 from factory.stages import Deps, build_stages, implementer_config
 from factory.step import RunResult
 from factory.store import TaskStore
 from factory.task import Task, TaskState
-from factory.process_registry import Record
-from factory.sqlite_process_records import SqliteProcessRecords
 
 
 class RecordingRunner:
