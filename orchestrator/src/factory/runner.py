@@ -13,12 +13,13 @@ from factory.task import Task
 
 
 class SubprocessRunner:
-    def __init__(self, executable: str, project_subdir: str, timeout_s: float, sandbox_executable: str = "nono", state_dir=None):
+    def __init__(self, executable: str, project_subdir: str, timeout_s: float, sandbox_executable: str = "nono", records=None):
+        """`records`: a records object or a state directory; each agent process is recorded there for the reaper."""
         self._executable = executable
         self._project_subdir = project_subdir
         self._timeout_s = timeout_s
         self._sandbox_executable = sandbox_executable
-        self._state_dir = state_dir
+        self._records = records
 
     def run(self, task: Task, config: RunnerConfig) -> RunResult:
         worktree = str(Path(task.worktree).resolve())
@@ -27,7 +28,7 @@ class SubprocessRunner:
         if config.confine:
             argv = sandbox_prefix(self._sandbox_executable, worktree) + argv
         cwd = Path(task.worktree) / self._project_subdir
-        tracker = Tracker(self._state_dir, task.id, task.state.value) if self._state_dir else None
+        tracker = Tracker(self._records, task.id, task.state.value) if self._records else None
         with tempfile.TemporaryFile("w+") as stdout_file:
             launched_after = time.time()
             process = subprocess.Popen(

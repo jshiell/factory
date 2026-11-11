@@ -234,8 +234,9 @@ def ps_probe(run=subprocess.run):
 class Tracker:
     """Records a launched process group for as long as the `with` block runs, so a later command can find an orphan."""
 
-    def __init__(self, state_dir, task_id: str, stage: str):
-        self._records, self._task_id, self._stage = as_records(state_dir), task_id, stage
+    def __init__(self, records, task_id: str, stage: str):
+        """`records` is a records object or a state directory (file records)."""
+        self._records, self._task_id, self._stage = as_records(records), task_id, stage
 
     @contextmanager
     def launched(self, pid: int, launched_after: float, launched_before: float):

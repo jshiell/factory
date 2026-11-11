@@ -282,7 +282,7 @@ def _sleepers():
 def test_the_agent_is_recorded_under_the_task_state_while_it_runs_and_the_record_goes_after(tmp_path, task, monkeypatch):
     state = tmp_path / "state"
     monkeypatch.setenv("STATE", str(state))
-    runner = SubprocessRunner(fake_claude(tmp_path, 'ls "$STATE/procs"'), project_subdir="proj", timeout_s=10, state_dir=state)
+    runner = SubprocessRunner(fake_claude(tmp_path, 'ls "$STATE/procs"'), project_subdir="proj", timeout_s=10, records=state)
 
     result = runner.run(replace(task, state=TaskState.QUEUED), CONFIG)
 
@@ -294,7 +294,7 @@ def test_the_agent_is_recorded_under_the_task_state_while_it_runs_and_the_record
 def test_the_agent_record_names_the_task_and_its_state(tmp_path, task, monkeypatch):
     state = tmp_path / "state"
     monkeypatch.setenv("STATE", str(state))
-    runner = SubprocessRunner(fake_claude(tmp_path, 'cat "$STATE/procs/"*.json'), project_subdir="proj", timeout_s=10, state_dir=state)
+    runner = SubprocessRunner(fake_claude(tmp_path, 'cat "$STATE/procs/"*.json'), project_subdir="proj", timeout_s=10, records=state)
 
     result = runner.run(replace(task, state=TaskState.QUEUED), CONFIG)
 
@@ -306,7 +306,7 @@ def test_guard_an_agent_whose_record_cannot_be_written_is_killed_and_the_run_rai
         def write(self, record):
             raise OSError("database is locked")
 
-    runner = SubprocessRunner(fake_claude(tmp_path, "exec sleep 29.4712"), project_subdir="proj", timeout_s=10, state_dir=UnwritableRecords())
+    runner = SubprocessRunner(fake_claude(tmp_path, "exec sleep 29.4712"), project_subdir="proj", timeout_s=10, records=UnwritableRecords())
 
     with pytest.raises(OSError, match="database is locked"):
         runner.run(replace(task, state=TaskState.QUEUED), CONFIG)

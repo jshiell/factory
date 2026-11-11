@@ -112,7 +112,7 @@ def test_the_gate_test_run_is_recorded_as_a_gate_process_while_it_runs_and_the_r
     store.save(agent_done_task(repo))
     (repo / "proj" / "code.py").write_text("changed by agent")
 
-    task = verify_task("t1", store, project_subdir="proj", gate_timeout_s=10, state_dir=state,
+    task = verify_task("t1", store, project_subdir="proj", gate_timeout_s=10, records=state,
                        test_argv=["sh", "-c", 'cat "$1"/*.json > "$2"', "_", str(state / "procs"), str(seen)])
 
     assert task.state is TaskState.VERIFIED

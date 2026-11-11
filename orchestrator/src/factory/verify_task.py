@@ -35,15 +35,18 @@ def verify_task(
     cap_usd: float | None = None,
     fix_rounds: int = 0,
     factory_paths: tuple[Path, ...] = (),
-    state_dir: Path | None = None,
+    records=None,
 ) -> Task:
-    """Gate the agent's work; on `tests_failed`, up to `fix_rounds` fresh agent runs get the failure text."""
+    """Gate the agent's work; on `tests_failed`, up to `fix_rounds` fresh agent runs get the failure text.
+
+    `records` (a records object or a state directory) is where gate processes are recorded for the reaper.
+    """
     task = store.load(task_id)
     apply(task, Event.GATE_PASSED)  # reject tasks that are not agent_done before touching git
     if task.fix_in_flight:
         return _fail_interrupted(task, store, ledger, fix_config)
     capture = OUTPUT_LIMIT if fix_rounds > 0 else None
-    tracker = Tracker(state_dir, task.id, GATE_STAGE) if state_dir else None
+    tracker = Tracker(records, task.id, GATE_STAGE) if records else None
     while True:
         result = _gate_once(task, project_subdir, test_argv, gate_timeout_s, sandbox, capture, factory_paths, tracker)
         if result.passed:

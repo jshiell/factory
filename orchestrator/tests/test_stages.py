@@ -122,7 +122,7 @@ def test_verify_receives_the_test_command_subdir_and_timeout(setup, monkeypatch)
     (args, kwargs), = calls
     sandbox = kwargs.pop("sandbox")
     assert callable(sandbox)
-    for fix_kwarg in ("runner", "ledger", "fix_config", "cap_usd", "fix_rounds", "factory_paths", "state_dir"):
+    for fix_kwarg in ("runner", "ledger", "fix_config", "cap_usd", "fix_rounds", "factory_paths", "records"):
         kwargs.pop(fix_kwarg)
     assert (args, kwargs) == (("t1", deps.store), {"project_subdir": "proj", "test_argv": ["pytest", "-x"], "gate_timeout_s": 7.0})
 
@@ -170,7 +170,7 @@ def test_the_verify_stage_passes_the_state_and_worktree_dirs_to_the_gate(setup, 
     assert seen["factory_paths"] == (settings.state_dir, settings.worktree_root)
 
 
-def test_the_verify_stage_gets_the_state_dir_so_gate_runs_are_recorded(setup, monkeypatch):
+def test_the_verify_stage_gets_the_records_so_gate_runs_are_recorded(setup, monkeypatch):
     store, runner, settings, deps, repo, base = setup
     seen = {}
     monkeypatch.setattr("factory.stages.verify_task", lambda *a, **k: seen.update(k))
@@ -179,7 +179,7 @@ def test_the_verify_stage_gets_the_state_dir_so_gate_runs_are_recorded(setup, mo
 
     record = Record(4242, 4242, "t1", "gate", 100.0, 100.5)
     SqliteProcessRecords(settings.db_path).write(record)
-    assert seen["state_dir"].load() == [record]
+    assert seen["records"].load() == [record]
 
 
 def test_the_implementer_is_told_to_stay_inside_the_project(setup):
