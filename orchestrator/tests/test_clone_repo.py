@@ -102,3 +102,14 @@ def test_the_global_configs_home_is_used_when_factory_home_is_unset(github, tmp_
 
     assert code == 0
     assert (tmp_path / "elsewhere" / "r" / "repo" / "hello.txt").exists()
+
+
+def test_factory_home_wins_over_the_global_configs_home(github, harness, tmp_path):
+    harness.mkdir()
+    (harness / "factory.toml").write_text(f'home = "{tmp_path / "elsewhere"}"\n')
+
+    code, _, _ = run_clone("o/r")
+
+    assert code == 0
+    assert (harness / "r" / "repo" / "hello.txt").exists()
+    assert not (tmp_path / "elsewhere").exists()
