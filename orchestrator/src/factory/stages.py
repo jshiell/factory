@@ -34,6 +34,10 @@ def stage_config(config: RunnerConfig, settings: Settings, stage: str) -> Runner
 
 
 def implementer_config(settings: Settings) -> RunnerConfig:
+    return stage_config(_implementer_base(settings), settings, "implement")
+
+
+def _implementer_base(settings: Settings) -> RunnerConfig:
     return RunnerConfig(
         model=settings.model,
         budget_usd=settings.budget_usd,
@@ -66,9 +70,12 @@ def gate_sandbox_for(settings: Settings) -> Callable[[Task], GateSandbox]:
 def build_stages(settings: Settings, deps: Deps) -> dict[str, Callable[[str], Task]]:
     store, ledger, runner, cap = deps.store, deps.ledger, deps.runner, settings.cap_usd
     implementer = implementer_config(settings)
+    plan_config = stage_config(PLAN_CONFIG, settings, "plan")
+    review_config = stage_config(REVIEW_CONFIG, settings, "review")
+    audit_config = stage_config(AUDIT_CONFIG, settings, "audit")
     return {
-        "plan": lambda task_id: plan_task(task_id, store, ledger, runner, PLAN_CONFIG, cap, deps.worktrees),
-        "review": lambda task_id: review_plan(task_id, store, ledger, runner, REVIEW_CONFIG, cap),
+        "plan": lambda task_id: plan_task(task_id, store, ledger, runner, plan_config, cap, deps.worktrees),
+        "review": lambda task_id: review_plan(task_id, store, ledger, runner, review_config, cap),
         "implement": lambda task_id: run_task(task_id, store, ledger, runner, implementer, cap, deps.worktrees),
         "verify": lambda task_id: verify_task(
             task_id, store, project_subdir=settings.project_subdir,
@@ -79,6 +86,6 @@ def build_stages(settings: Settings, deps: Deps) -> dict[str, Callable[[str], Ta
             records=SqliteProcessRecords(settings.db_path),
         ),
         "audit": lambda task_id: audit_task(
-            task_id, store, ledger, runner, AUDIT_CONFIG, cap, settings.project_subdir
+            task_id, store, ledger, runner, audit_config, cap, settings.project_subdir
         ),
     }

@@ -224,3 +224,43 @@ def test_global_then_stage_prompts_follow_the_built_in_one(setup):
     config = extended(setup[2], append_system_prompt="Global.", stage_prompts={"plan": "Stage."})
 
     assert config.append_system_prompt == PLAN_CONFIG.append_system_prompt + "\n\nGlobal.\n\nStage."
+
+
+@pytest.mark.parametrize(
+    "stage,state,base_config",
+    [
+        ("plan", TaskState.PROPOSED, PLAN_CONFIG),
+        ("review", TaskState.PLANNED, REVIEW_CONFIG),
+        ("audit", TaskState.VERIFIED, AUDIT_CONFIG),
+    ],
+)
+def test_read_only_stages_append_the_global_and_their_own_prompt(setup, stage, state, base_config):
+    store, runner, settings, deps, repo, base = setup
+    settings = replace(settings, append_system_prompt="G.", stage_prompts={stage: "S."})
+    save(store, repo, base, state, goal="g", plan="p", plan_digest=plan_digest("p"))
+
+    build_stages(settings, deps)[stage]("t1")
+
+    assert runner.configs == [stage_config(base_config, settings, stage)]
+    assert runner.configs[0].append_system_prompt.endswith("\n\nG.\n\nS.")
+
+
+def test_implement_appends_the_global_and_implement_prompts(setup):
+    store, runner, settings, deps, repo, base = setup
+    settings = replace(settings, append_system_prompt="G.", stage_prompts={"implement": "S.", "plan": "P."})
+    store.save(Task(id="t1", prompt="do it"))
+
+    build_stages(settings, deps)["implement"]("t1")
+
+    assert runner.configs[0].append_system_prompt.endswith("\n\nG.\n\nS.")
+
+
+def test_the_fixer_gets_the_implement_prompt(setup, monkeypatch):
+    store, runner, settings, deps, repo, base = setup
+    settings = replace(settings, stage_prompts={"implement": "S."})
+    seen = {}
+    monkeypatch.setattr("factory.stages.verify_task", lambda *a, **k: seen.update(k))
+
+    build_stages(settings, deps)["verify"]("t1")
+
+    assert seen["fix_config"].append_system_prompt.endswith("\n\nS.")
