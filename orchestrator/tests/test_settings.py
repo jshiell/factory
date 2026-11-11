@@ -309,3 +309,18 @@ def test_bad_stage_prompts_are_rejected_naming_the_key(repo_dir, toml):
 
     with pytest.raises(SettingsError, match="stage_prompts"):
         load_settings(None, cwd=repo_dir)
+
+
+@pytest.fixture
+def global_config(isolated_home):
+    path = isolated_home / ".harness" / "factory.toml"
+    path.parent.mkdir()
+    return path
+
+
+def test_the_global_config_applies_when_there_is_no_local_file(repo_dir, global_config):
+    global_config.write_text('cap_usd = 7\nmodel = "opus"\n')
+
+    settings = load_settings(None, cwd=repo_dir)
+
+    assert (settings.cap_usd, settings.model) == (7.0, "opus")

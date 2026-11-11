@@ -61,6 +61,9 @@ def load_settings(path: Path | None, cwd: Path) -> Settings:
     if path is None and (cwd / "factory.toml").exists():
         path = cwd / "factory.toml"
     values, base = ({}, cwd) if path is None else (_read(path), path.parent)
+    global_path = _global_config_path()
+    if global_path and global_path.exists():
+        values = {**_read(global_path), **values}
     unknown = sorted(set(values) - set(_KNOWN))
     if unknown:
         raise SettingsError(f"unknown setting: {unknown[0]}")
@@ -85,6 +88,13 @@ def _environment_home() -> Path | None:
     if not path.is_absolute():
         raise SettingsError("FACTORY_HOME must be an absolute path")
     return path
+
+
+def _global_config_path() -> Path | None:
+    try:
+        return (_environment_home() or _default_home()) / "factory.toml"
+    except SettingsError:
+        return None  # an unusable home is reported only where the home is needed
 
 
 def _expanded(key: str, value: str) -> Path:
