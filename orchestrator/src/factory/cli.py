@@ -176,7 +176,7 @@ def _migrate(args, io, ctx) -> int:
                 print(f"removed stale process record {path.name}", file=io.stdout)
             for invalid in cleared.discarded:
                 print(f"removed invalid process record {invalid.path.name}", file=io.stdout)
-            return _copy_old_files(io, ctx)
+            return _copy_old_files(io, ctx, cleared_any=bool(cleared.removed or cleared.discarded))
     except FileRecordsBlocked as blocked:
         print(f"old process records remain: {blocked}; nothing changed", file=io.stderr)
         return 1
@@ -185,10 +185,13 @@ def _migrate(args, io, ctx) -> int:
         return 1
 
 
-def _copy_old_files(io, ctx) -> int:
+def _copy_old_files(io, ctx, cleared_any: bool) -> int:
     try:
         report = migrate(TaskStore(ctx.settings.tasks_dir), Ledger(ctx.settings.ledger_path), ctx.store, ctx.ledger)
     except DatabaseNotEmpty as refused:
+        if cleared_any:  # the process records were the work that remained; the task copy was done earlier
+            print(f"{refused}; task files not copied", file=io.stdout)
+            return 0
         print(f"{refused}; nothing changed", file=io.stderr)
         return 1
     print(f"migrated {report.tasks} tasks, {report.ledger_entries} ledger entries", file=io.stdout)

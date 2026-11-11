@@ -102,3 +102,14 @@ def test_migrate_is_refused_while_another_run_holds_the_lock(ctx):
 
     assert code == 1 and "holds the lock" in err and path.exists()
 
+
+def test_a_database_that_already_holds_tasks_still_has_its_old_process_records_cleared(ctx):
+    from factory.task import Task, TaskState
+    nothing_is_running(ctx)
+    path = old_record(ctx.settings.state_dir)
+    ctx.store.save(Task(id="t2", prompt="", state=TaskState.PROPOSED))
+
+    code, out, err = run(ctx, "migrate")
+
+    assert code == 0 and not path.exists()
+    assert "removed stale process record 7.json" in out and "already holds tasks" in out and err == ""
