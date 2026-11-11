@@ -226,3 +226,11 @@ def test_a_relative_factory_home_is_rejected_naming_the_variable(repo_dir, monke
 
     with pytest.raises(SettingsError, match="FACTORY_HOME"):
         load_settings(None, cwd=repo_dir)
+
+
+def test_a_tilde_in_factory_home_expands(repo_dir, isolated_home, monkeypatch):
+    monkeypatch.setenv("FACTORY_HOME", "~/fh")
+
+    settings = load_settings(None, cwd=repo_dir)
+
+    assert settings.state_dir == isolated_home / "fh" / "repo" / "state"

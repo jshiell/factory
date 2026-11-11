@@ -78,7 +78,7 @@ def _environment_home() -> Path | None:
     value = os.environ.get("FACTORY_HOME")
     if not value:
         return None
-    path = Path(value)
+    path = Path(value).expanduser()
     if not path.is_absolute():
         raise SettingsError("FACTORY_HOME must be an absolute path")
     return path
