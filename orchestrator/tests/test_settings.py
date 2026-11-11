@@ -324,3 +324,12 @@ def test_the_global_config_applies_when_there_is_no_local_file(repo_dir, global_
     settings = load_settings(None, cwd=repo_dir)
 
     assert (settings.cap_usd, settings.model) == (7.0, "opus")
+
+
+def test_a_local_key_overrides_the_global_one_and_other_global_keys_survive(repo_dir, global_config):
+    global_config.write_text('cap_usd = 7\nmodel = "opus"\n')
+    (repo_dir / "factory.toml").write_text("cap_usd = 2\n")
+
+    settings = load_settings(None, cwd=repo_dir)
+
+    assert (settings.cap_usd, settings.model) == (2.0, "opus")
