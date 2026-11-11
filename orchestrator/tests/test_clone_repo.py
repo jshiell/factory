@@ -143,3 +143,11 @@ def test_a_failed_clone_keeps_what_was_already_in_the_project_directory(github, 
     assert code == 1
     assert not (harness / "r" / "repo").exists()
     assert (harness / "r" / "state" / "x").read_text() == "keep"
+
+
+@pytest.mark.parametrize(
+    ("spec", "url"),
+    [("HTTPS://GitHub.com/o/R", "https://github.com/o/R.git"), ("GIT@GITHUB.COM:o/R.git", "git@github.com:o/R.git")],
+)
+def test_the_host_is_matched_case_insensitively_and_the_owner_and_name_keep_their_case(spec, url):
+    assert parse_repository(spec) == (url, "R")
