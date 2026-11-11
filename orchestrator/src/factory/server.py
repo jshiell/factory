@@ -35,6 +35,7 @@ from factory.audit_report import exit_code as eval_exit_code, load_records, rend
 from factory.cli import _new_eval_dir
 from factory.lock import AlreadyRunning, state_lock
 from factory.process_registry import ReapUncertain
+from factory.sqlite_process_records import SqliteProcessRecords
 from factory.job_store import Job, JobNotFound, JobStore
 from factory.ids import InvalidTaskId
 from factory.task import InvalidTransition, TaskState
@@ -443,7 +444,7 @@ def claim_state_dir(ctx):
     try:
         with state_lock(state_dir):
             try:
-                reaped = ctx.reap(state_dir)
+                reaped = ctx.reap(SqliteProcessRecords(ctx.settings.db_path))
             except ReapUncertain as uncertain:
                 raise StartRefused(f"{uncertain}; nothing changed") from None
             JobStore(ctx.settings.db_path).interrupt_unfinished()

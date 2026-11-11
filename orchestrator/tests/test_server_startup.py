@@ -4,10 +4,11 @@ import pytest
 
 from factory.cli import Context
 from factory.job_store import JobStore
-from factory.process_registry import ReapResult, ReapUncertain
+from factory.process_registry import ReapResult, ReapUncertain, Record
 from factory.server import StartRefused, claim_state_dir
 from factory.settings import Settings
 from factory.sqlite_ledger import SqliteLedger
+from factory.sqlite_process_records import SqliteProcessRecords
 from factory.sqlite_store import SqliteTaskStore
 
 
@@ -22,11 +23,15 @@ def ctx(tmp_path):
     return context
 
 
-def test_claiming_reaps_orphans_once_in_the_state_dir(ctx):
+def test_claiming_reaps_orphans_once_from_the_process_table_in_the_database(ctx):
+    orphan = Record(4242, 4242, "t1", "implement", 100.0, 100.5)
+    SqliteProcessRecords(ctx.settings.db_path).write(orphan)
+
     with claim_state_dir(ctx):
         pass
 
-    assert ctx.reaped == [ctx.settings.state_dir]
+    (reaped,) = ctx.reaped
+    assert reaped.load() == [orphan]
 
 
 def test_a_second_claim_on_the_same_state_dir_is_refused_and_reaps_nothing(ctx):

@@ -20,6 +20,7 @@ from factory.ledger import Ledger
 from factory.migrate import DatabaseNotEmpty, migrate
 from factory.process import group_alive, kill_tree
 from factory.sqlite_ledger import SqliteLedger
+from factory.sqlite_process_records import SqliteProcessRecords
 from factory.sqlite_store import SqliteTaskStore
 from factory.process_registry import ReapResult, ps_probe, reap_orphans
 from factory.runner import SubprocessRunner
@@ -39,8 +40,8 @@ class IO:
     stderr: object
 
 
-def _reap_with_the_real_process_table(state_dir) -> ReapResult:
-    return reap_orphans(state_dir, ps_probe(), kill_tree, group_alive)
+def _reap_with_the_real_process_table(records) -> ReapResult:
+    return reap_orphans(records, ps_probe(), kill_tree, group_alive)
 
 
 def _real_eval_runner(settings: Settings, eval_dir: Path) -> SubprocessRunner:
@@ -66,7 +67,7 @@ class Context:
     ledger: Ledger | SqliteLedger
     stages: dict
     clock: Callable[[], datetime] = datetime.now
-    reap: Callable[[Path], ReapResult] = _reap_with_the_real_process_table
+    reap: Callable[[Path | SqliteProcessRecords], ReapResult] = _reap_with_the_real_process_table
     eval_runner: Callable[[Settings, Path], Runner] = _real_eval_runner
     serve: Callable[[object, str, int], None] = _serve_with_uvicorn
     server: ServerClient | None = None
