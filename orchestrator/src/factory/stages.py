@@ -31,7 +31,9 @@ def stage_config(config: RunnerConfig, settings: Settings, stage: str) -> Runner
     parts = [config.append_system_prompt, *extras]
     joined = "\n\n".join(part for part in parts if part)
     extended = replace(config, append_system_prompt=joined) if any(extras) else config
-    plugin_dirs = tuple(str(directory) for directory in settings.plugin_dirs)
+    plugin_dirs = tuple(dict.fromkeys(
+        str(directory) for directory in (*settings.plugin_dirs, *settings.stage_plugin_dirs.get(stage, ()))
+    ))
     return replace(extended, plugin_dirs=plugin_dirs) if plugin_dirs else extended
 
 

@@ -290,3 +290,31 @@ def test_every_agent_stage_and_the_fixer_get_the_plugin_dirs(setup, monkeypatch)
 
     assert [config.plugin_dirs for config in runner.configs] == [("/p/a",), ("/p/a",)]
     assert seen["fix_config"].plugin_dirs == ("/p/a",)
+
+
+def test_a_stage_gets_the_global_plugin_dirs_then_its_own_without_duplicates(setup):
+    a, b, c = Path("/p/a"), Path("/p/b"), Path("/p/c")
+    settings = replace(setup[2], plugin_dirs=(a, b), stage_plugin_dirs={"plan": (b, c), "audit": (c,)})
+
+    assert stage_config(PLAN_CONFIG, settings, "plan").plugin_dirs == ("/p/a", "/p/b", "/p/c")
+    assert stage_config(AUDIT_CONFIG, settings, "audit").plugin_dirs == ("/p/a", "/p/b", "/p/c")
+    assert stage_config(REVIEW_CONFIG, settings, "review").plugin_dirs == ("/p/a", "/p/b")
+
+
+def test_stage_plugins_apply_only_to_their_own_stage(setup):
+    settings = replace(setup[2], stage_plugin_dirs={"audit": (Path("/p/c"),)})
+
+    assert stage_config(PLAN_CONFIG, settings, "plan") == PLAN_CONFIG
+    assert stage_config(AUDIT_CONFIG, settings, "audit").plugin_dirs == ("/p/c",)
+
+
+def test_the_implementer_and_the_fixer_get_the_implement_stage_plugins(setup, monkeypatch):
+    store, runner, settings, deps, repo, base = setup
+    settings = replace(settings, stage_plugin_dirs={"implement": (Path("/p/i"),), "plan": (Path("/p/x"),)})
+    seen = {}
+    monkeypatch.setattr("factory.stages.verify_task", lambda *a, **k: seen.update(k))
+
+    build_stages(settings, deps)["verify"]("t1")
+
+    assert implementer_config(settings).plugin_dirs == ("/p/i",)
+    assert seen["fix_config"].plugin_dirs == ("/p/i",)
