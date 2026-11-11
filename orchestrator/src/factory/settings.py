@@ -62,7 +62,7 @@ def load_settings(path: Path | None, cwd: Path) -> Settings:
     typed = {key: _typed(key, value) for key, value in values.items()}
     for key in _PATH_KEYS:
         if key in typed:
-            typed[key] = base / typed[key]
+            typed[key] = base / _expanded(key, typed[key])
     repo = typed.pop("repo", None) or _git_toplevel(cwd)
     home = typed.pop("home", None)
     state_dir = typed.pop("state_dir", None) or _project_dir(repo, home) / "state"
@@ -70,6 +70,11 @@ def load_settings(path: Path | None, cwd: Path) -> Settings:
     settings = replace(Settings(repo, state_dir, worktree_root), **typed)
     _check_project_subdir(settings.project_subdir)
     return settings
+
+
+def _expanded(key: str, value: str) -> Path:
+    path = Path(value)
+    return path if key == "repo" else path.expanduser()
 
 
 def _project_dir(repo: Path, home: Path | None) -> Path:

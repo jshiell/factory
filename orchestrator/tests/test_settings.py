@@ -182,3 +182,21 @@ def test_a_non_string_home_is_rejected_naming_the_key(repo_dir):
 
     with pytest.raises(SettingsError, match="home"):
         load_settings(None, cwd=repo_dir)
+
+
+def test_a_tilde_in_home_expands_before_joining_the_config_directory(tmp_path, repo_dir, isolated_home):
+    config = tmp_path / "factory.toml"
+    config.write_text(f'repo = "{repo_dir}"\nhome = "~/x"\n')
+
+    settings = load_settings(config, cwd=tmp_path)
+
+    assert settings.state_dir == isolated_home / "x" / "repo" / "state"
+
+
+def test_a_tilde_in_state_dir_and_worktree_root_expands(tmp_path, repo_dir, isolated_home):
+    config = tmp_path / "factory.toml"
+    config.write_text(f'repo = "{repo_dir}"\nstate_dir = "~/s"\nworktree_root = "~/w"\n')
+
+    settings = load_settings(config, cwd=tmp_path)
+
+    assert (settings.state_dir, settings.worktree_root) == (isolated_home / "s", isolated_home / "w")
