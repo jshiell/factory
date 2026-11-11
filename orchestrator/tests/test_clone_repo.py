@@ -90,3 +90,15 @@ def test_clone_puts_the_repository_in_a_project_directory_of_the_harness_home(gi
     assert code == 0
     assert (harness / "r" / "repo" / "hello.txt").read_text() == "hi"
     assert str(harness / "r" / "repo") in out
+
+
+def test_the_global_configs_home_is_used_when_factory_home_is_unset(github, tmp_path, monkeypatch):
+    monkeypatch.delenv("FACTORY_HOME", raising=False)
+    monkeypatch.setenv("HOME", str(tmp_path / "user"))
+    (tmp_path / "user" / ".harness").mkdir(parents=True)
+    (tmp_path / "user" / ".harness" / "factory.toml").write_text(f'home = "{tmp_path / "elsewhere"}"\n')
+
+    code, _, _ = run_clone("o/r")
+
+    assert code == 0
+    assert (tmp_path / "elsewhere" / "r" / "repo" / "hello.txt").exists()

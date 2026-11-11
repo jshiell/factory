@@ -1,7 +1,7 @@
 import re
 import subprocess
 
-from factory.settings import global_config_path
+from factory.settings import harness_home
 
 _SPEC = re.compile(
     r"(?P<prefix>(?i:https://github\.com/|git@github\.com:))?"
@@ -32,7 +32,7 @@ def parse_repository(spec: str) -> tuple[str, str]:
 
 def clone_repository(spec: str, io) -> int:
     url, name = parse_repository(spec)
-    destination = global_config_path().parent / name / "repo"
+    destination = harness_home() / name / "repo"
     subprocess.run(["git", "clone", "--", url, str(destination)], stdin=subprocess.DEVNULL, check=True)
     print(f"cloned {url} into {destination}", file=io.stdout)
     return 0

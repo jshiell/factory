@@ -152,6 +152,12 @@ def _harness_home(configured_home: Path | None) -> Path:
     return _environment_home() or configured_home or _default_home()
 
 
+def harness_home() -> Path:
+    path = global_config_path()
+    configured = _global_layer(path).get("home") if path.exists() else None
+    return _harness_home(configured)
+
+
 def _project_dir(repo: Path, configured_home: Path | None) -> Path:
     key = repo.resolve().name
     if not key:
