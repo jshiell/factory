@@ -23,6 +23,11 @@ TEMPLATE = '''\
 def init_global_config(io) -> int:
     path = global_config_path()
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(TEMPLATE)
+    try:
+        with path.open("x") as file:
+            file.write(TEMPLATE)
+    except FileExistsError:
+        print(f"{path} already exists; not overwriting", file=io.stderr)
+        return 1
     print(f"wrote {path}", file=io.stdout)
     return 0

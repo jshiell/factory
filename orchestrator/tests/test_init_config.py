@@ -34,3 +34,14 @@ def test_every_commented_example_in_the_template_is_a_valid_global_setting(harne
     (harness / "factory.toml").write_text("\n".join(lines) + "\n")
 
     load_settings(None, cwd=repo)
+
+
+def test_init_refuses_to_overwrite_an_existing_global_config(harness):
+    harness.mkdir()
+    (harness / "factory.toml").write_text('model = "opus"\n')
+
+    code, out, err = run_init()
+
+    assert code == 1
+    assert (harness / "factory.toml").read_text() == 'model = "opus"\n'
+    assert str(harness / "factory.toml") in err and out == ""
