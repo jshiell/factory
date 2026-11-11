@@ -174,6 +174,8 @@ def _migrate(args, io, ctx) -> int:
             cleared = clear_file_records(ctx.settings.state_dir, ctx.probe, ctx.group_alive)
             for path in cleared.removed:
                 print(f"removed stale process record {path.name}", file=io.stdout)
+            for invalid in cleared.discarded:
+                print(f"removed invalid process record {invalid.path.name}", file=io.stdout)
             return _copy_old_files(io, ctx)
     except FileRecordsBlocked as blocked:
         print(f"old process records remain: {blocked}; nothing changed", file=io.stderr)
