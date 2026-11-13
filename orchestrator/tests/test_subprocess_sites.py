@@ -11,7 +11,7 @@ ALLOWED = {
     "worktrees.py": "the factory's own git, with the hardened prefix",
     "gate.py": "the factory's own git (hardened prefix) over the worktree",
     "gate_sandbox.py": "trusted `uv python find/dir` run by the factory, never agent code",
-    "clone_repo.py": "`git clone` of a GitHub repository into a destination that does not exist yet; no worktree, no agent code",
+    "clone_repo.py": "`gh repo clone` of a GitHub repository into a destination that does not exist yet; no worktree, no agent code",
     "github.py": "`gh api` and `git remote get-url` for the repo's own issues; no worktree, no agent code",
     "settings.py":"`git rev-parse --show-toplevel` in the user's cwd",
 }

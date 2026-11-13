@@ -1,10 +1,12 @@
 import io
+import subprocess
+from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
 from factory.cli import IO
 from factory.clone_repo import RepositoryError, clone_repository, gh_target, github_slug, parse_repository
-from gitutil import git
 
 
 def test_owner_slash_repo_becomes_the_canonical_https_url_and_the_repo_name():
@@ -68,23 +70,21 @@ def test_names_that_collide_with_the_homes_own_files_are_refused(name):
         parse_repository(f"owner/{name}")
 
 
-@pytest.fixture
-def github(tmp_path, monkeypatch):
-    """Redirect github.com to local bare repositories under tmp_path/remotes; no network."""
-    remotes = tmp_path / "remotes"
-    monkeypatch.setenv("GIT_TERMINAL_PROMPT", "0")
-    monkeypatch.setenv("GIT_CONFIG_COUNT", "2")
-    for index, prefix in enumerate(("https://github.com/", "git@github.com:")):
-        monkeypatch.setenv(f"GIT_CONFIG_KEY_{index}", f"url.file://{remotes}/.insteadOf")
-        monkeypatch.setenv(f"GIT_CONFIG_VALUE_{index}", prefix)
-    work = tmp_path / "work"
-    work.mkdir()
-    git(work, "init", "-q")
-    (work / "hello.txt").write_text("hi")
-    git(work, "add", ".")
-    git(work, "commit", "-q", "-m", "init")
-    (remotes / "o").mkdir(parents=True)
-    git(tmp_path, "clone", "-q", "--bare", str(work), str(remotes / "o" / "r.git"))
+class FakeGh:
+    """Stands in for the runner: records each call and, like a real clone, creates the destination's parents
+    (and the destination itself when it succeeds)."""
+
+    def __init__(self, returncode=0):
+        self.returncode = returncode
+        self.calls = []
+
+    def __call__(self, argv, **kwargs):
+        self.calls.append((argv, kwargs))
+        destination = Path(argv[4])
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        if self.returncode == 0:
+            destination.mkdir()
+        return SimpleNamespace(returncode=self.returncode)
 
 
 @pytest.fixture
@@ -93,66 +93,74 @@ def harness(tmp_path, monkeypatch):
     return tmp_path / "fh"
 
 
-def run_clone(spec):
+def run_clone(spec, gh):
     out, err = io.StringIO(), io.StringIO()
-    return clone_repository(spec, IO(None, out, err)), out.getvalue(), err.getvalue()
+    return clone_repository(spec, IO(None, out, err), run=gh), out.getvalue(), err.getvalue()
 
 
-def test_clone_puts_the_repository_in_a_project_directory_of_the_harness_home(github, harness):
-    code, out, _ = run_clone("o/r")
+def test_clone_runs_gh_into_a_project_directory_of_the_harness_home_without_an_upstream_remote(harness):
+    gh = FakeGh()
 
+    code, out, _ = run_clone("o/r", gh)
+
+    destination = str(harness / "r" / "repo")
     assert code == 0
-    assert (harness / "r" / "repo" / "hello.txt").read_text() == "hi"
-    assert str(harness / "r" / "repo") in out
+    assert gh.calls == [(["gh", "repo", "clone", "github.com/o/r", destination, "--no-upstream"],
+                         {"stdin": subprocess.DEVNULL})]
+    assert destination in out
 
 
-def test_the_global_configs_home_is_used_when_factory_home_is_unset(github, tmp_path, monkeypatch):
+def test_the_global_configs_home_is_used_when_factory_home_is_unset(tmp_path, monkeypatch):
     monkeypatch.delenv("FACTORY_HOME", raising=False)
     monkeypatch.setenv("HOME", str(tmp_path / "user"))
     (tmp_path / "user" / ".harness").mkdir(parents=True)
     (tmp_path / "user" / ".harness" / "factory.toml").write_text(f'home = "{tmp_path / "elsewhere"}"\n')
+    gh = FakeGh()
 
-    code, _, _ = run_clone("o/r")
+    code, _, _ = run_clone("o/r", gh)
 
     assert code == 0
-    assert (tmp_path / "elsewhere" / "r" / "repo" / "hello.txt").exists()
+    assert gh.calls[0][0][4] == str(tmp_path / "elsewhere" / "r" / "repo")
 
 
-def test_factory_home_wins_over_the_global_configs_home(github, harness, tmp_path):
+def test_factory_home_wins_over_the_global_configs_home(harness, tmp_path):
     harness.mkdir()
     (harness / "factory.toml").write_text(f'home = "{tmp_path / "elsewhere"}"\n')
+    gh = FakeGh()
 
-    code, _, _ = run_clone("o/r")
+    code, _, _ = run_clone("o/r", gh)
 
     assert code == 0
-    assert (harness / "r" / "repo" / "hello.txt").exists()
+    assert gh.calls[0][0][4] == str(harness / "r" / "repo")
     assert not (tmp_path / "elsewhere").exists()
 
 
-def test_an_existing_target_is_refused_and_left_untouched(github, harness):
+def test_an_existing_target_is_refused_and_left_untouched(harness):
     (harness / "r" / "repo").mkdir(parents=True)
     (harness / "r" / "repo" / "mine.txt").write_text("keep")
+    gh = FakeGh()
 
-    code, out, err = run_clone("o/r")
+    code, out, err = run_clone("o/r", gh)
 
     assert code == 1
     assert out == ""
     assert err == f"{harness / 'r' / 'repo'} already exists; not overwriting\n"
     assert [p.name for p in (harness / "r" / "repo").iterdir()] == ["mine.txt"]
+    assert gh.calls == []
 
 
-def test_a_failed_clone_exits_1_and_leaves_nothing_it_created(github, harness):
-    code, _, _ = run_clone("o/missing")
+def test_a_failed_clone_exits_1_and_leaves_nothing_it_created(harness):
+    code, _, _ = run_clone("o/missing", FakeGh(returncode=1))
 
     assert code == 1
     assert not harness.exists()
 
 
-def test_a_failed_clone_keeps_what_was_already_in_the_project_directory(github, harness):
+def test_a_failed_clone_keeps_what_was_already_in_the_project_directory(harness):
     (harness / "r" / "state").mkdir(parents=True)
     (harness / "r" / "state" / "x").write_text("keep")
 
-    code, _, _ = run_clone("missing/r")
+    code, _, _ = run_clone("missing/r", FakeGh(returncode=1))
 
     assert code == 1
     assert not (harness / "r" / "repo").exists()

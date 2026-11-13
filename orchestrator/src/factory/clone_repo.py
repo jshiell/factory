@@ -45,19 +45,24 @@ def gh_target(spec: str) -> str:
     return f"github.com/{owner}/{name}"
 
 
-def clone_repository(spec: str, io) -> int:
-    url, name = parse_repository(spec)
+def _run(argv, **kwargs):
+    return subprocess.run(argv, **kwargs)
+
+
+def clone_repository(spec: str, io, run=_run) -> int:
+    target = gh_target(spec)
+    name = github_slug(spec)[1]
     destination = harness_home() / name / "repo"
     if destination.exists():
         print(f"{destination} already exists; not overwriting", file=io.stderr)
         return 1
     created = _missing_ancestors(destination)
-    completed = subprocess.run(["git", "clone", "--", url, str(destination)], stdin=subprocess.DEVNULL)
+    completed = run(["gh", "repo", "clone", target, str(destination), "--no-upstream"], stdin=subprocess.DEVNULL)
     if completed.returncode != 0:
         for directory in created:
             _remove_if_empty(directory)
         return 1
-    print(f"cloned {url} into {destination}", file=io.stdout)
+    print(f"cloned {target} into {destination}", file=io.stdout)
     return 0
 
 
