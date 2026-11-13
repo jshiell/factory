@@ -166,6 +166,18 @@ def test_an_existing_target_is_refused_and_left_untouched(harness):
     assert gh.calls == []
 
 
+def test_a_missing_gh_exits_1_with_a_message_and_nothing_on_stdout(harness):
+    def no_gh(argv, **kwargs):
+        raise FileNotFoundError("gh")
+
+    code, out, err = run_clone("o/r", no_gh)
+
+    assert code == 1
+    assert out == ""
+    assert "gh is not installed" in err
+    assert not harness.exists()
+
+
 def test_a_failed_clone_exits_1_and_leaves_nothing_it_created(harness):
     code, _, _ = run_clone("o/missing", FakeGh(returncode=1))
 

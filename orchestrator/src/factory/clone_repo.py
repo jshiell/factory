@@ -57,7 +57,11 @@ def clone_repository(spec: str, io, run=_run) -> int:
         print(f"{destination} already exists; not overwriting", file=io.stderr)
         return 1
     created = _missing_ancestors(destination)
-    completed = run(["gh", "repo", "clone", target, str(destination), "--no-upstream"], stdin=subprocess.DEVNULL)
+    try:
+        completed = run(["gh", "repo", "clone", target, str(destination), "--no-upstream"], stdin=subprocess.DEVNULL)
+    except FileNotFoundError:
+        print("gh is not installed; factory clone needs the gh CLI, logged in", file=io.stderr)
+        return 1
     if completed.returncode != 0:
         for directory in created:
             _remove_if_empty(directory)
