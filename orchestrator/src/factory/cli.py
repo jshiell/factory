@@ -1,6 +1,7 @@
 import argparse
 import signal
 import sys
+import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
@@ -81,6 +82,7 @@ class Context:
     watch_pass: Callable[[GitHub, ServerClient | None, Path, set[int]], None] = run_pass
     github: Callable[[str, str], GitHub] = GitHub.default
     origin_slug: Callable[[Path], tuple[str, str]] = origin_slug
+    sleep: Callable[[float], None] = time.sleep
 
 
 def _print_reaped(killed, discarded, io) -> None:
@@ -107,6 +109,13 @@ class _Parser(argparse.ArgumentParser):
         raise _UsageError(message)
 
 
+def _positive_int(text: str) -> int:
+    value = int(text)
+    if value <= 0:
+        raise argparse.ArgumentTypeError("must be positive")
+    return value
+
+
 def _parser() -> argparse.ArgumentParser:
     parser = _Parser(prog="factory")
     commands = parser.add_subparsers(dest="command", required=True, parser_class=_Parser)
@@ -125,7 +134,7 @@ def _parser() -> argparse.ArgumentParser:
     serve.add_argument("--port", type=int)
     commands.add_parser("costs").add_argument("task_id", nargs="?")
     watch = commands.add_parser("watch")
-    watch.add_argument("--interval", type=int, default=60)
+    watch.add_argument("--interval", type=_positive_int, default=60)
     watch.add_argument("--once", action="store_true")
     watch.add_argument("--allow-public", action="store_true")
     audit_eval = commands.add_parser("eval-audit")
@@ -630,8 +639,15 @@ def _watch(args, io, ctx) -> int:
         except GitHubError:
             print(f"watch cannot resolve the approver {login!r} on GitHub: check watch_approvers", file=io.stderr)
             return 1
-    ctx.watch_pass(github, ctx.server, ctx.settings.state_dir, approver_ids)
-    return 0
+    try:
+        while True:
+            ctx.watch_pass(github, ctx.server, ctx.settings.state_dir, approver_ids)
+            if args.once:
+                return 0
+            ctx.sleep(args.interval)
+    except KeyboardInterrupt:
+        print("watch stopped", file=io.stderr)
+        return 0
 
 
 def _eval_usage_error(args, evals_root: Path) -> str | None:

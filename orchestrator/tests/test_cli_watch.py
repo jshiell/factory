@@ -181,3 +181,81 @@ def test_watch_on_a_public_repo_with_allow_public_runs_the_pass(ctx):
 
     assert code == 0
     assert ctx.passes == [ctx.settings]
+
+
+class StopLoop(Exception):
+    pass
+
+
+def stop_after_sleeps(ctx, count):
+    ctx.sleeps = []
+
+    def sleep(seconds):
+        ctx.sleeps.append(seconds)
+        if len(ctx.sleeps) == count:
+            raise StopLoop
+
+    ctx.sleep = sleep
+
+
+def test_watch_without_once_sleeps_the_interval_after_each_pass(ctx):
+    stop_after_sleeps(ctx, 2)
+
+    with pytest.raises(StopLoop):
+        watch(ctx, "--interval", "5")
+
+    assert len(ctx.passes) == 2
+    assert ctx.sleeps == [5, 5]
+
+
+def test_watch_stopped_with_ctrl_c_during_the_sleep_exits_0_with_a_short_message(ctx):
+    def interrupted(seconds):
+        raise KeyboardInterrupt
+
+    ctx.sleep = interrupted
+
+    code, out, err = watch(ctx)
+
+    assert code == 0
+    assert "stopped" in err
+    assert len(ctx.passes) == 1
+
+
+@pytest.mark.parametrize("value", ["0", "-5"])
+def test_watch_with_a_non_positive_interval_is_a_usage_error_and_runs_nothing(ctx, value):
+    stop_after_sleeps(ctx, 1)
+
+    code, out, err = watch(ctx, "--interval", value)
+
+    assert code == 2
+    assert "--interval" in err
+    assert ctx.passes == []
+
+
+def test_watch_with_a_non_integer_interval_is_a_usage_error_and_runs_nothing(ctx):
+    code, out, err = watch(ctx, "--interval", "soon")
+
+    assert code == 2
+    assert ctx.passes == []
+
+
+def test_watch_runs_the_startup_checks_once_not_per_pass(ctx):
+    stop_after_sleeps(ctx, 2)
+    lookups = []
+    ctx.github = lambda owner, name: lookups.append((owner, name)) or FakeGitHub()
+
+    with pytest.raises(StopLoop):
+        watch(ctx)
+
+    assert len(ctx.passes) == 2
+    assert len(lookups) == 1
+
+
+def test_watch_once_never_sleeps(ctx):
+    stop_after_sleeps(ctx, 1)
+
+    code, out, err = watch(ctx, "--once")
+
+    assert code == 0
+    assert len(ctx.passes) == 1
+    assert ctx.sleeps == []
