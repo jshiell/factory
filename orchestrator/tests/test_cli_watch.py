@@ -7,6 +7,7 @@ import pytest
 from factory.cli import IO, Context, main
 from factory.clone_repo import RepositoryError
 from factory.github import GitHubError, User
+from factory.lock import state_lock
 from factory.settings import Settings
 from factory.sqlite_ledger import SqliteLedger
 from factory.sqlite_store import SqliteTaskStore
@@ -181,6 +182,59 @@ def test_watch_on_a_public_repo_with_allow_public_runs_the_pass(ctx):
 
     assert code == 0
     assert ctx.passes == [ctx.settings]
+
+
+def test_a_second_watcher_is_refused_before_any_github_call_and_runs_no_pass(ctx):
+    github_calls = []
+    ctx.github = lambda owner, name: github_calls.append((owner, name)) or FakeGitHub()
+
+    with state_lock(ctx.settings.state_dir, name="watch"):
+        code, out, err = watch(ctx, "--once")
+
+    assert code == 1
+    assert "another factory watch holds the lock; nothing changed" in err
+    assert github_calls == []
+    assert ctx.passes == []
+
+
+def test_watch_runs_while_the_servers_lock_is_held(ctx):
+    with state_lock(ctx.settings.state_dir):
+        code, out, err = watch(ctx, "--once")
+
+    assert code == 0
+    assert len(ctx.passes) == 1
+
+
+def test_the_watch_lock_is_released_after_a_normal_run(ctx):
+    watch(ctx, "--once")
+
+    code, out, err = watch(ctx, "--once")
+
+    assert code == 0
+    assert len(ctx.passes) == 2
+
+
+def test_the_watch_lock_is_released_after_a_startup_check_fails(ctx):
+    ctx.github = lambda owner, name: FakeGitHub(private=False)
+    assert watch(ctx, "--once")[0] == 1
+
+    code, out, err = watch(ctx, "--once", "--allow-public")
+
+    assert code == 0
+    assert len(ctx.passes) == 1
+
+
+def test_the_watch_lock_is_released_after_ctrl_c(ctx):
+    def interrupted(seconds):
+        raise KeyboardInterrupt
+
+    ctx.sleep = interrupted
+    watch(ctx)
+    ctx.sleep = lambda seconds: None
+
+    code, out, err = watch(ctx, "--once")
+
+    assert code == 0
 
 
 class StopLoop(Exception):

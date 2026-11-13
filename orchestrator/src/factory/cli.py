@@ -603,6 +603,15 @@ def _serve(args, io, ctx) -> int:
 
 
 def _watch(args, io, ctx) -> int:
+    try:
+        with state_lock(ctx.settings.state_dir, name="watch"):
+            return _watch_locked(args, io, ctx)
+    except AlreadyRunning:
+        print("another factory watch holds the lock; nothing changed", file=io.stderr)
+        return 1
+
+
+def _watch_locked(args, io, ctx) -> int:
     if not ctx.settings.watch_approvers:
         print("watch needs watch_approvers: set it in the repo's factory.toml to the GitHub logins whose issues may start tasks", file=io.stderr)
         return 1
