@@ -33,6 +33,7 @@ from factory.step import Runner
 from factory.store import TaskNotFound, TaskStore, task_from_dict
 from factory.task import Task, TaskState
 from factory.waiver import Refuse, Reinstate, Waive, approval_prompt, note_lines, parse_answer
+from factory.watch import run_pass
 from factory.worktrees import WorktreeManager
 
 
@@ -76,6 +77,7 @@ class Context:
     server: ServerClient | None = None
     probe: Callable[[int], float | None] = ps_probe()
     group_alive: Callable[[int], bool] = group_alive
+    watch_pass: Callable[[Settings], None] = run_pass
 
 
 def _print_reaped(killed, discarded, io) -> None:
@@ -119,6 +121,10 @@ def _parser() -> argparse.ArgumentParser:
     serve = commands.add_parser("serve")
     serve.add_argument("--port", type=int)
     commands.add_parser("costs").add_argument("task_id", nargs="?")
+    watch = commands.add_parser("watch")
+    watch.add_argument("--interval", type=int, default=60)
+    watch.add_argument("--once", action="store_true")
+    watch.add_argument("--allow-public", action="store_true")
     audit_eval = commands.add_parser("eval-audit")
     audit_eval.add_argument("--runs", type=int, default=3)
     audit_eval.add_argument("--only", action="append")
@@ -584,6 +590,14 @@ def _serve(args, io, ctx) -> int:
     return 0
 
 
+def _watch(args, io, ctx) -> int:
+    if not ctx.settings.watch_approvers:
+        print("watch needs watch_approvers: set it in the repo's factory.toml to the GitHub logins whose issues may start tasks", file=io.stderr)
+        return 1
+    ctx.watch_pass(ctx.settings)
+    return 0
+
+
 def _eval_usage_error(args, evals_root: Path) -> str | None:
     unknown = [case_id for case_id in args.only or [] if case_id not in {c.id for c in EVAL_CASES}]
     if unknown:
@@ -656,7 +670,7 @@ def _eval_audit(args, io, ctx) -> int:
 
 _COMMANDS = {
     "new": _new, "list": _list, "show": _show, "advance": _advance,
-    "approve": _approve, "reject": _reject, "merge": _merge, "retry": _retry, "recover": _recover, "abandon": _abandon, "rebase": _rebase, "clean": _clean, "migrate": _migrate, "costs": _costs, "eval-audit": _eval_audit, "serve": _serve,
+    "approve": _approve, "reject": _reject, "merge": _merge, "retry": _retry, "recover": _recover, "abandon": _abandon, "rebase": _rebase, "clean": _clean, "migrate": _migrate, "costs": _costs, "eval-audit": _eval_audit, "serve": _serve, "watch": _watch,
     "init": lambda args, io, ctx: init_global_config(io),
     "clone": lambda args, io, ctx: _clone(args.repository, io),
 }

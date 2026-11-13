@@ -116,3 +116,7 @@ def load_state(state_dir, clock=_utc_now) -> WatchState:
         )
     except ValueError as error:
         raise WatchStateError(f"{path} is unreadable ({error}); fix or delete it, but deleting re-creates tasks for old issues") from error
+
+
+def run_pass(settings) -> None:
+    """One pass over the repo's issues. Stub: the pass logic arrives in later increments, so this does nothing yet."""
