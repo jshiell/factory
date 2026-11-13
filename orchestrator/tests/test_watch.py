@@ -4,7 +4,8 @@ from pathlib import Path
 
 import pytest
 
-from factory.github import GitHubError
+from factory.client import ServerRefused
+from factory.github import GitHubError, Reaction
 
 from factory.watch import Issue, IssueRecord, Phase, WatchState, WatchStateError, load_state, parse_issues, run_pass, save_state
 
@@ -131,12 +132,18 @@ def test_an_unknown_phase_is_refused(tmp_path):
 
 
 class FakeGitHub:
-    def __init__(self, issues):
+    def __init__(self, issues, reactions=None):
         self.issues = issues
         self.comments_posted = []
+        self.reactions_by_comment = reactions or {}
+        self.reactions_fetched = []
 
     def open_issues(self):
         return self.issues
+
+    def reactions(self, comment_id):
+        self.reactions_fetched.append(comment_id)
+        return self.reactions_by_comment.get(comment_id, [])
 
     def comment(self, issue_number, body):
         self.comments_posted.append((issue_number, body))
@@ -151,11 +158,15 @@ class FakeServer:
         self.advance_result = advance_result or {"steps": [], "state": "planned", "failure_reason": None, "stopped": None}
         self.approval = approval
         self.advanced = []
+        self.approved = []
 
     def post(self, path, body=None):
         if path.endswith("/advance"):
             self.advanced.append(path)
             return {"job": {"id": "j-1"}}
+        if path.endswith("/approve"):
+            self.approved.append((path, body))
+            return {"id": path.split("/")[2], "state": "queued"}
         assert path == "/tasks"
         self.created.append(body["goal"])
         return {"id": next(self.ids)}
@@ -380,3 +391,71 @@ def test_the_home_directory_is_stripped_from_the_failure_reason(tmp_path):
     [(_, body)] = github.comments_posted
     assert "```\nworktree ~/.factory/t-1 is dirty\n```" in body
     assert "/home/jsh" not in body
+
+
+AWAITING = IssueRecord(
+    task_id="t-9", phase=Phase.AWAITING_APPROVAL, plan_comment_id=7, posted_digest="digest-1",
+    plan_body_hash="h1", findings_hash="h2",
+)
+
+
+def awaiting_pass(tmp_path, reactions):
+    save_state(tmp_path, WatchState(watching_since=SINCE, issues={5: AWAITING}))
+    server = FakeServer(advance_result=REVIEWED, approval=APPROVAL)
+    github = FakeGitHub([raw_issue(number=5)], reactions={7: reactions})
+    pass_over(tmp_path, [], server=server, github=github)
+    return github, server
+
+
+def test_an_approver_thumbs_up_approves_with_the_posted_digest_keeping_required_notes_and_goes_approved(tmp_path):
+    github, server = awaiting_pass(tmp_path, [Reaction("+1", 1001, "alice")])
+
+    assert server.approved == [("/tasks/t-9/approve", {"plan_digest": "digest-1", "waive": []})]
+    assert server.advanced == []
+    assert github.comments_posted == []
+    assert load_state(tmp_path).issues == {5: IssueRecord(**{**vars(AWAITING), "phase": Phase.APPROVED})}
+
+
+def test_guard_a_thumbs_up_from_a_non_approver_with_an_approvers_login_does_nothing(tmp_path):
+    github, server = awaiting_pass(tmp_path, [Reaction("+1", 2002, "alice"), Reaction("+1", 666, "mallory")])
+
+    assert server.approved == []
+    assert load_state(tmp_path).issues == {5: AWAITING}
+
+
+def test_guard_no_reactions_on_the_plan_comment_does_nothing(tmp_path):
+    github, server = awaiting_pass(tmp_path, [])
+
+    assert github.reactions_fetched == [7]
+    assert server.approved == []
+    assert server.advanced == []
+    assert github.comments_posted == []
+    assert load_state(tmp_path).issues == {5: AWAITING}
+
+
+@pytest.mark.parametrize("phase", [p for p in Phase if p is not Phase.AWAITING_APPROVAL])
+def test_guard_reactions_are_read_only_for_an_issue_awaiting_approval(tmp_path, phase):
+    record = IssueRecord(**{**vars(AWAITING), "phase": phase})
+    save_state(tmp_path, WatchState(watching_since=SINCE, issues={5: record}))
+    github = FakeGitHub([raw_issue(number=5)], reactions={7: [Reaction("+1", 1001, "alice")]})
+
+    pass_over(tmp_path, [], server=FakeServer(), github=github)
+
+    assert github.reactions_fetched == []
+
+
+class RefusingApproveServer(FakeServer):
+    def post(self, path, body=None):
+        if path.endswith("/approve"):
+            raise ServerRefused(409, "wrong state", "task is queued")
+        return super().post(path, body)
+
+
+def test_guard_a_refused_approve_does_not_write_approved(tmp_path):
+    save_state(tmp_path, WatchState(watching_since=SINCE, issues={5: AWAITING}))
+    github = FakeGitHub([raw_issue(number=5)], reactions={7: [Reaction("+1", 1001, "alice")]})
+
+    with pytest.raises(ServerRefused):
+        pass_over(tmp_path, [], server=RefusingApproveServer(), github=github)
+
+    assert load_state(tmp_path).issues == {5: AWAITING}

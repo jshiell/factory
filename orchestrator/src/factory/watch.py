@@ -173,8 +173,18 @@ def _post_final(github, state, state_dir, issue_number: int, record: IssueRecord
     save_state(state_dir, state)
 
 
+def _approve_on_thumbs_up(github, server, state, state_dir, record: IssueRecord, approver_ids: set[int]) -> None:
+    """Approve once an approver (matched by numeric id, never login) reacts 👍; `approved` is saved only after the server accepts."""
+    reactions = github.reactions(record.plan_comment_id)
+    if not any(r.content == "+1" and r.user_id in approver_ids for r in reactions):
+        return
+    server.post(f"/tasks/{require_safe_id(record.task_id)}/approve", {"plan_digest": record.posted_digest, "waive": []})
+    record.phase = Phase.APPROVED
+    save_state(state_dir, state)
+
+
 def run_pass(github, server, state_dir, approver_ids: set[int], clock=_utc_now, home: Path | None = None) -> None:
-    """One pass over the repo's issues: start a task for each new approver issue and post its plan once reviewed."""
+    """One pass over the repo's issues: start a task for each new approver issue, post its plan once reviewed, approve it on an approver's 👍."""
     state = load_state(state_dir, clock)
     home = str(home or Path.home())
     for issue in parse_issues(github.open_issues(), approver_ids, state.watching_since):
@@ -183,6 +193,9 @@ def run_pass(github, server, state_dir, approver_ids: set[int], clock=_utc_now, 
             state.issues[issue.number] = IssueRecord(task_id)
             save_state(state_dir, state)
         record = state.issues[issue.number]
+        if record.phase is Phase.AWAITING_APPROVAL:
+            _approve_on_thumbs_up(github, server, state, state_dir, record, approver_ids)
+            continue
         if record.phase is not Phase.NEW:
             continue
         result = _advance(server, record.task_id)
