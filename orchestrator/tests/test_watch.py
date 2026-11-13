@@ -444,6 +444,82 @@ def test_guard_reactions_are_read_only_for_an_issue_awaiting_approval(tmp_path, 
     assert github.reactions_fetched == []
 
 
+APPROVED = IssueRecord(task_id="t-9", phase=Phase.APPROVED, plan_comment_id=7, posted_digest="digest-1")
+AUDITED = {
+    "steps": [{"stage": "implement", "state": "agent_done"}, {"stage": "audit", "state": "audited"}],
+    "state": "audited", "failure_reason": None, "stopped": None,
+}
+
+
+def approved_pass(tmp_path, advance_result, github=None):
+    save_state(tmp_path, WatchState(watching_since=SINCE, issues={5: APPROVED}))
+    server = FakeServer(advance_result=advance_result)
+    github = github or FakeGitHub([raw_issue(number=5)])
+    pass_over(tmp_path, [], server=server, github=github)
+    return github, server
+
+
+def test_an_approved_task_that_audits_gets_one_result_comment_with_steps_state_and_merge_hint(tmp_path):
+    github, server = approved_pass(tmp_path, AUDITED)
+
+    assert server.advanced == ["/tasks/t-9/advance"]
+    [(issue_number, body)] = github.comments_posted
+    assert issue_number == 5
+    assert body.startswith("<!-- factory:task=t-9:kind=result -->")
+    assert "```\nimplement -> agent_done\naudit -> audited\n```" in body
+    assert "```\naudited\n```" in body
+    assert "factory merge t-9" in body
+    assert load_state(tmp_path).issues == {5: IssueRecord(**{**vars(APPROVED), "phase": Phase.AUDITED, "result_comment_id": 1})}
+
+
+def test_guard_an_approved_task_that_fails_or_stops_reuses_the_failure_and_stopped_comments(tmp_path):
+    github, _ = approved_pass(tmp_path, FAILED)
+
+    [(_, body)] = github.comments_posted
+    assert "```\nplan rejected: too vague\n```" in body
+    assert load_state(tmp_path).issues[5].phase is Phase.FAILED
+
+    stopped = {**AUDITED, "stopped": "step cap (10) reached"}
+    github, _ = approved_pass(tmp_path, stopped)
+
+    [(_, body)] = github.comments_posted
+    assert "```\nstep cap (10) reached\n```" in body
+    assert load_state(tmp_path).issues[5].phase is Phase.STOPPED
+
+
+def test_guard_an_approved_task_still_running_changes_nothing_and_is_retried(tmp_path):
+    github, _ = approved_pass(tmp_path, {**AUDITED, "state": "agent_running"})
+
+    assert github.comments_posted == []
+    assert load_state(tmp_path).issues == {5: APPROVED}
+
+
+def test_guard_an_audited_issue_is_not_advanced_or_commented_again(tmp_path):
+    record = IssueRecord(**{**vars(APPROVED), "phase": Phase.AUDITED, "result_comment_id": 3})
+    save_state(tmp_path, WatchState(watching_since=SINCE, issues={5: record}))
+    server = FakeServer(advance_result=AUDITED)
+
+    github, _ = pass_over(tmp_path, [raw_issue(number=5)], server=server)
+
+    assert server.advanced == []
+    assert github.comments_posted == []
+    assert load_state(tmp_path).issues == {5: record}
+
+
+def test_guard_a_failed_audited_post_keeps_approved_and_the_next_pass_posts_exactly_one(tmp_path):
+    github = FlakyGitHub([raw_issue(number=5)])
+
+    with pytest.raises(GitHubError):
+        approved_pass(tmp_path, AUDITED, github=github)
+
+    assert load_state(tmp_path).issues == {5: APPROVED}
+
+    pass_over(tmp_path, [], server=FakeServer(advance_result=AUDITED), github=github)
+
+    assert len(github.comments_posted) == 1
+    assert load_state(tmp_path).issues[5].phase is Phase.AUDITED
+
+
 class RefusingApproveServer(FakeServer):
     def post(self, path, body=None):
         if path.endswith("/approve"):

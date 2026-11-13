@@ -173,6 +173,18 @@ def _post_final(github, state, state_dir, issue_number: int, record: IssueRecord
     save_state(state_dir, state)
 
 
+def _post_audited(github, state, state_dir, issue_number: int, record: IssueRecord, result: dict) -> None:
+    steps = "\n".join(f"{step['stage']} -> {step['state']}" for step in result["steps"])
+    body = render_comment(record.task_id, "result", [
+        ("Steps", steps, True),
+        ("State", result["state"], True),
+        ("Merge", f"When ready, run: factory merge {require_safe_id(record.task_id)}", False),
+    ])
+    record.result_comment_id = github.comment(issue_number, body)
+    record.phase = Phase.AUDITED
+    save_state(state_dir, state)
+
+
 def _approve_on_thumbs_up(github, server, state, state_dir, record: IssueRecord, approver_ids: set[int]) -> None:
     """Approve once an approver (matched by numeric id, never login) reacts 👍; `approved` is saved only after the server accepts."""
     reactions = github.reactions(record.plan_comment_id)
@@ -196,14 +208,16 @@ def run_pass(github, server, state_dir, approver_ids: set[int], clock=_utc_now, 
         if record.phase is Phase.AWAITING_APPROVAL:
             _approve_on_thumbs_up(github, server, state, state_dir, record, approver_ids)
             continue
-        if record.phase is not Phase.NEW:
+        if record.phase not in (Phase.NEW, Phase.APPROVED):
             continue
         result = _advance(server, record.task_id)
         if result is None:
             continue
         if result["stopped"]:
             _post_final(github, state, state_dir, issue.number, record, Phase.STOPPED, "Stopped", strip_home(result["stopped"], home))
-        elif result["state"] == "reviewed":
+        elif result["state"] == "reviewed" and record.phase is Phase.NEW:
             _post_plan(github, server, state, state_dir, issue.number, record)
+        elif result["state"] == "audited" and record.phase is Phase.APPROVED:
+            _post_audited(github, state, state_dir, issue.number, record, result)
         elif result["state"] == "failed":
             _post_final(github, state, state_dir, issue.number, record, Phase.FAILED, "Failure reason", strip_home(result["failure_reason"], home))
