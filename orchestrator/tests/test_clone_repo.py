@@ -166,6 +166,16 @@ def test_an_existing_target_is_refused_and_left_untouched(harness):
     assert gh.calls == []
 
 
+@pytest.mark.parametrize("spec", ["-owner/r", "owner/-r", "o/_shared", "https://gitlab.com/o/r"])
+def test_a_refused_spec_never_reaches_gh(harness, spec):
+    gh = FakeGh()
+
+    with pytest.raises(RepositoryError):
+        run_clone(spec, gh)
+
+    assert gh.calls == []
+
+
 def test_a_missing_gh_exits_1_with_a_message_and_nothing_on_stdout(harness):
     def no_gh(argv, **kwargs):
         raise FileNotFoundError("gh")
