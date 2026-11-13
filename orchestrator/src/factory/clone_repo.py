@@ -62,7 +62,9 @@ def clone_repository(spec: str, io, run=_run) -> int:
         for directory in created:
             _remove_if_empty(directory)
         return 1
-    print(f"cloned {target} into {destination}", file=io.stdout)
+    origin = run(["git", "-C", str(destination), "remote", "get-url", "origin"],
+                 stdin=subprocess.DEVNULL, capture_output=True, text=True)
+    print(f"cloned {origin.stdout.strip()} into {destination}", file=io.stdout)
     return 0
 
 

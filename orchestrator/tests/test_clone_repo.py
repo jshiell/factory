@@ -74,12 +74,15 @@ class FakeGh:
     """Stands in for the runner: records each call and, like a real clone, creates the destination's parents
     (and the destination itself when it succeeds)."""
 
-    def __init__(self, returncode=0):
+    def __init__(self, returncode=0, origin="https://github.com/o/r.git"):
         self.returncode = returncode
+        self.origin = origin
         self.calls = []
 
     def __call__(self, argv, **kwargs):
         self.calls.append((argv, kwargs))
+        if argv[0] == "git":
+            return SimpleNamespace(returncode=0 if self.origin else 1, stdout=f"{self.origin}\n")
         destination = Path(argv[4])
         destination.parent.mkdir(parents=True, exist_ok=True)
         if self.returncode == 0:
@@ -105,9 +108,16 @@ def test_clone_runs_gh_into_a_project_directory_of_the_harness_home_without_an_u
 
     destination = str(harness / "r" / "repo")
     assert code == 0
-    assert gh.calls == [(["gh", "repo", "clone", "github.com/o/r", destination, "--no-upstream"],
-                         {"stdin": subprocess.DEVNULL})]
+    assert gh.calls[0] == (["gh", "repo", "clone", "github.com/o/r", destination, "--no-upstream"],
+                           {"stdin": subprocess.DEVNULL})
     assert destination in out
+
+
+def test_the_success_line_names_the_origin_that_was_cloned_so_the_protocol_gh_chose_shows(harness):
+    code, out, _ = run_clone("o/r", FakeGh(origin="git@github.com:o/r.git"))
+
+    assert code == 0
+    assert out == f"cloned git@github.com:o/r.git into {harness / 'r' / 'repo'}\n"
 
 
 def test_the_global_configs_home_is_used_when_factory_home_is_unset(tmp_path, monkeypatch):
