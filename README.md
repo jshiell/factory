@@ -57,6 +57,7 @@ or its step cap. Agent spend is capped (see `cap_usd`) and every call is recorde
 | `costs [id]` | Spend by stage and by task, with assumed costs shown separately |
 | `init` | Write a commented global `<home>/factory.toml` template and the shared plugins directory. Needs no repo or server; refuses to overwrite an existing file |
 | `clone <repo>` | Clone a GitHub repository (`owner/repo`, an https URL or `git@github.com:owner/repo`; other hosts are refused) into `<home>/<name>/repo`, where `<name>` is the repository name. Needs no repo or server; refuses an existing target and the names `_shared` and `factory.toml`. The home is `FACTORY_HOME`, then `home` in the global `<home>/factory.toml`, then `~/.harness`; a project `factory.toml` and `--config` are ignored. A failed clone removes the directories it created. A clone has no `target/`, so set `project_subdir` in a `factory.toml` at the clone's root and run `factory` from inside the clone |
+| `watch [--interval N] [--once] [--allow-public]` | Watch the GitHub issues of a repo cloned with `factory clone` (needs `gh` logged in, a running `serve`, and `watch_approvers` in the clone's `factory.toml`). An issue opened by an approver becomes a task, is advanced to a reviewed plan, and the plan is posted on the issue. An approver's 👍 on that comment approves the plan (required review notes kept, never waived) and advances the task; 👎 rejects it (👎 wins over 👍). Every advance's outcome is posted, with `factory merge <id>` for the human step. Polls every `--interval` seconds (default 60); `--once` runs a single pass. Public repos are refused unless `--allow-public`, because plans and failure reasons would become public. One watcher per state directory. See "Watching issues" below |
 | `migrate` | Copy the old JSON tasks and ledger under `<state_dir>` (for in-repo state, `<repo>/.factory`; point `state_dir` at it) into `factory.db`. Refuses a database that already has rows; never deletes the old files |
 | `serve [--port N]` | Run the local HTTP server (below) |
 | `eval-audit` | Run the auditor over 25 labelled changes (default 3 runs each, about $2) and compare with the last comparable run. Exits `1` if a bad change is ever judged pass or a good one is judged fail by a majority, `3` if incomplete. Options: `--runs N`, `--only CASE`, `--max-usd X`, `--resume DIR` (same `--runs` and cases as the original), `--compare DIR`, `--check-corpus` (runs the real gate on every case; needs `uv` and network). Results under `<state_dir>/evals/`; its own eval directory and lock, so it never reaps the server's agents |
@@ -86,6 +87,18 @@ Reads and quick actions answer at once; `advance`, `abandon`, `recover`, `rebase
 Errors are `{error, detail}`: 401 token, 403 host or origin, 404 unknown task or job, 409 wrong state or stale preview, 422 bad input.
 Every CLI command except `init`, `clone`, `migrate` and `serve` is a client of this server and needs it running (`no factory server is running` otherwise); it reads the token from `<state_dir>/token`. Each state dir has its own token, so a CLI pointed at a different state dir than the running server is refused with a 401. Long commands wait for their job; Ctrl-C stops waiting and the job carries on. `eval-audit --compare` and `--check-corpus` work locally.
 
+### Watching issues
+
+`factory watch` turns issues into tasks and takes approval from GitHub reactions, using the `gh` CLI. State lives in `<state_dir>/watch.json`.
+
+- **Who counts.** Only issues opened by, and reactions made by, accounts in `watch_approvers`, compared by numeric GitHub id (resolved once at start). Issues created before the first run are ignored.
+- **Plan comment.** The plan, review findings and required notes are posted inside code fences, so `@mentions`, issue links and images in them stay inert. Each watcher comment starts with an HTML marker line; after a restart only marker comments by the watcher's own account are adopted.
+- **Approval.** An approver's 👍 approves with the digest posted, keeping required review notes (waiving stays terminal-only). Before approving, the watcher checks the plan comment, plan digest and findings are unchanged; if not, it posts once and stops (`changed`). A 👎 from an approver rejects.
+- **Public repos.** Refused unless `--allow-public`: plans, failure reasons and worktree paths would be public.
+- **Trust.** Whoever controls an approver's GitHub account can approve plans. The `gh` token must not be readable by the agents the factory runs (check this under your sandbox profile before pointing `watch` at a real repo). A write-access collaborator can edit an issue body before the first poll.
+- **Serial.** One pass handles issues one at a time, so a long advance delays a 👍 on another issue. A failure on one issue is logged and retried on the next pass.
+- **Not covered.** Auto-merge, webhooks, other reactions, several repos, re-planning on issue edits.
+
 ### Configuration
 
 Optional `factory.toml` in the working directory (or `--config <file>`). Relative paths resolve against the file; `~` is expanded in `home`, `state_dir` and `worktree_root`. Unknown keys are an error.
@@ -105,6 +118,7 @@ state_dir = "..."              # default: <home>/<project>/state (database, toke
 server_port = 8765             # where `serve` listens and the CLI connects
 worktree_root = "..."          # default: <home>/<project>/worktrees (one git worktree per task)
 project_subdir = "target"      # where the agent works and the tests run
+watch_approvers = ["alice"]    # repo-only; GitHub logins whose issues and 👍/👎 `factory watch` obeys (required for `watch`)
 test_argv = ["uv", "run", "pytest", "-q"]
 model = "sonnet"
 budget_usd = 0.5               # per implementer call
@@ -235,6 +249,9 @@ flowchart TB
   not a proof. Measured on hand-written cases (plans 22 to 24, rerunnable with `factory eval-audit`) it failed every bad change in every run (14 of 14) and passed all 10 clean ones, but the cases were small and written by the auditor's author; large and ambiguous diffs are untested. The auditor reads the reviewer notes as part of the task: it failed a change that ignored an imperative note (case-21) and a change that skipped required notes (case-24), and passed changes that skipped only untagged or optional notes (case-22, case-23, case-25 and real `mean` tasks). It sometimes calls an untagged imperative note \"required\" in its text (case-21), though the verdict is the same.
 - **Humans hold the two irreversible steps.** `approve` binds to a digest of the plan shown; `merge` shows the exact diff and only
   fast-forwards to the exact audited commit. Both refuse without a TTY, so an agent or a script cannot approve itself.
+  `factory watch` deliberately weakens this for `approve`: the server has no TTY check, so an allowlisted GitHub user's 👍 approves
+  without one. Anyone who can act as an approver's GitHub account, or who can read the `gh` token, can approve; see "Watching issues".
+  `merge` stays terminal-only.
 - **Moved main.** `merge` never merges; if `main` moved it refuses. `rebase` replays the audited commits and returns the task to
   `agent_done`, so it must pass the gate and a fresh audit again before `merge` will accept it. `rebase` grants no authority,
   so it needs no TTY, but it is never called by `advance`.
