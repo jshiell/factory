@@ -63,6 +63,21 @@ def test_comments_parse_the_paginated_response():
     assert kwargs["stdin"] == subprocess.DEVNULL
 
 
+def test_open_issues_returns_the_raw_paginated_list_including_pull_requests():
+    calls = []
+
+    def run(argv, **kwargs):
+        calls.append((argv, kwargs))
+        return SimpleNamespace(returncode=0, stdout=(FIXTURES / "gh_issues_paginated.json").read_text())
+
+    issues = GitHub(run, "o", "r").open_issues()
+
+    assert [i["number"] for i in issues] == [1, 2, 3, 4, 5, 6]
+    argv, kwargs = calls[0]
+    assert argv == ["gh", "api", "--paginate", "repos/o/r/issues?state=open&per_page=100"]
+    assert kwargs["stdin"] == subprocess.DEVNULL
+
+
 def test_self_user_returns_login_and_numeric_id():
     calls = []
 

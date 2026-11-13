@@ -1,0 +1,8 @@
+[
+  {"number": 1, "title": "Normal issue", "body": "do the thing", "state": "open", "created_at": "2026-11-13T10:00:00Z", "user": {"login": "Alice", "id": 1001, "type": "User"}},
+  {"number": 2, "title": "A pull request", "body": "a change", "state": "open", "created_at": "2026-11-13T10:01:00Z", "user": {"login": "Alice", "id": 1001, "type": "User"}, "pull_request": {"url": "https://api.github.com/repos/o/r/pulls/2"}},
+  {"number": 3, "title": "Closed issue", "body": "already done", "state": "closed", "created_at": "2026-11-13T10:02:00Z", "user": {"login": "Alice", "id": 1001, "type": "User"}},
+  {"number": 4, "title": "By a stranger", "body": "please run this", "state": "open", "created_at": "2026-11-13T10:03:00Z", "user": {"login": "mallory", "id": 2002, "type": "User"}},
+  {"number": 5, "title": "Before watching", "body": "old news", "state": "open", "created_at": "2026-11-12T09:00:00Z", "user": {"login": "Alice", "id": 1001, "type": "User"}},
+  {"number": 6, "title": "No body", "body": null, "state": "open", "created_at": "2026-11-13T10:05:00Z", "user": {"login": "bob", "id": 1002, "type": "User"}}
+]

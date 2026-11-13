@@ -54,6 +54,10 @@ class GitHub:
     def repo_is_private(self) -> bool:
         return self._gh("api", f"repos/{self._owner}/{self._name}")["private"]
 
+    def open_issues(self) -> list[dict]:
+        """The raw issue list; GitHub includes pull requests, marked by a `pull_request` key."""
+        return self._gh("api", "--paginate", f"repos/{self._owner}/{self._name}/issues?state=open&per_page=100")
+
     def comment(self, issue_number: int, body: str) -> int:
         _require_integer(issue_number)
         return self._gh("api", f"repos/{self._owner}/{self._name}/issues/{issue_number}/comments", "-f", f"body={body}")["id"]
