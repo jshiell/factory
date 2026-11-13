@@ -51,6 +51,7 @@ Comments: every watcher comment carries `<!-- factory:task=<id>:kind=plan|result
 - New `github.py`: `GitHub(run, owner, name)`: `self_user`, `repo_is_private`, `open_issues`, `comments`, `comment`, `reactions`, `origin_slug()` (`git remote get-url origin`). Argv lists, `stdin=DEVNULL`, owner/name validated, ids integers.
 - New `watch.py`: state file, pass logic, comment rendering.
 - `cli.py`: `watch` parser (`--interval`, `--once`, `--allow-public`); `Context` gains a GitHub factory and a sleep.
+- `tests/test_git_hardening.py`: add `github.py` to the exclusion tuple (`origin_slug` runs `git remote get-url` in the user's own clone, not a worktree; same precedent as `clone_repo.py`, ea2a892).
 - `tests/test_subprocess_sites.py`: `github.py` entry ("`gh api` and `git remote get-url` for the repo's own issues; no worktree, no agent code").
 - README: command row, the approval caveat, the public-repo note, `watch_approvers`.
 
