@@ -1,5 +1,6 @@
 import hashlib
 from datetime import datetime, timezone
+from pathlib import Path
 
 import pytest
 
@@ -143,7 +144,8 @@ class FakeGitHub:
 
 
 class FakeServer:
-    def __init__(self, advance_result=None, approval=None):
+    def __init__(self, advance_result=None, approval=None, job_state="succeeded"):
+        self.job_state = job_state
         self.created = []
         self.ids = iter(["t-1", "t-2", "t-3"])
         self.advance_result = advance_result or {"steps": [], "state": "planned", "failure_reason": None, "stopped": None}
@@ -159,6 +161,8 @@ class FakeServer:
         return {"id": next(self.ids)}
 
     def wait(self, job_id):
+        if self.job_state != "succeeded":
+            return {"state": self.job_state, "error": "boom", "result": None}
         return {"state": "succeeded", "error": None, "result": self.advance_result}
 
     def get(self, path):
@@ -288,3 +292,91 @@ def test_a_task_that_advances_to_reviewed_gets_one_plan_comment_and_the_record_i
             findings_hash=hashlib.sha256(findings.encode()).hexdigest(),
         )
     }
+
+
+FAILED = {"steps": [], "state": "failed", "failure_reason": "plan rejected: too vague", "stopped": None}
+
+
+def test_a_task_that_fails_gets_one_result_comment_with_the_reason_fenced_and_goes_failed(tmp_path):
+    server = FakeServer(advance_result=FAILED)
+
+    github, _ = pass_over(tmp_path, [raw_issue(number=5)], server=server)
+
+    [(issue_number, body)] = github.comments_posted
+    assert issue_number == 5
+    assert body.startswith("<!-- factory:task=t-1:kind=result -->")
+    assert "```\nplan rejected: too vague\n```" in body
+    assert load_state(tmp_path).issues == {5: IssueRecord(task_id="t-1", phase=Phase.FAILED, result_comment_id=1)}
+
+
+def test_a_stopped_advance_gets_one_result_comment_saying_why_and_goes_stopped(tmp_path):
+    stopped = {"steps": [], "state": "planned", "failure_reason": None, "stopped": "step cap (10) reached\n@mallory"}
+    server = FakeServer(advance_result=stopped)
+
+    github, _ = pass_over(tmp_path, [raw_issue(number=5)], server=server)
+
+    [(issue_number, body)] = github.comments_posted
+    assert issue_number == 5
+    assert body.startswith("<!-- factory:task=t-1:kind=result -->")
+    assert "```\nstep cap (10) reached\n@mallory\n```" in body
+    assert load_state(tmp_path).issues == {5: IssueRecord(task_id="t-1", phase=Phase.STOPPED, result_comment_id=1)}
+
+
+@pytest.mark.parametrize("job_state", ["failed", "interrupted"])
+def test_a_job_that_did_not_succeed_changes_nothing_so_the_next_pass_retries(tmp_path, job_state):
+    server = FakeServer(job_state=job_state)
+
+    github, _ = pass_over(tmp_path, [raw_issue(number=5)], server=server)
+
+    assert github.comments_posted == []
+    assert load_state(tmp_path).issues == {5: IssueRecord(task_id="t-1", phase=Phase.NEW)}
+
+
+@pytest.mark.parametrize("phase", [Phase.FAILED, Phase.STOPPED])
+def test_guard_a_failed_or_stopped_issue_is_not_advanced_or_commented_again(tmp_path, phase):
+    record = IssueRecord(task_id="t-9", phase=phase, result_comment_id=7)
+    save_state(tmp_path, WatchState(watching_since=SINCE, issues={5: record}))
+    server = FakeServer(advance_result=FAILED)
+
+    github, _ = pass_over(tmp_path, [raw_issue(number=5)], server=server)
+
+    assert server.advanced == []
+    assert github.comments_posted == []
+    assert load_state(tmp_path).issues == {5: record}
+
+
+def test_guard_a_failed_result_post_records_nothing_and_the_next_pass_retries(tmp_path):
+    server = FakeServer(advance_result=FAILED)
+    github = FlakyGitHub([raw_issue(number=5)])
+
+    with pytest.raises(GitHubError):
+        pass_over(tmp_path, [], server=server, github=github)
+
+    assert load_state(tmp_path).issues == {5: IssueRecord(task_id="t-1", phase=Phase.NEW)}
+
+    pass_over(tmp_path, [], server=server, github=github)
+
+    assert len(github.comments_posted) == 1
+    assert load_state(tmp_path).issues[5].phase is Phase.FAILED
+
+
+def test_guard_a_state_file_from_before_result_comment_ids_still_loads(tmp_path):
+    save_state(tmp_path, WatchState(watching_since=SINCE, issues={7: IssueRecord(task_id="t-1")}))
+    path = tmp_path / "watch.json"
+    path.write_text(path.read_text().replace(', "result_comment_id": null', ""))
+    assert "result_comment_id" not in path.read_text()
+
+    assert load_state(tmp_path).issues == {7: IssueRecord(task_id="t-1")}
+
+
+def test_the_home_directory_is_stripped_from_the_failure_reason(tmp_path):
+    reason = "worktree /home/jsh/.factory/t-1 is dirty"
+    server = FakeServer(advance_result={**FAILED, "failure_reason": reason})
+    save_state_if_missing(tmp_path)
+
+    github = FakeGitHub([raw_issue(number=5)])
+    run_pass(github, server, tmp_path, {1001}, lambda: SINCE, home=Path("/home/jsh"))
+
+    [(_, body)] = github.comments_posted
+    assert "```\nworktree ~/.factory/t-1 is dirty\n```" in body
+    assert "/home/jsh" not in body

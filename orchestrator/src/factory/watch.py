@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
 
-from factory.comments import render_comment
+from factory.comments import render_comment, strip_home
 from factory.ids import require_safe_id
 
 
@@ -62,6 +62,7 @@ class IssueRecord:
     posted_digest: str | None = None
     plan_body_hash: str | None = None
     findings_hash: str | None = None
+    result_comment_id: int | None = None
 
 
 @dataclass
@@ -140,9 +141,11 @@ def _sha256(text: str) -> str:
     return hashlib.sha256(text.encode()).hexdigest()
 
 
-def _advance(server, task_id: str) -> dict:
+def _advance(server, task_id: str) -> dict | None:
+    """The advance result; None when the job ended failed or interrupted (retry next pass)."""
     job_id = server.post(f"/tasks/{require_safe_id(task_id)}/advance")["job"]["id"]
-    return server.wait(job_id)["result"]
+    job = server.wait(job_id)
+    return job["result"] if job["state"] == "succeeded" else None
 
 
 def _post_plan(github, server, state, state_dir, issue_number: int, record: IssueRecord) -> None:
@@ -163,14 +166,31 @@ def _post_plan(github, server, state, state_dir, issue_number: int, record: Issu
     save_state(state_dir, state)
 
 
-def run_pass(github, server, state_dir, approver_ids: set[int], clock=_utc_now) -> None:
+def _post_final(github, state, state_dir, issue_number: int, record: IssueRecord, phase: Phase, heading: str, text: str) -> None:
+    body = render_comment(record.task_id, "result", [(heading, text, True)])
+    record.result_comment_id = github.comment(issue_number, body)
+    record.phase = phase
+    save_state(state_dir, state)
+
+
+def run_pass(github, server, state_dir, approver_ids: set[int], clock=_utc_now, home: Path | None = None) -> None:
     """One pass over the repo's issues: start a task for each new approver issue and post its plan once reviewed."""
     state = load_state(state_dir, clock)
+    home = str(home or Path.home())
     for issue in parse_issues(github.open_issues(), approver_ids, state.watching_since):
         if issue.number not in state.issues:
             task_id = server.post("/tasks", {"goal": _goal(issue)})["id"]
             state.issues[issue.number] = IssueRecord(task_id)
             save_state(state_dir, state)
         record = state.issues[issue.number]
-        if record.phase is Phase.NEW and _advance(server, record.task_id)["state"] == "reviewed":
+        if record.phase is not Phase.NEW:
+            continue
+        result = _advance(server, record.task_id)
+        if result is None:
+            continue
+        if result["stopped"]:
+            _post_final(github, state, state_dir, issue.number, record, Phase.STOPPED, "Stopped", strip_home(result["stopped"], home))
+        elif result["state"] == "reviewed":
             _post_plan(github, server, state, state_dir, issue.number, record)
+        elif result["state"] == "failed":
+            _post_final(github, state, state_dir, issue.number, record, Phase.FAILED, "Failure reason", strip_home(result["failure_reason"], home))
