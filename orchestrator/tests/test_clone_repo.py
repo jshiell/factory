@@ -3,7 +3,7 @@ import io
 import pytest
 
 from factory.cli import IO
-from factory.clone_repo import RepositoryError, clone_repository, parse_repository
+from factory.clone_repo import RepositoryError, clone_repository, github_slug, parse_repository
 from gitutil import git
 
 
@@ -21,7 +21,21 @@ def test_the_github_ssh_form_keeps_ssh_in_the_canonical_url(spec):
     assert parse_repository(spec) == ("git@github.com:owner/repo.git", "repo")
 
 
-@pytest.mark.parametrize("spec", ["owner/..", "owner/.", "owner/.git", "owner/-repo", "-owner/repo", "../repo", "./repo"])
+@pytest.mark.parametrize(
+    "spec",
+    [
+        "Owner/Repo",
+        "https://github.com/Owner/Repo",
+        "HTTPS://GITHUB.COM/Owner/Repo.git",
+        "git@github.com:Owner/Repo",
+        "git@github.com:Owner/Repo.git",
+    ],
+)
+def test_github_slug_is_the_owner_and_name_of_every_accepted_form_with_case_kept(spec):
+    assert github_slug(spec) == ("Owner", "Repo")
+
+
+@pytest.mark.parametrize("spec", ["owner/..","owner/.", "owner/.git", "owner/-repo", "-owner/repo", "../repo", "./repo"])
 def test_names_that_could_escape_the_home_or_pose_as_options_are_refused(spec):
     with pytest.raises(RepositoryError):
         parse_repository(spec)
