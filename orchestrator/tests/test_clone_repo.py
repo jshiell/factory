@@ -169,3 +169,7 @@ def test_the_host_is_matched_case_insensitively_and_the_owner_and_name_keep_thei
 
 def test_a_bare_slug_is_handed_to_gh_with_the_host_pinned_so_gh_picks_the_protocol():
     assert gh_target("o/r") == "github.com/o/r"
+
+
+def test_a_bare_slugs_dot_git_is_dropped_and_its_case_kept():
+    assert gh_target("Owner/Repo.git") == "github.com/Owner/Repo"
