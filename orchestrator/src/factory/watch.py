@@ -196,11 +196,22 @@ _CHANGED = (
 )
 
 
-def _post_changed(github, state, state_dir, issue_number: int, record: IssueRecord) -> None:
-    body = render_comment(record.task_id, "changed", [("Plan changed", _CHANGED, False)])
+_REJECTED = "An approver rejected this plan, so the task is rejected and no work will be done."
+
+
+def _post_ending(github, state, state_dir, issue_number: int, record: IssueRecord, kind: str, phase: Phase, heading: str, text: str) -> None:
+    body = render_comment(record.task_id, kind, [(heading, text, False)])
     record.result_comment_id = github.comment(issue_number, body)
-    record.phase = Phase.CHANGED
+    record.phase = phase
     save_state(state_dir, state)
+
+
+def _post_changed(github, state, state_dir, issue_number: int, record: IssueRecord) -> None:
+    _post_ending(github, state, state_dir, issue_number, record, "changed", Phase.CHANGED, "Plan changed", _CHANGED)
+
+
+def _post_rejected(github, state, state_dir, issue_number: int, record: IssueRecord) -> None:
+    _post_ending(github, state, state_dir, issue_number, record, "rejected", Phase.REJECTED, "Plan rejected", _REJECTED)
 
 
 def _still_as_posted(github, server, issue_number: int, record: IssueRecord) -> bool:
@@ -213,8 +224,12 @@ def _still_as_posted(github, server, issue_number: int, record: IssueRecord) -> 
 
 
 def _approve_on_thumbs_up(github, server, state, state_dir, issue_number: int, record: IssueRecord, approver_ids: set[int]) -> None:
-    """Approve once an approver (matched by numeric id, never login) reacts 👍; `approved` is saved only after the server accepts."""
+    """Reject on an approver's 👎 (which wins), else approve on their 👍; approvers match by numeric id, never login. `approved` is saved only after the server accepts."""
     reactions = github.reactions(record.plan_comment_id)
+    if any(r.content == "-1" and r.user_id in approver_ids for r in reactions):
+        server.post(f"/tasks/{require_safe_id(record.task_id)}/reject")
+        _post_rejected(github, state, state_dir, issue_number, record)
+        return
     if not any(r.content == "+1" and r.user_id in approver_ids for r in reactions):
         return
     if not _still_as_posted(github, server, issue_number, record):

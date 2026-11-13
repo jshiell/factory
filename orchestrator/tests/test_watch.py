@@ -165,9 +165,13 @@ class FakeServer:
         self.approval = approval
         self.advanced = []
         self.approved = []
+        self.rejected = []
         self.fetched = []
 
     def post(self, path, body=None):
+        if path.endswith("/reject"):
+            self.rejected.append(path)
+            return {"id": path.split("/")[2], "state": "rejected"}
         if path.endswith("/advance"):
             self.advanced.append(path)
             return {"job": {"id": "j-1"}}
@@ -646,6 +650,71 @@ def test_guard_a_non_approver_thumbs_up_fetches_neither_the_comment_nor_the_appr
     assert server.fetched == []
     assert github.comments_posted == []
     assert load_state(tmp_path).issues == {5: AWAITING}
+
+
+THUMBS_DOWN = [Reaction("-1", 1001, "alice")]
+REJECTED = IssueRecord(**{**vars(AWAITING), "phase": Phase.REJECTED, "result_comment_id": 1})
+
+
+def assert_rejected_once_without_approval(tmp_path, github, server):
+    assert server.rejected == ["/tasks/t-9/reject"]
+    assert server.approved == []
+    [(issue_number, body)] = github.comments_posted
+    assert issue_number == 5
+    assert body.startswith("<!-- factory:task=t-9:kind=rejected -->")
+    assert "Plan rejected" in body
+    assert load_state(tmp_path).issues == {5: REJECTED}
+
+
+def test_an_approver_thumbs_down_rejects_the_task_with_one_comment_and_goes_rejected(tmp_path):
+    github, server = awaiting_pass(tmp_path, THUMBS_DOWN)
+
+    assert_rejected_once_without_approval(tmp_path, github, server)
+
+
+def test_an_approver_thumbs_down_wins_over_an_approver_thumbs_up(tmp_path):
+    github, server = awaiting_pass(tmp_path, [*THUMBS_UP, *THUMBS_DOWN])
+
+    assert_rejected_once_without_approval(tmp_path, github, server)
+
+
+def test_guard_an_approver_thumbs_down_needs_no_integrity_check(tmp_path):
+    edited = Comment(7, PLAN_BODY + "\n\nedited", 4242, "factory-bot")
+
+    github, server = awaiting_pass(tmp_path, THUMBS_DOWN, comments=[edited], approval={**APPROVAL, "plan_digest": "digest-2"})
+
+    assert github.comments_fetched == [] and server.fetched == []
+    assert_rejected_once_without_approval(tmp_path, github, server)
+
+
+def test_guard_a_thumbs_down_from_a_non_approver_with_an_approvers_login_does_nothing(tmp_path):
+    github, server = awaiting_pass(tmp_path, [Reaction("-1", 2002, "alice"), Reaction("-1", 666, "mallory")])
+
+    assert server.rejected == []
+    assert github.comments_posted == []
+    assert load_state(tmp_path).issues == {5: AWAITING}
+
+
+def test_guard_a_rejected_issue_is_left_alone_on_the_next_pass(tmp_path):
+    awaiting_pass(tmp_path, THUMBS_DOWN)
+
+    github, server = awaiting_pass(tmp_path, THUMBS_DOWN)
+
+    assert github.comments_posted == []
+    assert github.reactions_fetched == [] and github.comments_fetched == []
+    assert server.rejected == [] and server.approved == [] and server.advanced == []
+    assert load_state(tmp_path).issues == {5: REJECTED}
+
+
+def test_guard_a_failed_rejected_post_records_nothing(tmp_path):
+    github = FlakyGitHub([raw_issue(number=5)])
+    github.reactions_by_comment = {7: THUMBS_DOWN}
+
+    with pytest.raises(GitHubError):
+        awaiting_pass(tmp_path, THUMBS_DOWN, github=github)
+
+    assert load_state(tmp_path).issues == {5: AWAITING}
+    assert github.comments_posted == []
 
 
 def test_guard_an_unchanged_plan_comment_findings_and_digest_approve(tmp_path):
