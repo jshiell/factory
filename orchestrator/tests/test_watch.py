@@ -1,6 +1,8 @@
 from datetime import datetime, timezone
 
-from factory.watch import Issue, parse_issues
+import pytest
+
+from factory.watch import Issue, IssueRecord, Phase, WatchState, WatchStateError, load_state, parse_issues, save_state
 
 SINCE = datetime(2026, 11, 13, 0, 0, tzinfo=timezone.utc)
 
@@ -85,3 +87,49 @@ def test_only_the_qualifying_issues_survive_a_mixed_list():
     ]
 
     assert [i.number for i in parse_issues(mixed, {1001}, SINCE)] == [1, 6]
+
+
+def test_state_survives_a_save_and_load(tmp_path):
+    state = WatchState(
+        watching_since=SINCE,
+        cursor=SINCE,
+        issues={
+            7: IssueRecord(
+                task_id="t-1", plan_comment_id=42, posted_digest="d1",
+                plan_body_hash="h1", findings_hash="h2", phase=Phase.AWAITING_APPROVAL,
+            )
+        },
+    )
+
+    save_state(tmp_path, state)
+
+    assert load_state(tmp_path) == state
+    assert [p.name for p in tmp_path.iterdir()] == ["watch.json"]
+
+
+def test_first_load_records_watching_since_and_a_later_load_keeps_it(tmp_path):
+    first = load_state(tmp_path, clock=lambda: SINCE)
+
+    def clock_not_wanted():
+        raise AssertionError("the clock is consulted only on the first run")
+
+    assert first == WatchState(watching_since=SINCE)
+    assert load_state(tmp_path, clock=clock_not_wanted) == first
+
+
+def test_an_unknown_phase_is_refused(tmp_path):
+    save_state(tmp_path, WatchState(watching_since=SINCE, issues={7: IssueRecord(task_id="t-1")}))
+    path = tmp_path / "watch.json"
+    path.write_text(path.read_text().replace('"new"', '"bogus"'))
+
+    with pytest.raises(WatchStateError, match="bogus"):
+        load_state(tmp_path, clock=lambda: SINCE)
+
+
+def test_a_truncated_state_file_is_refused_not_reset(tmp_path):
+    (tmp_path / "watch.json").write_text('{"watching_since": "2026-11-13T00:0')
+
+    with pytest.raises(WatchStateError, match="watch.json"):
+        load_state(tmp_path, clock=lambda: SINCE)
+
+    assert (tmp_path / "watch.json").read_text() == '{"watching_since": "2026-11-13T00:0'
