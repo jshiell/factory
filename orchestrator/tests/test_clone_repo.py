@@ -171,5 +171,13 @@ def test_a_bare_slug_is_handed_to_gh_with_the_host_pinned_so_gh_picks_the_protoc
     assert gh_target("o/r") == "github.com/o/r"
 
 
+@pytest.mark.parametrize(
+    ("spec", "target"),
+    [("HTTPS://GitHub.com/o/R", "https://github.com/o/R.git"), ("git@github.com:o/r", "git@github.com:o/r.git")],
+)
+def test_a_spec_typed_with_a_prefix_keeps_its_protocol_as_the_canonical_url(spec, target):
+    assert gh_target(spec) == target
+
+
 def test_a_bare_slugs_dot_git_is_dropped_and_its_case_kept():
     assert gh_target("Owner/Repo.git") == "github.com/Owner/Repo"

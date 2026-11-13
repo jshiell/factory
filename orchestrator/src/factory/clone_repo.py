@@ -37,7 +37,10 @@ def parse_repository(spec: str) -> tuple[str, str]:
 
 
 def gh_target(spec: str) -> str:
-    """What `gh repo clone` is given: a bare slug with the host pinned, so gh picks the protocol."""
+    """What `gh repo clone` is given: a bare slug with the host pinned, so gh picks the protocol;
+    a spec typed with a prefix keeps its protocol as the canonical URL."""
+    if _SPEC.fullmatch(spec) and _SPEC.fullmatch(spec)["prefix"]:
+        return parse_repository(spec)[0]
     owner, name = github_slug(spec)
     return f"github.com/{owner}/{name}"
 
