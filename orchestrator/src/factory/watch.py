@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
 
+from factory.client import ServerRefused
 from factory.comments import render_comment, strip_home
 from factory.ids import require_safe_id
 
@@ -148,9 +149,13 @@ def _advance(server, task_id: str) -> dict | None:
     return job["result"] if job["state"] == "succeeded" else None
 
 
+def _findings_text(approval: dict) -> str:
+    return "\n".join(f"- {finding}" for finding in approval["review_findings"])
+
+
 def _post_plan(github, server, state, state_dir, issue_number: int, record: IssueRecord) -> None:
     approval = server.get(f"/tasks/{require_safe_id(record.task_id)}/approval")
-    findings = "\n".join(f"- {finding}" for finding in approval["review_findings"])
+    findings = _findings_text(approval)
     required = "\n\n".join(filter(None, ["\n".join(approval["required"]), approval["warning"]]))
     body = render_comment(record.task_id, "plan", [
         ("Task", _HOW_TO_ACT.format(task_id=record.task_id), False),
@@ -185,12 +190,43 @@ def _post_audited(github, state, state_dir, issue_number: int, record: IssueReco
     save_state(state_dir, state)
 
 
-def _approve_on_thumbs_up(github, server, state, state_dir, record: IssueRecord, approver_ids: set[int]) -> None:
+_CHANGED = (
+    "The plan comment, the plan or its review findings changed after the plan comment was posted, "
+    "so no approval was made. Review the task at the terminal."
+)
+
+
+def _post_changed(github, state, state_dir, issue_number: int, record: IssueRecord) -> None:
+    body = render_comment(record.task_id, "changed", [("Plan changed", _CHANGED, False)])
+    record.result_comment_id = github.comment(issue_number, body)
+    record.phase = Phase.CHANGED
+    save_state(state_dir, state)
+
+
+def _still_as_posted(github, server, issue_number: int, record: IssueRecord) -> bool:
+    """The plan comment is unedited and the server's plan digest and findings are the ones it showed."""
+    posted = [_sha256(c.body) for c in github.comments(issue_number) if c.id == record.plan_comment_id]
+    if posted != [record.plan_body_hash]:
+        return False
+    approval = server.get(f"/tasks/{require_safe_id(record.task_id)}/approval")
+    return (approval["plan_digest"], _sha256(_findings_text(approval))) == (record.posted_digest, record.findings_hash)
+
+
+def _approve_on_thumbs_up(github, server, state, state_dir, issue_number: int, record: IssueRecord, approver_ids: set[int]) -> None:
     """Approve once an approver (matched by numeric id, never login) reacts 👍; `approved` is saved only after the server accepts."""
     reactions = github.reactions(record.plan_comment_id)
     if not any(r.content == "+1" and r.user_id in approver_ids for r in reactions):
         return
-    server.post(f"/tasks/{require_safe_id(record.task_id)}/approve", {"plan_digest": record.posted_digest, "waive": []})
+    if not _still_as_posted(github, server, issue_number, record):
+        _post_changed(github, state, state_dir, issue_number, record)
+        return
+    try:
+        server.post(f"/tasks/{require_safe_id(record.task_id)}/approve", {"plan_digest": record.posted_digest, "waive": []})
+    except ServerRefused as refusal:
+        if (refusal.status, refusal.error) != (409, "plan changed"):
+            raise
+        _post_changed(github, state, state_dir, issue_number, record)
+        return
     record.phase = Phase.APPROVED
     save_state(state_dir, state)
 
@@ -206,7 +242,7 @@ def run_pass(github, server, state_dir, approver_ids: set[int], clock=_utc_now, 
             save_state(state_dir, state)
         record = state.issues[issue.number]
         if record.phase is Phase.AWAITING_APPROVAL:
-            _approve_on_thumbs_up(github, server, state, state_dir, record, approver_ids)
+            _approve_on_thumbs_up(github, server, state, state_dir, issue.number, record, approver_ids)
             continue
         if record.phase not in (Phase.NEW, Phase.APPROVED):
             continue

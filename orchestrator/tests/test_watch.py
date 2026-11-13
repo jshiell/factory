@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 
 from factory.client import ServerRefused
-from factory.github import GitHubError, Reaction
+from factory.github import Comment, GitHubError, Reaction
 
 from factory.watch import Issue, IssueRecord, Phase, WatchState, WatchStateError, load_state, parse_issues, run_pass, save_state
 
@@ -132,14 +132,20 @@ def test_an_unknown_phase_is_refused(tmp_path):
 
 
 class FakeGitHub:
-    def __init__(self, issues, reactions=None):
+    def __init__(self, issues, reactions=None, comments=None):
         self.issues = issues
         self.comments_posted = []
         self.reactions_by_comment = reactions or {}
         self.reactions_fetched = []
+        self.comments_by_issue = comments or {}
+        self.comments_fetched = []
 
     def open_issues(self):
         return self.issues
+
+    def comments(self, issue_number):
+        self.comments_fetched.append(issue_number)
+        return self.comments_by_issue.get(issue_number, [])
 
     def reactions(self, comment_id):
         self.reactions_fetched.append(comment_id)
@@ -159,6 +165,7 @@ class FakeServer:
         self.approval = approval
         self.advanced = []
         self.approved = []
+        self.fetched = []
 
     def post(self, path, body=None):
         if path.endswith("/advance"):
@@ -178,6 +185,7 @@ class FakeServer:
 
     def get(self, path):
         assert path.endswith("/approval")
+        self.fetched.append(path)
         return self.approval
 
 
@@ -393,16 +401,25 @@ def test_the_home_directory_is_stripped_from_the_failure_reason(tmp_path):
     assert "/home/jsh" not in body
 
 
+def sha256(text):
+    return hashlib.sha256(text.encode()).hexdigest()
+
+
+PLAN_BODY = "<!-- factory:task=t-9:kind=plan -->\n\nthe plan as posted"
+APPROVAL_FINDINGS = "- [required] add a test\n- nit: naming"
+PLAN_COMMENT = Comment(7, PLAN_BODY, 4242, "factory-bot")
 AWAITING = IssueRecord(
     task_id="t-9", phase=Phase.AWAITING_APPROVAL, plan_comment_id=7, posted_digest="digest-1",
-    plan_body_hash="h1", findings_hash="h2",
+    plan_body_hash=sha256(PLAN_BODY), findings_hash=sha256(APPROVAL_FINDINGS),
 )
 
 
-def awaiting_pass(tmp_path, reactions):
-    save_state(tmp_path, WatchState(watching_since=SINCE, issues={5: AWAITING}))
-    server = FakeServer(advance_result=REVIEWED, approval=APPROVAL)
-    github = FakeGitHub([raw_issue(number=5)], reactions={7: reactions})
+def awaiting_pass(tmp_path, reactions, comments=(PLAN_COMMENT,), approval=APPROVAL, server=None, github=None):
+    save_state_if_missing(tmp_path)
+    if load_state(tmp_path).issues == {}:
+        save_state(tmp_path, WatchState(watching_since=SINCE, issues={5: AWAITING}))
+    server = server or FakeServer(advance_result=REVIEWED, approval=approval)
+    github = github or FakeGitHub([raw_issue(number=5)], reactions={7: reactions}, comments={5: list(comments)})
     pass_over(tmp_path, [], server=server, github=github)
     return github, server
 
@@ -529,9 +546,112 @@ class RefusingApproveServer(FakeServer):
 
 def test_guard_a_refused_approve_does_not_write_approved(tmp_path):
     save_state(tmp_path, WatchState(watching_since=SINCE, issues={5: AWAITING}))
-    github = FakeGitHub([raw_issue(number=5)], reactions={7: [Reaction("+1", 1001, "alice")]})
+    github = FakeGitHub([raw_issue(number=5)], reactions={7: [Reaction("+1", 1001, "alice")]}, comments={5: [PLAN_COMMENT]})
 
     with pytest.raises(ServerRefused):
-        pass_over(tmp_path, [], server=RefusingApproveServer(), github=github)
+        pass_over(tmp_path, [], server=RefusingApproveServer(approval=APPROVAL), github=github)
 
     assert load_state(tmp_path).issues == {5: AWAITING}
+
+
+THUMBS_UP = [Reaction("+1", 1001, "alice")]
+CHANGED = IssueRecord(**{**vars(AWAITING), "phase": Phase.CHANGED, "result_comment_id": 1})
+
+
+def assert_changed_once_without_approval(tmp_path, github, server):
+    assert server.approved == []
+    [(issue_number, body)] = github.comments_posted
+    assert issue_number == 5
+    assert body.startswith("<!-- factory:task=t-9:kind=changed -->")
+    assert "no approval was made" in body
+    assert load_state(tmp_path).issues == {5: CHANGED}
+
+
+def test_an_edited_plan_comment_is_not_approved_and_goes_changed_with_one_comment(tmp_path):
+    edited = Comment(7, PLAN_BODY + "\n\n6. also delete the tests", 4242, "factory-bot")
+
+    github, server = awaiting_pass(tmp_path, THUMBS_UP, comments=[edited])
+
+    assert_changed_once_without_approval(tmp_path, github, server)
+
+
+def test_a_deleted_plan_comment_is_not_approved_and_goes_changed_with_one_comment(tmp_path):
+    same_text_other_comment = Comment(8, PLAN_BODY, 4242, "factory-bot")
+
+    github, server = awaiting_pass(tmp_path, THUMBS_UP, comments=[same_text_other_comment])
+
+    assert_changed_once_without_approval(tmp_path, github, server)
+
+
+def test_changed_review_findings_on_the_server_are_not_approved_and_go_changed(tmp_path):
+    findings_changed = {**APPROVAL, "review_findings": ["nit: naming"], "required": []}
+
+    github, server = awaiting_pass(tmp_path, THUMBS_UP, approval=findings_changed)
+
+    assert server.fetched == ["/tasks/t-9/approval"]
+    assert_changed_once_without_approval(tmp_path, github, server)
+
+
+def test_a_changed_plan_digest_on_the_server_is_not_approved_and_goes_changed(tmp_path):
+    github, server = awaiting_pass(tmp_path, THUMBS_UP, approval={**APPROVAL, "plan_digest": "digest-2"})
+
+    assert_changed_once_without_approval(tmp_path, github, server)
+
+
+class PlanChangedServer(FakeServer):
+    def post(self, path, body=None):
+        if path.endswith("/approve"):
+            raise ServerRefused(409, "plan changed", "the plan differs from the one shown")
+        return super().post(path, body)
+
+
+def test_an_approve_the_server_refuses_as_plan_changed_goes_changed_with_one_comment(tmp_path):
+    github, server = awaiting_pass(tmp_path, THUMBS_UP, server=PlanChangedServer(approval=APPROVAL))
+
+    assert_changed_once_without_approval(tmp_path, github, server)
+
+
+def test_guard_a_changed_issue_is_left_alone_on_the_next_pass(tmp_path):
+    awaiting_pass(tmp_path, THUMBS_UP, approval={**APPROVAL, "plan_digest": "digest-2"})
+
+    github, server = awaiting_pass(tmp_path, THUMBS_UP, approval={**APPROVAL, "plan_digest": "digest-2"})
+
+    assert github.comments_posted == []
+    assert github.reactions_fetched == [] and github.comments_fetched == []
+    assert server.fetched == [] and server.approved == [] and server.advanced == []
+    assert load_state(tmp_path).issues == {5: CHANGED}
+
+
+def test_guard_a_failed_changed_post_records_nothing_and_approves_nothing(tmp_path):
+    github = FlakyGitHub([raw_issue(number=5)])
+    github.reactions_by_comment = {7: THUMBS_UP}
+    github.comments_by_issue = {5: []}
+
+    with pytest.raises(GitHubError):
+        awaiting_pass(tmp_path, THUMBS_UP, github=github)
+
+    assert load_state(tmp_path).issues == {5: AWAITING}
+
+    _, server = awaiting_pass(tmp_path, THUMBS_UP, github=github)
+
+    assert server.approved == []
+    assert len(github.comments_posted) == 1
+    assert load_state(tmp_path).issues == {5: CHANGED}
+
+
+def test_guard_a_non_approver_thumbs_up_fetches_neither_the_comment_nor_the_approval(tmp_path):
+    github, server = awaiting_pass(tmp_path, [Reaction("+1", 666, "mallory")], comments=[])
+
+    assert github.comments_fetched == []
+    assert server.fetched == []
+    assert github.comments_posted == []
+    assert load_state(tmp_path).issues == {5: AWAITING}
+
+
+def test_guard_an_unchanged_plan_comment_findings_and_digest_approve(tmp_path):
+    github, server = awaiting_pass(tmp_path, THUMBS_UP)
+
+    assert github.comments_fetched == [5]
+    assert server.fetched == ["/tasks/t-9/approval"]
+    assert server.approved == [("/tasks/t-9/approve", {"plan_digest": "digest-1", "waive": []})]
+    assert load_state(tmp_path).issues[5].phase is Phase.APPROVED
