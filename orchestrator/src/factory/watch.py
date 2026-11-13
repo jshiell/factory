@@ -225,13 +225,15 @@ def _post_rejected(github, state, state_dir, issue_number: int, record: IssueRec
     _post_ending(github, state, state_dir, issue_number, record, self_id, "rejected", Phase.REJECTED, "Plan rejected", _REJECTED)
 
 
-def _still_as_posted(github, server, issue_number: int, record: IssueRecord) -> bool:
-    """The plan comment is unedited and the server's plan digest and findings are the ones it showed."""
+def _approval_if_as_posted(github, server, issue_number: int, record: IssueRecord) -> dict | None:
+    """The server's approval preview, if the plan comment is unedited and the preview's plan digest and findings are the ones it showed."""
     posted = [_sha256(c.body) for c in github.comments(issue_number) if c.id == record.plan_comment_id]
     if posted != [record.plan_body_hash]:
-        return False
+        return None
     approval = server.get(f"/tasks/{require_safe_id(record.task_id)}/approval")
-    return (approval["plan_digest"], _sha256(_findings_text(approval))) == (record.posted_digest, record.findings_hash)
+    if (approval["plan_digest"], _sha256(_findings_text(approval))) != (record.posted_digest, record.findings_hash):
+        return None
+    return approval
 
 
 def _approve_on_thumbs_up(github, server, state, state_dir, issue_number: int, record: IssueRecord, approver_ids: set[int], self_id: int) -> None:
@@ -243,11 +245,13 @@ def _approve_on_thumbs_up(github, server, state, state_dir, issue_number: int, r
         return
     if not any(r.content == "+1" and r.user_id in approver_ids for r in reactions):
         return
-    if not _still_as_posted(github, server, issue_number, record):
+    approval = _approval_if_as_posted(github, server, issue_number, record)
+    if approval is None:
         _post_changed(github, state, state_dir, issue_number, record, self_id)
         return
     try:
-        server.post(f"/tasks/{require_safe_id(record.task_id)}/approve", {"plan_digest": record.posted_digest, "waive": []})
+        server.post(f"/tasks/{require_safe_id(record.task_id)}/approve", {
+            "plan_digest": record.posted_digest, "review_findings": approval["review_findings"], "waive": []})
     except ServerRefused as refusal:
         if (refusal.status, refusal.error) != (409, "plan changed"):
             raise

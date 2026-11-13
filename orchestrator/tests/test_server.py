@@ -249,6 +249,36 @@ def test_approve_with_a_stale_digest_is_409_and_approves_nothing(client, ctx):
     assert ctx.store.load("a").state is TaskState.REVIEWED
 
 
+def test_approve_with_findings_that_differ_from_the_current_ones_is_409_and_approves_nothing(client, ctx):
+    task = reviewed(ctx)
+
+    response = client.post(
+        "/tasks/a/approve", json={"plan_digest": plan_digest(task.plan), "review_findings": ["an older note"]})
+
+    assert response.status_code == 409
+    assert response.json()["error"] == "plan changed"
+    assert ctx.store.load("a").state is TaskState.REVIEWED
+
+
+def test_approve_with_the_findings_it_was_shown_queues_the_task(client, ctx):
+    task = reviewed(ctx)
+    shown = client.get("/tasks/a/approval").json()["review_findings"]
+
+    response = client.post("/tasks/a/approve", json={"plan_digest": plan_digest(task.plan), "review_findings": shown})
+
+    assert response.status_code == 200
+    assert ctx.store.load("a").state is TaskState.QUEUED
+
+
+def test_approve_with_review_findings_that_are_not_a_list_of_strings_is_422(client, ctx):
+    task = reviewed(ctx)
+
+    response = client.post("/tasks/a/approve", json={"plan_digest": plan_digest(task.plan), "review_findings": [1]})
+
+    assert response.status_code == 422
+    assert ctx.store.load("a").state is TaskState.REVIEWED
+
+
 def test_approve_without_a_digest_is_422(client, ctx):
     reviewed(ctx)
 

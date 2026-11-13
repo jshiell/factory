@@ -192,8 +192,9 @@ def _build_app(ctx) -> Starlette:
         body = await _json_object(request)
         shown_digest = _required_string(body, "plan_digest")
         waived = _string_list(body, "waive")
+        shown_findings = _string_list(body, "review_findings") if "review_findings" in body else task.review_findings
         try:
-            approved = service.approve(ctx.store, task.id, shown_digest, task.review_findings, waived)
+            approved = service.approve(ctx.store, task.id, shown_digest, shown_findings, waived)
         except InvalidWaiver as error:
             raise ApiError(422, "invalid waiver", str(error)) from None
         except service.PlanChanged as error:

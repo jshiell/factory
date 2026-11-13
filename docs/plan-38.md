@@ -13,7 +13,7 @@ Goal: a command that watches a cloned repo's GitHub issues. A new issue by an ap
 
 ## Premises checked against the code (by review; line numbers as of today)
 - The server's approve has no TTY check; only `cli.py:325` does. This is a deliberate, documented weakening of "human-only by process", limited to the allowlist.
-- The server passes `task.review_findings` as the shown findings itself (`server.py:196`), so the findings check never fails over HTTP; the digest covers the plan text only. The watcher therefore also records a hash of the findings it posted and compares it with `/approval`.
+- The server passes `task.review_findings` as the shown findings itself (`server.py:196`), so the findings check never fails over HTTP; the digest covers the plan text only. The watcher therefore also records a hash of the findings it posted and compares it with `/approval`. (Closed since: `/approve` takes an optional `review_findings`, which the watcher sends from the `/approval` it checked, so a change in between is a 409.)
 - `create_task` takes only `goal` (non-empty, no length cap).
 - A job result is `{steps, state, failure_reason, stopped}`. Advance stops at REVIEWED and AUDITED. A failed plan or review ends `failed` with `stopped=None`. A job can end `failed` or `interrupted` (`_run_job` returns None).
 - `serve` holds an exclusive flock on `<state_dir>/lock`; `state_lock(dir)` always uses a file named `lock`, so the watcher needs a lock-name parameter (`state_lock(state_dir, name="watch")`).

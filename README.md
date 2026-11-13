@@ -77,7 +77,7 @@ Reads and quick actions answer at once; `advance`, `abandon`, `recover`, `rebase
 | Endpoint | Purpose |
 |---|---|
 | `POST /tasks {goal}` / `GET /tasks` / `GET /tasks/{id}` / `GET /costs?task_id=` | create and read |
-| `GET /tasks/{id}/approval`, `POST .../approve {plan_digest, waive}`, `POST .../reject` | approve a reviewed plan; a stale digest is 409 |
+| `GET /tasks/{id}/approval`, `POST .../approve {plan_digest, waive, review_findings?}`, `POST .../reject` | approve a reviewed plan; a stale digest is 409. An optional `review_findings` (the lines `/approval` showed) makes changed findings 409 too |
 | `GET /tasks/{id}/merge-preview`, `POST .../merge {audited_sha}` | a stale sha is 409 |
 | `GET /tasks/{id}/retry-preview`, `POST .../retry` or `{keep_plan, plan_digest, waive, reinstate}` | fresh or keep-plan retry |
 | `GET /clean-preview`, `POST /clean {token}` | the token hashes the preview; a changed preview is 409 |
@@ -93,7 +93,7 @@ Every CLI command except `init`, `clone`, `migrate` and `serve` is a client of t
 
 - **Who counts.** Only issues opened by, and reactions made by, accounts in `watch_approvers`, compared by numeric GitHub id (resolved once at start). Issues created before the first run are ignored.
 - **Plan comment.** The plan, review findings and required notes are posted inside code fences, so `@mentions`, issue links and images in them stay inert. Each watcher comment starts with an HTML marker line; after a restart only marker comments by the watcher's own account are adopted.
-- **Approval.** An approver's 👍 approves with the digest posted, keeping required review notes (waiving stays terminal-only). Before approving, the watcher checks the plan comment, plan digest and findings are unchanged; if not, it posts once and stops (`changed`). A 👎 from an approver rejects.
+- **Approval.** An approver's 👍 approves with the digest posted, keeping required review notes (waiving stays terminal-only). Before approving, the watcher checks the plan comment, plan digest and findings are unchanged; if not, it posts once and stops (`changed`). It also sends the findings it checked with the approve request, so the server refuses (409) if they changed in between. A 👎 from an approver rejects.
 - **Public repos.** Refused unless `--allow-public`: plans, failure reasons and worktree paths would be public.
 - **Trust.** Whoever controls an approver's GitHub account can approve plans. The `gh` token must not be readable by the agents the factory runs (check this under your sandbox profile before pointing `watch` at a real repo). A write-access collaborator can edit an issue body before the first poll.
 - **Serial.** One pass handles issues one at a time, so a long advance delays a 👍 on another issue. A failure on one issue is logged and retried on the next pass.

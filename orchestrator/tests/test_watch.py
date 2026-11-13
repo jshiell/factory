@@ -435,10 +435,18 @@ def awaiting_pass(tmp_path, reactions, comments=(PLAN_COMMENT,), approval=APPROV
 def test_an_approver_thumbs_up_approves_with_the_posted_digest_keeping_required_notes_and_goes_approved(tmp_path):
     github, server = awaiting_pass(tmp_path, [Reaction("+1", 1001, "alice")])
 
-    assert server.approved == [("/tasks/t-9/approve", {"plan_digest": "digest-1", "waive": []})]
+    assert server.approved == [("/tasks/t-9/approve", {
+        "plan_digest": "digest-1", "review_findings": ["[required] add a test", "nit: naming"], "waive": []})]
     assert server.advanced == []
     assert github.comments_posted == []
     assert load_state(tmp_path).issues == {5: IssueRecord(**{**vars(AWAITING), "phase": Phase.APPROVED})}
+
+
+def test_the_approve_post_carries_the_findings_lines_from_the_approval_it_just_checked(tmp_path):
+    _, server = awaiting_pass(tmp_path, [Reaction("+1", 1001, "alice")])
+
+    [(_, body)] = server.approved
+    assert body["review_findings"] == APPROVAL["review_findings"]
 
 
 def test_guard_a_thumbs_up_from_a_non_approver_with_an_approvers_login_does_nothing(tmp_path):
@@ -722,7 +730,8 @@ def test_guard_an_unchanged_plan_comment_findings_and_digest_approve(tmp_path):
 
     assert github.comments_fetched == [5]
     assert server.fetched == ["/tasks/t-9/approval"]
-    assert server.approved == [("/tasks/t-9/approve", {"plan_digest": "digest-1", "waive": []})]
+    assert server.approved == [("/tasks/t-9/approve", {
+        "plan_digest": "digest-1", "review_findings": ["[required] add a test", "nit: naming"], "waive": []})]
     assert load_state(tmp_path).issues[5].phase is Phase.APPROVED
 
 
