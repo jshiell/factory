@@ -37,6 +37,19 @@ def test_the_lock_creates_the_directory_and_records_the_pid(tmp_path):
         assert (directory / "lock").read_text() == str(os.getpid())
 
 
+def test_a_named_lock_uses_its_own_file_and_coexists_with_the_default_lock(tmp_path):
+    with state_lock(tmp_path):
+        with state_lock(tmp_path, name="watch"):
+            assert (tmp_path / "watch").read_text() == str(os.getpid())
+
+
+def test_a_second_holder_of_the_same_named_lock_is_refused(tmp_path):
+    with state_lock(tmp_path, name="watch"):
+        with pytest.raises(AlreadyRunning):
+            with state_lock(tmp_path, name="watch"):
+                pass
+
+
 def test_a_second_process_cannot_take_the_lock_while_it_is_held(tmp_path):
     holder = start_holder(tmp_path)
     try:
