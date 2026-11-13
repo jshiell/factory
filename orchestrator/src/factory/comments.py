@@ -54,11 +54,21 @@ def _fit(text: str, room: int, wrap) -> str:
         cut = cut[: max(0, len(cut) - excess)]
 
 
-def render_comment(task_id: str, kind: str, sections: list[tuple[str, str, bool]]) -> str:
-    """sections: ordered (heading, text, fenced). Fenced text is inert: no mention, reference, image or marker in it acts."""
+def marker(task_id: str, kind: str) -> str:
+    """The first line of every watcher comment; it identifies the task and the kind of comment."""
     if kind not in KINDS:
         raise ValueError(f"unknown comment kind: {kind!r}")
-    parts = [f"<!-- factory:task={_marker_id(task_id)}:kind={kind} -->"]
+    return f"<!-- factory:task={_marker_id(task_id)}:kind={kind} -->"
+
+
+def has_marker(body: str, task_id: str, kind: str) -> bool:
+    """The body's first line is exactly the marker; a marker anywhere else (in a fence, after text) does not count."""
+    return body.split("\n", 1)[0] == marker(task_id, kind)
+
+
+def render_comment(task_id: str, kind: str, sections: list[tuple[str, str, bool]]) -> str:
+    """sections: ordered (heading, text, fenced). Fenced text is inert: no mention, reference, image or marker in it acts."""
+    parts = [marker(task_id, kind)]
     used = len(parts[0])
     titles = [f"**{heading}**" for heading, _, _ in sections]
     for index, (_, text, fenced) in enumerate(sections):

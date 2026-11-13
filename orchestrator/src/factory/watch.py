@@ -8,7 +8,7 @@ from enum import Enum
 from pathlib import Path
 
 from factory.client import ServerRefused
-from factory.comments import render_comment, strip_home
+from factory.comments import has_marker, render_comment, strip_home
 from factory.ids import require_safe_id
 
 
@@ -153,7 +153,7 @@ def _findings_text(approval: dict) -> str:
     return "\n".join(f"- {finding}" for finding in approval["review_findings"])
 
 
-def _post_plan(github, server, state, state_dir, issue_number: int, record: IssueRecord) -> None:
+def _post_plan(github, server, state, state_dir, issue_number: int, record: IssueRecord, self_id: int) -> None:
     approval = server.get(f"/tasks/{require_safe_id(record.task_id)}/approval")
     findings = _findings_text(approval)
     required = "\n\n".join(filter(None, ["\n".join(approval["required"]), approval["warning"]]))
@@ -163,7 +163,8 @@ def _post_plan(github, server, state, state_dir, issue_number: int, record: Issu
         ("Review findings", findings, True),
         ("Required review notes", required, True),
     ])
-    record.plan_comment_id = github.comment(issue_number, body)
+    exact_copy = _own_comment_id(github, issue_number, self_id, lambda c: c.body == body)
+    record.plan_comment_id = exact_copy or github.comment(issue_number, body)
     record.posted_digest = approval["plan_digest"]
     record.plan_body_hash = _sha256(body)
     record.findings_hash = _sha256(findings)
@@ -171,23 +172,32 @@ def _post_plan(github, server, state, state_dir, issue_number: int, record: Issu
     save_state(state_dir, state)
 
 
-def _post_final(github, state, state_dir, issue_number: int, record: IssueRecord, phase: Phase, heading: str, text: str) -> None:
-    body = render_comment(record.task_id, "result", [(heading, text, True)])
-    record.result_comment_id = github.comment(issue_number, body)
+def _own_comment_id(github, issue_number: int, self_id: int, matches) -> int | None:
+    """A comment this watcher posted before a crash lost its id; authorship is by numeric id, never login, so nobody else's comment is adopted."""
+    return next((c.id for c in github.comments(issue_number) if c.user_id == self_id and matches(c)), None)
+
+
+def _post_result(github, state, state_dir, issue_number: int, record: IssueRecord, self_id: int, kind: str, phase: Phase, body: str) -> None:
+    """Post the task's ending, or adopt this watcher's earlier one; nothing downstream reads its text, so the marker alone identifies it."""
+    earlier = _own_comment_id(github, issue_number, self_id, lambda c: has_marker(c.body, record.task_id, kind))
+    record.result_comment_id = earlier or github.comment(issue_number, body)
     record.phase = phase
     save_state(state_dir, state)
 
 
-def _post_audited(github, state, state_dir, issue_number: int, record: IssueRecord, result: dict) -> None:
+def _post_final(github, state, state_dir, issue_number: int, record: IssueRecord, self_id: int, phase: Phase, heading: str, text: str) -> None:
+    body = render_comment(record.task_id, "result", [(heading, text, True)])
+    _post_result(github, state, state_dir, issue_number, record, self_id, "result", phase, body)
+
+
+def _post_audited(github, state, state_dir, issue_number: int, record: IssueRecord, self_id: int, result: dict) -> None:
     steps = "\n".join(f"{step['stage']} -> {step['state']}" for step in result["steps"])
     body = render_comment(record.task_id, "result", [
         ("Steps", steps, True),
         ("State", result["state"], True),
         ("Merge", f"When ready, run: factory merge {require_safe_id(record.task_id)}", False),
     ])
-    record.result_comment_id = github.comment(issue_number, body)
-    record.phase = Phase.AUDITED
-    save_state(state_dir, state)
+    _post_result(github, state, state_dir, issue_number, record, self_id, "result", Phase.AUDITED, body)
 
 
 _CHANGED = (
@@ -199,19 +209,17 @@ _CHANGED = (
 _REJECTED = "An approver rejected this plan, so the task is rejected and no work will be done."
 
 
-def _post_ending(github, state, state_dir, issue_number: int, record: IssueRecord, kind: str, phase: Phase, heading: str, text: str) -> None:
+def _post_ending(github, state, state_dir, issue_number: int, record: IssueRecord, self_id: int, kind: str, phase: Phase, heading: str, text: str) -> None:
     body = render_comment(record.task_id, kind, [(heading, text, False)])
-    record.result_comment_id = github.comment(issue_number, body)
-    record.phase = phase
-    save_state(state_dir, state)
+    _post_result(github, state, state_dir, issue_number, record, self_id, kind, phase, body)
 
 
-def _post_changed(github, state, state_dir, issue_number: int, record: IssueRecord) -> None:
-    _post_ending(github, state, state_dir, issue_number, record, "changed", Phase.CHANGED, "Plan changed", _CHANGED)
+def _post_changed(github, state, state_dir, issue_number: int, record: IssueRecord, self_id: int) -> None:
+    _post_ending(github, state, state_dir, issue_number, record, self_id, "changed", Phase.CHANGED, "Plan changed", _CHANGED)
 
 
-def _post_rejected(github, state, state_dir, issue_number: int, record: IssueRecord) -> None:
-    _post_ending(github, state, state_dir, issue_number, record, "rejected", Phase.REJECTED, "Plan rejected", _REJECTED)
+def _post_rejected(github, state, state_dir, issue_number: int, record: IssueRecord, self_id: int) -> None:
+    _post_ending(github, state, state_dir, issue_number, record, self_id, "rejected", Phase.REJECTED, "Plan rejected", _REJECTED)
 
 
 def _still_as_posted(github, server, issue_number: int, record: IssueRecord) -> bool:
@@ -223,24 +231,24 @@ def _still_as_posted(github, server, issue_number: int, record: IssueRecord) -> 
     return (approval["plan_digest"], _sha256(_findings_text(approval))) == (record.posted_digest, record.findings_hash)
 
 
-def _approve_on_thumbs_up(github, server, state, state_dir, issue_number: int, record: IssueRecord, approver_ids: set[int]) -> None:
+def _approve_on_thumbs_up(github, server, state, state_dir, issue_number: int, record: IssueRecord, approver_ids: set[int], self_id: int) -> None:
     """Reject on an approver's 👎 (which wins), else approve on their 👍; approvers match by numeric id, never login. `approved` is saved only after the server accepts."""
     reactions = github.reactions(record.plan_comment_id)
     if any(r.content == "-1" and r.user_id in approver_ids for r in reactions):
         server.post(f"/tasks/{require_safe_id(record.task_id)}/reject")
-        _post_rejected(github, state, state_dir, issue_number, record)
+        _post_rejected(github, state, state_dir, issue_number, record, self_id)
         return
     if not any(r.content == "+1" and r.user_id in approver_ids for r in reactions):
         return
     if not _still_as_posted(github, server, issue_number, record):
-        _post_changed(github, state, state_dir, issue_number, record)
+        _post_changed(github, state, state_dir, issue_number, record, self_id)
         return
     try:
         server.post(f"/tasks/{require_safe_id(record.task_id)}/approve", {"plan_digest": record.posted_digest, "waive": []})
     except ServerRefused as refusal:
         if (refusal.status, refusal.error) != (409, "plan changed"):
             raise
-        _post_changed(github, state, state_dir, issue_number, record)
+        _post_changed(github, state, state_dir, issue_number, record, self_id)
         return
     record.phase = Phase.APPROVED
     save_state(state_dir, state)
@@ -253,6 +261,7 @@ def run_pass(github, server, state_dir, approver_ids: set[int], clock=_utc_now, 
     """One pass over the repo's issues: start a task for each new approver issue, post its plan once reviewed, approve it on an approver's 👍."""
     state = load_state(state_dir, clock)
     home = str(home or Path.home())
+    self_id = github.self_user().id
     for issue in parse_issues(github.open_issues(), approver_ids, state.watching_since):
         if issue.number not in state.issues:
             task_id = server.post("/tasks", {"goal": _goal(issue)})["id"]
@@ -263,7 +272,7 @@ def run_pass(github, server, state_dir, approver_ids: set[int], clock=_utc_now, 
             continue
         task = server.get(f"/tasks/{require_safe_id(record.task_id)}")
         if task["state"] == "failed":
-            _post_final(github, state, state_dir, issue.number, record, Phase.FAILED, "Failure reason", strip_home(task["failure_reason"], home))
+            _post_final(github, state, state_dir, issue.number, record, self_id, Phase.FAILED, "Failure reason", strip_home(task["failure_reason"], home))
             continue
         if task["state"] in ("audited", "merged"):  # finished at the terminal; no steps to report
             record.phase = Phase.AUDITED
@@ -273,16 +282,16 @@ def run_pass(github, server, state_dir, approver_ids: set[int], clock=_utc_now, 
             record.phase = Phase.APPROVED
             save_state(state_dir, state)
         if record.phase is Phase.AWAITING_APPROVAL:
-            _approve_on_thumbs_up(github, server, state, state_dir, issue.number, record, approver_ids)
+            _approve_on_thumbs_up(github, server, state, state_dir, issue.number, record, approver_ids, self_id)
             continue
         result = _advance(server, record.task_id)
         if result is None:
             continue
         if result["stopped"]:
-            _post_final(github, state, state_dir, issue.number, record, Phase.STOPPED, "Stopped", strip_home(result["stopped"], home))
+            _post_final(github, state, state_dir, issue.number, record, self_id, Phase.STOPPED, "Stopped", strip_home(result["stopped"], home))
         elif result["state"] == "reviewed" and record.phase is Phase.NEW:
-            _post_plan(github, server, state, state_dir, issue.number, record)
+            _post_plan(github, server, state, state_dir, issue.number, record, self_id)
         elif result["state"] == "audited" and record.phase is Phase.APPROVED:
-            _post_audited(github, state, state_dir, issue.number, record, result)
+            _post_audited(github, state, state_dir, issue.number, record, self_id, result)
         elif result["state"] == "failed":
-            _post_final(github, state, state_dir, issue.number, record, Phase.FAILED, "Failure reason", strip_home(result["failure_reason"], home))
+            _post_final(github, state, state_dir, issue.number, record, self_id, Phase.FAILED, "Failure reason", strip_home(result["failure_reason"], home))
