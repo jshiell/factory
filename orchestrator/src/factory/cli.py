@@ -33,6 +33,7 @@ from factory.step import Runner
 from factory.store import TaskNotFound, TaskStore, task_from_dict
 from factory.task import Task, TaskState
 from factory.waiver import Refuse, Reinstate, Waive, approval_prompt, note_lines, parse_answer
+from factory.github import GitHub, GitHubError, origin_slug
 from factory.watch import run_pass
 from factory.worktrees import WorktreeManager
 
@@ -78,6 +79,8 @@ class Context:
     probe: Callable[[int], float | None] = ps_probe()
     group_alive: Callable[[int], bool] = group_alive
     watch_pass: Callable[[Settings], None] = run_pass
+    github: Callable[[str, str], GitHub] = GitHub.default
+    origin_slug: Callable[[Path], tuple[str, str]] = origin_slug
 
 
 def _print_reaped(killed, discarded, io) -> None:
@@ -593,6 +596,23 @@ def _serve(args, io, ctx) -> int:
 def _watch(args, io, ctx) -> int:
     if not ctx.settings.watch_approvers:
         print("watch needs watch_approvers: set it in the repo's factory.toml to the GitHub logins whose issues may start tasks", file=io.stderr)
+        return 1
+    try:
+        owner, name = ctx.origin_slug(ctx.settings.repo)
+    except RepositoryError as error:
+        print(f"watch needs a GitHub origin: {error}", file=io.stderr)
+        return 1
+    github = ctx.github(owner, name)
+    try:
+        github.self_user()
+    except FileNotFoundError:
+        print("watch needs the gh CLI: gh is not installed", file=io.stderr)
+        return 1
+    except GitHubError:
+        print("watch needs a logged-in gh: run `gh auth login`", file=io.stderr)
+        return 1
+    if not github.repo_is_private() and not args.allow_public:
+        print("this repo is public: plans, failure reasons and worktree paths would become public comments; pass --allow-public to watch it anyway", file=io.stderr)
         return 1
     ctx.watch_pass(ctx.settings)
     return 0
