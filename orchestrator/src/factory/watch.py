@@ -1,3 +1,4 @@
+import hashlib
 import json
 import os
 import tempfile
@@ -5,6 +6,9 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
+
+from factory.comments import render_comment
+from factory.ids import require_safe_id
 
 
 @dataclass(frozen=True)
@@ -129,11 +133,44 @@ def _goal(issue: Issue) -> str:
     return goal[: GOAL_LIMIT - len(_GOAL_TRUNCATED)] + _GOAL_TRUNCATED
 
 
+_HOW_TO_ACT = "Task {task_id}. React 👍 to approve this plan, 👎 to reject it."
+
+
+def _sha256(text: str) -> str:
+    return hashlib.sha256(text.encode()).hexdigest()
+
+
+def _advance(server, task_id: str) -> dict:
+    job_id = server.post(f"/tasks/{require_safe_id(task_id)}/advance")["job"]["id"]
+    return server.wait(job_id)["result"]
+
+
+def _post_plan(github, server, state, state_dir, issue_number: int, record: IssueRecord) -> None:
+    approval = server.get(f"/tasks/{require_safe_id(record.task_id)}/approval")
+    findings = "\n".join(f"- {finding}" for finding in approval["review_findings"])
+    required = "\n\n".join(filter(None, ["\n".join(approval["required"]), approval["warning"]]))
+    body = render_comment(record.task_id, "plan", [
+        ("Task", _HOW_TO_ACT.format(task_id=record.task_id), False),
+        ("Plan", approval["plan"], True),
+        ("Review findings", findings, True),
+        ("Required review notes", required, True),
+    ])
+    record.plan_comment_id = github.comment(issue_number, body)
+    record.posted_digest = approval["plan_digest"]
+    record.plan_body_hash = _sha256(body)
+    record.findings_hash = _sha256(findings)
+    record.phase = Phase.AWAITING_APPROVAL
+    save_state(state_dir, state)
+
+
 def run_pass(github, server, state_dir, approver_ids: set[int], clock=_utc_now) -> None:
-    """One pass over the repo's issues; so far it only starts a task for each new approver issue."""
+    """One pass over the repo's issues: start a task for each new approver issue and post its plan once reviewed."""
     state = load_state(state_dir, clock)
     for issue in parse_issues(github.open_issues(), approver_ids, state.watching_since):
         if issue.number not in state.issues:
             task_id = server.post("/tasks", {"goal": _goal(issue)})["id"]
             state.issues[issue.number] = IssueRecord(task_id)
             save_state(state_dir, state)
+        record = state.issues[issue.number]
+        if record.phase is Phase.NEW and _advance(server, record.task_id)["state"] == "reviewed":
+            _post_plan(github, server, state, state_dir, issue.number, record)

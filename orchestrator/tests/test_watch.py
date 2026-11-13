@@ -1,6 +1,9 @@
+import hashlib
 from datetime import datetime, timezone
 
 import pytest
+
+from factory.github import GitHubError
 
 from factory.watch import Issue, IssueRecord, Phase, WatchState, WatchStateError, load_state, parse_issues, run_pass, save_state
 
@@ -140,14 +143,27 @@ class FakeGitHub:
 
 
 class FakeServer:
-    def __init__(self):
+    def __init__(self, advance_result=None, approval=None):
         self.created = []
         self.ids = iter(["t-1", "t-2", "t-3"])
+        self.advance_result = advance_result or {"steps": [], "state": "planned", "failure_reason": None, "stopped": None}
+        self.approval = approval
+        self.advanced = []
 
     def post(self, path, body=None):
+        if path.endswith("/advance"):
+            self.advanced.append(path)
+            return {"job": {"id": "j-1"}}
         assert path == "/tasks"
         self.created.append(body["goal"])
         return {"id": next(self.ids)}
+
+    def wait(self, job_id):
+        return {"state": "succeeded", "error": None, "result": self.advance_result}
+
+    def get(self, path):
+        assert path.endswith("/approval")
+        return self.approval
 
 
 def pass_over(tmp_path, issues, server=None, github=None):
@@ -203,3 +219,72 @@ def test_a_truncated_state_file_is_refused_not_reset(tmp_path):
         load_state(tmp_path, clock=lambda: SINCE)
 
     assert (tmp_path / "watch.json").read_text() == '{"watching_since": "2026-11-13T00:0'
+
+
+REVIEWED = {"steps": [], "state": "reviewed", "failure_reason": None, "stopped": None}
+APPROVAL = {
+    "goal": "g", "plan": "1. do it\n@mallory", "risks": [], "review_findings": ["[required] add a test", "nit: naming"],
+    "required": ["add a test"], "plan_digest": "digest-1", "warning": "1 required note was dropped",
+}
+
+
+def test_guard_an_awaiting_approval_issue_is_not_advanced_or_commented_again(tmp_path):
+    record = IssueRecord(task_id="t-9", phase=Phase.AWAITING_APPROVAL, plan_comment_id=7, posted_digest="d")
+    save_state(tmp_path, WatchState(watching_since=SINCE, issues={5: record}))
+    server = FakeServer(advance_result=REVIEWED, approval=APPROVAL)
+
+    github, _ = pass_over(tmp_path, [raw_issue(number=5)], server=server)
+
+    assert server.advanced == []
+    assert github.comments_posted == []
+    assert load_state(tmp_path).issues == {5: record}
+
+
+class FlakyGitHub(FakeGitHub):
+    def __init__(self, issues):
+        super().__init__(issues)
+        self.failures_left = 1
+
+    def comment(self, issue_number, body):
+        if self.failures_left:
+            self.failures_left -= 1
+            raise GitHubError("boom")
+        return super().comment(issue_number, body)
+
+
+def test_a_failed_plan_post_records_nothing_and_the_next_pass_posts_exactly_one_comment(tmp_path):
+    server = FakeServer(advance_result=REVIEWED, approval=APPROVAL)
+    github = FlakyGitHub([raw_issue(number=5)])
+
+    with pytest.raises(GitHubError):
+        pass_over(tmp_path, [], server=server, github=github)
+
+    assert load_state(tmp_path).issues == {5: IssueRecord(task_id="t-1", phase=Phase.NEW)}
+
+    pass_over(tmp_path, [], server=server, github=github)
+
+    assert len(github.comments_posted) == 1
+    assert load_state(tmp_path).issues[5].phase is Phase.AWAITING_APPROVAL
+
+
+def test_a_task_that_advances_to_reviewed_gets_one_plan_comment_and_the_record_is_saved(tmp_path):
+    server = FakeServer(advance_result=REVIEWED, approval=APPROVAL)
+
+    github, _ = pass_over(tmp_path, [raw_issue(number=5)], server=server)
+
+    assert server.advanced == ["/tasks/t-1/advance"]
+    [(issue_number, body)] = github.comments_posted
+    assert issue_number == 5
+    assert body.startswith("<!-- factory:task=t-1:kind=plan -->")
+    assert "👍" in body and "👎" in body
+    assert "```\n1. do it\n@mallory\n```" in body
+    findings = "- [required] add a test\n- nit: naming"
+    assert f"```\n{findings}\n```" in body
+    assert "```\nadd a test\n\n1 required note was dropped\n```" in body
+    assert load_state(tmp_path).issues == {
+        5: IssueRecord(
+            task_id="t-1", phase=Phase.AWAITING_APPROVAL, plan_comment_id=1, posted_digest="digest-1",
+            plan_body_hash=hashlib.sha256(body.encode()).hexdigest(),
+            findings_hash=hashlib.sha256(findings.encode()).hexdigest(),
+        )
+    }
