@@ -157,8 +157,10 @@ class FakeGitHub:
 
 
 class FakeServer:
-    def __init__(self, advance_result=None, approval=None, job_state="succeeded"):
+    def __init__(self, advance_result=None, approval=None, job_state="succeeded", task_state="planned", failure_reason=None):
         self.job_state = job_state
+        self.task_state = task_state
+        self.failure_reason = failure_reason
         self.created = []
         self.ids = iter(["t-1", "t-2", "t-3"])
         self.advance_result = advance_result or {"steps": [], "state": "planned", "failure_reason": None, "stopped": None}
@@ -188,7 +190,8 @@ class FakeServer:
         return {"state": "succeeded", "error": None, "result": self.advance_result}
 
     def get(self, path):
-        assert path.endswith("/approval")
+        if not path.endswith("/approval"):
+            return {"state": self.task_state, "failure_reason": self.failure_reason}
         self.fetched.append(path)
         return self.approval
 
@@ -724,3 +727,72 @@ def test_guard_an_unchanged_plan_comment_findings_and_digest_approve(tmp_path):
     assert server.fetched == ["/tasks/t-9/approval"]
     assert server.approved == [("/tasks/t-9/approve", {"plan_digest": "digest-1", "waive": []})]
     assert load_state(tmp_path).issues[5].phase is Phase.APPROVED
+
+
+def test_an_awaiting_approval_task_the_human_approved_at_the_terminal_is_advanced_without_approving_again(tmp_path):
+    save_state(tmp_path, WatchState(watching_since=SINCE, issues={5: AWAITING}))
+    server = FakeServer(advance_result=AUDITED, task_state="queued")
+
+    github, _ = pass_over(tmp_path, [], server=server, github=FakeGitHub([raw_issue(number=5)]))
+
+    assert server.approved == []
+    assert github.reactions_fetched == []
+    assert server.advanced == ["/tasks/t-9/advance"]
+    [(_, body)] = github.comments_posted
+    assert "factory merge t-9" in body
+    assert load_state(tmp_path).issues[5].phase is Phase.AUDITED
+
+
+def test_a_task_the_server_says_failed_gets_one_result_comment_with_the_reason_fenced_and_goes_failed(tmp_path):
+    save_state(tmp_path, WatchState(watching_since=SINCE, issues={5: AWAITING}))
+    server = FakeServer(task_state="failed", failure_reason="plan rejected at /home/jsh/x: too vague")
+    github = FakeGitHub([raw_issue(number=5)])
+
+    run_pass(github, server, tmp_path, {1001}, lambda: SINCE, home=Path("/home/jsh"))
+
+    [(issue_number, body)] = github.comments_posted
+    assert issue_number == 5
+    assert body.startswith("<!-- factory:task=t-9:kind=result -->")
+    assert "```\nplan rejected at ~/x: too vague\n```" in body
+    assert server.advanced == []
+    assert server.approved == []
+    assert load_state(tmp_path).issues[5].phase is Phase.FAILED
+
+
+def test_guard_a_thumbs_up_on_a_task_the_server_already_queued_does_not_approve_twice(tmp_path):
+    github, server = awaiting_pass(tmp_path, THUMBS_UP, server=FakeServer(advance_result=AUDITED, task_state="queued"))
+
+    assert server.approved == []
+    assert server.advanced == ["/tasks/t-9/advance"]
+
+
+def test_guard_a_reviewed_task_awaiting_approval_still_follows_the_thumbs_up(tmp_path):
+    github, server = awaiting_pass(tmp_path, THUMBS_UP, server=FakeServer(advance_result=REVIEWED, approval=APPROVAL, task_state="reviewed"))
+
+    assert len(server.approved) == 1
+    assert load_state(tmp_path).issues[5].phase is Phase.APPROVED
+
+
+@pytest.mark.parametrize("task_state", ["audited", "merged"])
+def test_a_task_the_server_says_is_audited_or_merged_goes_audited_without_a_comment_or_advance(tmp_path, task_state):
+    save_state(tmp_path, WatchState(watching_since=SINCE, issues={5: AWAITING}))
+    server = FakeServer(task_state=task_state)
+    github = FakeGitHub([raw_issue(number=5)])
+
+    pass_over(tmp_path, [], server=server, github=github)
+
+    assert github.comments_posted == []
+    assert github.reactions_fetched == []
+    assert server.advanced == []
+    assert server.approved == []
+    assert load_state(tmp_path).issues[5].phase is Phase.AUDITED
+
+
+def test_guard_a_failed_post_for_a_server_failed_task_records_nothing(tmp_path):
+    save_state(tmp_path, WatchState(watching_since=SINCE, issues={5: AWAITING}))
+    server = FakeServer(task_state="failed", failure_reason="too vague")
+
+    with pytest.raises(GitHubError):
+        pass_over(tmp_path, [], server=server, github=FlakyGitHub([raw_issue(number=5)]))
+
+    assert load_state(tmp_path).issues == {5: AWAITING}

@@ -246,6 +246,9 @@ def _approve_on_thumbs_up(github, server, state, state_dir, issue_number: int, r
     save_state(state_dir, state)
 
 
+_APPROVED_STATES = {"queued", "running", "agent_done", "verified"}  # the task was approved, here or at the terminal
+
+
 def run_pass(github, server, state_dir, approver_ids: set[int], clock=_utc_now, home: Path | None = None) -> None:
     """One pass over the repo's issues: start a task for each new approver issue, post its plan once reviewed, approve it on an approver's 👍."""
     state = load_state(state_dir, clock)
@@ -256,10 +259,21 @@ def run_pass(github, server, state_dir, approver_ids: set[int], clock=_utc_now, 
             state.issues[issue.number] = IssueRecord(task_id)
             save_state(state_dir, state)
         record = state.issues[issue.number]
+        if record.phase not in (Phase.NEW, Phase.AWAITING_APPROVAL, Phase.APPROVED):
+            continue
+        task = server.get(f"/tasks/{require_safe_id(record.task_id)}")
+        if task["state"] == "failed":
+            _post_final(github, state, state_dir, issue.number, record, Phase.FAILED, "Failure reason", strip_home(task["failure_reason"], home))
+            continue
+        if task["state"] in ("audited", "merged"):  # finished at the terminal; no steps to report
+            record.phase = Phase.AUDITED
+            save_state(state_dir, state)
+            continue
+        if task["state"] in _APPROVED_STATES:
+            record.phase = Phase.APPROVED
+            save_state(state_dir, state)
         if record.phase is Phase.AWAITING_APPROVAL:
             _approve_on_thumbs_up(github, server, state, state_dir, issue.number, record, approver_ids)
-            continue
-        if record.phase not in (Phase.NEW, Phase.APPROVED):
             continue
         result = _advance(server, record.task_id)
         if result is None:
