@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 
 import pytest
 
-from factory.watch import Issue, IssueRecord, Phase, WatchState, WatchStateError, load_state, parse_issues, save_state
+from factory.watch import Issue, IssueRecord, Phase, WatchState, WatchStateError, load_state, parse_issues, run_pass, save_state
 
 SINCE = datetime(2026, 11, 13, 0, 0, tzinfo=timezone.utc)
 
@@ -124,6 +124,76 @@ def test_an_unknown_phase_is_refused(tmp_path):
 
     with pytest.raises(WatchStateError, match="bogus"):
         load_state(tmp_path, clock=lambda: SINCE)
+
+
+class FakeGitHub:
+    def __init__(self, issues):
+        self.issues = issues
+        self.comments_posted = []
+
+    def open_issues(self):
+        return self.issues
+
+    def comment(self, issue_number, body):
+        self.comments_posted.append((issue_number, body))
+        return 1
+
+
+class FakeServer:
+    def __init__(self):
+        self.created = []
+        self.ids = iter(["t-1", "t-2", "t-3"])
+
+    def post(self, path, body=None):
+        assert path == "/tasks"
+        self.created.append(body["goal"])
+        return {"id": next(self.ids)}
+
+
+def pass_over(tmp_path, issues, server=None, github=None):
+    server = server or FakeServer()
+    github = github or FakeGitHub(issues)
+    save_state_if_missing(tmp_path)
+    run_pass(github, server, tmp_path, {1001}, lambda: SINCE)
+    return github, server
+
+
+def save_state_if_missing(state_dir):
+    if not (state_dir / "watch.json").exists():
+        save_state(state_dir, WatchState(watching_since=SINCE))
+
+
+def test_a_new_approver_issue_creates_a_task_and_records_the_mapping_with_no_comment(tmp_path):
+    github, server = pass_over(tmp_path, [raw_issue(number=5, title="Add login", body="with a form")])
+
+    assert server.created == ["Add login\n\nwith a form"]
+    assert load_state(tmp_path).issues == {5: IssueRecord(task_id="t-1", phase=Phase.NEW)}
+    assert github.comments_posted == []
+
+
+def test_a_long_issue_becomes_a_goal_capped_at_20000_characters_ending_with_a_truncation_note(tmp_path):
+    github, server = pass_over(tmp_path, [raw_issue(title="Big", body="x" * 30_000)])
+
+    goal = server.created[0]
+    assert len(goal) == 20_000
+    assert goal.startswith("Big\n\nxxx")
+    assert goal.endswith("[issue text truncated]")
+
+
+def test_guard_a_non_approver_issue_creates_no_task_and_no_record(tmp_path):
+    github, server = pass_over(tmp_path, [raw_issue(user={"login": "mallory", "id": 666})])
+
+    assert server.created == []
+    assert load_state(tmp_path).issues == {}
+
+
+def test_guard_an_issue_already_in_state_creates_no_second_task(tmp_path):
+    save_state(tmp_path, WatchState(watching_since=SINCE, issues={5: IssueRecord(task_id="t-9")}))
+
+    github, server = pass_over(tmp_path, [raw_issue(number=5)])
+
+    assert server.created == []
+    assert load_state(tmp_path).issues == {5: IssueRecord(task_id="t-9")}
 
 
 def test_a_truncated_state_file_is_refused_not_reset(tmp_path):

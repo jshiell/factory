@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from factory.clone_repo import RepositoryError, github_slug
+from factory.settings import GITHUB_LOGIN
 
 
 class GitHubError(RuntimeError):
@@ -50,6 +51,11 @@ class GitHub:
     def self_user(self) -> User:
         user = self._gh("api", "user")
         return User(user["login"], user["id"])
+
+    def user_id(self, login: str) -> int:
+        if not GITHUB_LOGIN.fullmatch(login):
+            raise ValueError(f"not a GitHub login: {login!r}")
+        return self._gh("api", f"users/{login}")["id"]
 
     def repo_is_private(self) -> bool:
         return self._gh("api", f"repos/{self._owner}/{self._name}")["private"]

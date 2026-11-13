@@ -78,7 +78,7 @@ class Context:
     server: ServerClient | None = None
     probe: Callable[[int], float | None] = ps_probe()
     group_alive: Callable[[int], bool] = group_alive
-    watch_pass: Callable[[Settings], None] = run_pass
+    watch_pass: Callable[[GitHub, ServerClient | None, Path, set[int]], None] = run_pass
     github: Callable[[str, str], GitHub] = GitHub.default
     origin_slug: Callable[[Path], tuple[str, str]] = origin_slug
 
@@ -614,7 +614,14 @@ def _watch(args, io, ctx) -> int:
     if not github.repo_is_private() and not args.allow_public:
         print("this repo is public: plans, failure reasons and worktree paths would become public comments; pass --allow-public to watch it anyway", file=io.stderr)
         return 1
-    ctx.watch_pass(ctx.settings)
+    approver_ids = set()
+    for login in ctx.settings.watch_approvers:
+        try:
+            approver_ids.add(github.user_id(login))
+        except GitHubError:
+            print(f"watch cannot resolve the approver {login!r} on GitHub: check watch_approvers", file=io.stderr)
+            return 1
+    ctx.watch_pass(github, ctx.server, ctx.settings.state_dir, approver_ids)
     return 0
 
 

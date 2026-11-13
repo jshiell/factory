@@ -22,6 +22,9 @@ class FakeGitHub:
     def repo_is_private(self):
         return self.private
 
+    def user_id(self, login):
+        return {"alice": 1001, "bob": 1002}[login]
+
 
 @pytest.fixture
 def ctx(tmp_path):
@@ -31,7 +34,13 @@ def ctx(tmp_path):
     context.origin_slug = lambda repo_dir: ("owner", "name")
     context.github = lambda owner, name: FakeGitHub()
     context.passes = []
-    context.watch_pass = lambda settings: context.passes.append(settings)
+    context.pass_calls = []
+
+    def watch_pass(github, server, state_dir, approver_ids):
+        context.passes.append(context.settings)
+        context.pass_calls.append((github, server, state_dir, approver_ids))
+
+    context.watch_pass = watch_pass
     return context
 
 
@@ -46,6 +55,37 @@ def test_watch_once_runs_exactly_one_pass_and_exits_0(ctx):
 
     assert code == 0
     assert ctx.passes == [ctx.settings]
+
+
+def test_watch_resolves_approver_logins_to_ids_once_and_hands_the_pass_its_collaborators(ctx):
+    ctx.settings = replace(ctx.settings, watch_approvers=("alice", "bob"))
+    ctx.server = object()
+    github = FakeGitHub()
+    ctx.github = lambda owner, name: github
+
+    code, out, err = watch(ctx, "--once")
+
+    assert code == 0
+    assert ctx.pass_calls == [(github, ctx.server, ctx.settings.state_dir, {1001, 1002})]
+
+
+def test_watch_with_an_approver_login_github_cannot_resolve_names_it_and_exits_1_without_a_pass(ctx):
+    ctx.settings = replace(ctx.settings, watch_approvers=("alice", "ghost"))
+
+    def lookup(login):
+        if login == "ghost":
+            raise GitHubError("gh: Not Found (HTTP 404)")
+        return 1001
+
+    ctx.github = lambda owner, name: SimpleNamespace(
+        self_user=lambda: User("bot", 7), repo_is_private=lambda: True, user_id=lookup
+    )
+
+    code, out, err = watch(ctx, "--once")
+
+    assert code == 1
+    assert "ghost" in err
+    assert ctx.passes == []
 
 
 def test_watch_without_approvers_says_to_set_watch_approvers_and_exits_1_without_a_pass(ctx):

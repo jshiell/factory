@@ -61,7 +61,7 @@ _STAGES = ("plan", "review", "implement", "audit")
 _FLOAT_KEYS = ("cap_usd", "gate_timeout_s", "runner_timeout_s", "budget_usd")
 _STRING_LIST_KEYS = ("test_argv", "allowed_tools", "plugins", "watch_approvers")
 _INT_KEYS = ("max_turns", "fix_rounds", "server_port")
-_GITHUB_LOGIN = re.compile(r"(?!.{40})[A-Za-z0-9]+(-[A-Za-z0-9]+)*")
+GITHUB_LOGIN = re.compile(r"(?!.{40})[A-Za-z0-9]+(-[A-Za-z0-9]+)*")
 _KNOWN =_PATH_KEYS + _STRING_KEYS + _PROMPT_KEYS + ("stage_prompts", "stage_plugins") + _FLOAT_KEYS + _STRING_LIST_KEYS + _INT_KEYS
 
 
@@ -219,7 +219,7 @@ def _typed(key: str, value):
             return value
     elif isinstance(value, list) and value and all(isinstance(item, str) for item in value):
         if key == "watch_approvers":
-            if all(_GITHUB_LOGIN.fullmatch(login) for login in value):
+            if all(GITHUB_LOGIN.fullmatch(login) for login in value):
                 return tuple(login.casefold() for login in value)
             raise SettingsError(f"wrong type for setting: {key}")
         if key != "plugins" or _plugin_names_ok(value):

@@ -118,5 +118,22 @@ def load_state(state_dir, clock=_utc_now) -> WatchState:
         raise WatchStateError(f"{path} is unreadable ({error}); fix or delete it, but deleting re-creates tasks for old issues") from error
 
 
-def run_pass(settings) -> None:
-    """One pass over the repo's issues. Stub: the pass logic arrives in later increments, so this does nothing yet."""
+GOAL_LIMIT = 20_000
+_GOAL_TRUNCATED = "\n[issue text truncated]"
+
+
+def _goal(issue: Issue) -> str:
+    goal = f"{issue.title}\n\n{issue.body}"
+    if len(goal) <= GOAL_LIMIT:
+        return goal
+    return goal[: GOAL_LIMIT - len(_GOAL_TRUNCATED)] + _GOAL_TRUNCATED
+
+
+def run_pass(github, server, state_dir, approver_ids: set[int], clock=_utc_now) -> None:
+    """One pass over the repo's issues; so far it only starts a task for each new approver issue."""
+    state = load_state(state_dir, clock)
+    for issue in parse_issues(github.open_issues(), approver_ids, state.watching_since):
+        if issue.number not in state.issues:
+            task_id = server.post("/tasks", {"goal": _goal(issue)})["id"]
+            state.issues[issue.number] = IssueRecord(task_id)
+            save_state(state_dir, state)

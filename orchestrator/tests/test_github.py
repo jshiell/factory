@@ -93,6 +93,27 @@ def test_self_user_returns_login_and_numeric_id():
     assert kwargs["stdin"] == subprocess.DEVNULL
 
 
+def test_user_id_looks_up_the_numeric_id_of_a_login():
+    calls = []
+
+    def run(argv, **kwargs):
+        calls.append((argv, kwargs))
+        return SimpleNamespace(returncode=0, stdout='{"login": "Alice", "id": 1001}')
+
+    assert GitHub(run, "o", "r").user_id("alice") == 1001
+    argv, kwargs = calls[0]
+    assert argv == ["gh", "api", "users/alice"]
+    assert kwargs["stdin"] == subprocess.DEVNULL
+
+
+@pytest.mark.parametrize("bad_login", ["", "../user", "a/b", "-x", "a b", "x" * 40, "a?b=c"])
+def test_user_id_refuses_a_malformed_login_before_anything_runs(bad_login):
+    gh = GitHub(lambda argv, **kwargs: pytest.fail("ran"), "o", "r")
+
+    with pytest.raises(ValueError):
+        gh.user_id(bad_login)
+
+
 def test_repo_is_private_reads_the_private_flag():
     calls = []
 
