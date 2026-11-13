@@ -36,6 +36,12 @@ def parse_repository(spec: str) -> tuple[str, str]:
     return f"{prefix}{owner}/{name}.git", name
 
 
+def gh_target(spec: str) -> str:
+    """What `gh repo clone` is given: a bare slug with the host pinned, so gh picks the protocol."""
+    owner, name = github_slug(spec)
+    return f"github.com/{owner}/{name}"
+
+
 def clone_repository(spec: str, io) -> int:
     url, name = parse_repository(spec)
     destination = harness_home() / name / "repo"

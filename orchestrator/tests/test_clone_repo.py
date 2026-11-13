@@ -3,7 +3,7 @@ import io
 import pytest
 
 from factory.cli import IO
-from factory.clone_repo import RepositoryError, clone_repository, github_slug, parse_repository
+from factory.clone_repo import RepositoryError, clone_repository, gh_target, github_slug, parse_repository
 from gitutil import git
 
 
@@ -165,3 +165,7 @@ def test_a_failed_clone_keeps_what_was_already_in_the_project_directory(github, 
 )
 def test_the_host_is_matched_case_insensitively_and_the_owner_and_name_keep_their_case(spec, url):
     assert parse_repository(spec) == (url, "R")
+
+
+def test_a_bare_slug_is_handed_to_gh_with_the_host_pinned_so_gh_picks_the_protocol():
+    assert gh_target("o/r") == "github.com/o/r"
