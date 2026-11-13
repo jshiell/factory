@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import subprocess
 import tomllib
 from dataclasses import dataclass, field, replace
@@ -34,6 +35,7 @@ class Settings:
     plugin_dirs: tuple[Path, ...] = ()
     stage_plugins: dict[str, tuple[str, ...]] = field(default_factory=dict)
     stage_plugin_dirs: dict[str, tuple[Path, ...]] = field(default_factory=dict)
+    watch_approvers: tuple[str, ...] = ()
 
     @property
     def ledger_path(self) -> Path:
@@ -57,9 +59,10 @@ _STRING_KEYS = ("project_subdir", "claude_executable", "sandbox_executable", "mo
 _PROMPT_KEYS = ("append_system_prompt",)
 _STAGES = ("plan", "review", "implement", "audit")
 _FLOAT_KEYS = ("cap_usd", "gate_timeout_s", "runner_timeout_s", "budget_usd")
-_STRING_LIST_KEYS = ("test_argv", "allowed_tools", "plugins")
+_STRING_LIST_KEYS = ("test_argv", "allowed_tools", "plugins", "watch_approvers")
 _INT_KEYS = ("max_turns", "fix_rounds", "server_port")
-_KNOWN = _PATH_KEYS + _STRING_KEYS + _PROMPT_KEYS + ("stage_prompts", "stage_plugins") + _FLOAT_KEYS + _STRING_LIST_KEYS + _INT_KEYS
+_GITHUB_LOGIN = re.compile(r"(?!.{40})[A-Za-z0-9]+(-[A-Za-z0-9]+)*")
+_KNOWN =_PATH_KEYS + _STRING_KEYS + _PROMPT_KEYS + ("stage_prompts", "stage_plugins") + _FLOAT_KEYS + _STRING_LIST_KEYS + _INT_KEYS
 
 
 def load_settings(path: Path | None, cwd: Path) -> Settings:
@@ -91,7 +94,7 @@ def _global_layer(path: Path) -> dict:
         raise SettingsError(message if str(path) in message else f"{message} (in {path})") from None
 
 
-_PER_REPO_KEYS = ("repo", "state_dir", "worktree_root")
+_PER_REPO_KEYS = ("repo", "state_dir", "worktree_root", "watch_approvers")
 
 
 def _layer(path: Path, per_repo_allowed: bool = True) -> dict:
@@ -215,6 +218,10 @@ def _typed(key: str, value):
         if isinstance(value, int) and not isinstance(value, bool) and (value >= 0 or key == "max_turns"):
             return value
     elif isinstance(value, list) and value and all(isinstance(item, str) for item in value):
+        if key == "watch_approvers":
+            if all(_GITHUB_LOGIN.fullmatch(login) for login in value):
+                return tuple(login.casefold() for login in value)
+            raise SettingsError(f"wrong type for setting: {key}")
         if key != "plugins" or _plugin_names_ok(value):
             return tuple(value)
     raise SettingsError(f"wrong type for setting: {key}")

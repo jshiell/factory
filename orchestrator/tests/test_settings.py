@@ -369,6 +369,14 @@ def test_per_repo_paths_are_rejected_in_the_global_config(repo_dir, global_confi
         load_settings(None, cwd=repo_dir)
 
 
+def test_watch_approvers_are_rejected_in_the_global_config(repo_dir, global_config):
+    key = "watch_approvers"
+    global_config.write_text(f'{key} = ["alice"]\n')
+
+    with pytest.raises(SettingsError, match=f"{key}.*global|global.*{key}"):
+        load_settings(None, cwd=repo_dir)
+
+
 @pytest.mark.parametrize("content", ["bogus = 1\n", "cap_usd = 'x'\n"])
 def test_a_bad_global_config_names_the_file_in_its_error(repo_dir, global_config, content):
     global_config.write_text(content)
@@ -580,3 +588,18 @@ def test_a_repo_cloned_into_the_home_is_keyed_by_its_project_directory(isolated_
 
     assert settings.state_dir == isolated_home / ".harness" / "myproj" / "state"
     assert settings.worktree_root == isolated_home / ".harness" / "myproj" / "worktrees"
+
+
+def test_watch_approvers_default_to_none_and_load_as_a_casefolded_tuple(repo_dir):
+    assert load_settings(None, cwd=repo_dir).watch_approvers == ()
+    (repo_dir / "factory.toml").write_text('watch_approvers = ["Alice", "bob-2"]\n')
+
+    assert load_settings(None, cwd=repo_dir).watch_approvers == ("alice", "bob-2")
+
+
+@pytest.mark.parametrize("login", ["", "-a", "a-", "a--b", "a_b", "a b", "a/b", "@a", "a" * 40])
+def test_a_bad_watch_approver_login_is_rejected_naming_the_key(repo_dir, login):
+    (repo_dir / "factory.toml").write_text(f'watch_approvers = ["{login}"]\n')
+
+    with pytest.raises(SettingsError, match="wrong type for setting: watch_approvers"):
+        load_settings(None, cwd=repo_dir)
