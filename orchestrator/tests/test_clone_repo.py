@@ -120,6 +120,13 @@ def test_the_success_line_names_the_origin_that_was_cloned_so_the_protocol_gh_ch
     assert out == f"cloned git@github.com:o/r.git into {harness / 'r' / 'repo'}\n"
 
 
+def test_the_success_line_falls_back_to_what_gh_was_given_when_the_origin_cannot_be_read(harness):
+    code, out, _ = run_clone("o/r", FakeGh(origin=None))
+
+    assert code == 0
+    assert out == f"cloned github.com/o/r into {harness / 'r' / 'repo'}\n"
+
+
 def test_the_global_configs_home_is_used_when_factory_home_is_unset(tmp_path, monkeypatch):
     monkeypatch.delenv("FACTORY_HOME", raising=False)
     monkeypatch.setenv("HOME", str(tmp_path / "user"))

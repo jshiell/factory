@@ -64,7 +64,8 @@ def clone_repository(spec: str, io, run=_run) -> int:
         return 1
     origin = run(["git", "-C", str(destination), "remote", "get-url", "origin"],
                  stdin=subprocess.DEVNULL, capture_output=True, text=True)
-    print(f"cloned {origin.stdout.strip()} into {destination}", file=io.stdout)
+    cloned = origin.stdout.strip() if origin.returncode == 0 else target
+    print(f"cloned {cloned} into {destination}", file=io.stdout)
     return 0
 
 
