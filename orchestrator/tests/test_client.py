@@ -28,6 +28,15 @@ def test_no_server_listening_is_reported_as_unreachable():
         client_over(handler).get("/tasks")
 
 
+@pytest.mark.parametrize("failure", [httpx.ReadTimeout, httpx.WriteTimeout])
+def test_a_timeout_is_reported_as_unreachable(failure):
+    def handler(request):
+        raise failure("timed out")
+
+    with pytest.raises(ServerUnreachable):
+        client_over(handler).get("/tasks")
+
+
 def test_a_refusal_carries_its_status_error_and_detail():
     def handler(request):
         return httpx.Response(409, json={"error": "merge refused", "detail": "stale sha"})

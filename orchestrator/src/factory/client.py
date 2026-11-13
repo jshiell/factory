@@ -37,7 +37,7 @@ class ServerClient:
     def _send(self, method: str, path: str, **kwargs) -> dict:
         try:
             response = self._http.request(method, path, headers=self._headers, **kwargs)
-        except httpx.ConnectError as error:
+        except httpx.TransportError as error:
             raise ServerUnreachable(str(error)) from None
         body = response.json()
         if response.status_code >= 400:
