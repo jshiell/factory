@@ -148,6 +148,32 @@ def test_watch_on_a_public_repo_warns_and_exits_1_without_a_pass(ctx):
     assert ctx.passes == []
 
 
+def test_watch_when_the_repo_privacy_check_fails_says_so_escaped_and_exits_1_without_a_pass(ctx):
+    def privacy_check_fails():
+        raise GitHubError("\x1b[31mHTTP 404: Not Found")
+
+    ctx.github = lambda owner, name: SimpleNamespace(self_user=lambda: User("bot", 7), repo_is_private=privacy_check_fails)
+
+    code, out, err = watch(ctx, "--once")
+
+    assert code == 1
+    assert "HTTP 404: Not Found" in err and "\x1b" not in err
+    assert ctx.passes == []
+
+
+def test_watch_with_an_origin_that_is_not_a_plain_owner_and_name_says_so_and_exits_1_without_a_pass(ctx):
+    def bad_slug(owner, name):
+        raise ValueError("not a plain GitHub owner and name: 'o\\x1b', 'n'")
+
+    ctx.github = bad_slug
+
+    code, out, err = watch(ctx, "--once")
+
+    assert code == 1
+    assert "not a plain GitHub owner and name" in err
+    assert ctx.passes == []
+
+
 def test_watch_on_a_public_repo_with_allow_public_runs_the_pass(ctx):
     ctx.github = lambda owner, name: FakeGitHub(private=False)
 

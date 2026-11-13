@@ -1,15 +1,18 @@
 import hashlib
 import json
 import os
+import sys
 import tempfile
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
 
-from factory.client import ServerRefused
+from factory.client import ServerRefused, ServerUnreachable
 from factory.comments import has_marker, render_comment, strip_home
+from factory.github import GitHubError
 from factory.ids import require_safe_id
+from factory.textsafe import escape_control
 
 
 @dataclass(frozen=True)
@@ -261,37 +264,60 @@ def run_pass(github, server, state_dir, approver_ids: set[int], clock=_utc_now, 
     """One pass over the repo's issues: start a task for each new approver issue, post its plan once reviewed, approve it on an approver's 👍."""
     state = load_state(state_dir, clock)
     home = str(home or Path.home())
-    self_id = github.self_user().id
-    for issue in parse_issues(github.open_issues(), approver_ids, state.watching_since):
-        if issue.number not in state.issues:
-            task_id = server.post("/tasks", {"goal": _goal(issue)})["id"]
-            state.issues[issue.number] = IssueRecord(task_id)
-            save_state(state_dir, state)
-        record = state.issues[issue.number]
-        if record.phase not in (Phase.NEW, Phase.AWAITING_APPROVAL, Phase.APPROVED):
-            continue
-        task = server.get(f"/tasks/{require_safe_id(record.task_id)}")
-        if task["state"] == "failed":
-            _post_final(github, state, state_dir, issue.number, record, self_id, Phase.FAILED, "Failure reason", strip_home(task["failure_reason"], home))
-            continue
-        if task["state"] in ("audited", "merged"):  # finished at the terminal; no steps to report
-            record.phase = Phase.AUDITED
-            save_state(state_dir, state)
-            continue
-        if task["state"] in _APPROVED_STATES:
-            record.phase = Phase.APPROVED
-            save_state(state_dir, state)
-        if record.phase is Phase.AWAITING_APPROVAL:
-            _approve_on_thumbs_up(github, server, state, state_dir, issue.number, record, approver_ids, self_id)
-            continue
-        result = _advance(server, record.task_id)
-        if result is None:
-            continue
-        if result["stopped"]:
-            _post_final(github, state, state_dir, issue.number, record, self_id, Phase.STOPPED, "Stopped", strip_home(result["stopped"], home))
-        elif result["state"] == "reviewed" and record.phase is Phase.NEW:
-            _post_plan(github, server, state, state_dir, issue.number, record, self_id)
-        elif result["state"] == "audited" and record.phase is Phase.APPROVED:
-            _post_audited(github, state, state_dir, issue.number, record, self_id, result)
-        elif result["state"] == "failed":
-            _post_final(github, state, state_dir, issue.number, record, self_id, Phase.FAILED, "Failure reason", strip_home(result["failure_reason"], home))
+    try:
+        self_id = github.self_user().id
+        issues = parse_issues(github.open_issues(), approver_ids, state.watching_since)
+    except GitHubError as error:
+        _log_failure("the pass", error.stderr)
+        return
+    for issue in issues:
+        try:
+            _handle_issue(github, server, state, state_dir, issue, approver_ids, self_id, home)
+        except GitHubError as error:
+            _log_failure(f"issue #{issue.number}", error.stderr)
+        except (ServerUnreachable, ServerRefused) as error:
+            _log_failure(f"issue #{issue.number}", str(error))
+
+
+def _failure_text(failed: dict, home: str) -> str:
+    return strip_home(failed["failure_reason"] or "No reason recorded.", home)
+
+
+def _log_failure(subject: str, text: str) -> None:
+    """One escaped line on stderr: gh and server text is not trusted, and a newline would forge a second log line."""
+    print(f"watch: {subject} left for the next pass: {escape_control(text.strip()).replace(chr(10), '\\n')}", file=sys.stderr)
+
+
+def _handle_issue(github, server, state, state_dir, issue: Issue, approver_ids: set[int], self_id: int, home: str) -> None:
+    if issue.number not in state.issues:
+        task_id = server.post("/tasks", {"goal": _goal(issue)})["id"]
+        state.issues[issue.number] = IssueRecord(task_id)
+        save_state(state_dir, state)
+    record = state.issues[issue.number]
+    if record.phase not in (Phase.NEW, Phase.AWAITING_APPROVAL, Phase.APPROVED):
+        return
+    task = server.get(f"/tasks/{require_safe_id(record.task_id)}")
+    if task["state"] == "failed":
+        _post_final(github, state, state_dir, issue.number, record, self_id, Phase.FAILED, "Failure reason", _failure_text(task, home))
+        return
+    if task["state"] in ("audited", "merged"):  # finished at the terminal; no steps to report
+        record.phase = Phase.AUDITED
+        save_state(state_dir, state)
+        return
+    if task["state"] in _APPROVED_STATES:
+        record.phase = Phase.APPROVED
+        save_state(state_dir, state)
+    if record.phase is Phase.AWAITING_APPROVAL:
+        _approve_on_thumbs_up(github, server, state, state_dir, issue.number, record, approver_ids, self_id)
+        return
+    result = _advance(server, record.task_id)
+    if result is None:
+        return
+    if result["stopped"]:
+        _post_final(github, state, state_dir, issue.number, record, self_id, Phase.STOPPED, "Stopped", strip_home(result["stopped"], home))
+    elif result["state"] == "reviewed" and record.phase is Phase.NEW:
+        _post_plan(github, server, state, state_dir, issue.number, record, self_id)
+    elif result["state"] == "audited" and record.phase is Phase.APPROVED:
+        _post_audited(github, state, state_dir, issue.number, record, self_id, result)
+    elif result["state"] == "failed":
+        _post_final(github, state, state_dir, issue.number, record, self_id, Phase.FAILED, "Failure reason", _failure_text(result, home))

@@ -602,7 +602,11 @@ def _watch(args, io, ctx) -> int:
     except RepositoryError as error:
         print(f"watch needs a GitHub origin: {error}", file=io.stderr)
         return 1
-    github = ctx.github(owner, name)
+    try:
+        github = ctx.github(owner, name)
+    except ValueError as error:
+        print(f"watch needs a plain GitHub origin: {escape_control(str(error))}", file=io.stderr)
+        return 1
     try:
         github.self_user()
     except FileNotFoundError:
@@ -611,7 +615,12 @@ def _watch(args, io, ctx) -> int:
     except GitHubError:
         print("watch needs a logged-in gh: run `gh auth login`", file=io.stderr)
         return 1
-    if not github.repo_is_private() and not args.allow_public:
+    try:
+        is_private = github.repo_is_private()
+    except GitHubError as error:
+        print(f"watch cannot read the repository from GitHub: {escape_control(error.stderr.strip())}", file=io.stderr)
+        return 1
+    if not is_private and not args.allow_public:
         print("this repo is public: plans, failure reasons and worktree paths would become public comments; pass --allow-public to watch it anyway", file=io.stderr)
         return 1
     approver_ids = set()

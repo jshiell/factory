@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from factory.client import ServerRefused
+from factory.client import ServerRefused, ServerUnreachable
 from factory.github import Comment, GitHubError, Reaction, User
 
 from factory.watch import Issue, IssueRecord, Phase, WatchState, WatchStateError, load_state, parse_issues, run_pass, save_state
@@ -289,8 +289,7 @@ def test_a_failed_plan_post_records_nothing_and_the_next_pass_posts_exactly_one_
     server = FakeServer(advance_result=REVIEWED, approval=APPROVAL)
     github = FlakyGitHub([raw_issue(number=5)])
 
-    with pytest.raises(GitHubError):
-        pass_over(tmp_path, [], server=server, github=github)
+    pass_over(tmp_path, [], server=server, github=github)
 
     assert load_state(tmp_path).issues == {5: IssueRecord(task_id="t-1", phase=Phase.NEW)}
 
@@ -378,8 +377,7 @@ def test_guard_a_failed_result_post_records_nothing_and_the_next_pass_retries(tm
     server = FakeServer(advance_result=FAILED)
     github = FlakyGitHub([raw_issue(number=5)])
 
-    with pytest.raises(GitHubError):
-        pass_over(tmp_path, [], server=server, github=github)
+    pass_over(tmp_path, [], server=server, github=github)
 
     assert load_state(tmp_path).issues == {5: IssueRecord(task_id="t-1", phase=Phase.NEW)}
 
@@ -536,8 +534,7 @@ def test_guard_an_audited_issue_is_not_advanced_or_commented_again(tmp_path):
 def test_guard_a_failed_audited_post_keeps_approved_and_the_next_pass_posts_exactly_one(tmp_path):
     github = FlakyGitHub([raw_issue(number=5)])
 
-    with pytest.raises(GitHubError):
-        approved_pass(tmp_path, AUDITED, github=github)
+    approved_pass(tmp_path, AUDITED, github=github)
 
     assert load_state(tmp_path).issues == {5: APPROVED}
 
@@ -558,8 +555,7 @@ def test_guard_a_refused_approve_does_not_write_approved(tmp_path):
     save_state(tmp_path, WatchState(watching_since=SINCE, issues={5: AWAITING}))
     github = FakeGitHub([raw_issue(number=5)], reactions={7: [Reaction("+1", 1001, "alice")]}, comments={5: [PLAN_COMMENT]})
 
-    with pytest.raises(ServerRefused):
-        pass_over(tmp_path, [], server=RefusingApproveServer(approval=APPROVAL), github=github)
+    pass_over(tmp_path, [], server=RefusingApproveServer(approval=APPROVAL), github=github)
 
     assert load_state(tmp_path).issues == {5: AWAITING}
 
@@ -637,8 +633,7 @@ def test_guard_a_failed_changed_post_records_nothing_and_approves_nothing(tmp_pa
     github.reactions_by_comment = {7: THUMBS_UP}
     github.comments_by_issue = {5: []}
 
-    with pytest.raises(GitHubError):
-        awaiting_pass(tmp_path, THUMBS_UP, github=github)
+    awaiting_pass(tmp_path, THUMBS_UP, github=github)
 
     assert load_state(tmp_path).issues == {5: AWAITING}
 
@@ -716,8 +711,7 @@ def test_guard_a_failed_rejected_post_records_nothing(tmp_path):
     github = FlakyGitHub([raw_issue(number=5)])
     github.reactions_by_comment = {7: THUMBS_DOWN}
 
-    with pytest.raises(GitHubError):
-        awaiting_pass(tmp_path, THUMBS_DOWN, github=github)
+    awaiting_pass(tmp_path, THUMBS_DOWN, github=github)
 
     assert load_state(tmp_path).issues == {5: AWAITING}
     assert github.comments_posted == []
@@ -795,8 +789,7 @@ def test_guard_a_failed_post_for_a_server_failed_task_records_nothing(tmp_path):
     save_state(tmp_path, WatchState(watching_since=SINCE, issues={5: AWAITING}))
     server = FakeServer(task_state="failed", failure_reason="too vague")
 
-    with pytest.raises(GitHubError):
-        pass_over(tmp_path, [], server=server, github=FlakyGitHub([raw_issue(number=5)]))
+    pass_over(tmp_path, [], server=server, github=FlakyGitHub([raw_issue(number=5)]))
 
     assert load_state(tmp_path).issues == {5: AWAITING}
 
@@ -910,3 +903,131 @@ def test_guard_an_issue_whose_ending_comment_is_recorded_does_not_search_comment
     github, _ = pass_over(tmp_path, [raw_issue(number=5)], server=FakeServer(advance_result=FAILED))
 
     assert github.comments_fetched == []
+
+
+class FailingCommentsGitHub(FakeGitHub):
+    """Reading the comments of the failing issues raises the given error."""
+
+    def __init__(self, issues, error, failing=(5,)):
+        super().__init__(issues)
+        self.error, self.failing = error, failing
+
+    def comments(self, issue_number):
+        if issue_number in self.failing:
+            raise self.error
+        return super().comments(issue_number)
+
+
+def test_a_github_failure_on_one_issue_logs_it_escaped_with_the_issue_number_and_the_pass_continues(tmp_path, capsys):
+    server = FakeServer(advance_result=REVIEWED, approval=APPROVAL)
+    github = FailingCommentsGitHub([raw_issue(number=5), raw_issue(number=6)], GitHubError("\x1b[31mrate limited\x07\n"))
+
+    pass_over(tmp_path, [], server=server, github=github)
+
+    logged = capsys.readouterr().err
+    assert "5" in logged and "rate limited" in logged
+    assert "\x1b" not in logged and "\x07" not in logged
+    assert logged.count("\n") == 1
+    assert load_state(tmp_path).issues[5] == IssueRecord(task_id="t-1", phase=Phase.NEW)
+    assert load_state(tmp_path).issues[6].phase is Phase.AWAITING_APPROVAL
+
+
+def test_a_server_failed_task_with_no_reason_gets_a_fixed_fallback_text_and_goes_failed(tmp_path):
+    save_state(tmp_path, WatchState(watching_since=SINCE, issues={5: AWAITING}))
+    github = FakeGitHub([raw_issue(number=5)])
+
+    pass_over(tmp_path, [], server=FakeServer(task_state="failed", failure_reason=None), github=github)
+
+    [(_, body)] = github.comments_posted
+    assert "```\nNo reason recorded.\n```" in body
+    assert load_state(tmp_path).issues[5].phase is Phase.FAILED
+
+
+def test_guard_a_failed_advance_with_no_reason_gets_the_same_fallback_text(tmp_path):
+    server = FakeServer(advance_result={**FAILED, "failure_reason": None})
+
+    github, _ = pass_over(tmp_path, [raw_issue(number=5)], server=server)
+
+    [(_, body)] = github.comments_posted
+    assert "```\nNo reason recorded.\n```" in body
+
+
+class FailingListGitHub(FakeGitHub):
+    def __init__(self, error):
+        super().__init__([])
+        self.error = error
+
+    def open_issues(self):
+        raise self.error
+
+
+def test_a_github_failure_listing_issues_logs_it_escaped_and_ends_the_pass_without_raising(tmp_path, capsys):
+    github = FailingListGitHub(GitHubError("\x1b[31mHTTP 502\n"))
+
+    pass_over(tmp_path, [], github=github)
+
+    logged = capsys.readouterr().err
+    assert "HTTP 502" in logged and "\x1b" not in logged
+    assert logged.count("\n") == 1
+    assert load_state(tmp_path).issues == {}
+
+
+class FailingSelfGitHub(FakeGitHub):
+    def self_user(self):
+        raise GitHubError("\x1b[31mbad credentials")
+
+
+def test_guard_a_github_failure_looking_up_its_own_account_ends_the_pass_the_same_way(tmp_path, capsys):
+    github = FailingSelfGitHub([raw_issue(number=5)])
+
+    server = FakeServer()
+    pass_over(tmp_path, [], server=server, github=github)
+
+    logged = capsys.readouterr().err
+    assert "bad credentials" in logged and "\x1b" not in logged
+    assert server.created == []
+
+
+class RefusingRejectServer(FakeServer):
+    def post(self, path, body=None):
+        if path.endswith("/reject"):
+            raise ServerRefused(409, "wrong state", "task is rejected\x1b[2J")
+        return super().post(path, body)
+
+
+def test_guard_a_refused_reject_logs_escaped_leaves_the_record_awaiting_and_the_pass_continues(tmp_path, capsys):
+    save_state(tmp_path, WatchState(watching_since=SINCE, issues={5: AWAITING}))
+    github = FakeGitHub([raw_issue(number=5), raw_issue(number=6)], reactions={7: [Reaction("-1", 1001, "alice")]}, comments={5: [PLAN_COMMENT]})
+    server = RefusingRejectServer(advance_result=REVIEWED, approval=APPROVAL)
+
+    pass_over(tmp_path, [], server=server, github=github)
+
+    logged = capsys.readouterr().err
+    assert "5" in logged and "wrong state" in logged and "\x1b" not in logged
+    assert github.comments_posted[0][0] == 6
+    assert load_state(tmp_path).issues[5] == AWAITING
+
+
+class FailingServer(FakeServer):
+    """Fetching the task of the failing task ids raises the given error."""
+
+    def __init__(self, error, failing=("t-1",), **kwargs):
+        super().__init__(**kwargs)
+        self.error, self.failing = error, failing
+
+    def get(self, path):
+        if path.split("/")[2] in self.failing:
+            raise self.error
+        return super().get(path)
+
+
+def test_a_server_outage_on_one_issue_logs_it_and_the_pass_continues_with_the_record_unchanged(tmp_path, capsys):
+    server = FailingServer(ServerUnreachable("\x1b[2Jconnection refused"), advance_result=REVIEWED, approval=APPROVAL)
+    github = FakeGitHub([raw_issue(number=5), raw_issue(number=6)])
+
+    pass_over(tmp_path, [], server=server, github=github)
+
+    logged = capsys.readouterr().err
+    assert "5" in logged and "connection refused" in logged and "\x1b" not in logged
+    assert load_state(tmp_path).issues[5] == IssueRecord(task_id="t-1", phase=Phase.NEW)
+    assert load_state(tmp_path).issues[6].phase is Phase.AWAITING_APPROVAL
