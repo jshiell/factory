@@ -1,0 +1,5 @@
+[
+  {"id": 501, "node_id": "IC_1", "body": "first page comment", "created_at": "2026-11-13T10:00:00Z", "user": {"login": "Alice", "id": 1001, "type": "User"}},
+  {"id": 502, "node_id": "IC_2", "body": "<!-- factory -->\nplan", "created_at": "2026-11-13T10:01:00Z", "user": {"login": "bob", "id": 1002, "type": "User"}},
+  {"id": 503, "node_id": "IC_3", "body": "second page comment", "created_at": "2026-11-13T10:02:00Z", "user": {"login": "carol", "id": 1003, "type": "User"}}
+]
