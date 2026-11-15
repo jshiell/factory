@@ -102,6 +102,26 @@ def test_a_stage_that_leaves_the_state_unchanged_stops_the_loop_with_the_recorde
     assert result.steps == []
 
 
+def test_a_task_with_open_questions_has_no_stage_and_stops_without_a_reason(store):
+    start(store, S.OPEN_QUESTIONS)
+    log = []
+
+    result = advance("t1", store, pipeline(store, log))
+
+    assert log == [] and result.steps == []
+    assert result.task.state is S.OPEN_QUESTIONS and result.stopped is None
+
+
+def test_a_plan_stage_that_asks_questions_is_one_step_and_not_a_lack_of_progress(store):
+    start(store, S.PROPOSED)
+    log = []
+
+    result = advance("t1", store, {**pipeline(store, log), "plan": moving(store, "plan", S.OPEN_QUESTIONS, log)})
+
+    assert result.steps == [Step("plan", S.OPEN_QUESTIONS)]
+    assert log == ["plan"] and result.stopped is None
+
+
 def test_a_failed_stage_is_a_step_and_ends_the_loop(store):
     start(store, S.QUEUED)
     failing = moving(store, "implement", S.FAILED, [])
