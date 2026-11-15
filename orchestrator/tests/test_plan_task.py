@@ -6,7 +6,7 @@ import pytest
 from gitutil import git
 
 from factory.ledger import Ledger
-from factory.plan_task import MAX_PLAN_BYTES, PLAN_CONFIG, PLAN_SCHEMA, build_plan_prompt, plan_task
+from factory.plan_task import GRILL_SCHEMA, MAX_PLAN_BYTES, PLAN_CONFIG, PLAN_SCHEMA, build_plan_prompt, plan_task
 from factory.command import RunnerConfig
 from factory.step import BudgetCapReached, MissingBudget, RunResult
 from factory.store import TaskStore
@@ -186,3 +186,42 @@ def test_a_planner_that_modifies_the_worktree_fails_the_task(repo, store, ledger
 
     assert (task.state, task.failure_reason) == (TaskState.FAILED, "plan_modified_worktree")
     assert task.plan_error is None
+
+
+QUESTION = {"number": 1, "title": "Scope", "body": "Which module?", "recommended": "calc.py"}
+
+
+def questions_stdout(questions=(QUESTION,), cost=0.16):
+    return json.dumps({"type": "result", "subtype": "success", "is_error": False, "total_cost_usd": cost,
+                       "structured_output": {"status": "questions", "questions": list(questions)}})
+
+
+class ConfigRecordingRunner(PlanRunner):
+    configs = ()
+
+    def run(self, task, config):
+        self.configs = (*self.configs, config)
+        return super().run(task, config)
+
+
+def test_a_grilling_task_asks_with_the_grill_schema_and_waits_in_open_questions(repo, store, ledger):
+    store.save(Task(id="t1", prompt="", state=TaskState.PROPOSED, goal="add multiply", grill=True))
+    runner = ConfigRecordingRunner(questions_stdout())
+
+    task = plan(store, ledger, runner, Worktrees(repo))
+
+    assert runner.configs[0].json_schema is GRILL_SCHEMA
+    assert runner.configs[0].max_turns == 12
+    assert task.state is TaskState.OPEN_QUESTIONS
+    assert (task.open_questions, task.grill_rounds, task.plan_error) == ((QUESTION,), 1, None)
+    assert store.load("t1") == task
+
+
+def test_a_task_that_does_not_grill_keeps_the_plan_schema_and_prompt(repo, store, ledger):
+    # guard (green on arrival)
+    runner = ConfigRecordingRunner(plan_stdout())
+
+    plan(store, ledger, runner, Worktrees(repo))
+
+    assert runner.configs[0] == PLAN_CONFIG
+    assert runner.tasks[0].prompt == build_plan_prompt("add multiply")

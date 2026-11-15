@@ -20,6 +20,33 @@ PLAN_SCHEMA = {
     },
 }
 
+GRILL_MAX_TURNS = 12
+
+GRILL_SCHEMA = {
+    "type": "object",
+    "required": ["status"],
+    "additionalProperties": False,
+    "properties": {
+        "status": {"enum": ["questions", "plan"]},
+        "plan": {"type": "string"},
+        "risks": {"type": "array", "items": {"type": "string"}},
+        "questions": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "required": ["number", "title", "body", "recommended"],
+                "additionalProperties": False,
+                "properties": {
+                    "number": {"type": "integer"},
+                    "title": {"type": "string"},
+                    "body": {"type": "string"},
+                    "recommended": {"type": "string"},
+                },
+            },
+        },
+    },
+}
+
 PLAN_CONFIG = RunnerConfig(
     model="sonnet",
     budget_usd=0.30,
@@ -55,12 +82,19 @@ def plan_task(
         path, base_sha = worktrees.create(task_id)
         task = replace(task, worktree=str(path), base_sha=base_sha)
         store.save(task)
+    if task.grill:
+        config = replace(config, json_schema=GRILL_SCHEMA, max_turns=GRILL_MAX_TURNS)
     staged = run_readonly_stage(task, build_plan_prompt(task.goal), runner, config, ledger, "plan")
     if isinstance(staged, Modified):
         failed = apply(task, Event.PLAN_FAILED, "plan_modified_worktree")
         return _finish(store, replace(failed, plan_error=None))
     if isinstance(staged, Infra):
         return _finish(store, replace(task, plan_error=staged.reason))
+    if task.grill and _asks_questions(staged.structured_output):
+        asked = apply(task, Event.QUESTIONS_ASKED)
+        return _finish(store, replace(
+            asked, open_questions=tuple(staged.structured_output["questions"]),
+            grill_rounds=task.grill_rounds + 1, plan_error=None))
     parsed = _parse_plan(staged.structured_output)
     if isinstance(parsed, str):
         return _finish(store, replace(task, plan_error=parsed))
@@ -70,6 +104,10 @@ def plan_task(
         store,
         replace(planned, plan=plan, plan_risks=risks, plan_digest=plan_digest(plan), plan_error=None),
     )
+
+
+def _asks_questions(output) -> bool:
+    return isinstance(output, dict) and output.get("status") == "questions" and isinstance(output.get("questions"), list)
 
 
 def _parse_plan(output) -> tuple[str, tuple[str, ...]] | str:
