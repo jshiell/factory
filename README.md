@@ -145,7 +145,7 @@ plugins = []                   # plugin directory names under <home>/_shared/plu
 append_system_prompt = "..."   # optional; appended to every stage's system prompt
 
 [stage_prompts]                # optional; appended for that stage only (plan, review, implement, audit)
-implement = "..."              # also reaches the fixer, which runs as the implementer
+implement = "..."              # the implementer only; the fixer gets the global prompt and the implement plugins, not this
 ```
 
 Appended text follows the built-in prompt: built-in, then `append_system_prompt`, then the stage's entry, separated by blank lines. Values must be non-empty strings; an unknown stage name is an error. `eval-audit` ignores both, so its runs stay comparable.

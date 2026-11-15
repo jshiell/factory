@@ -41,6 +41,12 @@ def implementer_config(settings: Settings) -> RunnerConfig:
     return stage_config(_implementer_base(settings), settings, "implement")
 
 
+def fixer_config(settings: Settings) -> RunnerConfig:
+    """The implementer's config without the implement stage prompt; the global prompt and plugins stay."""
+    prompts = {stage: text for stage, text in settings.stage_prompts.items() if stage != "implement"}
+    return stage_config(_implementer_base(settings), replace(settings, stage_prompts=prompts), "implement")
+
+
 def _implementer_base(settings: Settings) -> RunnerConfig:
     return RunnerConfig(
         model=settings.model,
@@ -84,7 +90,7 @@ def build_stages(settings: Settings, deps: Deps) -> dict[str, Callable[[str], Ta
         "verify": lambda task_id: verify_task(
             task_id, store, project_subdir=settings.project_subdir,
             test_argv=list(settings.test_argv), gate_timeout_s=settings.gate_timeout_s,
-            sandbox=gate_sandbox_for(settings), runner=runner, ledger=ledger, fix_config=implementer,
+            sandbox=gate_sandbox_for(settings), runner=runner, ledger=ledger, fix_config=fixer_config(settings),
             cap_usd=cap, fix_rounds=settings.fix_rounds,
             factory_paths=(settings.state_dir, settings.worktree_root),
             records=SqliteProcessRecords(settings.db_path),

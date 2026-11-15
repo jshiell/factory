@@ -265,15 +265,17 @@ def test_implement_appends_the_global_and_implement_prompts(setup):
     assert runner.configs[0].append_system_prompt.endswith("\n\nG.\n\nS.")
 
 
-def test_the_fixer_gets_the_implement_prompt(setup, monkeypatch):
+def test_the_fixer_gets_the_global_prompt_but_not_the_implement_prompt(setup, monkeypatch):
     store, runner, settings, deps, repo, base = setup
-    settings = replace(settings, stage_prompts={"implement": "S."})
+    settings = replace(settings, append_system_prompt="G.", stage_prompts={"implement": "S."})
     seen = {}
     monkeypatch.setattr("factory.stages.verify_task", lambda *a, **k: seen.update(k))
 
     build_stages(settings, deps)["verify"]("t1")
 
-    assert seen["fix_config"].append_system_prompt.endswith("\n\nS.")
+    prompt = seen["fix_config"].append_system_prompt
+    assert prompt.endswith("\n\nG.")
+    assert "S." not in prompt
 
 
 def test_the_plugin_dirs_are_added_to_a_stage_config_as_strings(setup):
