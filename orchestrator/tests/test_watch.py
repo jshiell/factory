@@ -728,6 +728,22 @@ def test_with_merge_on_an_approved_task_that_audits_posts_the_result_then_a_merg
            "merge_body_hash": hashlib.sha256(merge_body.encode()).hexdigest(), "merge_sha": "abc123"})}
 
 
+AWAITING_MERGE = IssueRecord(
+    **{**vars(APPROVED), "phase": Phase.AWAITING_MERGE, "result_comment_id": 1, "merge_comment_id": 2,
+       "merge_body_hash": "h", "merge_sha": "abc123"})
+
+
+def test_guard_an_awaiting_merge_task_the_server_still_calls_audited_is_neither_advanced_nor_collapsed_to_audited(tmp_path):
+    save_state(tmp_path, WatchState(watching_since=SINCE, issues={5: AWAITING_MERGE}))
+    server = FakeServer(advance_result=AUDITED, task_state="audited", merge_preview=MERGE_PREVIEW)
+
+    github, _ = pass_over(tmp_path, [], server=server, github=FakeGitHub([raw_issue(number=5)]), merge=True)
+
+    assert server.advanced == []
+    assert github.comments_posted == []
+    assert load_state(tmp_path).issues == {5: AWAITING_MERGE}
+
+
 def test_an_approved_task_that_audits_gets_one_result_comment_with_steps_state_and_merge_hint(tmp_path):
     github, server = approved_pass(tmp_path, AUDITED)
 
