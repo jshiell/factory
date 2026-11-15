@@ -21,6 +21,9 @@ PLAN_SCHEMA = {
 }
 
 GRILL_MAX_TURNS = 12
+MAX_QUESTIONS = 10
+MAX_QUESTIONS_BYTES = 20_000
+_QUESTION_KEYS = ("title", "body", "recommended")
 
 GRILL_SCHEMA = {
     "type": "object",
@@ -91,10 +94,12 @@ def plan_task(
     if isinstance(staged, Infra):
         return _finish(store, replace(task, plan_error=staged.reason))
     if task.grill and _asks_questions(staged.structured_output):
+        questions = _parse_questions(staged.structured_output["questions"])
+        if isinstance(questions, str):
+            return _finish(store, replace(task, plan_error=questions))
         asked = apply(task, Event.QUESTIONS_ASKED)
-        return _finish(store, replace(
-            asked, open_questions=tuple(staged.structured_output["questions"]),
-            grill_rounds=task.grill_rounds + 1, plan_error=None))
+        return _finish(store, replace(asked, open_questions=questions, grill_rounds=task.grill_rounds + 1,
+                                      plan_error=None))
     parsed = _parse_plan(staged.structured_output)
     if isinstance(parsed, str):
         return _finish(store, replace(task, plan_error=parsed))
@@ -108,6 +113,20 @@ def plan_task(
 
 def _asks_questions(output) -> bool:
     return isinstance(output, dict) and output.get("status") == "questions" and isinstance(output.get("questions"), list)
+
+
+def _parse_questions(raw: list) -> tuple[dict, ...] | str:
+    """Return the questions, or the plan_error reason."""
+    if not 0 < len(raw) <= MAX_QUESTIONS:
+        return "plan_malformed"
+    for question in raw:
+        if not isinstance(question, dict) or not isinstance(question.get("number"), int):
+            return "plan_malformed"
+        if not all(isinstance(question.get(key), str) for key in _QUESTION_KEYS):
+            return "plan_malformed"
+    if sum(len(question[key].encode()) for question in raw for key in _QUESTION_KEYS) > MAX_QUESTIONS_BYTES:
+        return "questions_too_large"
+    return tuple(raw)
 
 
 def _parse_plan(output) -> tuple[str, tuple[str, ...]] | str:
