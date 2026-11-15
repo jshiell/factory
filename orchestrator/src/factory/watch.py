@@ -56,6 +56,7 @@ class Phase(str, Enum):
     APPROVED = "approved"
     AUDITED = "audited"
     AWAITING_MERGE = "awaiting_merge"
+    MERGE_STOPPED = "merge_stopped"
     FAILED = "failed"
     STOPPED = "stopped"
     REJECTED = "rejected"
@@ -285,8 +286,23 @@ def _post_audited(github, server, state, state_dir, issue_number: int, record: I
     _post_merge_comment(github, server, state, state_dir, issue_number, record, self_id)
 
 
+def _post_merge_refused(github, state, state_dir, issue_number: int, record: IssueRecord, self_id: int, reason: str) -> None:
+    task_id = require_safe_id(record.task_id)
+    body = render_comment(record.task_id, "merge-refused", [
+        ("Merge refused", reason, True),
+        ("Next", f"Nothing was merged. At the terminal, run: factory rebase {task_id} if main moved, or factory merge {task_id}.", False),
+    ])
+    _post_result(github, state, state_dir, issue_number, record, self_id, "merge-refused", Phase.MERGE_STOPPED, body)
+
+
 def _post_merge_comment(github, server, state, state_dir, issue_number: int, record: IssueRecord, self_id: int) -> None:
-    preview = server.get(f"/tasks/{require_safe_id(record.task_id)}/merge-preview")
+    try:
+        preview = server.get(f"/tasks/{require_safe_id(record.task_id)}/merge-preview")
+    except ServerRefused as refusal:
+        if refusal.error != "merge refused":
+            raise
+        _post_merge_refused(github, state, state_dir, issue_number, record, self_id, refusal.detail)
+        return
     body = render_comment(record.task_id, "merge", [
         ("Task", _HOW_TO_MERGE.format(task_id=record.task_id), False),
         ("Audited commit", preview["audited_sha"], True),

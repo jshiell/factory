@@ -209,6 +209,8 @@ class FakeServer:
         if path.endswith("/questions"):
             return self.questions
         if path.endswith("/merge-preview"):
+            if isinstance(self.merge_preview, Exception):
+                raise self.merge_preview
             return self.merge_preview
         if not path.endswith("/approval"):
             return {"state": self.task_state, "failure_reason": self.failure_reason, "grill_rounds": self.grill_rounds}
@@ -726,6 +728,23 @@ def test_with_merge_on_an_approved_task_that_audits_posts_the_result_then_a_merg
     assert load_state(tmp_path).issues == {5: IssueRecord(
         **{**vars(APPROVED), "phase": Phase.AWAITING_MERGE, "result_comment_id": 1, "merge_comment_id": 2,
            "merge_body_hash": hashlib.sha256(merge_body.encode()).hexdigest(), "merge_sha": "abc123"})}
+
+
+def test_a_refused_merge_preview_posts_a_merge_refused_comment_even_with_the_audited_result_already_on_the_issue(tmp_path):
+    save_state(tmp_path, WatchState(watching_since=SINCE, issues={5: APPROVED}))
+    audited_result = Comment(3, "<!-- factory:task=t-9:kind=result -->\n\n**Steps**", 4242, "factory-bot")
+    github = FakeGitHub([raw_issue(number=5)], comments={5: [audited_result]})
+    refusal = ServerRefused(409, "merge refused", "main moved since the plan; re-run the task")
+    server = FakeServer(advance_result=AUDITED, merge_preview=refusal)
+
+    pass_over(tmp_path, [], server=server, github=github, merge=True)
+
+    [(issue_number, body)] = github.comments_posted
+    assert issue_number == 5
+    assert body.startswith("<!-- factory:task=t-9:kind=merge-refused -->")
+    assert "```\nmain moved since the plan; re-run the task\n```" in body
+    assert "factory rebase t-9" in body
+    assert load_state(tmp_path).issues[5].phase is Phase.MERGE_STOPPED
 
 
 AWAITING_MERGE = IssueRecord(
