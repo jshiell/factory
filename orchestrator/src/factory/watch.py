@@ -384,12 +384,33 @@ def _post_merged(github, state, state_dir, issue_number: int, record: IssueRecor
     _post_ending(github, state, state_dir, issue_number, record, self_id, "merged", Phase.MERGED, "Merged", _MERGED)
 
 
+_MERGE_CHANGED = (
+    "The merge comment, or the audited commit it showed, changed after the comment was posted, "
+    "so nothing was merged. Review the task at the terminal."
+)
+
+
+def _post_merge_changed(github, state, state_dir, issue_number: int, record: IssueRecord, self_id: int) -> None:
+    _post_ending(github, state, state_dir, issue_number, record, self_id, "merge-changed", Phase.MERGE_STOPPED, "Merge changed", _MERGE_CHANGED)
+
+
+def _merge_is_as_shown(github, server, issue_number: int, record: IssueRecord) -> bool:
+    """The merge comment is unedited and the server's audited commit is the one it showed."""
+    posted = [_sha256(c.body) for c in github.comments(issue_number) if c.id == record.merge_comment_id]
+    if posted != [record.merge_body_hash]:
+        return False
+    return server.get(f"/tasks/{require_safe_id(record.task_id)}/merge-preview")["audited_sha"] == record.merge_sha
+
+
 def _merge_on_thumbs_up(github, server, state, state_dir, issue_number: int, record: IssueRecord, approver_ids: set[int], self_id: int) -> None:
     """Merge the commit the merge comment showed on an approver's 👍; approvers match by numeric id, never login."""
     reactions = github.reactions(record.merge_comment_id)
     if not any(r.content == "+1" and r.user_id in approver_ids for r in reactions):
         return
     task_id = require_safe_id(record.task_id)
+    if not _merge_is_as_shown(github, server, issue_number, record):
+        _post_merge_changed(github, state, state_dir, issue_number, record, self_id)
+        return
     job_id = server.post(f"/tasks/{task_id}/merge", {"audited_sha": record.merge_sha})["job"]["id"]
     if server.wait(job_id)["state"] == "succeeded":
         _post_merged(github, state, state_dir, issue_number, record, self_id)

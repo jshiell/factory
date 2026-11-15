@@ -743,10 +743,10 @@ AWAITING_THE_MERGE = IssueRecord(
        "merge_body_hash": hashlib.sha256(MERGE_BODY.encode()).hexdigest(), "merge_sha": "abc123"})
 
 
-def merge_reaction_pass(tmp_path, reactions, server=None):
+def merge_reaction_pass(tmp_path, reactions, server=None, comment=MERGE_COMMENT):
     save_state(tmp_path, WatchState(watching_since=SINCE, issues={5: AWAITING_THE_MERGE}))
     server = server or FakeServer(task_state="audited", merge_preview=MERGE_PREVIEW)
-    github = FakeGitHub([raw_issue(number=5)], reactions={2: reactions}, comments={5: [MERGE_COMMENT]})
+    github = FakeGitHub([raw_issue(number=5)], reactions={2: reactions}, comments={5: [comment]})
     pass_over(tmp_path, [], server=server, github=github, merge=True)
     return github, server
 
@@ -760,6 +760,23 @@ def test_an_approver_thumbs_up_on_the_merge_comment_merges_the_shown_commit_and_
     assert body.startswith("<!-- factory:task=t-9:kind=merged -->")
     assert "unsigned" in body
     assert load_state(tmp_path).issues[5].phase is Phase.MERGED
+
+
+EDITED_COMMENT = Comment(2, MERGE_BODY + "\nedited", 4242, "factory-bot")
+MOVED_PREVIEW = {**MERGE_PREVIEW, "audited_sha": "def456"}
+
+
+@pytest.mark.parametrize("comment, preview", [(EDITED_COMMENT, MERGE_PREVIEW), (MERGE_COMMENT, MOVED_PREVIEW)],
+                         ids=["comment edited", "audited commit changed"])
+def test_a_thumbs_up_on_a_merge_comment_that_is_no_longer_what_was_shown_posts_merge_changed_and_does_not_merge(tmp_path, comment, preview):
+    server = FakeServer(task_state="audited", merge_preview=preview)
+
+    github, server = merge_reaction_pass(tmp_path, [Reaction("+1", 1001, "alice")], server=server, comment=comment)
+
+    assert server.merge_requests == []
+    [(_, body)] = github.comments_posted
+    assert body.startswith("<!-- factory:task=t-9:kind=merge-changed -->")
+    assert load_state(tmp_path).issues[5].phase is Phase.MERGE_STOPPED
 
 
 def test_guard_a_thumbs_up_by_a_non_approver_does_not_merge_and_fetches_no_comments_or_preview(tmp_path):
