@@ -172,6 +172,12 @@ def test_rebased_is_refused_from_every_state_but_audited(state):
         apply(task_in(state), Event.REBASED)
 
 
+def test_abandoned_fails_a_task_with_open_questions():
+    task = apply(task_in(TaskState.OPEN_QUESTIONS), Event.ABANDONED, "abandoned")
+
+    assert task.state is TaskState.FAILED and task.failure_reason == "abandoned"
+
+
 GRILL_TRANSITIONS = [
     (TaskState.PROPOSED, Event.QUESTIONS_ASKED, TaskState.OPEN_QUESTIONS),
     (TaskState.OPEN_QUESTIONS, Event.ANSWERED, TaskState.PROPOSED),
