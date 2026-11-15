@@ -399,6 +399,14 @@ def test_watch_approvers_are_rejected_in_the_global_config(repo_dir, global_conf
         load_settings(None, cwd=repo_dir)
 
 
+def test_watch_merge_is_rejected_in_the_global_config(repo_dir, global_config):
+    key = "watch_merge"
+    global_config.write_text(f"{key} = true\n")
+
+    with pytest.raises(SettingsError, match=f"{key}.*global|global.*{key}"):
+        load_settings(None, cwd=repo_dir)
+
+
 @pytest.mark.parametrize("content", ["bogus = 1\n", "cap_usd = 'x'\n"])
 def test_a_bad_global_config_names_the_file_in_its_error(repo_dir, global_config, content):
     global_config.write_text(content)

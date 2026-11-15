@@ -98,7 +98,7 @@ def _global_layer(path: Path) -> dict:
         raise SettingsError(message if str(path) in message else f"{message} (in {path})") from None
 
 
-_PER_REPO_KEYS = ("repo", "state_dir", "worktree_root", "watch_approvers")
+_PER_REPO_KEYS = ("repo", "state_dir", "worktree_root", "watch_approvers", "watch_merge")
 
 
 def _layer(path: Path, per_repo_allowed: bool = True) -> dict:
