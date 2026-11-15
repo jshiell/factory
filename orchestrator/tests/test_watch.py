@@ -415,6 +415,19 @@ def answer_pass(tmp_path, comments, **server_fields):
     return server
 
 
+def test_a_second_round_forwards_only_the_comments_after_its_own_questions(tmp_path):  # guard (green on arrival)
+    awaiting_answers(tmp_path, comment_id=9, round_number=2)
+    old_answer = Comment(8, "round one: sqlite", 1001, "Alice")
+    second_questions = Comment(9, "<!-- factory:task=t-9:kind=questions -->\n\n**Task**", 4242, "factory-bot")
+    new_answer = Comment(10, "round two: yes", 1001, "Alice")
+    server = FakeServer(task_state="open_questions", grill_rounds=2)
+    github = FakeGitHub([raw_issue(number=5)], comments={5: [QUESTIONS_COMMENT, old_answer, second_questions, new_answer]})
+
+    pass_over(tmp_path, [], server=server, github=github)
+
+    assert server.answered == [("/tasks/t-9/answer", {"round": 2, "answers": "round two: yes"})]
+
+
 def test_approver_comments_after_the_questions_are_forwarded_with_the_round_and_the_wait_ends(tmp_path):
     first = Comment(8, "use sqlite", 1001, "Alice")
     second = Comment(9, "and keep it small", 1001, "Alice")
