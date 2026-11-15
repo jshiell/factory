@@ -206,6 +206,29 @@ def test_answer_shows_escaped_questions_and_posts_the_recommendation_or_the_type
     assert ctx.store.load("t1").state is S.PROPOSED
 
 
+def test_answer_says_nothing_was_answered_when_the_round_moved_on_after_display(ctx, monkeypatch):
+    asking(ctx)
+    real_post = ctx.server.post
+
+    def moved_on(path, body=None):
+        ctx.store.save(replace(ctx.store.load("t1"), grill_rounds=2))
+        return real_post(path, body)
+    monkeypatch.setattr(ctx.server, "post", moved_on)
+
+    code, _, err = run(ctx, "answer", "t1", stdin="\n")
+
+    assert code == 1 and "questions changed since display; nothing answered" in err
+    assert ctx.store.load("t1").state is S.OPEN_QUESTIONS
+
+
+def test_answer_of_a_task_that_is_not_asking_says_so_and_exits_1(ctx):
+    put(ctx, goal="g")
+
+    code, _, err = run(ctx, "answer", "t1", stdin="\n")
+
+    assert code == 1 and "proposed" in err
+
+
 def test_advance_exits_1_when_the_task_fails_and_when_a_stage_stops(ctx):
     put(ctx, S.QUEUED)
     ctx.stages.update({**all_stages(ctx), "implement": moving(ctx, S.FAILED, failure_reason="timeout")})

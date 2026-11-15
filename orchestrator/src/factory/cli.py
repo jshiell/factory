@@ -295,7 +295,13 @@ def _answer(args, io, ctx) -> int:
     if not io.stdin.isatty():
         print("answering needs an interactive terminal", file=io.stderr)
         return 1
-    shown = ctx.server.get(_task_path(args.task_id, "/questions"))
+    try:
+        shown = ctx.server.get(_task_path(args.task_id, "/questions"))
+    except ServerRefused as refused:
+        if refused.error != "wrong state":
+            raise
+        print(refused.detail, file=io.stderr)
+        return 1
     print(escape_control(_questions_display(shown)), file=io.stdout)
     lines = []
     for question in shown["questions"]:
@@ -305,7 +311,16 @@ def _answer(args, io, ctx) -> int:
             print("no answer given; nothing answered", file=io.stderr)
             return 1
         lines.append(f"{question['number']}. {typed.strip() or question['recommended']}")
-    ctx.server.post(_task_path(args.task_id, "/answer"), {"round": shown["round"], "answers": "\n".join(lines)})
+    try:
+        ctx.server.post(_task_path(args.task_id, "/answer"), {"round": shown["round"], "answers": "\n".join(lines)})
+    except ServerRefused as refused:
+        if refused.error == "round changed":
+            print("questions changed since display; nothing answered", file=io.stderr)
+        elif refused.error == "wrong state":
+            print(refused.detail, file=io.stderr)
+        else:
+            raise
+        return 1
     print(f"{args.task_id}: answered; run: factory advance {args.task_id}", file=io.stdout)
     return 0
 
