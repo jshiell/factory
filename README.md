@@ -12,7 +12,7 @@ only things that need a person are the two decisions that matter: *is this the r
 
 | Path | What it is |
 |---|---|
-| `orchestrator/` | The factory: a Python 3.14 package, CLI `factory`; the standard library plus `httpx`, `starlette` and `uvicorn` for the server; ~1000 tests |
+| `orchestrator/` | The factory: a Python 3.14 package, CLI `factory`; the standard library plus `httpx2`, `starlette` and `uvicorn` for the server; ~1000 tests |
 | `target/` | A tiny Python project (`calc`) the agents work on. Replace it with any `uv` + `pytest` project |
 | `docs/` | One `plan-N.md` per increment (decisions, cycles, reviewer findings) and `spike-findings.md` (what was measured, known gaps) |
 | `spike/` | Throwaway probes and end-to-end scripts. Not production code; several make real API calls or need a terminal |
@@ -278,7 +278,7 @@ flowchart TB
 ### Why this shape
 
 - *A SQLite file and a state machine* so everything is inspectable and a crashed run is recoverable by hand.
-- *Few dependencies* in the orchestrator (`httpx`, `starlette`, `uvicorn`, only for the server and its client), to keep the trusted core small.
+- *Few dependencies* in the orchestrator (`httpx2`, `starlette`, `uvicorn`, only for the server and its client), to keep the trusted core small.
 - *One git worktree and branch (`factory/<id>`) per task* so agents never touch each other or the main checkout, and a rejected
   task is just a directory to delete (`clean`).
 - *Every stage is a function of the task file* (`task_id → Task`), which makes each stage testable with fakes and `advance` a loop.
