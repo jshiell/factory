@@ -25,6 +25,15 @@ def test_a_task_that_is_not_waiting_for_answers_refuses_them(store):
     assert store.load("t2").grill_log == ()
 
 
+def test_answers_for_a_different_round_are_refused_and_change_nothing(store):
+    before = store.load("t1")
+
+    with pytest.raises(RoundChanged):
+        answer_questions("t1", store, 2, "stale")
+
+    assert store.load("t1") == before
+
+
 def test_answering_records_the_round_and_returns_the_task_to_proposed(store):
     task = answer_questions("t1", store, 1, "use calc.py")
 

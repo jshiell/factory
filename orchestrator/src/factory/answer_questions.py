@@ -18,6 +18,8 @@ def answer_questions(task_id: str, store: TaskStore, round_number: int, text: st
     """Record the answers to the open round and send the task back to planning."""
     task = store.load(task_id)
     answered = apply(task, Event.ANSWERED)
+    if round_number != task.grill_rounds:
+        raise RoundChanged(task_id)
     entry = {"round": round_number, "questions": list(task.open_questions), "answers": text}
     saved = replace(answered, open_questions=(), grill_log=(*task.grill_log, entry))
     store.save(saved)
