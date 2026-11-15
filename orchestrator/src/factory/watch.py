@@ -55,6 +55,7 @@ class Phase(str, Enum):
     AWAITING_APPROVAL = "awaiting_approval"
     APPROVED = "approved"
     AUDITED = "audited"
+    AWAITING_MERGE = "awaiting_merge"
     FAILED = "failed"
     STOPPED = "stopped"
     REJECTED = "rejected"
@@ -72,6 +73,9 @@ class IssueRecord:
     result_comment_id: int | None = None
     questions_comment_id: int | None = None
     questions_round: int | None = None
+    merge_comment_id: int | None = None
+    merge_body_hash: str | None = None
+    merge_sha: str | None = None
 
 
 @dataclass
@@ -247,10 +251,14 @@ def _own_comment_id(github, issue_number: int, self_id: int, matches) -> int | N
     return next((c.id for c in github.comments(issue_number) if c.user_id == self_id and matches(c)), None)
 
 
-def _post_result(github, state, state_dir, issue_number: int, record: IssueRecord, self_id: int, kind: str, phase: Phase, body: str) -> None:
+def _result_comment_id(github, issue_number: int, record: IssueRecord, self_id: int, kind: str, body: str) -> int:
     """Post the task's ending, or adopt this watcher's earlier one; nothing downstream reads its text, so the marker alone identifies it."""
     earlier = _own_comment_id(github, issue_number, self_id, lambda c: has_marker(c.body, record.task_id, kind))
-    record.result_comment_id = earlier or github.comment(issue_number, body)
+    return earlier or github.comment(issue_number, body)
+
+
+def _post_result(github, state, state_dir, issue_number: int, record: IssueRecord, self_id: int, kind: str, phase: Phase, body: str) -> None:
+    record.result_comment_id = _result_comment_id(github, issue_number, record, self_id, kind, body)
     record.phase = phase
     save_state(state_dir, state)
 
@@ -260,14 +268,38 @@ def _post_final(github, state, state_dir, issue_number: int, record: IssueRecord
     _post_result(github, state, state_dir, issue_number, record, self_id, "result", phase, body)
 
 
-def _post_audited(github, state, state_dir, issue_number: int, record: IssueRecord, self_id: int, result: dict) -> None:
+_HOW_TO_MERGE = "Task {task_id}. React 👍 to merge, 👎 to leave it unmerged."
+
+
+def _post_audited(github, server, state, state_dir, issue_number: int, record: IssueRecord, self_id: int, result: dict, merge: bool) -> None:
     steps = "\n".join(f"{step['stage']} -> {step['state']}" for step in result["steps"])
     body = render_comment(record.task_id, "result", [
         ("Steps", steps, True),
         ("State", result["state"], True),
         ("Merge", f"When ready, run: factory merge {require_safe_id(record.task_id)}", False),
     ])
-    _post_result(github, state, state_dir, issue_number, record, self_id, "result", Phase.AUDITED, body)
+    if not merge:
+        _post_result(github, state, state_dir, issue_number, record, self_id, "result", Phase.AUDITED, body)
+        return
+    record.result_comment_id = _result_comment_id(github, issue_number, record, self_id, "result", body)
+    _post_merge_comment(github, server, state, state_dir, issue_number, record, self_id)
+
+
+def _post_merge_comment(github, server, state, state_dir, issue_number: int, record: IssueRecord, self_id: int) -> None:
+    preview = server.get(f"/tasks/{require_safe_id(record.task_id)}/merge-preview")
+    body = render_comment(record.task_id, "merge", [
+        ("Task", _HOW_TO_MERGE.format(task_id=record.task_id), False),
+        ("Audited commit", preview["audited_sha"], True),
+        ("Branch", preview["branch"], True),
+        ("Changes", preview["diffstat"], True),
+        ("Audit findings", "\n".join(f"- {finding}" for finding in preview["findings"]), True),
+    ])
+    exact_copy = _own_comment_id(github, issue_number, self_id, lambda c: c.body == body)
+    record.merge_comment_id = exact_copy or github.comment(issue_number, body)
+    record.merge_body_hash = _sha256(body)
+    record.merge_sha = preview["audited_sha"]
+    record.phase = Phase.AWAITING_MERGE
+    save_state(state_dir, state)
 
 
 _CHANGED = (
@@ -343,7 +375,7 @@ def run_pass(github, server, state_dir, approver_ids: set[int], clock=_utc_now, 
         return
     for issue in issues:
         try:
-            _handle_issue(github, server, state, state_dir, issue, approver_ids, self_id, home)
+            _handle_issue(github, server, state, state_dir, issue, approver_ids, self_id, home, merge)
         except GitHubError as error:
             _log_failure(f"issue #{issue.number}", error.stderr)
         except (ServerUnreachable, ServerRefused) as error:
@@ -359,7 +391,7 @@ def _log_failure(subject: str, text: str) -> None:
     print(f"watch: {subject} left for the next pass: {escape_control(text.strip()).replace(chr(10), '\\n')}", file=sys.stderr)
 
 
-def _handle_issue(github, server, state, state_dir, issue: Issue, approver_ids: set[int], self_id: int, home: str) -> None:
+def _handle_issue(github, server, state, state_dir, issue: Issue, approver_ids: set[int], self_id: int, home: str, merge: bool) -> None:
     if issue.number not in state.issues:
         task_id = server.post("/tasks", {"goal": _goal(issue)})["id"]
         state.issues[issue.number] = IssueRecord(task_id)
@@ -398,6 +430,6 @@ def _handle_issue(github, server, state, state_dir, issue: Issue, approver_ids: 
     elif result["state"] == "reviewed" and record.phase is Phase.NEW:
         _post_plan(github, server, state, state_dir, issue.number, record, self_id)
     elif result["state"] == "audited" and record.phase is Phase.APPROVED:
-        _post_audited(github, state, state_dir, issue.number, record, self_id, result)
+        _post_audited(github, server, state, state_dir, issue.number, record, self_id, result, merge)
     elif result["state"] == "failed":
         _post_final(github, state, state_dir, issue.number, record, self_id, Phase.FAILED, "Failure reason", _failure_text(result, home))

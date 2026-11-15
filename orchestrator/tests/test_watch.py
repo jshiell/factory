@@ -166,7 +166,8 @@ class FakeGitHub:
 
 class FakeServer:
     def __init__(self, advance_result=None, approval=None, job_state="succeeded", task_state="planned", failure_reason=None,
-                 questions=None, grill_rounds=0):
+                 questions=None, grill_rounds=0, merge_preview=None):
+        self.merge_preview = merge_preview
         self.job_state = job_state
         self.task_state = task_state
         self.questions = questions
@@ -207,17 +208,19 @@ class FakeServer:
     def get(self, path):
         if path.endswith("/questions"):
             return self.questions
+        if path.endswith("/merge-preview"):
+            return self.merge_preview
         if not path.endswith("/approval"):
             return {"state": self.task_state, "failure_reason": self.failure_reason, "grill_rounds": self.grill_rounds}
         self.fetched.append(path)
         return self.approval
 
 
-def pass_over(tmp_path, issues, server=None, github=None):
+def pass_over(tmp_path, issues, server=None, github=None, merge=False):
     server = server or FakeServer()
     github = github or FakeGitHub(issues)
     save_state_if_missing(tmp_path)
-    run_pass(github, server, tmp_path, {1001}, lambda: SINCE)
+    run_pass(github, server, tmp_path, {1001}, lambda: SINCE, merge=merge)
     return github, server
 
 
@@ -701,6 +704,28 @@ def approved_pass(tmp_path, advance_result, github=None):
     github = github or FakeGitHub([raw_issue(number=5)])
     pass_over(tmp_path, [], server=server, github=github)
     return github, server
+
+
+MERGE_PREVIEW = {"branch": "factory/t-9", "audited_sha": "abc123", "diffstat": " calc.py | 2 ++", "findings": ["nit: naming"]}
+
+
+def test_with_merge_on_an_approved_task_that_audits_posts_the_result_then_a_merge_comment_and_awaits_the_merge(tmp_path):
+    save_state(tmp_path, WatchState(watching_since=SINCE, issues={5: APPROVED}))
+    server = FakeServer(advance_result=AUDITED, merge_preview=MERGE_PREVIEW)
+
+    github, _ = pass_over(tmp_path, [], server=server, github=FakeGitHub([raw_issue(number=5)]), merge=True)
+
+    [(_, result_body), (issue_number, merge_body)] = github.comments_posted
+    assert issue_number == 5
+    assert result_body.startswith("<!-- factory:task=t-9:kind=result -->")
+    assert merge_body.startswith("<!-- factory:task=t-9:kind=merge -->")
+    assert "👍" in merge_body and "👎" in merge_body
+    assert "```\nabc123\n```" in merge_body
+    assert "```\n calc.py | 2 ++\n```" in merge_body
+    assert "```\n- nit: naming\n```" in merge_body
+    assert load_state(tmp_path).issues == {5: IssueRecord(
+        **{**vars(APPROVED), "phase": Phase.AWAITING_MERGE, "result_comment_id": 1, "merge_comment_id": 2,
+           "merge_body_hash": hashlib.sha256(merge_body.encode()).hexdigest(), "merge_sha": "abc123"})}
 
 
 def test_an_approved_task_that_audits_gets_one_result_comment_with_steps_state_and_merge_hint(tmp_path):
