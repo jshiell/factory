@@ -67,6 +67,10 @@ class Task:
     fix_frozen_sha: str | None = None
     waived_findings: tuple[str, ...] = ()
     prior_audit_findings: tuple[str, ...] = ()
+    grill: bool = False
+    grill_rounds: int = 0
+    open_questions: tuple[dict, ...] = ()
+    grill_log: tuple[dict, ...] = ()
 
 
 _TRANSITIONS = {

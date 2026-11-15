@@ -34,7 +34,10 @@ def task_from_dict(data: dict) -> Task:
     data = dict(data)
     data["state"] = TaskState(data["state"])
     data["denials"] = tuple(data["denials"])
-    for field in ("audit_findings", "plan_risks", "review_findings", "waived_findings", "prior_audit_findings"):
+    for field in (
+        "audit_findings", "plan_risks", "review_findings", "waived_findings", "prior_audit_findings",
+        "open_questions", "grill_log",
+    ):
         data[field] = tuple(data.get(field, ()))
     return Task(**data)
 

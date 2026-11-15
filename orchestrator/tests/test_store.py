@@ -183,6 +183,29 @@ def test_prior_audit_findings_round_trip_as_a_tuple(tmp_path):
     assert store.load("t1") == task
 
 
+def test_a_task_with_grilling_state_loads_back_equal(tmp_path):
+    question = {"number": 1, "title": "t", "body": "b", "recommended": "yes"}
+    task = Task(
+        id="t1", prompt="", state=TaskState.OPEN_QUESTIONS, grill=True, grill_rounds=2,
+        open_questions=(question,),
+        grill_log=({"round": 1, "questions": [question], "answers": "yes"},),
+    )
+    TaskStore(tmp_path).save(task)
+
+    assert TaskStore(tmp_path).load("t1") == task
+
+
+def test_a_task_file_without_grilling_fields_loads_with_the_defaults(tmp_path):
+    # guard (green on arrival): files saved before plan 40 have none of these keys
+    (tmp_path / "t1.json").write_text(
+        '{"id": "t1", "prompt": "p", "state": "proposed", "attempts": 0, "failure_reason": null, "denials": []}'
+    )
+
+    task = TaskStore(tmp_path).load("t1")
+
+    assert (task.grill, task.grill_rounds, task.open_questions, task.grill_log) == (False, 0, (), ())
+
+
 def test_a_task_file_without_prior_audit_findings_loads_with_none(tmp_path):
     # guard (green on arrival): files saved before plan 30 have no such key
     (tmp_path / "t1.json").write_text(
