@@ -141,6 +141,7 @@ class FakeGitHub:
         self.reactions_fetched = []
         self.comments_by_issue = comments or {}
         self.comments_fetched = []
+        self.next_comment_id = 1
 
     def self_user(self):
         return User("factory-bot", 4242)
@@ -158,7 +159,9 @@ class FakeGitHub:
 
     def comment(self, issue_number, body):
         self.comments_posted.append((issue_number, body))
-        return 1
+        comment_id = self.next_comment_id
+        self.next_comment_id += 1
+        return comment_id
 
 
 class FakeServer:
