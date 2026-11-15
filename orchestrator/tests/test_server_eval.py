@@ -106,6 +106,18 @@ def test_resuming_against_a_changed_corpus_fails_the_job_with_a_message_and_runs
     assert job["state"] == "failed" and "corpus" in job["error"].lower()
 
 
+def test_resuming_against_a_changed_config_fails_the_job_with_a_message_and_runs_nothing(client, ctx):
+    _first_eval(client)
+    meta = ctx.settings.state_dir / "evals" / FIRST_EVAL / "meta.json"
+    meta.write_text(meta.read_text().replace('"model": "sonnet"', '"model": "opus"'))
+    ctx.built.clear()
+
+    response = client.post("/eval-audit", json={"runs": 1, "only": ["case-01"], "resume": FIRST_EVAL})
+
+    job = _wait(client, response.json()["job"]["id"])
+    assert job["state"] == "failed" and "config" in job["error"].lower() and FIRST_EVAL in job["error"]
+
+
 def test_resuming_through_a_symlink_is_422_and_runs_nothing(client, ctx, tmp_path):
     _first_eval(client)
     outside = tmp_path / "elsewhere"
