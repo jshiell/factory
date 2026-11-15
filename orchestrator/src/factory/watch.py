@@ -195,6 +195,33 @@ def _post_questions(github, server, state, state_dir, issue_number: int, record:
     save_state(state_dir, state)
 
 
+def _is_factory_comment(comment) -> bool:
+    return comment.body.split("\n", 1)[0].startswith("<!-- factory:task=")
+
+
+def _answers_after(comments, questions_comment_id: int, approver_ids: set[int]) -> list[str] | None:
+    """Approver comments after the questions comment, by list position (comments carry no timestamp); None when that comment is gone."""
+    ids = [c.id for c in comments]
+    if questions_comment_id not in ids:
+        return None
+    later = comments[ids.index(questions_comment_id) + 1:]
+    return [c.body for c in later if c.user_id in approver_ids and not _is_factory_comment(c)]
+
+
+def _forward_answers(github, server, state, state_dir, issue_number: int, record: IssueRecord, approver_ids: set[int]) -> bool:
+    """Send the approvers' answers to the server; True when the wait is over."""
+    answers = _answers_after(github.comments(issue_number), record.questions_comment_id, approver_ids)
+    if not answers:
+        return False
+    server.post(
+        f"/tasks/{require_safe_id(record.task_id)}/answer",
+        {"round": record.questions_round, "answers": "\n\n".join(answers)},
+    )
+    record.phase = Phase.NEW
+    save_state(state_dir, state)
+    return True
+
+
 def _own_comment_id(github, issue_number: int, self_id: int, matches) -> int | None:
     """A comment this watcher posted before a crash lost its id; authorship is by numeric id, never login, so nobody else's comment is adopted."""
     return next((c.id for c in github.comments(issue_number) if c.user_id == self_id and matches(c)), None)
@@ -333,9 +360,11 @@ def _handle_issue(github, server, state, state_dir, issue: Issue, approver_ids: 
         save_state(state_dir, state)
     if record.phase is Phase.AWAITING_ANSWERS:
         if task["state"] == "open_questions" and task["grill_rounds"] == record.questions_round:
-            return
-        record.phase = Phase.NEW
-        save_state(state_dir, state)
+            if not _forward_answers(github, server, state, state_dir, issue.number, record, approver_ids):
+                return
+        else:
+            record.phase = Phase.NEW
+            save_state(state_dir, state)
     if record.phase is Phase.AWAITING_APPROVAL:
         _approve_on_thumbs_up(github, server, state, state_dir, issue.number, record, approver_ids, self_id)
         return

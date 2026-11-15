@@ -388,6 +388,42 @@ def test_an_answers_wait_for_the_current_round_neither_advances_nor_comments(tmp
     assert load_state(tmp_path).issues[5] == record
 
 
+QUESTIONS_COMMENT = Comment(7, "<!-- factory:task=t-9:kind=questions -->\n\n**Task**", 4242, "factory-bot")
+
+
+def answer_pass(tmp_path, comments, **server_fields):
+    awaiting_answers(tmp_path)
+    server = FakeServer(task_state="open_questions", grill_rounds=1, **server_fields)
+    github = FakeGitHub([raw_issue(number=5)], comments={5: comments})
+    pass_over(tmp_path, [], server=server, github=github)
+    return server
+
+
+def test_approver_comments_after_the_questions_are_forwarded_with_the_round_and_the_wait_ends(tmp_path):
+    first = Comment(8, "use sqlite", 1001, "Alice")
+    second = Comment(9, "and keep it small", 1001, "Alice")
+
+    server = answer_pass(tmp_path, [QUESTIONS_COMMENT, first, second])
+
+    assert server.answered == [("/tasks/t-9/answer", {"round": 1, "answers": "use sqlite\n\nand keep it small"})]
+    assert server.advanced == ["/tasks/t-9/advance"]
+    assert load_state(tmp_path).issues[5].phase is Phase.NEW
+
+
+@pytest.mark.parametrize("comments", [
+    [QUESTIONS_COMMENT, Comment(8, "use sqlite", 2002, "mallory")],
+    [Comment(8, "use sqlite", 1001, "Alice"), QUESTIONS_COMMENT],
+    [QUESTIONS_COMMENT, Comment(8, "<!-- factory:task=t-9:kind=plan -->\nuse sqlite", 1001, "Alice")],
+    [QUESTIONS_COMMENT],
+], ids=["not-an-approver", "before-the-questions", "factory-marker", "no-answer"])
+def test_guard_comments_that_are_not_answers_are_not_forwarded(tmp_path, comments):
+    # guard (green on arrival)
+    server = answer_pass(tmp_path, comments)
+
+    assert server.answered == [] and server.advanced == []
+    assert load_state(tmp_path).issues[5].phase is Phase.AWAITING_ANSWERS
+
+
 def posted_questions_body(tmp_path, questions):
     server = FakeServer(advance_result=ASKING, questions=questions)
     github, _ = pass_over(tmp_path, [raw_issue(number=5)], server=server)
