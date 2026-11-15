@@ -20,6 +20,7 @@ from factory.review_notes import capped_findings, dropped_required_warning
 from factory.waiver import InvalidWaiver, note_lines
 from factory.abandon_task import AbandonRefused, abandon_task
 from factory.advance import advance
+from factory.answer_questions import AnswerRejected, RoundChanged, answer_questions
 from factory.job_runner import JobRunner
 from factory.rebase_task import RebaseRefused, rebase_task
 from factory.recover_task import RecoverRefused, recover_task
@@ -201,6 +202,23 @@ def _build_app(ctx) -> Starlette:
             raise ApiError(409, "plan changed", str(error)) from None
         return JSONResponse({"id": approved.id, "state": approved.state.value})
 
+    async def answer(request: Request) -> JSONResponse:
+        task = service.get_task(ctx.store, request.path_params["task_id"])
+        body = await _json_object(request)
+        round_number = body.get("round")
+        if not isinstance(round_number, int) or isinstance(round_number, bool):
+            raise ApiError(422, "invalid input", "round must be an integer")
+        text = _required_string(body, "answers")
+        try:
+            answered = answer_questions(task.id, ctx.store, round_number, text)
+        except AnswerRejected as error:
+            raise ApiError(422, "invalid input", str(error)) from None
+        except InvalidTransition as error:
+            raise ApiError(409, "wrong state", str(error)) from None
+        except RoundChanged as error:
+            raise ApiError(409, "round changed", str(error)) from None
+        return JSONResponse({"id": answered.id, "state": answered.state.value})
+
     async def reject(request: Request) -> JSONResponse:
         task = service.reject_plan(ctx.store, request.path_params["task_id"])
         return JSONResponse({"id": task.id, "state": ctx.store.load(task.id).state.value})
@@ -353,6 +371,7 @@ def _build_app(ctx) -> Starlette:
                 Route("/tasks/{task_id}/merge-preview", merge_preview_view, methods=["GET"]),
                 Route("/tasks/{task_id}/approval", approval_preview, methods=["GET"]),
                 Route("/tasks/{task_id}/approve", approve, methods=["POST"]),
+                Route("/tasks/{task_id}/answer", answer, methods=["POST"]),
                 Route("/tasks/{task_id}/reject", reject, methods=["POST"]),
                 Route("/tasks/{task_id}/rebase", rebase, methods=["POST"]),
                 Route("/tasks/{task_id}/recover", recover, methods=["POST"]),

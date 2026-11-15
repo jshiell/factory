@@ -302,6 +302,59 @@ def test_reject_fails_a_reviewed_task_and_a_task_not_reviewed_is_409(client, ctx
     assert client.post("/tasks/a/reject").status_code == 409
 
 
+QUESTION = {"number": 1, "title": "Scope", "body": "Which module?", "recommended": "calc.py"}
+
+
+def asking(ctx, task_id="a"):
+    ctx.store.save(Task(id=task_id, prompt="", state=TaskState.OPEN_QUESTIONS, goal="g", grill=True,
+                        grill_rounds=1, open_questions=(QUESTION,)))
+
+
+def test_answer_records_the_round_and_returns_the_task_to_proposed(client, ctx):
+    asking(ctx)
+
+    response = client.post("/tasks/a/answer", json={"round": 1, "answers": "use calc.py"})
+
+    assert response.status_code == 200
+    assert response.json() == {"id": "a", "state": "proposed"}
+    task = ctx.store.load("a")
+    assert task.grill_log == ({"round": 1, "questions": [QUESTION], "answers": "use calc.py"},)
+
+
+def test_answer_to_a_task_that_is_not_asking_is_409_wrong_state(client, ctx):
+    ctx.store.save(Task(id="a", prompt="", state=TaskState.PROPOSED, goal="g"))
+
+    response = client.post("/tasks/a/answer", json={"round": 0, "answers": "x"})
+
+    assert (response.status_code, response.json()["error"]) == (409, "wrong state")
+
+
+def test_answer_for_a_round_that_has_moved_on_is_409_round_changed(client, ctx):
+    asking(ctx)
+
+    response = client.post("/tasks/a/answer", json={"round": 2, "answers": "x"})
+
+    assert (response.status_code, response.json()["error"]) == (409, "round changed")
+    assert ctx.store.load("a").state is TaskState.OPEN_QUESTIONS
+
+
+@pytest.mark.parametrize("body", [
+    {"round": 1}, {"round": 1, "answers": ""}, {"round": 1, "answers": "x" * 20_001},
+    {"answers": "x"}, {"round": "1", "answers": "x"}, {"round": True, "answers": "x"},
+])
+def test_bad_answers_are_422_and_change_nothing(client, ctx, body):
+    asking(ctx)
+
+    response = client.post("/tasks/a/answer", json=body)
+
+    assert (response.status_code, response.json()["error"]) == (422, "invalid input")
+    assert ctx.store.load("a").state is TaskState.OPEN_QUESTIONS
+
+
+def test_answer_to_an_unknown_task_is_404(client):
+    assert client.post("/tasks/nope/answer", json={"round": 1, "answers": "x"}).status_code == 404
+
+
 def test_retry_of_a_failed_task_creates_a_new_proposed_task_with_its_goal(client, ctx):
     ctx.store.save(Task(id="old", prompt="", state=TaskState.FAILED, goal="add multiply"))
 
