@@ -80,7 +80,7 @@ class Context:
     server: ServerClient | None = None
     probe: Callable[[int], float | None] = ps_probe()
     group_alive: Callable[[int], bool] = group_alive
-    watch_pass: Callable[[GitHub, ServerClient | None, Path, set[int]], None] = run_pass
+    watch_pass: Callable[..., None] = run_pass
     github: Callable[[str, str], GitHub] = GitHub.default
     origin_slug: Callable[[Path], tuple[str, str]] = origin_slug
     sleep: Callable[[float], None] = time.sleep
@@ -699,7 +699,7 @@ def _watch_locked(args, io, ctx) -> int:
             return 1
     try:
         while True:
-            ctx.watch_pass(github, ctx.server, ctx.settings.state_dir, approver_ids)
+            ctx.watch_pass(github, ctx.server, ctx.settings.state_dir, approver_ids, merge=ctx.settings.watch_merge)
             if args.once:
                 return 0
             ctx.sleep(args.interval)

@@ -331,7 +331,7 @@ def _approve_on_thumbs_up(github, server, state, state_dir, issue_number: int, r
 _APPROVED_STATES = {"queued", "running", "agent_done", "verified"}  # the task was approved, here or at the terminal
 
 
-def run_pass(github, server, state_dir, approver_ids: set[int], clock=_utc_now, home: Path | None = None) -> None:
+def run_pass(github, server, state_dir, approver_ids: set[int], clock=_utc_now, home: Path | None = None, merge: bool = False) -> None:
     """One pass over the repo's issues: start a task for each new approver issue, post its plan once reviewed, approve it on an approver's 👍."""
     state = load_state(state_dir, clock)
     home = str(home or Path.home())
