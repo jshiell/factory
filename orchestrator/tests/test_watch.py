@@ -802,6 +802,27 @@ def test_a_failed_merge_job_on_a_task_that_is_merged_posts_merged(tmp_path):
     assert load_state(tmp_path).issues[5].phase is Phase.MERGED
 
 
+def test_an_approved_task_the_server_already_reports_audited_posts_the_result_and_merge_comments_when_merge_is_on(tmp_path):
+    save_state(tmp_path, WatchState(watching_since=SINCE, issues={5: APPROVED}))
+    github = FakeGitHub([raw_issue(number=5)])
+
+    pass_over(tmp_path, [], server=FakeServer(task_state="audited", merge_preview=MERGE_PREVIEW), github=github, merge=True)
+
+    kinds = [body.split("\n", 1)[0] for _, body in github.comments_posted]
+    assert kinds == ["<!-- factory:task=t-9:kind=result -->", "<!-- factory:task=t-9:kind=merge -->"]
+    assert load_state(tmp_path).issues[5].phase is Phase.AWAITING_MERGE
+
+
+def test_guard_an_approved_task_the_server_already_reports_audited_is_only_marked_audited_when_merge_is_off(tmp_path):
+    save_state(tmp_path, WatchState(watching_since=SINCE, issues={5: APPROVED}))
+    github = FakeGitHub([raw_issue(number=5)])
+
+    pass_over(tmp_path, [], server=FakeServer(task_state="audited"), github=github, merge=False)
+
+    assert github.comments_posted == []
+    assert load_state(tmp_path).issues[5].phase is Phase.AUDITED
+
+
 def test_an_awaiting_merge_task_the_server_reports_merged_posts_merged_without_a_reaction(tmp_path):
     save_state(tmp_path, WatchState(watching_since=SINCE, issues={5: AWAITING_THE_MERGE}))
     github = FakeGitHub([raw_issue(number=5)], comments={5: [MERGE_COMMENT]})
