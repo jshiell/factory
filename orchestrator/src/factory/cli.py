@@ -119,7 +119,9 @@ def _positive_int(text: str) -> int:
 def _parser() -> argparse.ArgumentParser:
     parser = _Parser(prog="factory")
     commands = parser.add_subparsers(dest="command", required=True, parser_class=_Parser)
-    commands.add_parser("new").add_argument("goal")
+    new = commands.add_parser("new")
+    new.add_argument("goal")
+    new.add_argument("--no-grill", action="store_true")
     commands.add_parser("list")
     for name in ("show", "advance", "answer", "approve", "reject", "merge", "recover", "abandon", "rebase"):
         commands.add_parser(name).add_argument("task_id")
@@ -186,7 +188,8 @@ def _load(ctx: Context, task_id: str) -> Task:
 
 
 def _new(args, io, ctx) -> int:
-    print(ctx.server.post("/tasks", {"goal": args.goal})["id"], file=io.stdout)
+    body = {"goal": args.goal, **({"grill": False} if args.no_grill else {})}
+    print(ctx.server.post("/tasks", body)["id"], file=io.stdout)
     return 0
 
 

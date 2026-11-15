@@ -61,6 +61,13 @@ def test_new_creates_a_proposed_task_with_the_goal_and_prints_its_id(ctx):
     assert (task.state, task.goal, task.prompt) == (S.PROPOSED, "add multiply", "")
 
 
+def test_new_no_grill_stores_a_task_that_does_not_grill_and_plain_new_follows_the_setting(ctx):
+    plain_id = run(ctx, "new", "loud")[1].strip()
+    quiet_id = run(ctx, "new", "--no-grill", "quiet")[1].strip()
+
+    assert (ctx.store.load(plain_id).grill, ctx.store.load(quiet_id).grill) == (True, False)
+
+
 def test_new_in_the_same_second_gets_a_suffix_instead_of_overwriting(ctx):
     run(ctx, "new", "first")
     code, out, _ = run(ctx, "new", "second")
