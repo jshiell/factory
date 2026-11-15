@@ -147,6 +147,7 @@ def _parser() -> argparse.ArgumentParser:
     audit_eval.add_argument("--resume", type=Path)
     audit_eval.add_argument("--compare", type=Path)
     audit_eval.add_argument("--check-corpus", action="store_true")
+    audit_eval.add_argument("--stage-config", action="store_true")
     return parser
 
 
@@ -758,7 +759,7 @@ def _eval_audit(args, io, ctx) -> int:
         return _check_corpus(io, ctx)
     cases = [c for c in EVAL_CASES if not args.only or c.id in args.only]
     body = {"runs": args.runs, "max_usd": args.max_usd, **({"only": args.only} if args.only else {}),
-            **({"resume": args.resume.name} if args.resume else {})}
+            **({"resume": args.resume.name} if args.resume else {}), **({"stage_config": True} if args.stage_config else {})}
     queued = ctx.server.post("/eval-audit", body)
     eval_dir = Path(queued["eval_dir"])
     print(f"eval directory: {eval_dir}", file=io.stdout)

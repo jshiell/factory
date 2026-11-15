@@ -1016,6 +1016,23 @@ def test_the_eval_is_built_with_the_settings_and_its_own_directory_and_reaps_onl
     assert ctx.reap.calls == [eval_dir]
 
 
+def _eval_body(ctx, evals, monkeypatch, *args):
+    evals(LabelRunner())
+    posted = []
+    real_post = ctx.server.post
+    monkeypatch.setattr(ctx.server, "post", lambda path, body=None: posted.append((path, body)) or real_post(path, body))
+    run(ctx, "eval-audit", "--runs", "1", "--only", "case-01", *args)
+    return next(body for path, body in posted if path == "/eval-audit")
+
+
+def test_the_stage_config_flag_asks_the_eval_to_run_the_audit_stage_config(ctx, evals, monkeypatch):
+    assert _eval_body(ctx, evals, monkeypatch, "--stage-config")["stage_config"] is True
+
+
+def test_the_eval_request_does_not_mention_the_stage_config_without_the_flag(ctx, evals, monkeypatch):
+    assert "stage_config" not in _eval_body(ctx, evals, monkeypatch)
+
+
 def test_the_real_state_dir_stays_free_and_untouched_while_an_eval_runs(ctx, evals):
     from factory.lock import state_lock
     free = []
