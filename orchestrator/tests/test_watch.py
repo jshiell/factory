@@ -802,6 +802,28 @@ def test_a_failed_merge_job_on_a_task_that_is_merged_posts_merged(tmp_path):
     assert load_state(tmp_path).issues[5].phase is Phase.MERGED
 
 
+def test_an_awaiting_merge_task_the_server_reports_merged_posts_merged_without_a_reaction(tmp_path):
+    save_state(tmp_path, WatchState(watching_since=SINCE, issues={5: AWAITING_THE_MERGE}))
+    github = FakeGitHub([raw_issue(number=5)], comments={5: [MERGE_COMMENT]})
+
+    pass_over(tmp_path, [], server=FakeServer(task_state="merged"), github=github, merge=True)
+
+    [(_, body)] = github.comments_posted
+    assert body.startswith("<!-- factory:task=t-9:kind=merged -->")
+    assert load_state(tmp_path).issues[5].phase is Phase.MERGED
+
+
+def test_guard_a_merged_comment_already_on_the_issue_is_adopted_not_posted_again(tmp_path):
+    save_state(tmp_path, WatchState(watching_since=SINCE, issues={5: AWAITING_THE_MERGE}))
+    already = Comment(9, "<!-- factory:task=t-9:kind=merged -->\n\n**Merged**", 4242, "factory-bot")
+    github = FakeGitHub([raw_issue(number=5)], comments={5: [MERGE_COMMENT, already]})
+
+    pass_over(tmp_path, [], server=FakeServer(task_state="merged"), github=github, merge=True)
+
+    assert github.comments_posted == []
+    assert load_state(tmp_path).issues[5].phase is Phase.MERGED
+
+
 def test_guard_an_interrupted_merge_job_leaves_the_task_awaiting_the_merge(tmp_path):
     interrupted = {"state": "interrupted", "error": "server restarted", "result": None}
     server = FakeServer(task_state="audited", merge_preview=MERGE_PREVIEW, merge_job=interrupted)
