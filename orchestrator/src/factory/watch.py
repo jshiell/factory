@@ -219,10 +219,14 @@ def _forward_answers(github, server, state, state_dir, issue_number: int, record
     answers = _answers_after(github.comments(issue_number), record.questions_comment_id, approver_ids)
     if not answers:
         return False
-    server.post(
-        f"/tasks/{require_safe_id(record.task_id)}/answer",
-        {"round": record.questions_round, "answers": _within_cap("\n\n".join(answers))},
-    )
+    try:
+        server.post(
+            f"/tasks/{require_safe_id(record.task_id)}/answer",
+            {"round": record.questions_round, "answers": _within_cap("\n\n".join(answers))},
+        )
+    except ServerRefused as refusal:  # the task moved on at the terminal; the next step reads where it is now
+        if (refusal.status, refusal.error) not in ((409, "round changed"), (409, "wrong state")):
+            raise
     record.phase = Phase.NEW
     save_state(state_dir, state)
     return True

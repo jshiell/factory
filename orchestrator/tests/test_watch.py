@@ -411,6 +411,29 @@ def test_approver_comments_after_the_questions_are_forwarded_with_the_round_and_
     assert load_state(tmp_path).issues[5].phase is Phase.NEW
 
 
+class AnswerRefusingServer(FakeServer):
+    def __init__(self, error, **fields):
+        super().__init__(**fields)
+        self.error = error
+
+    def post(self, path, body=None):
+        if path.endswith("/answer"):
+            raise ServerRefused(409, self.error, "t-9")
+        return super().post(path, body)
+
+
+@pytest.mark.parametrize("error", ["round changed", "wrong state"])
+def test_an_answer_refused_because_the_task_moved_on_resets_the_wait_instead_of_failing(tmp_path, error):
+    awaiting_answers(tmp_path)
+    server = AnswerRefusingServer(error, task_state="open_questions", grill_rounds=1)
+    github = FakeGitHub([raw_issue(number=5)], comments={5: [QUESTIONS_COMMENT, Comment(8, "sqlite", 1001, "Alice")]})
+
+    pass_over(tmp_path, [], server=server, github=github)
+
+    assert load_state(tmp_path).issues[5].phase is Phase.NEW
+    assert server.advanced == ["/tasks/t-9/advance"]
+
+
 @pytest.mark.parametrize("text", ["x" * 30_000, "é" * 15_000], ids=["ascii", "multibyte"])
 def test_forwarded_answers_are_cut_to_the_servers_byte_cap(tmp_path, text):
     server = answer_pass(tmp_path, [QUESTIONS_COMMENT, Comment(8, text, 1001, "Alice")])
