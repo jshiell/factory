@@ -135,8 +135,12 @@ def _build_app(ctx) -> Starlette:
             runner.stop()
 
     async def create_task(request: Request) -> JSONResponse:
-        goal = _required_string(await _json_object(request), "goal")
-        task = service.create_task(ctx.store, ctx.clock, goal)
+        body = await _json_object(request)
+        goal = _required_string(body, "goal")
+        grill = body.get("grill", False)
+        if not isinstance(grill, bool):
+            raise ApiError(422, "invalid input", "grill must be true or false")
+        task = service.create_task(ctx.store, ctx.clock, goal, grill)
         return JSONResponse({"id": task.id}, status_code=201)
 
     async def list_tasks(request: Request) -> JSONResponse:

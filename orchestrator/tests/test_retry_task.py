@@ -49,6 +49,15 @@ def test_retrying_a_failed_task_creates_a_proposed_task_with_the_goal_and_leaves
     assert store.load(new.id) == new and store.load("t1") == old
 
 
+@pytest.mark.parametrize("grill", [True, False])
+def test_a_retry_keeps_the_grill_choice_with_no_grilling_history(store, grill):
+    put(store, TaskState.FAILED, goal="g", grill=grill, grill_rounds=2, grill_log=({"round": 1},))
+
+    new = retry_task("t1", store, lambda: NOW)
+
+    assert (new.grill, new.grill_rounds, new.grill_log) == (grill, 0, ())
+
+
 def test_an_audited_task_can_be_retried_too(store):
     put(store, TaskState.AUDITED, goal="g")
 

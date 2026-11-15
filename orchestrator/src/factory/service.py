@@ -27,9 +27,9 @@ class CostReport(NamedTuple):
     total: float
 
 
-def create_task(store, clock: Callable[[], datetime], goal: str) -> Task:
+def create_task(store, clock: Callable[[], datetime], goal: str, grill: bool = False) -> Task:
     return create_with_fresh_id(
-        store, clock, lambda task_id: Task(id=task_id, prompt="", state=TaskState.PROPOSED, goal=goal)
+        store, clock, lambda task_id: Task(id=task_id, prompt="", state=TaskState.PROPOSED, goal=goal, grill=grill)
     )
 
 

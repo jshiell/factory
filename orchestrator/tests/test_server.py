@@ -39,6 +39,20 @@ def test_post_tasks_creates_a_proposed_task_and_returns_its_id(client, ctx):
     assert ctx.store.load("20260102-030405").goal == "add multiply"
 
 
+def test_post_tasks_stores_the_grill_choice_and_defaults_to_no_grilling(client, ctx):
+    asked = client.post("/tasks", json={"goal": "g", "grill": True}).json()["id"]
+    plain = client.post("/tasks", json={"goal": "g"}).json()["id"]
+
+    assert (ctx.store.load(asked).grill, ctx.store.load(plain).grill) == (True, False)
+
+
+@pytest.mark.parametrize("grill", ["yes", 1, None])
+def test_post_tasks_with_a_grill_that_is_not_a_bool_is_422_and_creates_nothing(client, ctx, grill):
+    response = client.post("/tasks", json={"goal": "g", "grill": grill})
+
+    assert response.status_code == 422 and ctx.store.list().tasks == []
+
+
 @pytest.mark.parametrize("body", [{}, {"goal": ""}, {"goal": 5}, [], "text"])
 def test_post_tasks_without_a_goal_string_is_422_and_creates_nothing(client, ctx, body):
     response = client.post("/tasks", json=body)

@@ -23,7 +23,9 @@ def retry_task(task_id: str, store: TaskStore, clock: Callable[[], datetime]) ->
     if not task.goal:
         raise RetryRefused(f"{task.id} has no goal to retry")
     return create_with_fresh_id(
-        store, clock, lambda new_id: Task(id=new_id, prompt="", state=TaskState.PROPOSED, goal=task.goal, retry_of=task.id)
+        store, clock,
+        lambda new_id: Task(
+            id=new_id, prompt="", state=TaskState.PROPOSED, goal=task.goal, retry_of=task.id, grill=task.grill),
     )
 
 
