@@ -43,6 +43,8 @@ def compare(old: Path, new: Path) -> list[str]:
     else:
         if old_meta.get("audit_config") != new_meta.get("audit_config"):
             lines.append("  AUDIT_CONFIG differs")
+        if old_meta.get("plugin_hashes", {}) != new_meta.get("plugin_hashes", {}):
+            lines.append("  audit plugins differ")
         if old_meta.get("prompt_hash") != new_meta.get("prompt_hash"):
             lines.append("  audit prompt differs")
     old_runs, new_runs = _verdict_lists(old), _verdict_lists(new)

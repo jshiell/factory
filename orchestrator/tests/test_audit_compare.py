@@ -5,12 +5,15 @@ from factory.audit_compare import compare, find_previous
 IDS = ["case-01", "case-02", "case-03"]
 
 
-def make_run(root, name, verdicts, *, hashes=None, complete=True, cases=None, config=None, prompt="p1", cost=0.03):
+def make_run(root, name, verdicts, *, hashes=None, complete=True, cases=None, config=None, prompt="p1", cost=0.03,
+             plugin_hashes=None):
     directory = root / name
     directory.mkdir(parents=True)
     hashes = hashes or {i: f"h-{i}" for i in IDS}
     meta = {"corpus_hash": "c", "case_hashes": hashes, "cases": cases or IDS, "runs": len(next(iter(verdicts.values()))),
             "complete": complete, "audit_config": config or {"model": "sonnet"}, "prompt_hash": prompt}
+    if plugin_hashes is not None:
+        meta["plugin_hashes"] = plugin_hashes
     (directory / "meta.json").write_text(json.dumps(meta))
     for case_id, outcomes in verdicts.items():
         for run, outcome in enumerate(outcomes, 1):
@@ -80,6 +83,18 @@ def test_the_header_says_whether_the_config_or_prompt_differ(tmp_path):
 
     assert "AUDIT_CONFIG differs" in text and "audit prompt differs" in text
     assert "AUDIT_CONFIG differs" not in "\n".join(compare(old, make_run(tmp_path, "same", steady())))
+
+
+def test_the_header_says_when_the_audit_plugin_files_differ(tmp_path):
+    old = make_run(tmp_path, "old", steady(), plugin_hashes={"/p/a": "h1"})
+    new = make_run(tmp_path, "new", steady(), plugin_hashes={"/p/a": "h2"})
+    same = make_run(tmp_path, "same", steady(), plugin_hashes={"/p/a": "h1"})
+    legacy = make_run(tmp_path, "legacy", steady())
+    empty = make_run(tmp_path, "empty", steady(), plugin_hashes={})
+
+    assert "audit plugins differ" in "\n".join(compare(old, new))
+    assert "audit plugins differ" not in "\n".join(compare(old, same))
+    assert "audit plugins differ" not in "\n".join(compare(legacy, empty))
 
 
 def test_a_directory_without_meta_is_compared_by_case_id_with_a_warning(tmp_path):
