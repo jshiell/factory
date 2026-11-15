@@ -165,6 +165,8 @@ def run_eval(
     if meta_path(eval_dir).exists() and load_meta(eval_dir)["audit_config"] != _as_stored(dataclasses.asdict(config)):
         raise ConfigChanged(str(eval_dir))
     hashes = plugin_hashes(config)
+    if meta_path(eval_dir).exists() and load_meta(eval_dir).get("plugin_hashes", {}) != hashes:
+        raise ConfigChanged(str(eval_dir))
     _write_atomically(meta_path(eval_dir), json.dumps(_meta(cases, runs, False, config, hashes), indent=1))
     store, ledger = TaskStore(eval_dir / "tasks"), Ledger(eval_dir / "ledger.jsonl")
     with tempfile.TemporaryDirectory() as tmp:

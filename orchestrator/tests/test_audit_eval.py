@@ -239,6 +239,47 @@ def test_the_meta_has_no_plugin_hashes_when_no_plugins_are_configured(tmp_path):
     assert load_meta(tmp_path / "e")["plugin_hashes"] == {}
 
 
+def test_resuming_after_a_plugin_file_changed_is_refused_before_anything_runs(tmp_path):
+    plugin = make_plugin(tmp_path)
+    config = replace(AUDIT_CONFIG, plugin_dirs=(str(plugin),))
+    eval_dir = tmp_path / "eval"
+    run_eval(eval_dir, THREE, 1, VerdictRunner(), 5.0, config=config)
+    before = (eval_dir / "meta.json").read_text()
+    (plugin / "skills" / "s" / "SKILL.md").write_text("v2")
+    runner = VerdictRunner()
+
+    with pytest.raises(ConfigChanged):
+        run_eval(eval_dir, THREE, 1, runner, 5.0, config=config)
+
+    assert runner.order == [] and (eval_dir / "meta.json").read_text() == before
+
+
+def test_a_meta_without_plugin_hashes_counts_as_no_plugins(tmp_path):
+    eval_dir = tmp_path / "eval"
+    run_eval(eval_dir, THREE, 1, VerdictRunner(), 5.0)
+    meta = load_meta(eval_dir)
+    del meta["plugin_hashes"]
+    (eval_dir / "meta.json").write_text(json.dumps(meta))
+    (eval_dir / "case-03-r1.json").unlink()
+    runner = VerdictRunner()
+
+    run_eval(eval_dir, THREE, 1, runner, 5.0)
+
+    assert runner.order == ["a1-case-03"]
+
+
+def test_a_symlink_inside_a_plugin_is_refused(tmp_path):
+    plugin = make_plugin(tmp_path)
+    (plugin / "link").symlink_to(tmp_path)
+    config = replace(AUDIT_CONFIG, plugin_dirs=(str(plugin),))
+    runner = VerdictRunner()
+
+    with pytest.raises(ValueError, match="symlink"):
+        run_eval(tmp_path / "eval", THREE, 1, runner, 5.0, config=config)
+
+    assert runner.order == []
+
+
 def test_runs_go_round_robin_so_a_stop_leaves_balanced_data(tmp_path):
     runner = VerdictRunner()
 
