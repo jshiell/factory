@@ -762,6 +762,16 @@ def test_an_approver_thumbs_up_on_the_merge_comment_merges_the_shown_commit_and_
     assert load_state(tmp_path).issues[5].phase is Phase.MERGED
 
 
+def test_guard_a_thumbs_up_by_a_non_approver_does_not_merge_and_fetches_no_comments_or_preview(tmp_path):
+    github, server = merge_reaction_pass(tmp_path, [Reaction("+1", 666, "mallory")])
+
+    assert server.merge_requests == []
+    assert github.comments_posted == []
+    assert github.reactions_fetched == [2]
+    assert github.comments_fetched == []
+    assert load_state(tmp_path).issues[5] == AWAITING_THE_MERGE
+
+
 def test_a_refused_merge_preview_posts_a_merge_refused_comment_even_with_the_audited_result_already_on_the_issue(tmp_path):
     save_state(tmp_path, WatchState(watching_since=SINCE, issues={5: APPROVED}))
     audited_result = Comment(3, "<!-- factory:task=t-9:kind=result -->\n\n**Steps**", 4242, "factory-bot")
