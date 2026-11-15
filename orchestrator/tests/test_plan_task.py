@@ -12,6 +12,7 @@ from factory.plan_task import (
     build_plan_prompt, plan_task,
 )
 from factory.command import RunnerConfig
+from factory.settings import _runs_code
 from factory.step import BudgetCapReached, MissingBudget, RunResult
 from factory.store import TaskStore
 from factory.task import InvalidTransition, Task, TaskState
@@ -329,6 +330,11 @@ def test_the_grilling_plugin_is_not_added_without_grilling_or_at_the_cap(repo, s
     plan_task("t1", store, ledger, capped, PLAN_CONFIG, cap_usd=10, worktrees=Worktrees(repo), grill_max_rounds=3)
 
     assert plain.configs[0].plugin_dirs == () and capped.configs[0].plugin_dirs == ()
+
+
+def test_the_shipped_grilling_plugin_runs_no_code():
+    # guard (green on arrival)
+    assert _runs_code(GRILLING_PLUGIN_DIR) is None
 
 
 def test_a_task_that_does_not_grill_keeps_the_plan_schema_and_prompt(repo, store, ledger):
