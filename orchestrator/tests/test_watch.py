@@ -762,6 +762,20 @@ def test_an_approver_thumbs_up_on_the_merge_comment_merges_the_shown_commit_and_
     assert load_state(tmp_path).issues[5].phase is Phase.MERGED
 
 
+def test_a_thumbs_up_when_the_merge_preview_is_now_refused_posts_merge_refused_and_does_not_merge(tmp_path):
+    refusal = ServerRefused(409, "merge refused", "main moved since the audit")
+    server = FakeServer(task_state="audited", merge_preview=refusal)
+
+    github, server = merge_reaction_pass(tmp_path, [Reaction("+1", 1001, "alice")], server=server)
+
+    assert server.merge_requests == []
+    [(_, body)] = github.comments_posted
+    assert body.startswith("<!-- factory:task=t-9:kind=merge-refused -->")
+    assert "main moved since the audit" in body
+    assert "factory rebase t-9" in body
+    assert load_state(tmp_path).issues[5].phase is Phase.MERGE_STOPPED
+
+
 EDITED_COMMENT = Comment(2, MERGE_BODY + "\nedited", 4242, "factory-bot")
 MOVED_PREVIEW = {**MERGE_PREVIEW, "audited_sha": "def456"}
 

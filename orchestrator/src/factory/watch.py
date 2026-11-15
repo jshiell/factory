@@ -296,13 +296,20 @@ def _post_merge_refused(github, state, state_dir, issue_number: int, record: Iss
     _post_result(github, state, state_dir, issue_number, record, self_id, "merge-refused", Phase.MERGE_STOPPED, body)
 
 
-def _post_merge_comment(github, server, state, state_dir, issue_number: int, record: IssueRecord, self_id: int) -> None:
+def _merge_preview_or_refuse(github, server, state, state_dir, issue_number: int, record: IssueRecord, self_id: int) -> dict | None:
+    """The server's merge preview; if the server refuses the merge, post merge-refused and return None."""
     try:
-        preview = server.get(f"/tasks/{require_safe_id(record.task_id)}/merge-preview")
+        return server.get(f"/tasks/{require_safe_id(record.task_id)}/merge-preview")
     except ServerRefused as refusal:
         if refusal.error != "merge refused":
             raise
         _post_merge_refused(github, state, state_dir, issue_number, record, self_id, refusal.detail)
+        return None
+
+
+def _post_merge_comment(github, server, state, state_dir, issue_number: int, record: IssueRecord, self_id: int) -> None:
+    preview = _merge_preview_or_refuse(github, server, state, state_dir, issue_number, record, self_id)
+    if preview is None:
         return
     body = render_comment(record.task_id, "merge", [
         ("Task", _HOW_TO_MERGE.format(task_id=record.task_id), False),
@@ -394,12 +401,9 @@ def _post_merge_changed(github, state, state_dir, issue_number: int, record: Iss
     _post_ending(github, state, state_dir, issue_number, record, self_id, "merge-changed", Phase.MERGE_STOPPED, "Merge changed", _MERGE_CHANGED)
 
 
-def _merge_is_as_shown(github, server, issue_number: int, record: IssueRecord) -> bool:
-    """The merge comment is unedited and the server's audited commit is the one it showed."""
+def _merge_comment_is_unedited(github, issue_number: int, record: IssueRecord) -> bool:
     posted = [_sha256(c.body) for c in github.comments(issue_number) if c.id == record.merge_comment_id]
-    if posted != [record.merge_body_hash]:
-        return False
-    return server.get(f"/tasks/{require_safe_id(record.task_id)}/merge-preview")["audited_sha"] == record.merge_sha
+    return posted == [record.merge_body_hash]
 
 
 def _merge_on_thumbs_up(github, server, state, state_dir, issue_number: int, record: IssueRecord, approver_ids: set[int], self_id: int) -> None:
@@ -408,7 +412,13 @@ def _merge_on_thumbs_up(github, server, state, state_dir, issue_number: int, rec
     if not any(r.content == "+1" and r.user_id in approver_ids for r in reactions):
         return
     task_id = require_safe_id(record.task_id)
-    if not _merge_is_as_shown(github, server, issue_number, record):
+    if not _merge_comment_is_unedited(github, issue_number, record):
+        _post_merge_changed(github, state, state_dir, issue_number, record, self_id)
+        return
+    preview = _merge_preview_or_refuse(github, server, state, state_dir, issue_number, record, self_id)
+    if preview is None:
+        return
+    if preview["audited_sha"] != record.merge_sha:
         _post_merge_changed(github, state, state_dir, issue_number, record, self_id)
         return
     job_id = server.post(f"/tasks/{task_id}/merge", {"audited_sha": record.merge_sha})["job"]["id"]
