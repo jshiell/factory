@@ -273,6 +273,31 @@ def test_a_grilling_task_plans_with_the_log_in_its_prompt(repo, store, ledger):
     assert "use calc.py" in runner.tasks[0].prompt and "Decisions" in runner.tasks[0].prompt
 
 
+def test_at_the_round_cap_the_planner_must_write_the_plan_with_the_plan_schema(repo, store, ledger):
+    store.save(Task(id="t1", prompt="", state=TaskState.PROPOSED, goal="add multiply", grill=True,
+                    grill_rounds=3, grill_log=LOG))
+    runner = ConfigRecordingRunner(plan_stdout())
+
+    task = plan_task("t1", store, ledger, runner, PLAN_CONFIG, cap_usd=10, worktrees=Worktrees(repo),
+                     grill_max_rounds=3)
+
+    assert runner.configs[0] == PLAN_CONFIG
+    assert "write the plan now" in runner.tasks[0].prompt and "use calc.py" in runner.tasks[0].prompt
+    assert task.state is TaskState.PLANNED
+
+
+def test_below_the_round_cap_the_planner_may_still_ask(repo, store, ledger):
+    # guard (green on arrival)
+    store.save(Task(id="t1", prompt="", state=TaskState.PROPOSED, goal="add multiply", grill=True, grill_rounds=2))
+    runner = ConfigRecordingRunner(questions_stdout())
+
+    task = plan_task("t1", store, ledger, runner, PLAN_CONFIG, cap_usd=10, worktrees=Worktrees(repo),
+                     grill_max_rounds=3)
+
+    assert runner.configs[0].json_schema is GRILL_SCHEMA and task.state is TaskState.OPEN_QUESTIONS
+    assert "write the plan now" not in runner.tasks[0].prompt
+
+
 def test_a_task_that_does_not_grill_keeps_the_plan_schema_and_prompt(repo, store, ledger):
     # guard (green on arrival)
     runner = ConfigRecordingRunner(plan_stdout())
