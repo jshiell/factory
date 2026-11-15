@@ -351,6 +351,27 @@ def test_bad_answers_are_422_and_change_nothing(client, ctx, body):
     assert ctx.store.load("a").state is TaskState.OPEN_QUESTIONS
 
 
+def test_questions_returns_the_round_and_the_open_questions(client, ctx):
+    asking(ctx)
+
+    response = client.get("/tasks/a/questions")
+
+    assert response.status_code == 200
+    assert response.json() == {"round": 1, "questions": [QUESTION]}
+
+
+def test_questions_of_a_task_that_is_not_asking_is_409_wrong_state(client, ctx):
+    ctx.store.save(Task(id="a", prompt="", state=TaskState.PROPOSED, goal="g"))
+
+    response = client.get("/tasks/a/questions")
+
+    assert (response.status_code, response.json()["error"]) == (409, "wrong state")
+
+
+def test_questions_of_an_unknown_task_is_404(client):
+    assert client.get("/tasks/nope/questions").status_code == 404
+
+
 def test_answer_to_an_unknown_task_is_404(client):
     assert client.post("/tasks/nope/answer", json={"round": 1, "answers": "x"}).status_code == 404
 

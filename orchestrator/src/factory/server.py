@@ -202,6 +202,12 @@ def _build_app(ctx) -> Starlette:
             raise ApiError(409, "plan changed", str(error)) from None
         return JSONResponse({"id": approved.id, "state": approved.state.value})
 
+    async def questions(request: Request) -> JSONResponse:
+        task = service.get_task(ctx.store, request.path_params["task_id"])
+        if task.state is not TaskState.OPEN_QUESTIONS:
+            raise ApiError(409, "wrong state", f"{task.id} is {task.state.value}, not open_questions")
+        return JSONResponse({"round": task.grill_rounds, "questions": list(task.open_questions)})
+
     async def answer(request: Request) -> JSONResponse:
         task = service.get_task(ctx.store, request.path_params["task_id"])
         body = await _json_object(request)
@@ -372,6 +378,7 @@ def _build_app(ctx) -> Starlette:
                 Route("/tasks/{task_id}/approval", approval_preview, methods=["GET"]),
                 Route("/tasks/{task_id}/approve", approve, methods=["POST"]),
                 Route("/tasks/{task_id}/answer", answer, methods=["POST"]),
+                Route("/tasks/{task_id}/questions", questions, methods=["GET"]),
                 Route("/tasks/{task_id}/reject", reject, methods=["POST"]),
                 Route("/tasks/{task_id}/rebase", rebase, methods=["POST"]),
                 Route("/tasks/{task_id}/recover", recover, methods=["POST"]),
