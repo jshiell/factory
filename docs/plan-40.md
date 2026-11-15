@@ -17,6 +17,8 @@ Unverified assumptions, not to be relied on until `docs/spike-findings.md` recor
 - `--json-schema` accepts a `oneOf`. Fallback: one object with `status: "questions"|"plan"`.
 Stop and return to the user if any fails.
 
+**Resolution (recorded in `docs/spike-findings.md`, 2026-11-15):** the skill loads and runs with no allow rule and no denials. A top-level `oneOf` is refused by the API, so the flat schema is used (one object, `status: "questions"|"plan"`, optional `plan`, `risks`, `questions`). A questions round used 7 of 8 turns, so grilling rounds use `max_turns` of about 12. The sandbox `--read` grant was not re-tested here; the earlier plugin spikes cover it.
+
 ## Design
 **State.** `TaskState.OPEN_QUESTIONS = "open_questions"`, events `QUESTIONS_ASKED` and `ANSWERED`:
 - `PROPOSED --QUESTIONS_ASKED--> OPEN_QUESTIONS`
