@@ -240,6 +240,9 @@ def _describe(task: Task) -> list[str]:
         lines.append(f"retry_of: {task.retry_of}")
     if task.fix_rounds_used:
         lines.append(f"fix_rounds_used: {task.fix_rounds_used}")
+    if task.open_questions:
+        lines.append(f"questions (round {task.grill_rounds}):")
+        lines += [f"  {q['number']}. {q['title']} (recommended: {q['recommended']})" for q in task.open_questions]
     lines += [f"plan:\n{task.plan}"] if task.plan else []
     for label, items in (("risks", task.plan_risks), ("review findings", task.review_findings),
                          ("audit findings", task.audit_findings)):

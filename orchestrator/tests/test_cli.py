@@ -101,6 +101,14 @@ def test_show_reads_a_task_that_has_open_questions_through_the_server(ctx):
     assert code == 0 and "open_questions" in out
 
 
+def test_show_lists_the_open_questions_with_their_recommendations(ctx):
+    asking(ctx)
+
+    _, out, _ = run(ctx, "show", "t1")
+
+    assert "questions (round 1):" in out and "1. Which db" in out and "recommended: sqlite" in out
+
+
 @pytest.mark.parametrize("command", ["show", "advance", "approve", "reject", "costs"])
 @pytest.mark.parametrize("task_id", ["missing", "../evil"])
 def test_unknown_or_unsafe_ids_exit_2(ctx, command, task_id):
