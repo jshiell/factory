@@ -487,3 +487,10 @@ Production argv from `stage_config`, `build_*_prompt`, `build_command` and `sand
 - **Spike harness problems found (not product bugs):**
   - A run under real nono needs a read grant for the directory holding the `claude` binary (here `~/.local/share/mise/installs/claude-code/<version>`), or nono exits 127 (stderr empty under `-s`; the fix was inferred from the run working once the grant was added, nono's own message was not seen). The user's `claude` is a zsh function from their dotfiles, so `shutil.which("claude")` and the function can differ. Not checked: how the production runner resolves `claude` from that terminal.
   - A spike launched from inside an agent session cannot run, because nested nono cannot create `~/.local/state/nono/audit` (exit 1, "Permission denied").
+
+### Plan 41 second spike: a stronger hint (one run per path, 5 runs, about $0.76, same setup)
+The hint also said: "Before you propose any interface, module boundary or seam, call the Skill tool with codebase-design and read its DEEPENING.md; do this once, early."
+- **The skill was called on 3 of 5 paths:** plain plan, grill round 1 and the final grill (all as `codebase-design:codebase-design`). Not on grill round 2 or review. One run each, so a path that skipped it once is not shown to always skip it.
+- **`DEEPENING.md` was not readable.** The one read (final grill) failed with "Claude requested permissions to read from <plugin>/skills/codebase-design/DEEPENING.md, but you haven't granted it yet" and counted as a permission denial. This is claude's own permission check (the plugin dir is outside the cwd and the `--add-dir` worktree), not nono. Only the `Skill` call's text reached the agent. Not tried: adding the plugin dir to `--add-dir`.
+- **No run ended in `error_max_turns`.** Assistant messages against the limit: plain plan 6 of 8, round 1 4 of 12, round 2 6 of 12, final grill 7 of 8, review 3 of 8. The final grill is the tight one.
+- **Not measured:** whether the skill changed any plan or review. The runs' plans were not read.
