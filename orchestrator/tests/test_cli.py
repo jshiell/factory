@@ -189,6 +189,23 @@ def test_answer_refuses_without_an_interactive_terminal_and_changes_nothing(ctx)
     assert ctx.store.load("t1").state is S.OPEN_QUESTIONS
 
 
+def test_answer_shows_escaped_questions_and_posts_the_recommendation_or_the_typed_line(ctx, monkeypatch):
+    second = {"number": 2, "title": "Which\x1b[31m cache", "body": "Pick\x07 one.", "recommended": "none\x1b[2K"}
+    asking(ctx, QUESTION, second)
+    posted = []
+    real_post = ctx.server.post
+    monkeypatch.setattr(ctx.server, "post", lambda path, body=None: posted.append((path, body)) or real_post(path, body))
+
+    code, out, _ = run(ctx, "answer", "t1", stdin="\nredis\n")
+
+    assert code == 0 and "\x1b" not in out and "\x07" not in out
+    assert "Which db" in out and "Pick one." in out and "recommended: sqlite" in out and "Which\\x1b[31m cache" in out
+    path, body = posted[0]
+    assert path == "/tasks/t1/answer" and body["round"] == 1
+    assert body["answers"] == "1. sqlite\n2. redis"
+    assert ctx.store.load("t1").state is S.PROPOSED
+
+
 def test_advance_exits_1_when_the_task_fails_and_when_a_stage_stops(ctx):
     put(ctx, S.QUEUED)
     ctx.stages.update({**all_stages(ctx), "implement": moving(ctx, S.FAILED, failure_reason="timeout")})

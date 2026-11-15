@@ -295,7 +295,26 @@ def _answer(args, io, ctx) -> int:
     if not io.stdin.isatty():
         print("answering needs an interactive terminal", file=io.stderr)
         return 1
+    shown = ctx.server.get(_task_path(args.task_id, "/questions"))
+    print(escape_control(_questions_display(shown)), file=io.stdout)
+    lines = []
+    for question in shown["questions"]:
+        print(escape_control(f"{question['number']}. answer [Enter = {question['recommended']}]: "), file=io.stdout, end="")
+        typed = io.stdin.readline()
+        if not typed:
+            print("no answer given; nothing answered", file=io.stderr)
+            return 1
+        lines.append(f"{question['number']}. {typed.strip() or question['recommended']}")
+    ctx.server.post(_task_path(args.task_id, "/answer"), {"round": shown["round"], "answers": "\n".join(lines)})
+    print(f"{args.task_id}: answered; run: factory advance {args.task_id}", file=io.stdout)
     return 0
+
+
+def _questions_display(shown: dict) -> str:
+    blocks = [f"ROUND {shown['round']}"]
+    for question in shown["questions"]:
+        blocks.append(f"{question['number']}. {question['title']}\n{question['body']}\nrecommended: {question['recommended']}")
+    return "\n\n".join(blocks)
 
 
 def _not_reviewed(task: Task, io) -> int:
