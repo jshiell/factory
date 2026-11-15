@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pytest
 
+from factory.answer_questions import MAX_ANSWER_BYTES
 from factory.client import ServerRefused, ServerUnreachable
 from factory.github import Comment, GitHubError, Reaction, User
 
@@ -408,6 +409,15 @@ def test_approver_comments_after_the_questions_are_forwarded_with_the_round_and_
     assert server.answered == [("/tasks/t-9/answer", {"round": 1, "answers": "use sqlite\n\nand keep it small"})]
     assert server.advanced == ["/tasks/t-9/advance"]
     assert load_state(tmp_path).issues[5].phase is Phase.NEW
+
+
+@pytest.mark.parametrize("text", ["x" * 30_000, "é" * 15_000], ids=["ascii", "multibyte"])
+def test_forwarded_answers_are_cut_to_the_servers_byte_cap(tmp_path, text):
+    server = answer_pass(tmp_path, [QUESTIONS_COMMENT, Comment(8, text, 1001, "Alice")])
+
+    [(_, body)] = server.answered
+    assert 0 < len(body["answers"].encode()) <= MAX_ANSWER_BYTES
+    assert text.startswith(body["answers"])
 
 
 @pytest.mark.parametrize("comments", [

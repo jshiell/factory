@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
 
+from factory.answer_questions import MAX_ANSWER_BYTES
 from factory.client import ServerRefused, ServerUnreachable
 from factory.comments import has_marker, render_comment, strip_home
 from factory.github import GitHubError
@@ -208,6 +209,11 @@ def _answers_after(comments, questions_comment_id: int, approver_ids: set[int]) 
     return [c.body for c in later if c.user_id in approver_ids and not _is_factory_comment(c)]
 
 
+def _within_cap(text: str) -> str:
+    """Cut to the server's byte limit, never inside a character."""
+    return text.encode()[:MAX_ANSWER_BYTES].decode(errors="ignore")
+
+
 def _forward_answers(github, server, state, state_dir, issue_number: int, record: IssueRecord, approver_ids: set[int]) -> bool:
     """Send the approvers' answers to the server; True when the wait is over."""
     answers = _answers_after(github.comments(issue_number), record.questions_comment_id, approver_ids)
@@ -215,7 +221,7 @@ def _forward_answers(github, server, state, state_dir, issue_number: int, record
         return False
     server.post(
         f"/tasks/{require_safe_id(record.task_id)}/answer",
-        {"round": record.questions_round, "answers": "\n\n".join(answers)},
+        {"round": record.questions_round, "answers": _within_cap("\n\n".join(answers))},
     )
     record.phase = Phase.NEW
     save_state(state_dir, state)
