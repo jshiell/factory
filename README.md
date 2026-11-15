@@ -2,9 +2,9 @@
 
 A personal "agentic software factory": a small Python orchestrator that takes a one-line goal and drives headless
 [Claude Code](https://claude.com/claude-code) agents (`claude -p`) through **plan → review → implement → verify → audit → merge**,
-with a human approving the plan and the merge.
+with a human approving the plan and the merge (at the terminal, or from GitHub with a 👍 under `factory watch`).
 
-It is a learning project, built plan by plan (`docs/plan-1.md` … `docs/plan-36.md`), test-first. The point is to find out how far you
+It is a learning project, built plan by plan (`docs/plan-1.md` … `docs/plan-43.md`), test-first. The point is to find out how far you
 can trust unattended agents when every step is sandboxed, every result is checked by something that is not the agent, and the
 only things that need a person are the two decisions that matter: *is this the right plan* and *should this land on main*.
 
@@ -58,7 +58,7 @@ or its step cap. Agent spend is capped (see `cap_usd`) and every call is recorde
 | `costs [id]` | Spend by stage and by task, with assumed costs shown separately |
 | `init` | Write a commented global `<home>/factory.toml` template and the shared plugins directory. Needs no repo or server; refuses to overwrite an existing file |
 | `clone <repo>` | Clone a GitHub repository (`owner/repo`, an https URL or `git@github.com:owner/repo`; other hosts are refused) with `gh repo clone` (needs `gh` installed and logged in) into `<home>/<name>/repo`, where `<name>` is the repository name. A bare `owner/repo` follows `gh`'s `git_protocol` setting (ssh or https); a typed URL keeps its protocol; the success line shows the origin that was cloned. A fork gets only `origin`, no `upstream` remote. Needs no repo or server; refuses an existing target and the names `_shared` and `factory.toml`. The home is `FACTORY_HOME`, then `home` in the global `<home>/factory.toml`, then `~/.harness`; a project `factory.toml` and `--config` are ignored. A failed clone removes the directories it created. A clone has no `target/`, so set `project_subdir` in a `factory.toml` at the clone's root and run `factory` from inside the clone |
-| `watch [--interval N] [--once] [--allow-public]` | Watch the GitHub issues of a repo cloned with `factory clone` (needs `gh` logged in, a running `serve`, and `watch_approvers` in the clone's `factory.toml`). An issue opened by an approver becomes a task, is advanced to a reviewed plan, and the plan is posted on the issue. An approver's 👍 on that comment approves the plan (required review notes kept, never waived) and advances the task; 👎 rejects it (👎 wins over 👍). Every advance's outcome is posted, with `factory merge <id>` for the human step. Polls every `--interval` seconds (default 60); `--once` runs a single pass. Public repos are refused unless `--allow-public`, because plans and failure reasons would become public. One watcher per state directory. See "Watching issues" below |
+| `watch [--interval N] [--once] [--allow-public]` | Watch the GitHub issues of a repo cloned with `factory clone` (needs `gh` logged in, a running `serve`, and `watch_approvers` in the clone's `factory.toml`). An issue opened by an approver becomes a task, is advanced to a reviewed plan, and the plan is posted on the issue. An approver's 👍 on that comment approves the plan (required review notes kept, never waived) and advances the task; 👎 rejects it (👎 wins over 👍). Every advance's outcome is posted, with `factory merge <id>` for the human step (or, with `watch_merge`, a merge comment an approver's 👍 acts on). Polls every `--interval` seconds (default 60); `--once` runs a single pass. Public repos are refused unless `--allow-public`, because plans and failure reasons would become public. One watcher per state directory. See "Watching issues" below |
 | `migrate` | Copy the old JSON tasks and ledger under `<state_dir>` (for in-repo state, `<repo>/.factory`; point `state_dir` at it) into `factory.db`. Refuses a database that already has rows; never deletes the old files |
 | `serve [--port N]` | Run the local HTTP server (below) |
 | `eval-audit` | Run the auditor over 25 labelled changes (default 3 runs each, about $2) and compare with the last comparable run. Exits `1` if a bad change is ever judged pass or a good one is judged fail by a majority, `3` if incomplete. Options: `--runs N`, `--only CASE`, `--max-usd X`, `--resume DIR` (same `--runs` and cases as the original), `--compare DIR`, `--check-corpus` (runs the real gate on every case; needs `uv` and network), `--stage-config` (run the auditor with the audit stage's config: global prompt, `stage_prompts.audit` and the audit plugins; a resume refuses if that config or a plugin file changed). Results under `<state_dir>/evals/`; its own eval directory and lock, so it never reaps the server's agents |
@@ -97,16 +97,17 @@ Every CLI command except `init`, `clone`, `migrate` and `serve` is a client of t
 - **Plan comment.** The plan, review findings and required notes are posted inside code fences, so `@mentions`, issue links and images in them stay inert. Each watcher comment starts with an HTML marker line; after a restart only marker comments by the watcher's own account are adopted.
 - **Questions.** When the planner has questions (see "Grilling" below) the watcher posts them as a comment, in a code fence, with instructions. Reply in the issue: comments from approvers after the questions comment are joined and sent as the answers (cut at 20,000 bytes), and the task moves on. A reply that starts with a factory marker is ignored. If the questions comment is deleted the watcher posts a stopped result; answer at the terminal with `factory answer <id>`. A later round posts a new questions comment.
 - **Approval.** An approver's 👍 approves with the digest posted, keeping required review notes (waiving stays terminal-only). Before approving, the watcher checks the plan comment, plan digest and findings are unchanged; if not, it posts once and stops (`changed`). It also sends the findings it checked with the approve request, so the server refuses (409) if they changed in between. A 👎 from an approver rejects.
+- **Merge (opt-in).** With `watch_merge = true` (repo-only, default false) an audited task gets a result comment and then a merge comment: task id, audited commit, branch, diffstat and audit findings, all in code fences. An approver's 👍 on the merge comment merges that exact commit (`merge` is sent the audited sha, so it refuses if the branch moved); 👎 declines, and 👎 wins over 👍. Before merging the watcher checks the merge comment is unedited and a fresh preview shows the same audited commit; if not it posts `merge-changed` and stops. A refused merge (for example `main` moved, a dirty checkout, not a fast-forward) posts `merge-refused` with the reason; a job interrupted by a server restart is retried on the next pass. A successful merge posts `merged`; the commits are unsigned, so sign them before pushing (the watcher never pushes). After `merge-changed`, `merge-refused` or `not-merged` the task stays `audited` and the watcher leaves it alone: there is no way back in from GitHub, so finish at the terminal (`factory rebase <id>`, then `factory merge <id>`; a task rebased at the terminal gets a new merge comment after its re-audit). Tasks already audited before you turned this on get no retroactive merge comment. With `watch_merge` off, the result comment only names `factory merge <id>`.
 - **Public repos.** Refused unless `--allow-public`: plans, failure reasons and worktree paths would be public.
-- **Trust.** Whoever controls an approver's GitHub account can approve plans. The `gh` token must not be readable by the agents the factory runs (check this under your sandbox profile before pointing `watch` at a real repo). A write-access collaborator can edit an issue body before the first poll.
-- **Serial.** One pass handles issues one at a time, so a long advance delays a 👍 on another issue. A failure on one issue is logged and retried on the next pass.
-- **Not covered.** Auto-merge, webhooks, other reactions, several repos, re-planning on issue edits.
+- **Trust.** Whoever controls an approver's GitHub account can approve plans, and with `watch_merge` on, put code on `main`. The `gh` token must not be readable by the agents the factory runs (check this under your sandbox profile before pointing `watch` at a real repo). A write-access collaborator can edit an issue body before the first poll.
+- **Serial.** One pass handles issues one at a time, so a long advance delays a 👍 on another issue. A merge waits for the server's single job worker, so a pass can stall for minutes behind a terminal job. A failure on one issue is logged and retried on the next pass. The merge fast-forwards the server's checkout of `main`, which may be your working copy: tracked changes refuse it, and untracked files that collide make it fail.
+- **Not covered.** Webhooks, other reactions, several repos, re-planning on issue edits, and every terminal-only command other than `merge` (`retry`, `rebase`, `abandon`, `recover`, `clean`, waiving review notes).
 
 ### Grilling
 
 Before writing a plan the planner can ask you questions, using the shipped `grilling` plugin (loaded for the plan stage automatically; it runs no code). The task then waits in `open_questions` until you answer (`factory answer <id>`, or in the issue under `watch`). Each answer round can lead to another, up to `grill_max_rounds` (default 3); after that the planner must plan. Settings: `grill = true` (default; `--no-grill` or `"grill": false` overrides per task) and `grill_max_rounds = 3` (`0` turns grilling off). Cost: up to `grill_max_rounds + 1` planner calls per task instead of one.
 
-No downgrade: an older build reading a `watch.json` or task rows written with the new fields raises a `TypeError`.
+No downgrade: an older build reading a `watch.json` or task rows written with the new fields raises a `TypeError`, and one reading a new phase (such as `awaiting_merge`) raises `WatchStateError`.
 
 ### Configuration
 
@@ -130,6 +131,7 @@ project_subdir = "target"      # where the agent works and the tests run
 grill = true                   # the planner may ask questions first
 grill_max_rounds = 3           # answer rounds before the planner must plan; 0 = no grilling
 watch_approvers = ["alice"]    # repo-only; GitHub logins whose issues and 👍/👎 `factory watch` obeys (required for `watch`)
+watch_merge = false            # repo-only; true lets an approver's 👍 on the merge comment merge an audited task
 test_argv = ["uv", "run", "pytest", "-q"]
 model = "sonnet"
 budget_usd = 0.5               # per implementer call
@@ -268,7 +270,8 @@ flowchart TB
   fast-forwards to the exact audited commit. Both refuse without a TTY, so an agent or a script cannot approve itself.
   `factory watch` deliberately weakens this for `approve`: the server has no TTY check, so an allowlisted GitHub user's 👍 approves
   without one. Anyone who can act as an approver's GitHub account, or who can read the `gh` token, can approve; see "Watching issues".
-  `merge` stays terminal-only.
+  `merge` stays terminal-only unless you set `watch_merge = true`, which lets an approver's 👍 on the merge comment merge the
+  audited commit the same way; it is off by default and per-repo only.
 - **Moved main.** `merge` never merges; if `main` moved it refuses. `rebase` replays the audited commits and returns the task to
   `agent_done`, so it must pass the gate and a fresh audit again before `merge` will accept it. `rebase` grants no authority,
   so it needs no TTY, but it is never called by `advance`.

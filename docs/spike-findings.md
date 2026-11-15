@@ -494,3 +494,10 @@ The hint also said: "Before you propose any interface, module boundary or seam, 
 - **`DEEPENING.md` was not readable.** The one read (final grill) failed with "Claude requested permissions to read from <plugin>/skills/codebase-design/DEEPENING.md, but you haven't granted it yet" and counted as a permission denial. This is claude's own permission check (the plugin dir is outside the cwd and the `--add-dir` worktree), not nono. Only the `Skill` call's text reached the agent. Not tried: adding the plugin dir to `--add-dir`.
 - **No run ended in `error_max_turns`.** Assistant messages against the limit: plain plan 6 of 8, round 1 4 of 12, round 2 6 of 12, final grill 7 of 8, review 3 of 8. The final grill is the tight one.
 - **Not measured:** whether the skill changed any plan or review. The runs' plans were not read.
+
+## Plan 43: merge from GitHub (no spike; read from source, 2026-11-15)
+- **Not run against real GitHub or a real merge.** Everything below was read in `merge_task.py`, `server.py` and `watch.py`, and the watcher is tested only against fakes.
+- A merge refusal reaches the watcher as a failed job (`{"state": "failed", "error": "merge refused: ..."}`), not as an HTTP 409. The preview endpoint does answer 409 `merge refused`.
+- The merge job result has `state` and `failure_reason` but no `steps` or `stopped`, so the advance helper is not reused.
+- Unverified: what `POST /advance` does on a task that is already `audited`. The watcher avoids it and builds the result comment from the task GET (empty steps) when it finds an approved record whose task is already audited.
+- Unverified: a real `gh` reactions call on a comment edited after posting; the edit check relies on the comment body hash only.
