@@ -166,7 +166,8 @@ class FakeGitHub:
 
 class FakeServer:
     def __init__(self, advance_result=None, approval=None, job_state="succeeded", task_state="planned", failure_reason=None,
-                 questions=None, grill_rounds=0, merge_preview=None, merge_job=None):
+                 questions=None, grill_rounds=0, merge_preview=None, merge_job=None, task_state_after_merge=None):
+        self.task_state_after_merge = task_state_after_merge
         self.merge_preview = merge_preview
         self.merge_job = merge_job or {"state": "succeeded", "error": None, "result": {"state": "merged", "failure_reason": None}}
         self.merge_requests = []
@@ -207,6 +208,7 @@ class FakeServer:
 
     def wait(self, job_id):
         if job_id == "j-merge":
+            self.task_state = self.task_state_after_merge or self.task_state
             return self.merge_job
         if self.job_state != "succeeded":
             return {"state": self.job_state, "error": "boom", "result": None}
@@ -787,6 +789,17 @@ def test_a_failed_merge_job_on_a_task_still_audited_posts_merge_refused_with_the
     assert body.startswith("<!-- factory:task=t-9:kind=merge-refused -->")
     assert "merge refused: main moved since the audit" in body
     assert load_state(tmp_path).issues[5].phase is Phase.MERGE_STOPPED
+
+
+def test_a_failed_merge_job_on_a_task_that_is_merged_posts_merged(tmp_path):
+    failed = {"state": "failed", "error": "server restarted after the merge", "result": None}
+    server = FakeServer(task_state="audited", task_state_after_merge="merged", merge_preview=MERGE_PREVIEW, merge_job=failed)
+
+    github, server = merge_reaction_pass(tmp_path, [Reaction("+1", 1001, "alice")], server=server)
+
+    [(_, body)] = github.comments_posted
+    assert body.startswith("<!-- factory:task=t-9:kind=merged -->")
+    assert load_state(tmp_path).issues[5].phase is Phase.MERGED
 
 
 def test_guard_an_interrupted_merge_job_leaves_the_task_awaiting_the_merge(tmp_path):

@@ -406,6 +406,10 @@ def _merge_comment_is_unedited(github, issue_number: int, record: IssueRecord) -
     return posted == [record.merge_body_hash]
 
 
+def _task_is_merged(server, task_id: str) -> bool:
+    return server.get(f"/tasks/{task_id}")["state"] == "merged"
+
+
 def _merge_on_thumbs_up(github, server, state, state_dir, issue_number: int, record: IssueRecord, approver_ids: set[int], self_id: int) -> None:
     """Merge the commit the merge comment showed on an approver's 👍; approvers match by numeric id, never login."""
     reactions = github.reactions(record.merge_comment_id)
@@ -423,7 +427,7 @@ def _merge_on_thumbs_up(github, server, state, state_dir, issue_number: int, rec
         return
     job_id = server.post(f"/tasks/{task_id}/merge", {"audited_sha": record.merge_sha})["job"]["id"]
     job = server.wait(job_id)
-    if job["state"] == "succeeded":
+    if job["state"] == "succeeded" or _task_is_merged(server, task_id):
         _post_merged(github, state, state_dir, issue_number, record, self_id)
     elif job["state"] == "failed":
         _post_merge_refused(github, state, state_dir, issue_number, record, self_id, job["error"])
