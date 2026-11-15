@@ -4,6 +4,7 @@ from enum import Enum
 
 class TaskState(Enum):
     PROPOSED = "proposed"
+    OPEN_QUESTIONS = "open_questions"
     PLANNED = "planned"
     REVIEWED = "reviewed"
     QUEUED = "queued"
@@ -25,6 +26,8 @@ class Event(Enum):
     AUDIT_FAILED = "audit_failed"
     PLAN_DONE = "plan_done"
     PLAN_FAILED = "plan_failed"
+    QUESTIONS_ASKED = "questions_asked"
+    ANSWERED = "answered"
     REVIEW_PASSED = "review_passed"
     REVIEW_FAILED = "review_failed"
     APPROVED = "approved"
@@ -69,6 +72,8 @@ class Task:
 _TRANSITIONS = {
     (TaskState.PROPOSED, Event.PLAN_DONE): TaskState.PLANNED,
     (TaskState.PROPOSED, Event.PLAN_FAILED): TaskState.FAILED,
+    (TaskState.PROPOSED, Event.QUESTIONS_ASKED): TaskState.OPEN_QUESTIONS,
+    (TaskState.OPEN_QUESTIONS, Event.ANSWERED): TaskState.PROPOSED,
     (TaskState.PLANNED, Event.REVIEW_PASSED): TaskState.REVIEWED,
     (TaskState.PLANNED, Event.REVIEW_FAILED): TaskState.FAILED,
     (TaskState.REVIEWED, Event.APPROVED): TaskState.QUEUED,

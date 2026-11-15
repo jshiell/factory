@@ -170,3 +170,25 @@ def test_rebased_sends_an_audited_task_back_to_agent_done():
 def test_rebased_is_refused_from_every_state_but_audited(state):
     with pytest.raises(InvalidTransition):
         apply(task_in(state), Event.REBASED)
+
+
+GRILL_TRANSITIONS = [
+    (TaskState.PROPOSED, Event.QUESTIONS_ASKED, TaskState.OPEN_QUESTIONS),
+    (TaskState.OPEN_QUESTIONS, Event.ANSWERED, TaskState.PROPOSED),
+]
+
+
+@pytest.mark.parametrize("source,event,target", GRILL_TRANSITIONS)
+def test_grilling_transitions(source, event, target):
+    task = apply(task_in(source), event)
+
+    assert task.state is target and task.failure_reason is None
+
+
+@pytest.mark.parametrize("source,event,target", GRILL_TRANSITIONS)
+@pytest.mark.parametrize("state", list(TaskState))
+def test_grilling_events_are_rejected_from_every_other_state(source, event, target, state):
+    if state is source:
+        return
+    with pytest.raises(InvalidTransition):
+        apply(task_in(state), event)
