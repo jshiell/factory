@@ -66,11 +66,22 @@ def test_eval_audit_with_stage_config_runs_the_audit_stage_config(client, ctx):
     from dataclasses import asdict, replace
     from factory.audit_task import AUDIT_CONFIG
     from factory.stages import stage_config
-    ctx.settings = replace(ctx.settings, stage_prompts={"audit": "Strict."})
+    plugin = ctx.settings.state_dir.parent / "plugin"
+    plugin.mkdir()
+    ctx.settings = replace(ctx.settings, stage_prompts={"audit": "Strict."}, stage_plugin_dirs={"audit": (plugin,)})
+    configs = []
+
+    class ConfigSpy(LabelRunner):
+        def run(self, task, config):
+            configs.append(config)
+            return super().run(task, config)
+    ctx.eval_runner = lambda settings, eval_dir: ConfigSpy()
 
     queued = client.post("/eval-audit", json={"runs": 1, "only": ["case-01"], "stage_config": True}).json()
 
     assert _wait(client, queued["job"]["id"])["state"] == "succeeded"
+    assert configs == [stage_config(AUDIT_CONFIG, ctx.settings, "audit")]
+    assert tuple(map(str, configs[0].plugin_dirs)) == (str(plugin),)
     meta = json.loads((Path(queued["eval_dir"]) / "meta.json").read_text())
     assert meta["audit_config"] == json.loads(json.dumps(asdict(stage_config(AUDIT_CONFIG, ctx.settings, "audit"))))
     assert "Strict." in meta["audit_config"]["append_system_prompt"]
