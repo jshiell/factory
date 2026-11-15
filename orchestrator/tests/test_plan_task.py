@@ -288,6 +288,17 @@ def test_at_the_round_cap_the_planner_must_write_the_plan_with_the_plan_schema(r
     assert task.state is TaskState.PLANNED
 
 
+def test_with_no_grilling_rounds_allowed_the_plain_plan_prompt_is_used(repo, store, ledger):
+    store.save(Task(id="t1", prompt="", state=TaskState.PROPOSED, goal="add multiply", grill=True))
+    runner = ConfigRecordingRunner(plan_stdout())
+
+    task = plan_task("t1", store, ledger, runner, PLAN_CONFIG, cap_usd=10, worktrees=Worktrees(repo),
+                     grill_max_rounds=0)
+
+    assert runner.tasks[0].prompt == build_plan_prompt("add multiply")
+    assert runner.configs[0] == PLAN_CONFIG and task.state is TaskState.PLANNED
+
+
 def test_below_the_round_cap_the_planner_may_still_ask(repo, store, ledger):
     # guard (green on arrival)
     store.save(Task(id="t1", prompt="", state=TaskState.PROPOSED, goal="add multiply", grill=True, grill_rounds=2))

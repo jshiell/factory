@@ -130,9 +130,10 @@ def plan_task(
         task = replace(task, worktree=str(path), base_sha=base_sha)
         store.save(task)
     prompt = build_plan_prompt(task.goal)
-    if task.grill and task.grill_rounds >= grill_max_rounds:
+    grilling = task.grill and grill_max_rounds > 0  # at 0 the plain plan prompt and schema stand
+    if grilling and task.grill_rounds >= grill_max_rounds:
         prompt = build_grill_prompt(task.goal, task.grill_log, task.grill_rounds + 1, final=True)
-    elif task.grill:
+    elif grilling:
         plugin_dirs = tuple(dict.fromkeys((*config.plugin_dirs, str(GRILLING_PLUGIN_DIR))))
         config = replace(config, json_schema=GRILL_SCHEMA, max_turns=GRILL_MAX_TURNS, plugin_dirs=plugin_dirs)
         prompt = build_grill_prompt(task.goal, task.grill_log, task.grill_rounds + 1)
@@ -142,7 +143,7 @@ def plan_task(
         return _finish(store, replace(failed, plan_error=None))
     if isinstance(staged, Infra):
         return _finish(store, replace(task, plan_error=staged.reason))
-    if task.grill and _asks_questions(staged.structured_output):
+    if grilling and _asks_questions(staged.structured_output):
         questions = _parse_questions(staged.structured_output["questions"])
         if isinstance(questions, str):
             return _finish(store, replace(task, plan_error=questions))
