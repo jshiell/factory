@@ -382,8 +382,9 @@ def test_an_answers_wait_for_an_earlier_round_posts_the_current_rounds_questions
 def test_an_answers_wait_for_the_current_round_neither_advances_nor_comments(tmp_path):
     record = awaiting_answers(tmp_path)
     server = FakeServer(task_state="open_questions", grill_rounds=1)
+    github = FakeGitHub([raw_issue(number=5)], comments={5: [QUESTIONS_COMMENT]})
 
-    github, _ = pass_over(tmp_path, [raw_issue(number=5)], server=server)
+    github, _ = pass_over(tmp_path, [], server=server, github=github)
 
     assert server.advanced == [] and github.comments_posted == []
     assert load_state(tmp_path).issues[5] == record
@@ -409,6 +410,24 @@ def test_approver_comments_after_the_questions_are_forwarded_with_the_round_and_
     assert server.answered == [("/tasks/t-9/answer", {"round": 1, "answers": "use sqlite\n\nand keep it small"})]
     assert server.advanced == ["/tasks/t-9/advance"]
     assert load_state(tmp_path).issues[5].phase is Phase.NEW
+
+
+def test_a_deleted_questions_comment_stops_the_task_with_a_result_comment_pointing_at_the_terminal(tmp_path):
+    server = answer_pass(tmp_path, [Comment(8, "sqlite", 1001, "Alice")])
+
+    assert server.answered == [] and server.advanced == []
+    record = load_state(tmp_path).issues[5]
+    assert record.phase is Phase.STOPPED and record.result_comment_id == 1
+
+
+def test_the_stopped_result_for_a_deleted_questions_comment_names_the_terminal_command(tmp_path):
+    awaiting_answers(tmp_path)
+    github = FakeGitHub([raw_issue(number=5)], comments={5: []})
+
+    pass_over(tmp_path, [], server=FakeServer(task_state="open_questions", grill_rounds=1), github=github)
+
+    [(_, body)] = github.comments_posted
+    assert body.startswith("<!-- factory:task=t-9:kind=result -->") and "factory answer t-9" in body
 
 
 class AnswerRefusingServer(FakeServer):
