@@ -349,6 +349,33 @@ def test_a_task_that_opens_questions_gets_one_questions_comment_and_waits_for_an
     assert (record.phase, record.questions_comment_id, record.questions_round) == (Phase.AWAITING_ANSWERS, 1, 1)
 
 
+def posted_questions_body(tmp_path, questions):
+    server = FakeServer(advance_result=ASKING, questions=questions)
+    github, _ = pass_over(tmp_path, [raw_issue(number=5)], server=server)
+    return github.comments_posted[0][1]
+
+
+def test_guard_after_a_crash_only_an_exact_copy_of_the_questions_comment_is_adopted(tmp_path):
+    # guard (green on arrival)
+    for name in ("first", "second", "third"):
+        (tmp_path / name).mkdir()
+    body = posted_questions_body(tmp_path / "first", QUESTIONS)
+    round_one = Comment(66, body, 4242, "factory-bot")
+    by_someone_else = Comment(55, body, 1001, "Alice")
+    github = FakeGitHub([raw_issue(number=5)], comments={5: [by_someone_else, round_one]})
+
+    pass_over(tmp_path / "second", [], server=FakeServer(advance_result=ASKING, questions=QUESTIONS), github=github)
+
+    assert load_state(tmp_path / "second").issues[5].questions_comment_id == 66 and github.comments_posted == []
+
+    github = FakeGitHub([raw_issue(number=5)], comments={5: [round_one]})
+    second_round = {"round": 2, "questions": [QUESTION]}
+    pass_over(tmp_path / "third", [], server=FakeServer(advance_result=ASKING, questions=second_round), github=github)
+
+    assert len(github.comments_posted) == 1
+    assert load_state(tmp_path / "third").issues[5].questions_comment_id == 1
+
+
 FAILED = {"steps": [], "state": "failed", "failure_reason": "plan rejected: too vague", "stopped": None}
 
 
