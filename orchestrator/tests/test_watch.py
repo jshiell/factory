@@ -813,6 +813,21 @@ def test_an_approvers_thumbs_down_on_the_merge_comment_wins_over_a_thumbs_up_and
     assert load_state(tmp_path).issues[5].phase is Phase.NOT_MERGED
 
 
+def test_an_awaiting_merge_task_sent_back_for_a_re_audit_gets_a_new_merge_comment_for_the_new_audited_commit(tmp_path):
+    save_state(tmp_path, WatchState(watching_since=SINCE, issues={5: AWAITING_THE_MERGE}))
+    earlier_result = Comment(1, "<!-- factory:task=t-9:kind=result -->\n\n**Steps**", 4242, "factory-bot")
+    github = FakeGitHub([raw_issue(number=5)], comments={5: [earlier_result, MERGE_COMMENT]})
+    server = FakeServer(task_state="agent_done", advance_result=AUDITED, merge_preview=MOVED_PREVIEW)
+
+    pass_over(tmp_path, [], server=server, github=github, merge=True)
+
+    [(_, body)] = github.comments_posted
+    assert body.startswith("<!-- factory:task=t-9:kind=merge -->")
+    record = load_state(tmp_path).issues[5]
+    assert (record.phase, record.merge_sha) == (Phase.AWAITING_MERGE, "def456")
+    assert record.merge_comment_id != AWAITING_THE_MERGE.merge_comment_id
+
+
 def test_an_approved_task_the_server_already_reports_audited_posts_the_result_and_merge_comments_when_merge_is_on(tmp_path):
     save_state(tmp_path, WatchState(watching_since=SINCE, issues={5: APPROVED}))
     github = FakeGitHub([raw_issue(number=5)])
