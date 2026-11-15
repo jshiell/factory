@@ -1,5 +1,6 @@
 import hashlib
 import json
+from dataclasses import replace
 
 import pytest
 
@@ -7,7 +8,7 @@ from gitutil import git
 
 from factory.ledger import Ledger
 from factory.plan_task import (
-    GRILL_SCHEMA, MAX_PLAN_BYTES, MAX_QUESTIONS, MAX_QUESTIONS_BYTES, PLAN_CONFIG, PLAN_SCHEMA, build_grill_prompt,
+    GRILL_SCHEMA, GRILLING_PLUGIN_DIR, MAX_PLAN_BYTES, MAX_QUESTIONS, MAX_QUESTIONS_BYTES, PLAN_CONFIG, PLAN_SCHEMA, build_grill_prompt,
     build_plan_prompt, plan_task,
 )
 from factory.command import RunnerConfig
@@ -296,6 +297,38 @@ def test_below_the_round_cap_the_planner_may_still_ask(repo, store, ledger):
 
     assert runner.configs[0].json_schema is GRILL_SCHEMA and task.state is TaskState.OPEN_QUESTIONS
     assert "write the plan now" not in runner.tasks[0].prompt
+
+
+def test_the_grilling_plugin_is_added_once_for_a_grilling_round(repo, store, ledger):
+    store.save(Task(id="t1", prompt="", state=TaskState.PROPOSED, goal="add multiply", grill=True))
+    config = replace(PLAN_CONFIG, plugin_dirs=("/x", str(GRILLING_PLUGIN_DIR)))
+    runner = ConfigRecordingRunner(questions_stdout())
+
+    plan(store, ledger, runner, Worktrees(repo), config=config)
+
+    assert runner.configs[0].plugin_dirs == ("/x", str(GRILLING_PLUGIN_DIR))
+    assert (GRILLING_PLUGIN_DIR / ".claude-plugin" / "plugin.json").is_file()
+    assert (GRILLING_PLUGIN_DIR / "skills" / "grilling" / "SKILL.md").is_file()
+
+
+def test_the_grilling_plugin_is_added_when_none_is_configured(repo, store, ledger):
+    store.save(Task(id="t1", prompt="", state=TaskState.PROPOSED, goal="add multiply", grill=True))
+    runner = ConfigRecordingRunner(questions_stdout())
+
+    plan(store, ledger, runner, Worktrees(repo))
+
+    assert runner.configs[0].plugin_dirs == (str(GRILLING_PLUGIN_DIR),)
+
+
+def test_the_grilling_plugin_is_not_added_without_grilling_or_at_the_cap(repo, store, ledger):
+    # guard (green on arrival)
+    plain = ConfigRecordingRunner(plan_stdout())
+    plan(store, ledger, plain, Worktrees(repo))
+    store.save(Task(id="t1", prompt="", state=TaskState.PROPOSED, goal="g", grill=True, grill_rounds=3))
+    capped = ConfigRecordingRunner(plan_stdout())
+    plan_task("t1", store, ledger, capped, PLAN_CONFIG, cap_usd=10, worktrees=Worktrees(repo), grill_max_rounds=3)
+
+    assert plain.configs[0].plugin_dirs == () and capped.configs[0].plugin_dirs == ()
 
 
 def test_a_task_that_does_not_grill_keeps_the_plan_schema_and_prompt(repo, store, ledger):

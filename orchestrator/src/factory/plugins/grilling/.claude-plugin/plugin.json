@@ -1,0 +1,5 @@
+{
+  "name": "grilling",
+  "description": "The grilling skill, loaded by the plan stage when a task grills before planning.",
+  "version": "0.1.0"
+}

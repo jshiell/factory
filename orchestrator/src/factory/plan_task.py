@@ -1,6 +1,7 @@
 import secrets
 from collections.abc import Callable
 from dataclasses import replace
+from pathlib import Path
 
 from factory.command import RunnerConfig
 from factory.digest import plan_digest
@@ -23,6 +24,7 @@ PLAN_SCHEMA = {
     },
 }
 
+GRILLING_PLUGIN_DIR = Path(__file__).parent / "plugins" / "grilling"
 GRILL_MAX_TURNS = 12
 MAX_QUESTIONS = 10
 MAX_QUESTIONS_BYTES = 20_000
@@ -131,7 +133,8 @@ def plan_task(
     if task.grill and task.grill_rounds >= grill_max_rounds:
         prompt = build_grill_prompt(task.goal, task.grill_log, task.grill_rounds + 1, final=True)
     elif task.grill:
-        config = replace(config, json_schema=GRILL_SCHEMA, max_turns=GRILL_MAX_TURNS)
+        plugin_dirs = tuple(dict.fromkeys((*config.plugin_dirs, str(GRILLING_PLUGIN_DIR))))
+        config = replace(config, json_schema=GRILL_SCHEMA, max_turns=GRILL_MAX_TURNS, plugin_dirs=plugin_dirs)
         prompt = build_grill_prompt(task.goal, task.grill_log, task.grill_rounds + 1)
     staged = run_readonly_stage(task, prompt, runner, config, ledger, "plan")
     if isinstance(staged, Modified):
