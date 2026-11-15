@@ -349,6 +349,11 @@ def _post_rejected(github, state, state_dir, issue_number: int, record: IssueRec
     _post_ending(github, state, state_dir, issue_number, record, self_id, "rejected", Phase.REJECTED, "Plan rejected", _REJECTED)
 
 
+def _approver_reacted(reactions, content: str, approver_ids: set[int]) -> bool:
+    """Approvers match by numeric id, never login."""
+    return any(r.content == content and r.user_id in approver_ids for r in reactions)
+
+
 def _approval_if_as_posted(github, server, issue_number: int, record: IssueRecord) -> dict | None:
     """The server's approval preview, if the plan comment is unedited and the preview's plan digest and findings are the ones it showed."""
     posted = [_sha256(c.body) for c in github.comments(issue_number) if c.id == record.plan_comment_id]
@@ -363,13 +368,13 @@ def _approval_if_as_posted(github, server, issue_number: int, record: IssueRecor
 def _approve_on_thumbs_up(github, server, state, state_dir, issue_number: int, record: IssueRecord, approver_ids: set[int], self_id: int) -> None:
     """Reject on an approver's 👎 (which wins), else approve on their 👍; approvers match by numeric id, never login. `approved` is saved only after the server accepts."""
     reactions = github.reactions(record.plan_comment_id)
-    if any(r.content == "-1" and r.user_id in approver_ids for r in reactions):
+    if _approver_reacted(reactions, "-1", approver_ids):
         server.post(f"/tasks/{require_safe_id(record.task_id)}/reject")
         _post_rejected(github, state, state_dir, issue_number, record, self_id)
         return
-    if not any(r.content == "+1" and r.user_id in approver_ids for r in reactions):
+    if not _approver_reacted(reactions, "+1", approver_ids):
         return
-    approval = _approval_if_as_posted(github, server, issue_number, record)
+    approval =_approval_if_as_posted(github, server, issue_number, record)
     if approval is None:
         _post_changed(github, state, state_dir, issue_number, record, self_id)
         return
@@ -417,12 +422,12 @@ def _task_is_merged(server, task_id: str) -> bool:
 def _merge_on_thumbs_up(github, server, state, state_dir, issue_number: int, record: IssueRecord, approver_ids: set[int], self_id: int) -> None:
     """Merge the commit the merge comment showed on an approver's 👍; approvers match by numeric id, never login."""
     reactions = github.reactions(record.merge_comment_id)
-    if any(r.content == "-1" and r.user_id in approver_ids for r in reactions):
+    if _approver_reacted(reactions, "-1", approver_ids):
         _post_ending(github, state, state_dir, issue_number, record, self_id, "not-merged", Phase.NOT_MERGED, "Not merged", _NOT_MERGED)
         return
-    if not any(r.content == "+1" and r.user_id in approver_ids for r in reactions):
+    if not _approver_reacted(reactions, "+1", approver_ids):
         return
-    task_id = require_safe_id(record.task_id)
+    task_id =require_safe_id(record.task_id)
     if not _merge_comment_is_unedited(github, issue_number, record):
         _post_merge_changed(github, state, state_dir, issue_number, record, self_id)
         return
