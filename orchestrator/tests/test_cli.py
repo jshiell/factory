@@ -162,6 +162,17 @@ def test_advance_exits_0_at_audited(ctx):
     assert run(ctx, "advance", "t1")[0] == 0
 
 
+def test_advance_exits_0_at_open_questions_pointing_at_answer(ctx):
+    put(ctx, goal="g", grill=True)
+    ctx.stages.update({"plan": moving(ctx, S.OPEN_QUESTIONS, grill_rounds=1)})
+
+    code, out, _ = run(ctx, "advance", "t1")
+
+    assert code == 0
+    assert "plan -> open_questions" in out and "open questions; run: factory answer t1" in out
+    assert "no progress" not in out
+
+
 def test_advance_exits_1_when_the_task_fails_and_when_a_stage_stops(ctx):
     put(ctx, S.QUEUED)
     ctx.stages.update({**all_stages(ctx), "implement": moving(ctx, S.FAILED, failure_reason="timeout")})

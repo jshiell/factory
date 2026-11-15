@@ -285,6 +285,8 @@ def _advance(args, io, ctx) -> int:
         return 1
     if result["state"] == TaskState.REVIEWED.value:
         print(f"review passed; run: factory approve {args.task_id}", file=io.stdout)
+    if result["state"] == TaskState.OPEN_QUESTIONS.value:
+        print(f"open questions; run: factory answer {args.task_id}", file=io.stdout)
     return 1 if result["state"] == TaskState.FAILED.value else 0
 
 
