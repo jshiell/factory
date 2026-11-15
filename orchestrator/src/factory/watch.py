@@ -58,6 +58,7 @@ class Phase(str, Enum):
     AWAITING_MERGE = "awaiting_merge"
     MERGED = "merged"
     MERGE_STOPPED = "merge_stopped"
+    NOT_MERGED = "not_merged"
     FAILED = "failed"
     STOPPED = "stopped"
     REJECTED = "rejected"
@@ -391,6 +392,9 @@ def _post_merged(github, state, state_dir, issue_number: int, record: IssueRecor
     _post_ending(github, state, state_dir, issue_number, record, self_id, "merged", Phase.MERGED, "Merged", _MERGED)
 
 
+_NOT_MERGED = "An approver declined the merge, so nothing was merged. The task stays audited; merge it at the terminal if you change your mind."
+
+
 _MERGE_CHANGED = (
     "The merge comment, or the audited commit it showed, changed after the comment was posted, "
     "so nothing was merged. Review the task at the terminal."
@@ -413,6 +417,9 @@ def _task_is_merged(server, task_id: str) -> bool:
 def _merge_on_thumbs_up(github, server, state, state_dir, issue_number: int, record: IssueRecord, approver_ids: set[int], self_id: int) -> None:
     """Merge the commit the merge comment showed on an approver's 👍; approvers match by numeric id, never login."""
     reactions = github.reactions(record.merge_comment_id)
+    if any(r.content == "-1" and r.user_id in approver_ids for r in reactions):
+        _post_ending(github, state, state_dir, issue_number, record, self_id, "not-merged", Phase.NOT_MERGED, "Not merged", _NOT_MERGED)
+        return
     if not any(r.content == "+1" and r.user_id in approver_ids for r in reactions):
         return
     task_id = require_safe_id(record.task_id)

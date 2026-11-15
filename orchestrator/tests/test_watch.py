@@ -802,6 +802,17 @@ def test_a_failed_merge_job_on_a_task_that_is_merged_posts_merged(tmp_path):
     assert load_state(tmp_path).issues[5].phase is Phase.MERGED
 
 
+def test_an_approvers_thumbs_down_on_the_merge_comment_wins_over_a_thumbs_up_and_posts_not_merged_without_merging(tmp_path):
+    reactions = [Reaction("+1", 1001, "alice"), Reaction("-1", 1001, "alice")]
+
+    github, server = merge_reaction_pass(tmp_path, reactions)
+
+    assert server.merge_requests == []
+    [(_, body)] = github.comments_posted
+    assert body.startswith("<!-- factory:task=t-9:kind=not-merged -->")
+    assert load_state(tmp_path).issues[5].phase is Phase.NOT_MERGED
+
+
 def test_an_approved_task_the_server_already_reports_audited_posts_the_result_and_merge_comments_when_merge_is_on(tmp_path):
     save_state(tmp_path, WatchState(watching_since=SINCE, issues={5: APPROVED}))
     github = FakeGitHub([raw_issue(number=5)])
