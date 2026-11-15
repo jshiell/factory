@@ -1,3 +1,4 @@
+import json
 from datetime import datetime
 from pathlib import Path
 
@@ -58,6 +59,40 @@ def test_eval_audit_with_bad_input_is_422_and_starts_nothing(client, ctx, body):
     response = client.post("/eval-audit", json=body)
 
     assert response.status_code == 422
+    assert not (ctx.settings.state_dir / "evals").exists()
+
+
+def test_eval_audit_with_stage_config_runs_the_audit_stage_config(client, ctx):
+    from dataclasses import asdict, replace
+    from factory.audit_task import AUDIT_CONFIG
+    from factory.stages import stage_config
+    ctx.settings = replace(ctx.settings, stage_prompts={"audit": "Strict."})
+
+    queued = client.post("/eval-audit", json={"runs": 1, "only": ["case-01"], "stage_config": True}).json()
+
+    assert _wait(client, queued["job"]["id"])["state"] == "succeeded"
+    meta = json.loads((Path(queued["eval_dir"]) / "meta.json").read_text())
+    assert meta["audit_config"] == json.loads(json.dumps(asdict(stage_config(AUDIT_CONFIG, ctx.settings, "audit"))))
+    assert "Strict." in meta["audit_config"]["append_system_prompt"]
+
+
+def test_eval_audit_without_stage_config_keeps_the_built_in_config(client, ctx):
+    from dataclasses import asdict, replace
+    from factory.audit_task import AUDIT_CONFIG
+    ctx.settings = replace(ctx.settings, stage_prompts={"audit": "Strict."})
+
+    queued = client.post("/eval-audit", json={"runs": 1, "only": ["case-01"]}).json()
+
+    _wait(client, queued["job"]["id"])
+    meta = json.loads((Path(queued["eval_dir"]) / "meta.json").read_text())
+    assert meta["audit_config"] == json.loads(json.dumps(asdict(AUDIT_CONFIG)))
+
+
+@pytest.mark.parametrize("value", ["yes", 1, None, []])
+def test_eval_audit_with_a_non_boolean_stage_config_is_422_and_starts_nothing(client, ctx, value):
+    response = client.post("/eval-audit", json={"stage_config": value})
+
+    assert response.status_code == 422 and "stage_config" in response.json()["detail"]
     assert not (ctx.settings.state_dir / "evals").exists()
 
 

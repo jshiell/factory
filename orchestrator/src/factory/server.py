@@ -31,6 +31,8 @@ from factory.retry_task import RetryRefused, require_keepable_plan, retry_task, 
 from factory.clean_tasks import clean_candidates, clean_tasks, remove_orphan_caches
 from factory.gate_cache import orphan_caches
 from factory.audit_corpus import CASES as EVAL_CASES
+from factory.audit_task import AUDIT_CONFIG
+from factory.stages import stage_config
 from factory.audit_eval import ConfigChanged, CorpusChanged, RunsChanged, load_meta, run_eval
 from factory.audit_report import exit_code as eval_exit_code, load_records, render
 from factory.cli import _new_eval_dir
@@ -336,6 +338,10 @@ def _build_app(ctx) -> Starlette:
             raise ApiError(422, "invalid input", "runs must be a positive integer")
         if isinstance(max_usd, bool) or not isinstance(max_usd, (int, float)) or max_usd <= 0:
             raise ApiError(422, "invalid input", "max_usd must be a positive number")
+        with_stage_config = body.get("stage_config", False)
+        if not isinstance(with_stage_config, bool):
+            raise ApiError(422, "invalid input", "stage_config must be a boolean")
+        audit_config = stage_config(AUDIT_CONFIG, ctx.settings, "audit") if with_stage_config else AUDIT_CONFIG
         if only is not None:
             only = list(_string_list(body, "only"))
             unknown = [case_id for case_id in only if case_id not in {c.id for c in EVAL_CASES}]
@@ -350,7 +356,8 @@ def _build_app(ctx) -> Starlette:
                 with state_lock(eval_dir):
                     ctx.reap(eval_dir)
                     try:
-                        complete = run_eval(eval_dir, cases, runs, ctx.eval_runner(ctx.settings, eval_dir), max_usd)
+                        complete = run_eval(eval_dir, cases, runs, ctx.eval_runner(ctx.settings, eval_dir), max_usd,
+                                          audit_config)
                     except CorpusChanged:
                         raise RuntimeError(f"the eval corpus changed since {eval_dir.name} started; run a fresh eval") from None
                     except ConfigChanged:
