@@ -1,40 +1,42 @@
 # Plan 41: skills per stage
 
-Goal: decide which skills each stage (plan, review, implement, audit) can use, and make them measurable. Decisions agreed; revised after review (plan-reviewer); approved to implement.
+Goal: decide which skills each stage (plan, review, implement, audit) can use, and make them measurable. Decisions agreed; revised after two plan-reviewer passes; approved to implement.
 
 ## Decisions (agreed)
 1. **Delivery:** prompt hints via `stage_prompts` for the glossary/ADR and test-quality guidance. `codebase-design` is the only plugin, user-supplied in `<home>/_shared/plugins` (no new code or API).
-2. **Implement hint is for the implementer only.** The fixer shares the implement config (`stages.py:87`) and must not be told "write a failing test first".
+2. **The implement hint is for the implementer only; the fixer does not get it.** Mechanism (option A): a `fixer_config(settings)` that is the implementer base plus the global `append_system_prompt` plus the `implement` plugins, but not `stage_prompts["implement"]`. No settings API change. Approving this plan approves flipping `test_stages.py:266-276` (`test_the_fixer_gets_the_implement_prompt`).
 3. **Eval:** `eval-audit --stage-config` applies the full audit stage config (plugins, stage prompt, global prompt). The default is unchanged.
 4. **Audit scope:** build the eval support; enable no audit skill until a baseline vs. skill `--compare` shows no regression.
-5. **Turn limits:** if `codebase-design` does not fit `max_turns=8` on a path, drop it there and return to the user with the numbers. Limits do not change.
+5. **Turn limits:** if `codebase-design` does not fit a path's `max_turns`, drop it there and return to the user with the numbers. Limits do not change.
 
 ## Findings the plan rests on
 - Stage agents run with `--setting-sources ""` (`command.py`), so user skills are invisible; skills arrive only as plugins via `--plugin-dir`. Plugins with hooks or MCP are refused (`settings._runs_code`).
 - Plan, review and audit deny Write, Edit, NotebookEdit, Bash, Glob; the implementer denies Bash, `Bash(git *)`, Glob, NotebookEdit. All run headless. `Agent` is allowed in every stage.
+- The implementer and the fixer share one config object (`stages.py:76`, `:83`, `:87`); `_STAGES` has no fixer key (`settings.py:62`), and README:148 says the implement prompt "also reaches the fixer".
 - The eval passes the raw `AUDIT_CONFIG` (`audit_eval.py:74`, meta at `:119`), so it ignores plugins and stage prompts.
 - The implementer prompt already says to write the failing test first and that it cannot run commands (`approve_plan.py:40-42`).
-- A grilling round used 7 of 8 turns before being raised to 12; plain plan and review keep 8 turns and $0.30.
-- Not recommended as stage skills: `verify` (the verify stage runs the gate; no Bash), `diagnosing-bugs` (needs Bash), `code-review` (spawns sub-agents, too big for the audit budget), `research`, `writing-for-agents`, `implement-plan`, `wizard`, `pr`, `triage` (interactive or meta, no matching stage).
+- A grilling round used 7 of 8 turns before being raised to 12; without `--json-schema` the same round took 4. Plain plan and review keep 8 turns and $0.30. The final grill round runs at 8 turns with the plan stage's plugins only.
+- `stage_prompts` merge per stage but a project `plugins` or `stage_plugins.<stage>` list replaces the global one (`settings._merged`), so a global hint can outlive its plugin. A stage told about a skill it does not have burns a turn on `Unknown skill` (spike-findings, plugins section).
+- Not recommended as stage skills: `verify` (the verify stage runs the gate; no Bash), `diagnosing-bugs` (needs Bash), `code-review` (spawns sub-agents, too big for the audit budget), `domain-modeling` and `tdd` (their value needs a person or Write or Bash, so they reduce to prompt hints), `research`, `writing-for-agents`, `implement-plan`, `wizard`, `pr`, `triage` (interactive or meta, no matching stage).
 
 ## Increments
-0. **Spike (throwaway, flagged as such).** Under real nono, on a non-toy repo, for the plain plan path (8 turns), the grilling path (12) and review (8): the skill loads as `codebase-design:<skill>`, triggers when the prompt names it, no denials, turns and cost fit, supporting files readable. Record in `docs/spike-findings.md`. Stop and return if a stage does not fit.
-1. **Prompt hints (config and docs, no code).** README example `stage_prompts`: plan and review get "if `GLOSSARY.md` or `docs/adr` exist, use their terms and respect the ADRs" and (only where the spike passes) a line naming `codebase-design`; implement gets two sentences of test-quality guidance (no red/green, no seam confirmation).
-2. **Fixer split (TDD), only if needed.** Red: the fixer does not receive the implementer-only hint. `test_stages.py:330` pins the current sharing; changing it needs user approval first.
+0. **Spike (throwaway, flagged as such).** Script: `spike41.py` (scratchpad), built from the production code (`stage_config`, `build_*_prompt`, `build_command`, `sandbox_prefix`, the worktree `--add-dir`, cwd at the project subdir, the runner's environment, a 300s timeout), run under real nono in a worktree of the commit before this plan. Paths, each run twice: plain plan (8 turns), grill round 1 and round 2 with a log (12), final grill round (8, `codebase-design` only), review (8, with the edge-case instruction). The hint goes in `stage_prompts` (system prompt), not the user prompt. Record per run: exit code, wall time, subtype, turns, cost, denials, Skill calls, whether `DEEPENING.md` was read (and whether the read errored), and whether `structured_output` arrived. Success: the skill loads as `codebase-design:codebase-design`, triggers from the system-prompt hint, no denials, every path inside its turns and budget. The plugin copy has the "delete old tests" bullet removed from `DEEPENING.md` (it contradicts the planner, reviewer and gate rules); also check that no plan proposes deleting tests. Record in `docs/spike-findings.md`. Stop and return if a path does not fit.
+1. **Fixer gets no implement stage prompt (TDD).** Red: `fix_config.append_system_prompt` does not contain the `implement` entry but keeps the global prompt, and its `plugin_dirs` still equal the implement plugins. Flip `test_stages.py:266-276` (approved above). Guard: the implementer still gets the entry (`:258-265`) and the fixer still gets the plugin dirs (`:288-302`, `:330`). Update README:148 and the plugins sentence at README:119 ("The fixer shares `implement`" stays true for plugins only). One commit.
+2. **Prompt hints (docs, no code).** README example puts `[stage_plugins] plan/review = ["codebase-design"]` next to the matching `stage_prompts` lines, with a warning that a project-level list replaces the global one while the prompts merge, and that a hint naming a missing skill costs a turn. The plan hint must fit all four plan paths (plain, every grill round, final). The implement hint is two sentences of test-quality guidance (no red/green, no seam confirmation); it reaches the implementer only after increment 1. Only stages that pass the spike get the `codebase-design` line.
 3. **Eval uses the audit stage config (TDD), one behaviour per commit.**
-   - 3a. Red: `run_one`/`run_eval` take a config and the meta records it. Guard: default meta unchanged.
-   - 3b. Red: resume with a different config raises `ConfigChanged`; the server job fails with a message (new `test_server_eval.py` test, config-recording runner fake).
-   - 3c. Red: meta records a content hash per plugin dir; `compare` reports "audit plugins differ" (new `test_audit_compare.py` test).
-   - 3d. Red: `POST /eval-audit` accepts `stage_config: true`, 422 on a bad type, builds `stage_config(AUDIT_CONFIG, settings, "audit")`.
-   - 3e. Red: CLI `--stage-config` sends it.
-4. **Docs.** README:119 says eval-audit needs `--stage-config` to see plugins and prompts; fix README:117 wording. Template examples keep the `my-plugin` placeholder so `test_init_config.py:30-37` stays green.
+   - 3a. Red: `run_one`/`run_eval` take a config (default `AUDIT_CONFIG`) and meta records it. Guard: default meta unchanged; `test_audit_eval.py:196` stays loose.
+   - 3b. Red: resume with a different config raises `ConfigChanged` before the meta is rewritten (as for `RunsChanged`, `test_audit_eval.py:252`); the server job fails with a message (`server.py:354-358` gets a branch; test edits meta like the corpus test at `test_server_eval.py:97`).
+   - 3c. Red: meta records a hash per plugin dir (sorted relative paths plus bytes of regular files; symlinks refused), computed in `run_eval` before the meta write; resume refuses when a recomputed hash differs; the hash is re-checked before `complete: true` and a mismatch leaves the run incomplete with a message; meta with no hash key counts as "no plugins" so old baselines stay resumable. `compare` reports "audit plugins differ" (new `test_audit_compare.py` test).
+   - 3d. Red (new tests, not a new parameter on `test_server_eval.py:56`): `POST /eval-audit` accepts `stage_config: true`, 422 on a bad type, builds `stage_config(AUDIT_CONFIG, ctx.settings, "audit")`, and the runner sees the plugins and prompt. `ctx.built == [(ctx.settings, eval_dir)]` (`:52`) stays green.
+   - 3e. Red: CLI `--stage-config` sends it (check first whether `test_cli.py` eval-audit tests assert the request body exactly).
+4. **Docs.** README:119 and :151 say eval-audit needs `--stage-config` to see plugins and prompts; README:117 mentions that `stage_plugins` merges per stage too. Template examples keep the `my-plugin` placeholder and add no `stage_prompts` lines, so `test_init_config.py:30-37` stays green.
 5. **Verify.** Full suite in the background (~100s), then the `verify` skill. One commit per green increment.
 
 ## Deferred
-Enabling any audit skill (baseline eval, eval with skill and `--stage-config`, `--compare`; enable only with no regression).
+Enabling any audit skill. Procedure, fixed so the comparison is not confounded: both runs use `--stage-config`; only `stage_plugins.audit` and the audit skill line in `stage_prompts.audit` differ; restart `serve` between them (settings are read once at startup); keep any hint naming the skill out of the baseline. `compare` will print "AUDIT_CONFIG differs", which is expected. Enable only with no regression.
 
 ## Tests to list before changing behaviour
-`test_stages.py:229`, `:279-330`; `test_audit_compare.py:81-82`; `test_audit_task.py:22-29` (unaffected while `AUDIT_CONFIG` is not edited); `test_server_eval.py`; `test_init_config.py:30-37`.
+`test_stages.py:229`, `:258-302`, `:330` (`:266-276` flips); `test_audit_eval.py:196`, `:252`; `test_audit_compare.py:81-82`; `test_audit_task.py:22-29` (unaffected while `AUDIT_CONFIG` is not edited); `test_server_eval.py:52`, `:56`, `:97`; `test_cli.py` eval-audit tests; `test_init_config.py:30-37`.
 
 ## Unverified
-Whether any hint or skill improves plan, review or implement output (only audit has a measurement planned); turn headroom on the plain plan and review paths; `allowed-tools` in a skill cannot widen the deny list (spike-findings marks this weak).
+Whether any hint or skill improves plan, review or implement output (only audit has a measurement planned); turn and cost headroom on every path (the spike measures it); whether `DEEPENING.md` is readable in a real stage (reads outside the cwd and `--add-dir` may be denied); that `allowed-tools` in a skill cannot widen the deny list (spike-findings marks this weak); `test_cli.py` request-body assertions; `uv_build` packaging is not involved while the plugin stays user-supplied.
