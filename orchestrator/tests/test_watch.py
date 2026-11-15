@@ -103,7 +103,8 @@ def test_state_survives_a_save_and_load(tmp_path):
         issues={
             7: IssueRecord(
                 task_id="t-1", plan_comment_id=42, posted_digest="d1",
-                plan_body_hash="h1", findings_hash="h2", phase=Phase.AWAITING_APPROVAL,
+                plan_body_hash="h1", findings_hash="h2", phase=Phase.AWAITING_MERGE,
+                merge_comment_id=43, merge_body_hash="h3", merge_sha="abc123",
             )
         },
     )
@@ -1354,7 +1355,8 @@ def test_guard_a_comment_that_is_not_the_watchers_own_marker_for_this_ending_is_
     assert load_state(tmp_path).issues[5].result_comment_id == 1
 
 
-@pytest.mark.parametrize("phase", [Phase.FAILED, Phase.STOPPED, Phase.AUDITED, Phase.CHANGED, Phase.REJECTED])
+@pytest.mark.parametrize("phase", [Phase.FAILED, Phase.STOPPED, Phase.AUDITED, Phase.CHANGED, Phase.REJECTED,
+                                   Phase.MERGED, Phase.MERGE_STOPPED, Phase.NOT_MERGED])
 def test_guard_an_issue_whose_ending_comment_is_recorded_does_not_search_comments(tmp_path, phase):
     save_state(tmp_path, WatchState(watching_since=SINCE, issues={5: IssueRecord(task_id="t-9", phase=phase, result_comment_id=7)}))
 
