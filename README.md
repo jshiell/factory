@@ -43,7 +43,8 @@ or its step cap. Agent spend is capped (see `cap_usd`) and every call is recorde
 
 | Command | What it does |
 |---|---|
-| `new <goal>` | Create a task (`proposed`) |
+| `new <goal> [--no-grill]` | Create a task (`proposed`). `--no-grill` skips the planner's questions for this task; without it the `grill` setting decides |
+| `answer <id>` | Answer a task's open questions (state `open_questions`). Needs a TTY. Shows each question with the planner's recommendation; Enter takes the recommendation. Ctrl-D answers nothing. Then run `advance` again |
 | `list` / `show <id>` | List tasks, or show one task's state, goal, plan, risks, review and audit findings, failure reason, worktree and branch |
 | `advance <id>` | Run the next automatic stages until a human gate, a failure or the step cap |
 | `approve <id>` / `reject <id>` | Accept or reject a reviewed plan. `approve` needs a TTY and binds to a digest of the plan you saw |
@@ -81,6 +82,7 @@ Reads and quick actions answer at once; `advance`, `abandon`, `recover`, `rebase
 | `GET /tasks/{id}/merge-preview`, `POST .../merge {audited_sha}` | a stale sha is 409 |
 | `GET /tasks/{id}/retry-preview`, `POST .../retry` or `{keep_plan, plan_digest, waive, reinstate}` | fresh or keep-plan retry |
 | `GET /clean-preview`, `POST /clean {token}` | the token hashes the preview; a changed preview is 409 |
+| `GET /tasks/{id}/questions`, `POST .../answer {round, answers}` | the planner's open questions and your answers (at most 20,000 bytes). A stale `round` or a task not in `open_questions` is 409. `POST /tasks` also takes `grill` (default: the `grill` setting) |
 | `POST /tasks/{id}/advance`, `/abandon`, `/recover`, `/rebase`, `POST /eval-audit {runs, max_usd, only}` | jobs |
 | `GET /jobs`, `GET /jobs/{id}` | job state: `queued`, `running`, `succeeded`, `failed`, `interrupted` |
 
@@ -93,11 +95,18 @@ Every CLI command except `init`, `clone`, `migrate` and `serve` is a client of t
 
 - **Who counts.** Only issues opened by, and reactions made by, accounts in `watch_approvers`, compared by numeric GitHub id (resolved once at start). Issues created before the first run are ignored.
 - **Plan comment.** The plan, review findings and required notes are posted inside code fences, so `@mentions`, issue links and images in them stay inert. Each watcher comment starts with an HTML marker line; after a restart only marker comments by the watcher's own account are adopted.
+- **Questions.** When the planner has questions (see "Grilling" below) the watcher posts them as a comment, in a code fence, with instructions. Reply in the issue: comments from approvers after the questions comment are joined and sent as the answers (cut at 20,000 bytes), and the task moves on. A reply that starts with a factory marker is ignored. If the questions comment is deleted the watcher posts a stopped result; answer at the terminal with `factory answer <id>`. A later round posts a new questions comment.
 - **Approval.** An approver's 👍 approves with the digest posted, keeping required review notes (waiving stays terminal-only). Before approving, the watcher checks the plan comment, plan digest and findings are unchanged; if not, it posts once and stops (`changed`). It also sends the findings it checked with the approve request, so the server refuses (409) if they changed in between. A 👎 from an approver rejects.
 - **Public repos.** Refused unless `--allow-public`: plans, failure reasons and worktree paths would be public.
 - **Trust.** Whoever controls an approver's GitHub account can approve plans. The `gh` token must not be readable by the agents the factory runs (check this under your sandbox profile before pointing `watch` at a real repo). A write-access collaborator can edit an issue body before the first poll.
 - **Serial.** One pass handles issues one at a time, so a long advance delays a 👍 on another issue. A failure on one issue is logged and retried on the next pass.
 - **Not covered.** Auto-merge, webhooks, other reactions, several repos, re-planning on issue edits.
+
+### Grilling
+
+Before writing a plan the planner can ask you questions, using the shipped `grilling` plugin (loaded for the plan stage automatically; it runs no code). The task then waits in `open_questions` until you answer (`factory answer <id>`, or in the issue under `watch`). Each answer round can lead to another, up to `grill_max_rounds` (default 3); after that the planner must plan. Settings: `grill = true` (default; `--no-grill` or `"grill": false` overrides per task) and `grill_max_rounds = 3` (`0` turns grilling off). Cost: up to `grill_max_rounds + 1` planner calls per task instead of one.
+
+No downgrade: an older build reading a `watch.json` or task rows written with the new fields raises a `TypeError`.
 
 ### Configuration
 
@@ -118,6 +127,8 @@ state_dir = "..."              # default: <home>/<project>/state (database, toke
 server_port = 8765             # where `serve` listens and the CLI connects
 worktree_root = "..."          # default: <home>/<project>/worktrees (one git worktree per task)
 project_subdir = "target"      # where the agent works and the tests run
+grill = true                   # the planner may ask questions first
+grill_max_rounds = 3           # answer rounds before the planner must plan; 0 = no grilling
 watch_approvers = ["alice"]    # repo-only; GitHub logins whose issues and 👍/👎 `factory watch` obeys (required for `watch`)
 test_argv = ["uv", "run", "pytest", "-q"]
 model = "sonnet"
@@ -150,6 +161,8 @@ illegal move is an error, not a bug waiting to happen.
 stateDiagram-v2
     [*] --> proposed: new
     proposed --> planned: plan agent (read-only)
+    proposed --> open_questions: planner asks
+    open_questions --> proposed: answered
     planned --> reviewed: review agent (read-only)
     reviewed --> queued: approve (human, TTY)
     reviewed --> failed: reject (human)
