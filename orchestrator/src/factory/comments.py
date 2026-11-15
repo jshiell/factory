@@ -2,7 +2,7 @@ import re
 
 from factory.ids import InvalidTaskId, require_safe_id
 
-KINDS = ("plan", "result", "rejected", "changed")
+KINDS = ("plan", "result", "rejected", "changed", "questions")
 
 # Budget for the whole rendered comment (marker, headings, fences, text, notes).
 # GitHub's limit is 65,536; the margin absorbs anything the accounting misses.

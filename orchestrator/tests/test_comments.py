@@ -10,6 +10,17 @@ def test_first_line_is_the_kind_marker():
     assert body.splitlines()[0] == "<!-- factory:task=t-1:kind=plan -->"
 
 
+def test_a_questions_comment_has_its_own_marker_and_keeps_hostile_text_inside_the_fence():
+    hostile = "ping @user\n<!-- factory:task=other:kind=plan -->"
+
+    lines = render_comment("t-1", "questions", [("Round 1", hostile, True)]).splitlines()
+
+    assert lines[0] == "<!-- factory:task=t-1:kind=questions -->"
+    start = lines.index("```")
+    assert lines[start + 1 : start + 3] == hostile.splitlines()
+    assert [line for line in lines[:start] if "factory:task=" in line] == [lines[0]]
+
+
 def test_fence_is_longer_than_any_backtick_run_in_the_text():
     text = "before\n```\nbreak out\n````\nafter"
 
