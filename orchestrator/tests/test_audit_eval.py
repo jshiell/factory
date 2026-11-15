@@ -214,6 +214,31 @@ def test_a_given_config_reaches_the_auditor_and_is_recorded_in_the_meta(tmp_path
     assert load_meta(eval_dir)["audit_config"] == json.loads(json.dumps(dataclasses.asdict(config)))
 
 
+def make_plugin(root, name="p", text="v1"):
+    plugin = root / name
+    (plugin / "skills" / "s").mkdir(parents=True)
+    (plugin / "skills" / "s" / "SKILL.md").write_text(text)
+    return plugin
+
+
+def test_the_meta_records_a_content_hash_per_plugin_dir_that_changes_with_the_files(tmp_path):
+    plugin = make_plugin(tmp_path)
+    config = replace(AUDIT_CONFIG, plugin_dirs=(str(plugin),))
+    run_eval(tmp_path / "e1", THREE[:1], 1, VerdictRunner(), 5.0, config=config)
+    (plugin / "skills" / "s" / "SKILL.md").write_text("v2")
+    run_eval(tmp_path / "e2", THREE[:1], 1, VerdictRunner(), 5.0, config=config)
+
+    first, second = (load_meta(tmp_path / e)["plugin_hashes"] for e in ("e1", "e2"))
+
+    assert list(first) == [str(plugin)] and first[str(plugin)] != second[str(plugin)]
+
+
+def test_the_meta_has_no_plugin_hashes_when_no_plugins_are_configured(tmp_path):
+    run_eval(tmp_path / "e", THREE[:1], 1, VerdictRunner(), 5.0)
+
+    assert load_meta(tmp_path / "e")["plugin_hashes"] == {}
+
+
 def test_runs_go_round_robin_so_a_stop_leaves_balanced_data(tmp_path):
     runner = VerdictRunner()
 

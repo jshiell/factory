@@ -117,16 +117,31 @@ def _as_stored(value: dict) -> dict:
     return json.loads(json.dumps(value))
 
 
+def plugin_hash(directory: Path) -> str:
+    """Sorted relative paths plus bytes of the regular files under a plugin directory."""
+    digest = hashlib.sha256()
+    for path in sorted(directory.rglob("*")):
+        if path.is_symlink():
+            raise ValueError(f"plugin {directory} contains a symlink: {path}")
+        if path.is_file():
+            digest.update(str(path.relative_to(directory)).encode() + b"\0" + path.read_bytes() + b"\0")
+    return digest.hexdigest()[:16]
+
+
+def plugin_hashes(config: RunnerConfig) -> dict[str, str]:
+    return {directory: plugin_hash(Path(directory)) for directory in config.plugin_dirs}
+
+
 def _prompt_hash() -> str:
     template = build_audit_prompt(Task(id="x", prompt="{TASK}"), "{DIFF}")
     return hashlib.sha256(template.encode()).hexdigest()[:16]
 
 
-def _meta(cases: list[Case], runs: int, complete: bool, config: RunnerConfig) -> dict:
+def _meta(cases: list[Case], runs: int, complete: bool, config: RunnerConfig, hashes: dict[str, str]) -> dict:
     return {
         "corpus_hash": corpus_hash(cases), "case_hashes": {c.id: case_hash(c) for c in cases},
         "cases": [c.id for c in cases], "runs": runs, "complete": complete,
-        "audit_config": _as_stored(dataclasses.asdict(config)), "prompt_hash": _prompt_hash(),
+        "audit_config": _as_stored(dataclasses.asdict(config)), "plugin_hashes": hashes, "prompt_hash": _prompt_hash(),
     }
 
 
@@ -149,7 +164,8 @@ def run_eval(
         raise RunsChanged(str(eval_dir))
     if meta_path(eval_dir).exists() and load_meta(eval_dir)["audit_config"] != _as_stored(dataclasses.asdict(config)):
         raise ConfigChanged(str(eval_dir))
-    _write_atomically(meta_path(eval_dir), json.dumps(_meta(cases, runs, False, config), indent=1))
+    hashes = plugin_hashes(config)
+    _write_atomically(meta_path(eval_dir), json.dumps(_meta(cases, runs, False, config, hashes), indent=1))
     store, ledger = TaskStore(eval_dir / "tasks"), Ledger(eval_dir / "ledger.jsonl")
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
@@ -162,7 +178,7 @@ def run_eval(
                     run_one(case, run, manager, store, ledger, runner, cap_usd, eval_dir, config)
                 except BudgetCapReached:
                     return False
-    _write_atomically(meta_path(eval_dir), json.dumps(_meta(cases, runs, True, config), indent=1))
+    _write_atomically(meta_path(eval_dir), json.dumps(_meta(cases, runs, True, config, hashes), indent=1))
     return True
 
 
