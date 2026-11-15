@@ -9,6 +9,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import httpx
+from factory.question_text import questions_text
 from factory.textsafe import escape_control  # noqa: F401  (re-exported)
 from factory.client import ServerClient, ServerRefused, ServerUnreachable
 from factory.audit_compare import compare, find_previous
@@ -332,10 +333,7 @@ def _answer(args, io, ctx) -> int:
 
 
 def _questions_display(shown: dict) -> str:
-    blocks = [f"ROUND {shown['round']}"]
-    for question in shown["questions"]:
-        blocks.append(f"{question['number']}. {question['title']}\n{question['body']}\nrecommended: {question['recommended']}")
-    return "\n\n".join(blocks)
+    return f"ROUND {shown['round']}\n\n{questions_text(shown['questions'])}"
 
 
 def _not_reviewed(task: Task, io) -> int:

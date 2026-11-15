@@ -160,9 +160,13 @@ class FakeGitHub:
 
 
 class FakeServer:
-    def __init__(self, advance_result=None, approval=None, job_state="succeeded", task_state="planned", failure_reason=None):
+    def __init__(self, advance_result=None, approval=None, job_state="succeeded", task_state="planned", failure_reason=None,
+                 questions=None, grill_rounds=0):
         self.job_state = job_state
         self.task_state = task_state
+        self.questions = questions
+        self.grill_rounds = grill_rounds
+        self.answered = []
         self.failure_reason = failure_reason
         self.created = []
         self.ids = iter(["t-1", "t-2", "t-3"])
@@ -177,6 +181,9 @@ class FakeServer:
         if path.endswith("/reject"):
             self.rejected.append(path)
             return {"id": path.split("/")[2], "state": "rejected"}
+        if path.endswith("/answer"):
+            self.answered.append((path, body))
+            return {"id": path.split("/")[2], "state": "proposed"}
         if path.endswith("/advance"):
             self.advanced.append(path)
             return {"job": {"id": "j-1"}}
@@ -193,8 +200,10 @@ class FakeServer:
         return {"state": "succeeded", "error": None, "result": self.advance_result}
 
     def get(self, path):
+        if path.endswith("/questions"):
+            return self.questions
         if not path.endswith("/approval"):
-            return {"state": self.task_state, "failure_reason": self.failure_reason}
+            return {"state": self.task_state, "failure_reason": self.failure_reason, "grill_rounds": self.grill_rounds}
         self.fetched.append(path)
         return self.approval
 
@@ -320,6 +329,24 @@ def test_a_task_that_advances_to_reviewed_gets_one_plan_comment_and_the_record_i
             findings_hash=hashlib.sha256(findings.encode()).hexdigest(),
         )
     }
+
+
+ASKING = {"steps": [], "state": "open_questions", "failure_reason": None, "stopped": None}
+QUESTION = {"number": 1, "title": "Which db", "body": "Pick @one.", "recommended": "sqlite"}
+QUESTIONS = {"round": 1, "questions": [QUESTION]}
+
+
+def test_a_task_that_opens_questions_gets_one_questions_comment_and_waits_for_answers(tmp_path):
+    server = FakeServer(advance_result=ASKING, questions=QUESTIONS, task_state="open_questions", grill_rounds=1)
+
+    github, _ = pass_over(tmp_path, [raw_issue(number=5)], server=server)
+
+    [(issue_number, body)] = github.comments_posted
+    assert issue_number == 5
+    assert body.startswith("<!-- factory:task=t-1:kind=questions -->")
+    assert "**Questions (round 1)**" in body and "```\n1. Which db\nPick @one.\nrecommended: sqlite\n```" in body
+    record = load_state(tmp_path).issues[5]
+    assert (record.phase, record.questions_comment_id, record.questions_round) == (Phase.AWAITING_ANSWERS, 1, 1)
 
 
 FAILED = {"steps": [], "state": "failed", "failure_reason": "plan rejected: too vague", "stopped": None}

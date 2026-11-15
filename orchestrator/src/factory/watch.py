@@ -12,6 +12,7 @@ from factory.client import ServerRefused, ServerUnreachable
 from factory.comments import has_marker, render_comment, strip_home
 from factory.github import GitHubError
 from factory.ids import require_safe_id
+from factory.question_text import questions_text
 from factory.textsafe import escape_control
 
 
@@ -49,6 +50,7 @@ def parse_issues(raw: list[dict], approver_ids: set[int], watching_since: dateti
 
 class Phase(str, Enum):
     NEW = "new"
+    AWAITING_ANSWERS = "awaiting_answers"
     AWAITING_APPROVAL = "awaiting_approval"
     APPROVED = "approved"
     AUDITED = "audited"
@@ -67,6 +69,8 @@ class IssueRecord:
     plan_body_hash: str | None = None
     findings_hash: str | None = None
     result_comment_id: int | None = None
+    questions_comment_id: int | None = None
+    questions_round: int | None = None
 
 
 @dataclass
@@ -172,6 +176,22 @@ def _post_plan(github, server, state, state_dir, issue_number: int, record: Issu
     record.plan_body_hash = _sha256(body)
     record.findings_hash = _sha256(findings)
     record.phase = Phase.AWAITING_APPROVAL
+    save_state(state_dir, state)
+
+
+_HOW_TO_ANSWER = "Task {task_id}. Reply to this comment with your answers; the plan is written once you have answered."
+
+
+def _post_questions(github, server, state, state_dir, issue_number: int, record: IssueRecord, self_id: int) -> None:
+    shown = server.get(f"/tasks/{require_safe_id(record.task_id)}/questions")
+    body = render_comment(record.task_id, "questions", [
+        ("Task", _HOW_TO_ANSWER.format(task_id=record.task_id), False),
+        (f"Questions (round {shown['round']})", questions_text(shown["questions"]), True),
+    ])
+    exact_copy = _own_comment_id(github, issue_number, self_id, lambda c: c.body == body)
+    record.questions_comment_id = exact_copy or github.comment(issue_number, body)
+    record.questions_round = shown["round"]
+    record.phase = Phase.AWAITING_ANSWERS
     save_state(state_dir, state)
 
 
@@ -298,7 +318,7 @@ def _handle_issue(github, server, state, state_dir, issue: Issue, approver_ids: 
         state.issues[issue.number] = IssueRecord(task_id)
         save_state(state_dir, state)
     record = state.issues[issue.number]
-    if record.phase not in (Phase.NEW, Phase.AWAITING_APPROVAL, Phase.APPROVED):
+    if record.phase not in (Phase.NEW, Phase.AWAITING_ANSWERS, Phase.AWAITING_APPROVAL, Phase.APPROVED):
         return
     task = server.get(f"/tasks/{require_safe_id(record.task_id)}")
     if task["state"] == "failed":
@@ -319,6 +339,8 @@ def _handle_issue(github, server, state, state_dir, issue: Issue, approver_ids: 
         return
     if result["stopped"]:
         _post_final(github, state, state_dir, issue.number, record, self_id, Phase.STOPPED, "Stopped", strip_home(result["stopped"], home))
+    elif result["state"] == "open_questions" and record.phase is Phase.NEW:
+        _post_questions(github, server, state, state_dir, issue.number, record, self_id)
     elif result["state"] == "reviewed" and record.phase is Phase.NEW:
         _post_plan(github, server, state, state_dir, issue.number, record, self_id)
     elif result["state"] == "audited" and record.phase is Phase.APPROVED:
