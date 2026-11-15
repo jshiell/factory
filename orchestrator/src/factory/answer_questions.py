@@ -1,0 +1,24 @@
+from dataclasses import replace
+
+from factory.store import TaskStore
+from factory.task import Event, Task, apply
+
+MAX_ANSWER_BYTES = 20_000
+
+
+class RoundChanged(Exception):
+    pass
+
+
+class AnswerRejected(ValueError):
+    pass
+
+
+def answer_questions(task_id: str, store: TaskStore, round_number: int, text: str) -> Task:
+    """Record the answers to the open round and send the task back to planning."""
+    task = store.load(task_id)
+    answered = apply(task, Event.ANSWERED)
+    entry = {"round": round_number, "questions": list(task.open_questions), "answers": text}
+    saved = replace(answered, open_questions=(), grill_log=(*task.grill_log, entry))
+    store.save(saved)
+    return saved
