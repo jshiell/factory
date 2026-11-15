@@ -8,7 +8,7 @@ from datetime import datetime
 from pathlib import Path
 from types import SimpleNamespace
 
-import httpx
+import httpx2
 from factory.question_text import questions_text
 from factory.textsafe import escape_control  # noqa: F401  (re-exported)
 from factory.client import ServerClient, ServerRefused, ServerUnreachable
@@ -788,7 +788,7 @@ _COMMANDS = {
 def _server_client(settings: Settings) -> ServerClient:
     token_file = settings.state_dir / "token"
     token = token_file.read_text().strip() if token_file.exists() else ""  # no token means no server has ever run here
-    http = httpx.Client(base_url=f"http://127.0.0.1:{settings.server_port}", timeout=30.0)
+    http = httpx2.Client(base_url=f"http://127.0.0.1:{settings.server_port}", timeout=30.0)
     return ServerClient(http, token)
 
 

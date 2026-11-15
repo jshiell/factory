@@ -1,7 +1,7 @@
 import time
 from collections.abc import Callable
 
-import httpx
+import httpx2
 
 POLL_SECONDS = 0.5
 FINISHED = ("succeeded", "failed", "interrupted")
@@ -18,7 +18,7 @@ class ServerRefused(Exception):
 
 
 class ServerClient:
-    def __init__(self, http: httpx.Client, token: str, sleep: Callable[[float], None] = time.sleep):
+    def __init__(self, http: httpx2.Client, token: str, sleep: Callable[[float], None] = time.sleep):
         self._http, self._headers, self._sleep = http, {"Authorization": f"Bearer {token}"}, sleep
 
     def get(self, path: str, **params) -> dict:
@@ -37,7 +37,7 @@ class ServerClient:
     def _send(self, method: str, path: str, **kwargs) -> dict:
         try:
             response = self._http.request(method, path, headers=self._headers, **kwargs)
-        except httpx.TransportError as error:
+        except httpx2.TransportError as error:
             raise ServerUnreachable(str(error)) from None
         body = response.json()
         if response.status_code >= 400:
