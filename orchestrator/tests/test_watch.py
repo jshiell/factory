@@ -1,4 +1,5 @@
 import hashlib
+import json
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -388,6 +389,19 @@ def test_an_answers_wait_for_the_current_round_neither_advances_nor_comments(tmp
 
     assert server.advanced == [] and github.comments_posted == []
     assert load_state(tmp_path).issues[5] == record
+
+
+def test_a_state_file_from_before_grilling_still_loads(tmp_path):  # guard (green on arrival)
+    old = {
+        "watching_since": "2026-11-13T00:00:00+00:00",
+        "cursor": None,
+        "issues": {"5": {"task_id": "t-9", "phase": "awaiting_approval"}},
+    }
+    (tmp_path / "watch.json").write_text(json.dumps(old))
+
+    record = load_state(tmp_path).issues[5]
+
+    assert (record.phase, record.questions_comment_id, record.questions_round) == (Phase.AWAITING_APPROVAL, None, None)
 
 
 QUESTIONS_COMMENT = Comment(7, "<!-- factory:task=t-9:kind=questions -->\n\n**Task**", 4242, "factory-bot")
