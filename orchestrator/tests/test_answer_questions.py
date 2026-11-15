@@ -15,6 +15,16 @@ def store(tmp_path):
     return store
 
 
+def test_a_task_that_is_not_waiting_for_answers_refuses_them(store):
+    # guard (green on arrival): the ANSWERED transition only exists from open_questions
+    store.save(Task(id="t2", prompt="", state=TaskState.PROPOSED, goal="g", grill=True))
+
+    with pytest.raises(InvalidTransition):
+        answer_questions("t2", store, 0, "x")
+
+    assert store.load("t2").grill_log == ()
+
+
 def test_answering_records_the_round_and_returns_the_task_to_proposed(store):
     task = answer_questions("t1", store, 1, "use calc.py")
 
