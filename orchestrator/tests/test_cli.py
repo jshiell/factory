@@ -173,6 +173,22 @@ def test_advance_exits_0_at_open_questions_pointing_at_answer(ctx):
     assert "no progress" not in out
 
 
+QUESTION = {"number": 1, "title": "Which db", "body": "Pick one.", "recommended": "sqlite"}
+
+
+def asking(ctx, *questions, **fields):
+    put(ctx, S.OPEN_QUESTIONS, goal="g", grill=True, grill_rounds=1, open_questions=questions or (QUESTION,), **fields)
+
+
+def test_answer_refuses_without_an_interactive_terminal_and_changes_nothing(ctx):
+    asking(ctx)
+
+    code, _, err = run(ctx, "answer", "t1", tty=False)
+
+    assert code == 1 and "answering needs an interactive terminal" in err
+    assert ctx.store.load("t1").state is S.OPEN_QUESTIONS
+
+
 def test_advance_exits_1_when_the_task_fails_and_when_a_stage_stops(ctx):
     put(ctx, S.QUEUED)
     ctx.stages.update({**all_stages(ctx), "implement": moving(ctx, S.FAILED, failure_reason="timeout")})

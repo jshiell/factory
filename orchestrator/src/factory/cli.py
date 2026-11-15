@@ -121,7 +121,7 @@ def _parser() -> argparse.ArgumentParser:
     commands = parser.add_subparsers(dest="command", required=True, parser_class=_Parser)
     commands.add_parser("new").add_argument("goal")
     commands.add_parser("list")
-    for name in ("show", "advance", "approve", "reject", "merge", "recover", "abandon", "rebase"):
+    for name in ("show", "advance", "answer", "approve", "reject", "merge", "recover", "abandon", "rebase"):
         commands.add_parser(name).add_argument("task_id")
     retry = commands.add_parser("retry")
     retry.add_argument("task_id")
@@ -288,6 +288,14 @@ def _advance(args, io, ctx) -> int:
     if result["state"] == TaskState.OPEN_QUESTIONS.value:
         print(f"open questions; run: factory answer {args.task_id}", file=io.stdout)
     return 1 if result["state"] == TaskState.FAILED.value else 0
+
+
+def _answer(args, io, ctx) -> int:
+    ctx.server.get(_task_path(args.task_id))
+    if not io.stdin.isatty():
+        print("answering needs an interactive terminal", file=io.stderr)
+        return 1
+    return 0
 
 
 def _not_reviewed(task: Task, io) -> int:
@@ -733,7 +741,7 @@ def _eval_audit(args, io, ctx) -> int:
 
 _COMMANDS = {
     "new": _new, "list": _list, "show": _show, "advance": _advance,
-    "approve": _approve, "reject": _reject, "merge": _merge, "retry": _retry, "recover": _recover, "abandon": _abandon, "rebase": _rebase, "clean": _clean, "migrate": _migrate, "costs": _costs, "eval-audit": _eval_audit, "serve": _serve, "watch": _watch,
+    "answer": _answer, "approve": _approve, "reject": _reject, "merge": _merge, "retry": _retry, "recover": _recover, "abandon": _abandon, "rebase": _rebase, "clean": _clean, "migrate": _migrate, "costs": _costs, "eval-audit": _eval_audit, "serve": _serve, "watch": _watch,
     "init": lambda args, io, ctx: init_global_config(io),
     "clone": lambda args, io, ctx: _clone(args.repository, io),
 }
