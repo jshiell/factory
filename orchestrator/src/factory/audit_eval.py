@@ -10,6 +10,7 @@ from pathlib import Path
 from factory.approve_plan import build_implementation_prompt
 from factory.audit_corpus import BASE_FILES, PROJECT_SUBDIR, Case, case_hash, corpus_hash
 from factory.audit_task import AUDIT_CONFIG, audit_task, build_audit_prompt
+from factory.command import RunnerConfig
 from factory.gate import GateResult, commit_all
 from factory.ledger import Ledger
 from factory.step import BudgetCapReached, Runner
@@ -61,7 +62,7 @@ def result_path(eval_dir: Path, case_id: str, run: int) -> Path:
 
 def run_one(
     case: Case, run: int, manager: WorktreeManager, store: TaskStore, ledger: Ledger, runner: Runner,
-    cap_usd: float, eval_dir: Path,
+    cap_usd: float, eval_dir: Path, config: RunnerConfig = AUDIT_CONFIG,
 ) -> dict:
     task_id = f"a{run}-{case.id}"
     worktree, base_sha = materialise(case, manager, task_id)
@@ -71,7 +72,7 @@ def run_one(
             worktree=str(worktree), base_sha=base_sha, goal=case.goal, plan=case.plan,
         ))
         before = len(ledger.entries())
-        task = audit_task(task_id, store, ledger, runner, AUDIT_CONFIG, cap_usd, PROJECT_SUBDIR)
+        task = audit_task(task_id, store, ledger, runner, config, cap_usd, PROJECT_SUBDIR)
         spent = ledger.entries()[before:]
     finally:
         manager.remove(task_id)
@@ -112,11 +113,11 @@ def _prompt_hash() -> str:
     return hashlib.sha256(template.encode()).hexdigest()[:16]
 
 
-def _meta(cases: list[Case], runs: int, complete: bool) -> dict:
+def _meta(cases: list[Case], runs: int, complete: bool, config: RunnerConfig) -> dict:
     return {
         "corpus_hash": corpus_hash(cases), "case_hashes": {c.id: case_hash(c) for c in cases},
         "cases": [c.id for c in cases], "runs": runs, "complete": complete,
-        "audit_config": dataclasses.asdict(AUDIT_CONFIG), "prompt_hash": _prompt_hash(),
+        "audit_config": dataclasses.asdict(config), "prompt_hash": _prompt_hash(),
     }
 
 
@@ -128,14 +129,16 @@ def valid_result(eval_dir: Path, case_id: str, run: int) -> dict | None:
     return record if isinstance(record, dict) and "outcome" in record else None
 
 
-def run_eval(eval_dir: Path, cases: list[Case], runs: int, runner: Runner, cap_usd: float) -> bool:
+def run_eval(
+    eval_dir: Path, cases: list[Case], runs: int, runner: Runner, cap_usd: float, config: RunnerConfig = AUDIT_CONFIG,
+) -> bool:
     """Round-robin over runs, resumable. True when every (case, run) has a result."""
     (eval_dir / "tasks").mkdir(parents=True, exist_ok=True)
     if meta_path(eval_dir).exists() and load_meta(eval_dir)["corpus_hash"] != corpus_hash(cases):
         raise CorpusChanged(str(eval_dir))
     if meta_path(eval_dir).exists() and load_meta(eval_dir)["runs"] != runs:
         raise RunsChanged(str(eval_dir))
-    _write_atomically(meta_path(eval_dir), json.dumps(_meta(cases, runs, complete=False), indent=1))
+    _write_atomically(meta_path(eval_dir), json.dumps(_meta(cases, runs, False, config), indent=1))
     store, ledger = TaskStore(eval_dir / "tasks"), Ledger(eval_dir / "ledger.jsonl")
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
@@ -145,10 +148,10 @@ def run_eval(eval_dir: Path, cases: list[Case], runs: int, runner: Runner, cap_u
                 if valid_result(eval_dir, case.id, run):
                     continue
                 try:
-                    run_one(case, run, manager, store, ledger, runner, cap_usd, eval_dir)
+                    run_one(case, run, manager, store, ledger, runner, cap_usd, eval_dir, config)
                 except BudgetCapReached:
                     return False
-    _write_atomically(meta_path(eval_dir), json.dumps(_meta(cases, runs, complete=True), indent=1))
+    _write_atomically(meta_path(eval_dir), json.dumps(_meta(cases, runs, True, config), indent=1))
     return True
 
 

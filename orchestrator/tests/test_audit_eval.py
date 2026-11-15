@@ -160,9 +160,11 @@ def test_the_result_is_written_through_a_temporary_file_so_a_kill_cannot_leave_h
 
 # --- the whole run: meta, round-robin, resume, budget ----------------------------
 
+import dataclasses
 from dataclasses import replace
 
 from factory.audit_corpus import corpus_hash
+from factory.audit_task import AUDIT_CONFIG
 from factory.audit_eval import CorpusChanged, RunsChanged, load_meta, run_eval
 
 
@@ -194,6 +196,22 @@ def test_meta_is_written_first_unfinished_and_marked_complete_only_when_every_ru
     assert meta["corpus_hash"] == corpus_hash(THREE) and meta["cases"] == [c.id for c in THREE] and meta["runs"] == 1
     assert set(meta["case_hashes"]) == {c.id for c in THREE}
     assert meta["audit_config"]["model"] == "sonnet" and meta["prompt_hash"]
+
+
+def test_a_given_config_reaches_the_auditor_and_is_recorded_in_the_meta(tmp_path):
+    eval_dir = tmp_path / "eval"
+    config = replace(AUDIT_CONFIG, append_system_prompt="Extra.", plugin_dirs=("/p/a",))
+    seen = []
+
+    class ConfigRunner(VerdictRunner):
+        def run(self, task, config):
+            seen.append(config)
+            return super().run(task, config)
+
+    run_eval(eval_dir, THREE[:1], 1, ConfigRunner(), 5.0, config=config)
+
+    assert seen == [config]
+    assert load_meta(eval_dir)["audit_config"] == json.loads(json.dumps(dataclasses.asdict(config)))
 
 
 def test_runs_go_round_robin_so_a_stop_leaves_balanced_data(tmp_path):
