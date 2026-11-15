@@ -422,8 +422,11 @@ def _merge_on_thumbs_up(github, server, state, state_dir, issue_number: int, rec
         _post_merge_changed(github, state, state_dir, issue_number, record, self_id)
         return
     job_id = server.post(f"/tasks/{task_id}/merge", {"audited_sha": record.merge_sha})["job"]["id"]
-    if server.wait(job_id)["state"] == "succeeded":
+    job = server.wait(job_id)
+    if job["state"] == "succeeded":
         _post_merged(github, state, state_dir, issue_number, record, self_id)
+    elif job["state"] == "failed":
+        _post_merge_refused(github, state, state_dir, issue_number, record, self_id, job["error"])
 
 
 _APPROVED_STATES = {"queued", "running", "agent_done", "verified"}  # the task was approved, here or at the terminal

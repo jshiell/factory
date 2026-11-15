@@ -166,8 +166,9 @@ class FakeGitHub:
 
 class FakeServer:
     def __init__(self, advance_result=None, approval=None, job_state="succeeded", task_state="planned", failure_reason=None,
-                 questions=None, grill_rounds=0, merge_preview=None):
+                 questions=None, grill_rounds=0, merge_preview=None, merge_job=None):
         self.merge_preview = merge_preview
+        self.merge_job = merge_job or {"state": "succeeded", "error": None, "result": {"state": "merged", "failure_reason": None}}
         self.merge_requests = []
         self.job_state = job_state
         self.task_state = task_state
@@ -206,7 +207,7 @@ class FakeServer:
 
     def wait(self, job_id):
         if job_id == "j-merge":
-            return {"state": "succeeded", "error": None, "result": {"state": "merged", "failure_reason": None}}
+            return self.merge_job
         if self.job_state != "succeeded":
             return {"state": self.job_state, "error": "boom", "result": None}
         return {"state": "succeeded", "error": None, "result": self.advance_result}
@@ -774,6 +775,28 @@ def test_a_thumbs_up_when_the_merge_preview_is_now_refused_posts_merge_refused_a
     assert "main moved since the audit" in body
     assert "factory rebase t-9" in body
     assert load_state(tmp_path).issues[5].phase is Phase.MERGE_STOPPED
+
+
+def test_a_failed_merge_job_on_a_task_still_audited_posts_merge_refused_with_the_jobs_error(tmp_path):
+    failed = {"state": "failed", "error": "merge refused: main moved since the audit", "result": None}
+    server = FakeServer(task_state="audited", merge_preview=MERGE_PREVIEW, merge_job=failed)
+
+    github, server = merge_reaction_pass(tmp_path, [Reaction("+1", 1001, "alice")], server=server)
+
+    [(_, body)] = github.comments_posted
+    assert body.startswith("<!-- factory:task=t-9:kind=merge-refused -->")
+    assert "merge refused: main moved since the audit" in body
+    assert load_state(tmp_path).issues[5].phase is Phase.MERGE_STOPPED
+
+
+def test_guard_an_interrupted_merge_job_leaves_the_task_awaiting_the_merge(tmp_path):
+    interrupted = {"state": "interrupted", "error": "server restarted", "result": None}
+    server = FakeServer(task_state="audited", merge_preview=MERGE_PREVIEW, merge_job=interrupted)
+
+    github, server = merge_reaction_pass(tmp_path, [Reaction("+1", 1001, "alice")], server=server)
+
+    assert github.comments_posted == []
+    assert load_state(tmp_path).issues[5] == AWAITING_THE_MERGE
 
 
 EDITED_COMMENT = Comment(2, MERGE_BODY + "\nedited", 4242, "factory-bot")
