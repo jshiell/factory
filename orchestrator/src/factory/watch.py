@@ -56,6 +56,7 @@ class Phase(str, Enum):
     APPROVED = "approved"
     AUDITED = "audited"
     AWAITING_MERGE = "awaiting_merge"
+    MERGED = "merged"
     MERGE_STOPPED = "merge_stopped"
     FAILED = "failed"
     STOPPED = "stopped"
@@ -376,6 +377,24 @@ def _approve_on_thumbs_up(github, server, state, state_dir, issue_number: int, r
     save_state(state_dir, state)
 
 
+_MERGED = "Merged. The commits are unsigned: sign them before pushing."
+
+
+def _post_merged(github, state, state_dir, issue_number: int, record: IssueRecord, self_id: int) -> None:
+    _post_ending(github, state, state_dir, issue_number, record, self_id, "merged", Phase.MERGED, "Merged", _MERGED)
+
+
+def _merge_on_thumbs_up(github, server, state, state_dir, issue_number: int, record: IssueRecord, approver_ids: set[int], self_id: int) -> None:
+    """Merge the commit the merge comment showed on an approver's 👍; approvers match by numeric id, never login."""
+    reactions = github.reactions(record.merge_comment_id)
+    if not any(r.content == "+1" and r.user_id in approver_ids for r in reactions):
+        return
+    task_id = require_safe_id(record.task_id)
+    job_id = server.post(f"/tasks/{task_id}/merge", {"audited_sha": record.merge_sha})["job"]["id"]
+    if server.wait(job_id)["state"] == "succeeded":
+        _post_merged(github, state, state_dir, issue_number, record, self_id)
+
+
 _APPROVED_STATES = {"queued", "running", "agent_done", "verified"}  # the task was approved, here or at the terminal
 
 
@@ -413,11 +432,14 @@ def _handle_issue(github, server, state, state_dir, issue: Issue, approver_ids: 
         state.issues[issue.number] = IssueRecord(task_id)
         save_state(state_dir, state)
     record = state.issues[issue.number]
-    if record.phase not in (Phase.NEW, Phase.AWAITING_ANSWERS, Phase.AWAITING_APPROVAL, Phase.APPROVED):
+    if record.phase not in (Phase.NEW, Phase.AWAITING_ANSWERS, Phase.AWAITING_APPROVAL, Phase.APPROVED, Phase.AWAITING_MERGE):
         return
     task = server.get(f"/tasks/{require_safe_id(record.task_id)}")
     if task["state"] == "failed":
         _post_final(github, state, state_dir, issue.number, record, self_id, Phase.FAILED, "Failure reason", _failure_text(task, home))
+        return
+    if record.phase is Phase.AWAITING_MERGE and task["state"] == "audited":
+        _merge_on_thumbs_up(github, server, state, state_dir, issue.number, record, approver_ids, self_id)
         return
     if task["state"] in ("audited", "merged"):  # finished at the terminal; no steps to report
         record.phase = Phase.AUDITED

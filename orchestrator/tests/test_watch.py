@@ -168,6 +168,7 @@ class FakeServer:
     def __init__(self, advance_result=None, approval=None, job_state="succeeded", task_state="planned", failure_reason=None,
                  questions=None, grill_rounds=0, merge_preview=None):
         self.merge_preview = merge_preview
+        self.merge_requests = []
         self.job_state = job_state
         self.task_state = task_state
         self.questions = questions
@@ -196,11 +197,16 @@ class FakeServer:
         if path.endswith("/approve"):
             self.approved.append((path, body))
             return {"id": path.split("/")[2], "state": "queued"}
+        if path.endswith("/merge"):
+            self.merge_requests.append((path, body))
+            return {"job": {"id": "j-merge"}}
         assert path == "/tasks"
         self.created.append(body["goal"])
         return {"id": next(self.ids)}
 
     def wait(self, job_id):
+        if job_id == "j-merge":
+            return {"state": "succeeded", "error": None, "result": {"state": "merged", "failure_reason": None}}
         if self.job_state != "succeeded":
             return {"state": self.job_state, "error": "boom", "result": None}
         return {"state": "succeeded", "error": None, "result": self.advance_result}
@@ -728,6 +734,32 @@ def test_with_merge_on_an_approved_task_that_audits_posts_the_result_then_a_merg
     assert load_state(tmp_path).issues == {5: IssueRecord(
         **{**vars(APPROVED), "phase": Phase.AWAITING_MERGE, "result_comment_id": 1, "merge_comment_id": 2,
            "merge_body_hash": hashlib.sha256(merge_body.encode()).hexdigest(), "merge_sha": "abc123"})}
+
+
+MERGE_BODY = "<!-- factory:task=t-9:kind=merge -->\n\n**Task**"
+MERGE_COMMENT = Comment(2, MERGE_BODY, 4242, "factory-bot")
+AWAITING_THE_MERGE = IssueRecord(
+    **{**vars(APPROVED), "phase": Phase.AWAITING_MERGE, "result_comment_id": 1, "merge_comment_id": 2,
+       "merge_body_hash": hashlib.sha256(MERGE_BODY.encode()).hexdigest(), "merge_sha": "abc123"})
+
+
+def merge_reaction_pass(tmp_path, reactions, server=None):
+    save_state(tmp_path, WatchState(watching_since=SINCE, issues={5: AWAITING_THE_MERGE}))
+    server = server or FakeServer(task_state="audited", merge_preview=MERGE_PREVIEW)
+    github = FakeGitHub([raw_issue(number=5)], reactions={2: reactions}, comments={5: [MERGE_COMMENT]})
+    pass_over(tmp_path, [], server=server, github=github, merge=True)
+    return github, server
+
+
+def test_an_approver_thumbs_up_on_the_merge_comment_merges_the_shown_commit_and_posts_merged(tmp_path):
+    github, server = merge_reaction_pass(tmp_path, [Reaction("+1", 1001, "alice")])
+
+    assert server.merge_requests == [("/tasks/t-9/merge", {"audited_sha": "abc123"})]
+    [(issue_number, body)] = github.comments_posted
+    assert issue_number == 5
+    assert body.startswith("<!-- factory:task=t-9:kind=merged -->")
+    assert "unsigned" in body
+    assert load_state(tmp_path).issues[5].phase is Phase.MERGED
 
 
 def test_a_refused_merge_preview_posts_a_merge_refused_comment_even_with_the_audited_result_already_on_the_issue(tmp_path):
