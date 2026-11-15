@@ -349,6 +349,45 @@ def test_a_task_that_opens_questions_gets_one_questions_comment_and_waits_for_an
     assert (record.phase, record.questions_comment_id, record.questions_round) == (Phase.AWAITING_ANSWERS, 1, 1)
 
 
+def awaiting_answers(tmp_path, comment_id=7, round_number=1):
+    record = IssueRecord(task_id="t-9", phase=Phase.AWAITING_ANSWERS, questions_comment_id=comment_id, questions_round=round_number)
+    save_state(tmp_path, WatchState(watching_since=SINCE, issues={5: record}))
+    return record
+
+
+def test_an_answers_wait_ends_when_the_task_has_moved_past_the_questions(tmp_path):
+    awaiting_answers(tmp_path)
+    server = FakeServer(task_state="proposed", grill_rounds=1)
+
+    pass_over(tmp_path, [raw_issue(number=5)], server=server)
+
+    assert server.advanced == ["/tasks/t-9/advance"]
+    assert load_state(tmp_path).issues[5].phase is Phase.NEW
+
+
+def test_an_answers_wait_for_an_earlier_round_posts_the_current_rounds_questions(tmp_path):
+    awaiting_answers(tmp_path, round_number=1)
+    second_round = {"round": 2, "questions": [QUESTION]}
+    server = FakeServer(advance_result=ASKING, questions=second_round, task_state="open_questions", grill_rounds=2)
+
+    github, _ = pass_over(tmp_path, [raw_issue(number=5)], server=server)
+
+    [(_, body)] = github.comments_posted
+    assert "**Questions (round 2)**" in body
+    record = load_state(tmp_path).issues[5]
+    assert (record.phase, record.questions_round) == (Phase.AWAITING_ANSWERS, 2)
+
+
+def test_an_answers_wait_for_the_current_round_neither_advances_nor_comments(tmp_path):
+    record = awaiting_answers(tmp_path)
+    server = FakeServer(task_state="open_questions", grill_rounds=1)
+
+    github, _ = pass_over(tmp_path, [raw_issue(number=5)], server=server)
+
+    assert server.advanced == [] and github.comments_posted == []
+    assert load_state(tmp_path).issues[5] == record
+
+
 def posted_questions_body(tmp_path, questions):
     server = FakeServer(advance_result=ASKING, questions=questions)
     github, _ = pass_over(tmp_path, [raw_issue(number=5)], server=server)

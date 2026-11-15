@@ -331,6 +331,11 @@ def _handle_issue(github, server, state, state_dir, issue: Issue, approver_ids: 
     if task["state"] in _APPROVED_STATES:
         record.phase = Phase.APPROVED
         save_state(state_dir, state)
+    if record.phase is Phase.AWAITING_ANSWERS:
+        if task["state"] == "open_questions" and task["grill_rounds"] == record.questions_round:
+            return
+        record.phase = Phase.NEW
+        save_state(state_dir, state)
     if record.phase is Phase.AWAITING_APPROVAL:
         _approve_on_thumbs_up(github, server, state, state_dir, issue.number, record, approver_ids, self_id)
         return
