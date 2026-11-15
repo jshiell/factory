@@ -268,6 +268,18 @@ def test_a_meta_without_plugin_hashes_counts_as_no_plugins(tmp_path):
     assert runner.order == ["a1-case-03"]
 
 
+def test_a_plugin_changed_during_the_run_leaves_the_meta_incomplete(tmp_path):
+    plugin = make_plugin(tmp_path)
+    config = replace(AUDIT_CONFIG, plugin_dirs=(str(plugin),))
+    eval_dir = tmp_path / "eval"
+    runner = VerdictRunner(spy=lambda: (plugin / "skills" / "s" / "SKILL.md").write_text("edited mid-run"))
+
+    with pytest.raises(ConfigChanged):
+        run_eval(eval_dir, THREE, 1, runner, 5.0, config=config)
+
+    assert load_meta(eval_dir)["complete"] is False
+
+
 def test_a_symlink_inside_a_plugin_is_refused(tmp_path):
     plugin = make_plugin(tmp_path)
     (plugin / "link").symlink_to(tmp_path)

@@ -180,6 +180,8 @@ def run_eval(
                     run_one(case, run, manager, store, ledger, runner, cap_usd, eval_dir, config)
                 except BudgetCapReached:
                     return False
+    if plugin_hashes(config) != hashes:
+        raise ConfigChanged(str(eval_dir))  # the meta stays incomplete: the results mix two plugin versions
     _write_atomically(meta_path(eval_dir), json.dumps(_meta(cases, runs, True, config, hashes), indent=1))
     return True
 
