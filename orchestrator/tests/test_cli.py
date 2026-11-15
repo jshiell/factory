@@ -91,6 +91,16 @@ def test_show_prints_the_task_details(ctx):
         assert text in out
 
 
+def test_show_reads_a_task_that_has_open_questions_through_the_server(ctx):
+    # guard (green on arrival): the server JSON carries the grilling fields and task_from_dict rebuilds them
+    question = {"number": 1, "title": "t", "body": "b", "recommended": "yes"}
+    put(ctx, S.OPEN_QUESTIONS, goal="g", grill=True, grill_rounds=1, open_questions=(question,))
+
+    code, out, _ = run(ctx, "show", "t1")
+
+    assert code == 0 and "open_questions" in out
+
+
 @pytest.mark.parametrize("command", ["show", "advance", "approve", "reject", "costs"])
 @pytest.mark.parametrize("task_id", ["missing", "../evil"])
 def test_unknown_or_unsafe_ids_exit_2(ctx, command, task_id):

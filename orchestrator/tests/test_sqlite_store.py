@@ -24,6 +24,20 @@ def test_saved_task_with_every_field_set_loads_back_equal(tmp_path):
     assert store.load("t1") == task
 
 
+def test_a_task_with_grilling_state_loads_back_equal(tmp_path):
+    # guard (green on arrival): the sqlite store shares task_from_dict
+    question = {"number": 1, "title": "t", "body": "b", "recommended": "yes"}
+    task = Task(
+        id="t1", prompt="", state=TaskState.OPEN_QUESTIONS, grill=True, grill_rounds=2,
+        open_questions=(question,),
+        grill_log=({"round": 1, "questions": [question], "answers": "yes"},),
+    )
+    store = SqliteTaskStore(tmp_path / "factory.db")
+    store.save(task)
+
+    assert store.load("t1") == task
+
+
 def test_create_never_overwrites_an_existing_task(tmp_path):
     store = SqliteTaskStore(tmp_path / "factory.db")
     store.create(Task(id="t1", prompt="first"))
