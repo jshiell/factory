@@ -361,8 +361,8 @@ def _build_app(ctx) -> Starlette:
                     except CorpusChanged:
                         raise RuntimeError(f"the eval corpus changed since {eval_dir.name} started; run a fresh eval") from None
                     except ConfigChanged:
-                        raise RuntimeError(f"the auditor config differs from the one {eval_dir.name} started with; "
-                                           "run a fresh eval") from None
+                        raise RuntimeError(f"the auditor config or its plugin files differ from the ones {eval_dir.name} "
+                                           "started with; run a fresh eval") from None
                     except RunsChanged:
                         raise RuntimeError(f"resume used runs={runs} but {eval_dir.name} was started with "
                                            f"runs={load_meta(eval_dir)['runs']}; run a fresh eval") from None

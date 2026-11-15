@@ -153,6 +153,20 @@ def test_resuming_against_a_changed_config_fails_the_job_with_a_message_and_runs
     assert job["state"] == "failed" and "config" in job["error"].lower() and FIRST_EVAL in job["error"]
 
 
+def test_resuming_after_a_plugin_file_changed_fails_the_job_naming_the_plugins(client, ctx):
+    _first_eval(client)
+    meta_file = ctx.settings.state_dir / "evals" / FIRST_EVAL / "meta.json"
+    meta = json.loads(meta_file.read_text())
+    meta["plugin_hashes"] = {"/somewhere/plugin": "0" * 64}
+    meta_file.write_text(json.dumps(meta))
+    ctx.built.clear()
+
+    response = client.post("/eval-audit", json={"runs": 1, "only": ["case-01"], "resume": FIRST_EVAL})
+
+    job = _wait(client, response.json()["job"]["id"])
+    assert job["state"] == "failed" and "plugin" in job["error"].lower() and FIRST_EVAL in job["error"]
+
+
 def test_resuming_through_a_symlink_is_422_and_runs_nothing(client, ctx, tmp_path):
     _first_eval(client)
     outside = tmp_path / "elsewhere"
