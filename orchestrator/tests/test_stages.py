@@ -103,6 +103,16 @@ def test_read_only_stages_receive_their_own_read_only_config(setup, stage, state
     assert runner.configs == [expected]
 
 
+def test_the_plan_stage_stops_asking_at_the_configured_round_cap(setup):
+    store, runner, settings, deps, repo, base = setup
+    save(store, repo, base, TaskState.PROPOSED, goal="g", grill=True, grill_rounds=1)
+    settings = replace(settings, grill_max_rounds=1)
+
+    build_stages(settings, deps)["plan"]("t1")
+
+    assert runner.configs[-1].json_schema == PLAN_CONFIG.json_schema
+
+
 def test_implement_receives_the_implementer_config(setup):
     store, runner, settings, deps, repo, base = setup
     store.save(Task(id="t1", prompt="do it"))

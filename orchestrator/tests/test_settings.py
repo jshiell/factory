@@ -121,6 +121,28 @@ def test_a_bad_fix_rounds_is_rejected_naming_the_key(repo_dir, value):
         load_settings(None, cwd=repo_dir)
 
 
+def test_grilling_is_on_by_default_with_three_rounds_and_both_come_from_the_config(repo_dir):
+    defaults = load_settings(None, cwd=repo_dir)
+    assert (defaults.grill, defaults.grill_max_rounds) == (True, 3)
+
+    (repo_dir / "factory.toml").write_text("grill = false\ngrill_max_rounds = 0\n")
+    configured = load_settings(None, cwd=repo_dir)
+
+    assert (configured.grill, configured.grill_max_rounds) == (False, 0)
+
+
+@pytest.mark.parametrize("line, key", [
+    ('grill = "no"', "grill"), ("grill = 1", "grill"),
+    ("grill_max_rounds = -1", "grill_max_rounds"), ("grill_max_rounds = true", "grill_max_rounds"),
+    ('grill_max_rounds = "3"', "grill_max_rounds"),
+])
+def test_a_bad_grill_setting_is_rejected_naming_the_key(repo_dir, line, key):
+    (repo_dir / "factory.toml").write_text(line + "\n")
+
+    with pytest.raises(SettingsError, match=key):
+        load_settings(None, cwd=repo_dir)
+
+
 def test_gate_cache_dir_is_under_the_state_dir(repo_dir):
     settings = load_settings(None, cwd=repo_dir)
 

@@ -29,6 +29,8 @@ class Settings:
     max_turns: int = 30
     fix_rounds: int = 2
     server_port: int = 8765
+    grill: bool = True
+    grill_max_rounds: int = 3
     append_system_prompt: str | None = None
     stage_prompts: dict[str, str] = field(default_factory=dict)
     plugins: tuple[str, ...] = ()
@@ -60,9 +62,10 @@ _PROMPT_KEYS = ("append_system_prompt",)
 _STAGES = ("plan", "review", "implement", "audit")
 _FLOAT_KEYS = ("cap_usd", "gate_timeout_s", "runner_timeout_s", "budget_usd")
 _STRING_LIST_KEYS = ("test_argv", "allowed_tools", "plugins", "watch_approvers")
-_INT_KEYS = ("max_turns", "fix_rounds", "server_port")
+_INT_KEYS = ("max_turns", "fix_rounds", "server_port", "grill_max_rounds")
+_BOOL_KEYS = ("grill",)
 GITHUB_LOGIN = re.compile(r"(?!.{40})[A-Za-z0-9]+(-[A-Za-z0-9]+)*")
-_KNOWN =_PATH_KEYS + _STRING_KEYS + _PROMPT_KEYS + ("stage_prompts", "stage_plugins") + _FLOAT_KEYS + _STRING_LIST_KEYS + _INT_KEYS
+_KNOWN =_PATH_KEYS + _STRING_KEYS + _PROMPT_KEYS + ("stage_prompts", "stage_plugins") + _FLOAT_KEYS + _STRING_LIST_KEYS + _INT_KEYS + _BOOL_KEYS
 
 
 def load_settings(path: Path | None, cwd: Path) -> Settings:
@@ -216,6 +219,9 @@ def _typed(key: str, value):
             return float(value)
     elif key in _INT_KEYS:
         if isinstance(value, int) and not isinstance(value, bool) and (value >= 0 or key == "max_turns"):
+            return value
+    elif key in _BOOL_KEYS:
+        if isinstance(value, bool):
             return value
     elif isinstance(value, list) and value and all(isinstance(item, str) for item in value):
         if key == "watch_approvers":
