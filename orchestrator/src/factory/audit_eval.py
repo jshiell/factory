@@ -100,12 +100,21 @@ class RunsChanged(Exception):
     """A result directory was started with another number of runs: a resume continues the same experiment."""
 
 
+class ConfigChanged(Exception):
+    """A result directory was made with another auditor config: a resume continues the same experiment."""
+
+
 def meta_path(eval_dir: Path) -> Path:
     return eval_dir / "meta.json"
 
 
 def load_meta(eval_dir: Path) -> dict:
     return json.loads(meta_path(eval_dir).read_text())
+
+
+def _as_stored(value: dict) -> dict:
+    """The value as it reads back from meta.json (tuples become lists)."""
+    return json.loads(json.dumps(value))
 
 
 def _prompt_hash() -> str:
@@ -117,7 +126,7 @@ def _meta(cases: list[Case], runs: int, complete: bool, config: RunnerConfig) ->
     return {
         "corpus_hash": corpus_hash(cases), "case_hashes": {c.id: case_hash(c) for c in cases},
         "cases": [c.id for c in cases], "runs": runs, "complete": complete,
-        "audit_config": dataclasses.asdict(config), "prompt_hash": _prompt_hash(),
+        "audit_config": _as_stored(dataclasses.asdict(config)), "prompt_hash": _prompt_hash(),
     }
 
 
@@ -138,6 +147,8 @@ def run_eval(
         raise CorpusChanged(str(eval_dir))
     if meta_path(eval_dir).exists() and load_meta(eval_dir)["runs"] != runs:
         raise RunsChanged(str(eval_dir))
+    if meta_path(eval_dir).exists() and load_meta(eval_dir)["audit_config"] != _as_stored(dataclasses.asdict(config)):
+        raise ConfigChanged(str(eval_dir))
     _write_atomically(meta_path(eval_dir), json.dumps(_meta(cases, runs, False, config), indent=1))
     store, ledger = TaskStore(eval_dir / "tasks"), Ledger(eval_dir / "ledger.jsonl")
     with tempfile.TemporaryDirectory() as tmp:

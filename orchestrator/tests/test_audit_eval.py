@@ -165,7 +165,7 @@ from dataclasses import replace
 
 from factory.audit_corpus import corpus_hash
 from factory.audit_task import AUDIT_CONFIG
-from factory.audit_eval import CorpusChanged, RunsChanged, load_meta, run_eval
+from factory.audit_eval import ConfigChanged, CorpusChanged, RunsChanged, load_meta, run_eval
 
 
 class VerdictRunner:
@@ -268,6 +268,30 @@ def test_resuming_with_a_different_number_of_runs_is_refused_before_anything_run
         run_eval(eval_dir, THREE, 2, runner, 5.0)
 
     assert runner.order == [] and (eval_dir / "meta.json").read_text() == before
+
+
+def test_resuming_with_a_different_config_is_refused_before_anything_runs(tmp_path):
+    eval_dir = tmp_path / "eval"
+    run_eval(eval_dir, THREE, 1, VerdictRunner(), 5.0)
+    before = (eval_dir / "meta.json").read_text()
+    runner = VerdictRunner()
+
+    with pytest.raises(ConfigChanged):
+        run_eval(eval_dir, THREE, 1, runner, 5.0, config=replace(AUDIT_CONFIG, append_system_prompt="Extra."))
+
+    assert runner.order == [] and (eval_dir / "meta.json").read_text() == before
+
+
+def test_resuming_with_the_same_config_is_allowed(tmp_path):
+    eval_dir = tmp_path / "eval"
+    config = replace(AUDIT_CONFIG, plugin_dirs=("/p/a",))
+    run_eval(eval_dir, THREE, 1, VerdictRunner(), 5.0, config=config)
+    (eval_dir / "case-03-r1.json").unlink()
+    runner = VerdictRunner()
+
+    run_eval(eval_dir, THREE, 1, runner, 5.0, config=config)
+
+    assert runner.order == ["a1-case-03"]
 
 
 def test_resuming_with_a_different_set_of_cases_is_refused_before_anything_runs(tmp_path):
