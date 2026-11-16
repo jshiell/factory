@@ -55,7 +55,7 @@ def _real_eval_runner(settings: Settings, eval_dir: Path) -> SubprocessRunner:
     """The eval records its agents under its own directory, never the real `procs/`: only the lock-holder may reap."""
     return SubprocessRunner(
         settings.claude_executable, PROJECT_SUBDIR, settings.runner_timeout_s,
-        sandbox_executable=settings.sandbox_executable, records=eval_dir,
+        sandbox_executable=settings.sandbox_executable, records=eval_dir, private_dirs=(str(settings.state_dir),),
     )
 
 
@@ -799,6 +799,7 @@ def build_context(settings: Settings) -> Context:
     runner = SubprocessRunner(
         settings.claude_executable, settings.project_subdir, settings.runner_timeout_s,
         sandbox_executable=settings.sandbox_executable, records=SqliteProcessRecords(settings.db_path),
+        private_dirs=(str(settings.state_dir),),
     )
     worktrees = WorktreeManager(settings.repo, settings.worktree_root)
     stages = build_stages(settings, Deps(store, ledger, runner, worktrees))

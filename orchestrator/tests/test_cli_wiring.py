@@ -233,6 +233,21 @@ def test_the_implement_stage_runs_confined_with_no_shell_and_a_read_only_view_of
     assert sandbox_argv[:7] == ["run", "-s", "--profile", "nolabs-ai/claude", "--allow-cwd", "--read", str(worktree.resolve())]
 
 
+def test_the_agent_is_not_granted_a_directory_that_holds_the_server_state(project):
+    from factory.sqlite_store import SqliteTaskStore
+    from factory.task import Task, TaskState
+    _, _, tmp_path = project  # the fake claude sits in tmp_path, which contains the state directory
+    (tmp_path / "state").mkdir(parents=True, exist_ok=True)
+    SqliteTaskStore(tmp_path / "state" / "factory.db").save(Task(id="t8", prompt="implement it", state=TaskState.QUEUED))
+
+    factory(project, "advance", "t8")
+
+    (worktree,) = (tmp_path / "wt").iterdir()
+    (sandbox_argv,) = [json.loads(line) for line in (tmp_path / "nono.log").read_text().splitlines()]
+    reads = [sandbox_argv[i + 1] for i, arg in enumerate(sandbox_argv) if arg == "--read"]
+    assert reads == [str(worktree.resolve())]
+
+
 def test_a_failing_gate_runs_one_confined_fix_round_and_the_tests_then_pass(project):
     import re
     from factory.sqlite_store import SqliteTaskStore
