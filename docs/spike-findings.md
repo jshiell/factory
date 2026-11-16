@@ -527,6 +527,8 @@ The hint also said: "Before you propose any interface, module boundary or seam, 
 
 - New per-repo setting `main_branch` (default unset = no check; an empty value is a settings error; an error in the global file). When set, `merge_preview`, `merge_task` and `rebase_task` refuse with `main is on branch X, not Y (main_branch in factory.toml)` if the server checkout is on another branch. The check runs before the dirty check (`branch_problem`, then `main_checkout_problem` in `worktrees.py`).
 - The crash-recovery shortcut in `merge_task` (main already at the audited commit) gets the branch-only check, and only when `main_branch` is set; unset, it is unchanged.
+- With `main_branch` set, the recovery shortcut also refuses a detached HEAD ("main is not on a branch"), because the shared `branch_problem` helper carries the detached check; the plan said "branch only" (guard test added).
+- If the repo's default branch is not `main`, set `main_branch = "master"` (or its name); a mismatch refuses every merge and rebase.
 - The server reads settings at `serve` startup, so a changed `main_branch` needs a restart.
 - Risks: the check compares names only, not that the branch exists; `WorktreeManager.create` and `clean`'s `branch -d` still follow HEAD; the watcher's `merge-refused` Next line does not mention `main_branch` (shared limit with plan 46); the plan-46 gaps remain.
 - Nothing run against a real repo outside the tests.
