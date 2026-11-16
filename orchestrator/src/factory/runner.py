@@ -44,7 +44,8 @@ class SubprocessRunner:
         argv, env_overlay = build_command(task.prompt, config, executable=self._executable, add_dirs=add_dirs)
         child_env = self._child_env(env_overlay)
         if config.confine:
-            executable_grant = _executable_directory(self._executable, child_env.get("PATH"), self._private_dirs)
+            private_dirs = (*self._private_dirs, *filter(None, [child_env.get("HOME")]))
+            executable_grant = _executable_directory(self._executable, child_env.get("PATH"), private_dirs)
             argv = sandbox_prefix(self._sandbox_executable, worktree, read=(*config.plugin_dirs, *executable_grant)) + argv
         cwd = Path(task.worktree) / self._project_subdir
         tracker = Tracker(self._records, task.id, task.state.value) if self._records else None

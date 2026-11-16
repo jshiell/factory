@@ -229,6 +229,23 @@ def test_no_grant_is_made_for_a_directory_that_contains_a_private_directory(tmp_
     assert result.stdout.strip() == "ok"
 
 
+def test_no_grant_is_made_for_the_home_directory(tmp_path, task, monkeypatch):
+    home = tmp_path / "home"
+    home.mkdir()
+    fake_claude(home, "echo ok")
+    monkeypatch.setenv("HOME", str(home))
+    log = tmp_path / "wrapper.log"
+    runner = SubprocessRunner(
+        str(home / "fake-claude"), project_subdir="proj", timeout_s=10,
+        sandbox_executable=fake_wrapper(tmp_path, log),
+    )
+
+    result = runner.run(task, replace(CONFIG, confine=True))
+
+    assert sandbox_reads(log) == [str(Path(task.worktree).resolve())]
+    assert result.stdout.strip() == "ok"
+
+
 def test_an_unconfined_config_does_not_touch_the_wrapper(tmp_path, task):
     log = tmp_path / "wrapper.log"
     runner = SubprocessRunner(
