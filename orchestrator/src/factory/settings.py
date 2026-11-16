@@ -286,7 +286,12 @@ def _plugin_names_ok(names: list[str]) -> bool:
 def _check_project_subdir(subdir: str) -> None:
     path = PurePosixPath(subdir)
     parts = path.parts
-    if not parts or path.is_absolute() or ".." in parts:
+    if not parts:
+        raise SettingsError(
+            "project_subdir must name a subdirectory of the repo, not the repo root; "
+            "the gate treats everything outside it as out of bounds"
+        )
+    if path.is_absolute() or ".." in parts:
         raise SettingsError("project_subdir must be a relative path without '..'")
 
 

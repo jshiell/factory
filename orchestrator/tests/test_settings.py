@@ -718,6 +718,13 @@ def test_a_trailing_slash_is_normalised_and_a_global_list_is_checked_against_the
         load_settings(None, cwd=repo_dir)
 
 
+def test_project_subdir_dot_is_rejected_with_a_message_naming_the_repo_root(repo_dir):
+    (repo_dir / "factory.toml").write_text('project_subdir = "."\n')
+
+    with pytest.raises(SettingsError, match="repo root"):
+        load_settings(None, cwd=repo_dir)
+
+
 def test_a_global_entry_that_is_an_ancestor_of_the_local_project_subdir_is_rejected(repo_dir, global_config):
     global_config.write_text('gate_allow_outside = ["a"]\n')
     (repo_dir / "factory.toml").write_text('project_subdir = "a/b"\n')
