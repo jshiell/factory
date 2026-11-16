@@ -89,6 +89,8 @@ def _require_rebasable(task: Task, repo: Path) -> _Worktree:
         raise RebaseRefused(f"{branch} is not at the audited commit")
     if not run_git(repo, "branch", "--show-current"):
         raise RebaseRefused("main is not on a branch")
+    if run_git(repo, "status", "--porcelain", "--untracked-files=no"):
+        raise RebaseRefused("main has uncommitted changes")
     main_head = run_git(repo, "rev-parse", "HEAD")
     if main_head == task.base_sha:
         raise RebaseRefused("main has not moved: use `factory merge`")
