@@ -82,6 +82,7 @@ def test_an_explicit_missing_config_file_raises(repo_dir):
         ('project_subdir = "/abs"', "project_subdir"),
         ('project_subdir = "a/../b"', "project_subdir"),
         ('project_subdir = ""', "project_subdir"),
+        ('project_subdir = "."', "project_subdir"),
         ("cap_usd = true", "cap_usd"),
     ],
 )

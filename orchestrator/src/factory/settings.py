@@ -284,8 +284,9 @@ def _plugin_names_ok(names: list[str]) -> bool:
 
 
 def _check_project_subdir(subdir: str) -> None:
-    parts = PurePosixPath(subdir).parts
-    if not subdir or PurePosixPath(subdir).is_absolute() or ".." in parts:
+    path = PurePosixPath(subdir)
+    parts = path.parts
+    if not parts or path.is_absolute() or ".." in parts:
         raise SettingsError("project_subdir must be a relative path without '..'")
 
 
