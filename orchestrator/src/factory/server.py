@@ -254,7 +254,7 @@ def _build_app(ctx) -> Starlette:
 
         def merge_now(task_id):
             worktrees = WorktreeManager(repo, ctx.settings.worktree_root)
-            return merge_task(task_id, ctx.store, repo, worktrees, shown_sha=shown_sha)
+            return merge_task(task_id, ctx.store, repo, worktrees, shown_sha=shown_sha, main_branch=ctx.settings.main_branch)
 
         return enqueue(request, "merge", (MergeRefused, InvalidTransition, subprocess.CalledProcessError), merge_now)
 
