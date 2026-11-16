@@ -407,6 +407,14 @@ def test_watch_merge_is_rejected_in_the_global_config(repo_dir, global_config):
         load_settings(None, cwd=repo_dir)
 
 
+def test_watch_retry_is_rejected_in_the_global_config(repo_dir, global_config):
+    key = "watch_retry"
+    global_config.write_text(f"{key} = true\n")
+
+    with pytest.raises(SettingsError, match=f"{key}.*global|global.*{key}"):
+        load_settings(None, cwd=repo_dir)
+
+
 def test_main_branch_is_rejected_in_the_global_config(repo_dir, global_config):
     key = "main_branch"
     global_config.write_text(f'{key} = "main"\n')
