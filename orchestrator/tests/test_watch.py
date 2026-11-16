@@ -606,6 +606,19 @@ def test_with_retry_on_a_task_that_fails_gets_the_failure_comment_then_a_retry_o
     }
 
 
+def test_guard_with_retry_on_a_task_the_server_already_reports_failed_gets_the_same_two_comments(tmp_path):
+    save_state(tmp_path, WatchState(watching_since=SINCE, issues={5: IssueRecord(task_id="t-9", phase=Phase.AWAITING_APPROVAL)}))
+    server = FakeServer(task_state="failed", failure_reason="plan rejected: too vague")
+
+    github, _ = pass_over(tmp_path, [raw_issue(number=5)], server=server, retry=True)
+
+    assert [body.split("\n", 1)[0] for _, body in github.comments_posted] == [
+        "<!-- factory:task=t-9:kind=result -->",
+        "<!-- factory:task=t-9:kind=retry-offer -->",
+    ]
+    assert load_state(tmp_path).issues[5].phase is Phase.AWAITING_RETRY
+
+
 def test_a_stopped_advance_gets_one_result_comment_saying_why_and_goes_stopped(tmp_path):
     stopped = {"steps": [], "state": "planned", "failure_reason": None, "stopped": "step cap (10) reached\n@mallory"}
     server = FakeServer(advance_result=stopped)
