@@ -3,7 +3,7 @@ from pathlib import Path
 
 from factory.store import TaskStore
 from factory.task import Event, Task, apply
-from factory.worktrees import WorktreeManager, is_ancestor, run_git
+from factory.worktrees import WorktreeManager, is_ancestor, main_checkout_problem, run_git
 
 
 MAIN_MOVED = "main moved since the plan; re-run the task"
@@ -32,10 +32,8 @@ def merge_preview(task_id: str, store: TaskStore, repo: Path) -> Preview:
         raise MergeRefused("the worktree is not at the audited commit")
     if run_git(Path(task.worktree), "status", "--porcelain"):
         raise MergeRefused("the worktree is dirty")
-    if not run_git(repo, "branch", "--show-current"):
-        raise MergeRefused("main is not on a branch")
-    if run_git(repo, "status", "--porcelain", "--untracked-files=no"):
-        raise MergeRefused("main has uncommitted changes")
+    if problem := main_checkout_problem(repo):
+        raise MergeRefused(problem)
     main_head = run_git(repo, "rev-parse", "HEAD")
     if main_head not in (task.base_sha, task.audited_sha):  # at the audited commit: a crashed fast-forward, merge_task finishes it
         if is_ancestor(repo, task.audited_sha, main_head):

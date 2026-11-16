@@ -6,7 +6,7 @@ from pathlib import Path
 
 from factory.store import TaskStore
 from factory.task import Event, Task, apply
-from factory.worktrees import is_ancestor, run_git
+from factory.worktrees import is_ancestor, main_checkout_problem, run_git
 
 _IDENTITY = ("-c", "user.name=factory", "-c", "user.email=factory@localhost")
 # The user's own git config (filters, rerere, rebase.updateRefs, signing) must not steer a rebase in an agent's tree.
@@ -87,10 +87,8 @@ def _require_rebasable(task: Task, repo: Path) -> _Worktree:
         raise RebaseRefused("the worktree is not at the audited commit")
     if run_git(repo, "rev-parse", branch) != task.audited_sha:
         raise RebaseRefused(f"{branch} is not at the audited commit")
-    if not run_git(repo, "branch", "--show-current"):
-        raise RebaseRefused("main is not on a branch")
-    if run_git(repo, "status", "--porcelain", "--untracked-files=no"):
-        raise RebaseRefused("main has uncommitted changes")
+    if problem := main_checkout_problem(repo):
+        raise RebaseRefused(problem)
     main_head = run_git(repo, "rev-parse", "HEAD")
     if main_head == task.base_sha:
         raise RebaseRefused("main has not moved: use `factory merge`")

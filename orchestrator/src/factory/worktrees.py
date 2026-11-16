@@ -26,6 +26,15 @@ def is_ancestor(repo: Path, ancestor: str, descendant: str) -> bool:
     return True
 
 
+def main_checkout_problem(repo: Path) -> str | None:
+    """Why the main checkout cannot take a merge or rebase: detached, or uncommitted tracked changes. None when fine."""
+    if not run_git(repo, "branch", "--show-current"):
+        return "main is not on a branch"
+    if run_git(repo, "status", "--porcelain", "--untracked-files=no"):
+        return "main has uncommitted changes"
+    return None
+
+
 class WorktreeExists(Exception):
     pass
 
