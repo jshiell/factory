@@ -128,6 +128,17 @@ def test_a_rebase_offer_survives_a_save_and_load(tmp_path):
     assert load_state(tmp_path) == state
 
 
+def test_a_retry_offer_survives_a_save_and_load(tmp_path):
+    state = WatchState(
+        watching_since=SINCE,
+        issues={7: IssueRecord(task_id="t-1", phase=Phase.AWAITING_RETRY, result_comment_id=44, retry_comment_id=45)},
+    )
+
+    save_state(tmp_path, state)
+
+    assert load_state(tmp_path) == state
+
+
 def test_first_load_records_watching_since_and_a_later_load_keeps_it(tmp_path):
     first = load_state(tmp_path, clock=lambda: SINCE)
 
