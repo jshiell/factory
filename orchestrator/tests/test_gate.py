@@ -123,7 +123,7 @@ def test_hanging_tests_fail_the_gate_with_tests_timeout(repo):
     assert result.reason == "tests_timeout"
 
 
-@pytest.mark.parametrize("subdir", ["..", "../elsewhere", "/etc", "proj/../.."])
+@pytest.mark.parametrize("subdir", ["..", "../elsewhere", "/etc", "proj/../..", "."])
 def test_project_subdir_escaping_the_worktree_is_rejected(repo, subdir):
     base = repo_with_project_change(repo)
 
