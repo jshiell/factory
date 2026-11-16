@@ -829,6 +829,7 @@ def test_a_thumbs_up_when_the_audited_commit_is_already_in_main_posts_merge_refu
     [(_, body)] = github.comments_posted
     assert body.startswith("<!-- factory:task=t-9:kind=merge-refused -->")
     assert ALREADY_IN_MAIN in body
+    assert "Check main, then close this issue" in body
     assert "factory rebase" not in body and "factory merge" not in body
     assert load_state(tmp_path).issues[5].phase is Phase.MERGE_STOPPED
 
@@ -841,6 +842,7 @@ def test_a_failed_merge_job_because_the_audited_commit_is_already_in_main_posts_
 
     [(_, body)] = github.comments_posted
     assert body.startswith("<!-- factory:task=t-9:kind=merge-refused -->")
+    assert "Check main, then close this issue" in body
     assert "factory rebase" not in body and "factory merge" not in body
     assert load_state(tmp_path).issues[5].phase is Phase.MERGE_STOPPED
 
