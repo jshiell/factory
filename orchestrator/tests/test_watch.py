@@ -9,7 +9,7 @@ from factory.answer_questions import MAX_ANSWER_BYTES
 from factory.client import ServerRefused, ServerUnreachable
 from factory.comments import render_comment
 from factory.github import Comment, GitHubError, Reaction, User
-from factory.merge_task import MAIN_MOVED
+from factory.merge_task import ALREADY_IN_MAIN, MAIN_MOVED
 
 from factory.watch import Issue, IssueRecord, Phase, WatchState, WatchStateError, load_state, parse_issues, run_pass, save_state
 
@@ -818,6 +818,31 @@ def test_guard_a_thumbs_up_when_the_merge_preview_says_main_moved_offers_a_rebas
     assert body.startswith("<!-- factory:task=t-9:kind=merge-moved -->")
     record = load_state(tmp_path).issues[5]
     assert (record.phase, record.rebase_sha) == (Phase.AWAITING_REBASE, "abc123")
+
+
+def test_a_thumbs_up_when_the_audited_commit_is_already_in_main_posts_merge_refused_without_rebase_advice(tmp_path):
+    refusal = ServerRefused(409, "merge refused", ALREADY_IN_MAIN)
+    server = FakeServer(task_state="audited", merge_preview=refusal)
+
+    github, server = merge_reaction_pass(tmp_path, [Reaction("+1", 1001, "alice")], server=server)
+
+    [(_, body)] = github.comments_posted
+    assert body.startswith("<!-- factory:task=t-9:kind=merge-refused -->")
+    assert ALREADY_IN_MAIN in body
+    assert "factory rebase" not in body and "factory merge" not in body
+    assert load_state(tmp_path).issues[5].phase is Phase.MERGE_STOPPED
+
+
+def test_a_failed_merge_job_because_the_audited_commit_is_already_in_main_posts_merge_refused_without_rebase_advice(tmp_path):
+    failed = {"state": "failed", "error": f"merge refused: {ALREADY_IN_MAIN}", "result": None}
+    server = FakeServer(task_state="audited", merge_preview=MERGE_PREVIEW, merge_job=failed)
+
+    github, server = merge_reaction_pass(tmp_path, [Reaction("+1", 1001, "alice")], server=server)
+
+    [(_, body)] = github.comments_posted
+    assert body.startswith("<!-- factory:task=t-9:kind=merge-refused -->")
+    assert "factory rebase" not in body and "factory merge" not in body
+    assert load_state(tmp_path).issues[5].phase is Phase.MERGE_STOPPED
 
 
 def test_a_failed_merge_job_because_main_moved_offers_a_rebase(tmp_path):

@@ -13,7 +13,7 @@ from factory.client import ServerRefused, ServerUnreachable
 from factory.comments import has_marker, render_comment, strip_home
 from factory.github import GitHubError
 from factory.ids import require_safe_id
-from factory.merge_task import MAIN_MOVED
+from factory.merge_task import ALREADY_IN_MAIN, MAIN_MOVED
 from factory.question_text import questions_text
 from factory.textsafe import escape_control
 
@@ -294,9 +294,13 @@ def _post_audited(github, server, state, state_dir, issue_number: int, record: I
 
 def _post_merge_refused(github, state, state_dir, issue_number: int, record: IssueRecord, self_id: int, reason: str) -> None:
     task_id = require_safe_id(record.task_id)
+    if reason in (ALREADY_IN_MAIN, _MERGE_JOB_ALREADY_IN_MAIN):
+        next_step = "Nothing was merged by the factory: the audited commit is already in main. Check main, then close this issue."
+    else:
+        next_step = f"Nothing was merged. At the terminal, run: factory rebase {task_id} if main moved, or factory merge {task_id}."
     body = render_comment(record.task_id, "merge-refused", [
         ("Merge refused", reason, True),
-        ("Next", f"Nothing was merged. At the terminal, run: factory rebase {task_id} if main moved, or factory merge {task_id}.", False),
+        ("Next", next_step, False),
     ])
     _post_result(github, state, state_dir, issue_number, record, self_id, "merge-refused", Phase.MERGE_STOPPED, body)
 
@@ -453,6 +457,7 @@ def _task_is_merged(server, task_id: str) -> bool:
 
 
 _MERGE_JOB_MAIN_MOVED = f"merge refused: {MAIN_MOVED}"  # the error a failed merge job carries
+_MERGE_JOB_ALREADY_IN_MAIN = f"merge refused: {ALREADY_IN_MAIN}"
 
 
 def _merge_on_thumbs_up(github, server, state, state_dir, issue_number: int, record: IssueRecord, approver_ids: set[int], self_id: int) -> None:
