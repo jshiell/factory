@@ -501,3 +501,10 @@ The hint also said: "Before you propose any interface, module boundary or seam, 
 - The merge job result has `state` and `failure_reason` but no `steps` or `stopped`, so the advance helper is not reused.
 - Unverified: what `POST /advance` does on a task that is already `audited`. The watcher avoids it and builds the result comment from the task GET (empty steps) when it finds an approved record whose task is already audited.
 - Unverified: a real `gh` reactions call on a comment edited after posting; the edit check relies on the comment body hash only.
+
+## Plan 44: rebase from GitHub (no spike; read from source, 2026-11-16)
+- **Not run against real GitHub or a real rebase.** Read in `rebase_task.py`, `merge_task.py`, `server.py` and `watch.py`; the watcher is tested only against fakes.
+- A failed merge job carries `merge refused: <text>` (`server.merge` wraps the refusal); the preview endpoint answers 409 `merge refused` with the raw text. "Main moved" is raised only in `merge_task.merge_preview`, now as `MAIN_MOVED`.
+- A rebase on a task in the wrong state is a failed job (`rebase refused: ...`), not an HTTP error.
+- Unverified: the failed-job result for a rebase conflict (the code aborts the rebase and restores the worktree, so the task should stay `audited`).
+- Known gap: `rebase_task` rebases onto the checkout's HEAD without checking it is on a branch or clean, and refuses with "already in main" when main contains the audited commit, so the offer can end in `rebase-refused`.
