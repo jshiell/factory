@@ -699,7 +699,7 @@ def _watch_locked(args, io, ctx) -> int:
             return 1
     try:
         while True:
-            ctx.watch_pass(github, ctx.server, ctx.settings.state_dir, approver_ids, merge=ctx.settings.watch_merge)
+            ctx.watch_pass(github, ctx.server, ctx.settings.state_dir, approver_ids, merge=ctx.settings.watch_merge, retry=ctx.settings.watch_retry)
             if args.once:
                 return 0
             ctx.sleep(args.interval)

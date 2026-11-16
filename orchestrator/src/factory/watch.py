@@ -529,7 +529,7 @@ def _rebase_on_thumbs_up(github, server, state, state_dir, issue_number: int, re
 _APPROVED_STATES = {"queued", "running", "agent_done", "verified"}  # the task was approved, here or at the terminal
 
 
-def run_pass(github, server, state_dir, approver_ids: set[int], clock=_utc_now, home: Path | None = None, merge: bool = False) -> None:
+def run_pass(github, server, state_dir, approver_ids: set[int], clock=_utc_now, home: Path | None = None, merge: bool = False, retry: bool = False) -> None:
     """One pass over the repo's issues: start a task for each new approver issue, post its plan once reviewed, approve it on an approver's 👍."""
     state = load_state(state_dir, clock)
     home = str(home or Path.home())
@@ -541,7 +541,7 @@ def run_pass(github, server, state_dir, approver_ids: set[int], clock=_utc_now, 
         return
     for issue in issues:
         try:
-            _handle_issue(github, server, state, state_dir, issue, approver_ids, self_id, home, merge)
+            _handle_issue(github, server, state, state_dir, issue, approver_ids, self_id, home, merge, retry)
         except GitHubError as error:
             _log_failure(f"issue #{issue.number}", error.stderr)
         except (ServerUnreachable, ServerRefused) as error:
@@ -557,7 +557,7 @@ def _log_failure(subject: str, text: str) -> None:
     print(f"watch: {subject} left for the next pass: {escape_control(text.strip()).replace(chr(10), '\\n')}", file=sys.stderr)
 
 
-def _handle_issue(github, server, state, state_dir, issue: Issue, approver_ids: set[int], self_id: int, home: str, merge: bool) -> None:
+def _handle_issue(github, server, state, state_dir, issue: Issue, approver_ids: set[int], self_id: int, home: str, merge: bool, retry: bool) -> None:
     if issue.number not in state.issues:
         task_id = server.post("/tasks", {"goal": _goal(issue)})["id"]
         state.issues[issue.number] = IssueRecord(task_id)

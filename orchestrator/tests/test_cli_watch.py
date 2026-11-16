@@ -38,11 +38,13 @@ def ctx(tmp_path):
     context.pass_calls = []
 
     context.pass_merge_flags = []
+    context.pass_retry_flags = []
 
-    def watch_pass(github, server, state_dir, approver_ids, merge=False):
+    def watch_pass(github, server, state_dir, approver_ids, merge=False, retry=False):
         context.passes.append(context.settings)
         context.pass_calls.append((github, server, state_dir, approver_ids))
         context.pass_merge_flags.append(merge)
+        context.pass_retry_flags.append(retry)
 
     context.watch_pass = watch_pass
     return context
@@ -80,6 +82,15 @@ def test_watch_hands_the_pass_the_watch_merge_setting(ctx, watch_merge):
     watch(ctx, "--once")
 
     assert ctx.pass_merge_flags == [watch_merge]
+
+
+@pytest.mark.parametrize("watch_retry", [False, True])
+def test_watch_hands_the_pass_the_watch_retry_setting(ctx, watch_retry):
+    ctx.settings = replace(ctx.settings, watch_retry=watch_retry)
+
+    watch(ctx, "--once")
+
+    assert ctx.pass_retry_flags == [watch_retry]
 
 
 def test_watch_with_an_approver_login_github_cannot_resolve_names_it_and_exits_1_without_a_pass(ctx):
