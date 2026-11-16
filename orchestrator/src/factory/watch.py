@@ -483,13 +483,14 @@ def _merge_on_thumbs_up(github, server, state, state_dir, issue_number: int, rec
         _post_merge_refused(github, state, state_dir, issue_number, record, self_id, job["error"])
 
 
-def _rebase_on_thumbs_up(github, server, state, state_dir, issue_number: int, record: IssueRecord, approver_ids: set[int], self_id: int) -> None:
-    """Rebase the task on an approver's 👍 on the rebase offer; approvers match by numeric id, never login."""
+def _rebase_on_thumbs_up(github, server, state, state_dir, issue_number: int, record: IssueRecord, task: dict, approver_ids: set[int], self_id: int) -> None:
+    """Rebase the task on an approver's 👍 on the rebase offer, if it is still at the commit the offer showed; approvers match by numeric id, never login."""
     reactions = github.reactions(record.rebase_comment_id)
     if not _approver_reacted(reactions, "+1", approver_ids):
         return
-    job_id = server.post(f"/tasks/{require_safe_id(record.task_id)}/rebase")["job"]["id"]
-    server.wait(job_id)
+    if task["audited_sha"] == record.rebase_sha:
+        job_id = server.post(f"/tasks/{require_safe_id(record.task_id)}/rebase")["job"]["id"]
+        server.wait(job_id)
     record.phase = Phase.APPROVED
     save_state(state_dir, state)
 
@@ -544,7 +545,7 @@ def _handle_issue(github, server, state, state_dir, issue: Issue, approver_ids: 
         _post_merged(github, state, state_dir, issue.number, record, self_id)
         return
     if record.phase is Phase.AWAITING_REBASE and task["state"] == "audited":
-        _rebase_on_thumbs_up(github, server, state, state_dir, issue.number, record, approver_ids, self_id)
+        _rebase_on_thumbs_up(github, server, state, state_dir, issue.number, record, task, approver_ids, self_id)
         return
     if merge and record.phase is Phase.APPROVED and task["state"] == "audited":  # audited before its comments were posted
         _post_audited(github, server, state, state_dir, issue.number, record, self_id, {"steps": [], "state": "audited"}, merge)

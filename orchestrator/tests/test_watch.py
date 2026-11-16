@@ -1048,6 +1048,16 @@ def test_an_approver_thumbs_up_on_the_rebase_offer_rebases_the_task_and_sets_app
     assert load_state(tmp_path).issues[5].phase is Phase.APPROVED
 
 
+def test_a_thumbs_up_on_a_rebase_offer_for_a_commit_the_task_has_moved_past_does_not_rebase_again(tmp_path):
+    server = FakeServer(task_state="audited", audited_sha="def456")
+
+    github, server = rebase_reaction_pass(tmp_path, [Reaction("+1", 1001, "alice")], server=server)
+
+    assert server.rebase_requests == []
+    assert github.comments_posted == []
+    assert load_state(tmp_path).issues[5].phase is Phase.APPROVED
+
+
 def test_an_approved_task_that_audits_gets_one_result_comment_with_steps_state_and_merge_hint(tmp_path):
     github, server = approved_pass(tmp_path, AUDITED)
 
