@@ -507,4 +507,12 @@ The hint also said: "Before you propose any interface, module boundary or seam, 
 - A failed merge job carries `merge refused: <text>` (`server.merge` wraps the refusal); the preview endpoint answers 409 `merge refused` with the raw text. "Main moved" is raised only in `merge_task.merge_preview`, now as `MAIN_MOVED`.
 - A rebase on a task in the wrong state is a failed job (`rebase refused: ...`), not an HTTP error.
 - Unverified: the failed-job result for a rebase conflict (the code aborts the rebase and restores the worktree, so the task should stay `audited`).
-- Known gap: `rebase_task` rebases onto the checkout's HEAD without checking it is on a branch or clean, and refuses with "already in main" when main contains the audited commit, so the offer can end in `rebase-refused`.
+- Known gap: `rebase_task` rebases onto the checkout's HEAD without checking it is on a branch or clean.
+
+## Plan 45 (no rebase offer when the audited commit is already in main)
+
+- `merge_preview` now refuses with `ALREADY_IN_MAIN` when `main` is strictly past the audited commit, so the watcher posts `merge-refused` (its "Next" line says nothing is left to merge) instead of a `merge-moved` offer that would end in `rebase-refused`.
+- `main` exactly at the audited commit now passes the preview. Before, a merge that crashed between the fast-forward and the save could not be finished, because `factory merge` and the watcher both preview first and the preview refused.
+- `is_ancestor` (now in `worktrees.py`) answers False only on git exit 1; any other git error raises, and the preview endpoint turns it into a 409.
+- Nothing run against real GitHub or a real repo outside the tests.
+- Known gap: work that reached `main` under different SHAs (a cherry-pick, a GitHub rebase-merge) is not caught by the ancestor check, so the offer still appears. The rebase would then likely produce no commits and the gate fail with `no_commits` (unverified).
