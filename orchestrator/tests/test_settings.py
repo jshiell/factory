@@ -716,6 +716,14 @@ def test_a_trailing_slash_is_normalised_and_a_global_list_is_checked_against_the
         load_settings(None, cwd=repo_dir)
 
 
+def test_a_global_entry_that_is_an_ancestor_of_the_local_project_subdir_is_rejected(repo_dir, global_config):
+    global_config.write_text('gate_allow_outside = ["a"]\n')
+    (repo_dir / "factory.toml").write_text('project_subdir = "a/b"\n')
+
+    with pytest.raises(SettingsError, match="gate_allow_outside"):
+        load_settings(None, cwd=repo_dir)
+
+
 def test_watch_retry_is_off_by_default_and_comes_from_the_config(repo_dir):
     assert load_settings(None, cwd=repo_dir).watch_retry is False
     (repo_dir / "factory.toml").write_text("watch_retry = true\n")
