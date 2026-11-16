@@ -723,6 +723,15 @@ def test_guard_a_state_file_from_before_result_comment_ids_still_loads(tmp_path)
     assert load_state(tmp_path).issues == {7: IssueRecord(task_id="t-1")}
 
 
+def test_guard_a_state_file_from_before_retry_comment_ids_still_loads(tmp_path):
+    save_state(tmp_path, WatchState(watching_since=SINCE, issues={7: IssueRecord(task_id="t-1")}))
+    path = tmp_path / "watch.json"
+    path.write_text(path.read_text().replace(', "retry_comment_id": null', ""))
+    assert "retry_comment_id" not in path.read_text()
+
+    assert load_state(tmp_path).issues == {7: IssueRecord(task_id="t-1")}
+
+
 def test_the_home_directory_is_stripped_from_the_failure_reason(tmp_path):
     reason = "worktree /home/jsh/.factory/t-1 is dirty"
     server = FakeServer(advance_result={**FAILED, "failure_reason": reason})
