@@ -13,6 +13,7 @@ from factory.client import ServerRefused, ServerUnreachable
 from factory.comments import has_marker, render_comment, strip_home
 from factory.github import GitHubError
 from factory.ids import require_safe_id
+from factory.merge_task import MAIN_MOVED
 from factory.question_text import questions_text
 from factory.textsafe import escape_control
 
@@ -300,14 +301,43 @@ def _post_merge_refused(github, state, state_dir, issue_number: int, record: Iss
     _post_result(github, state, state_dir, issue_number, record, self_id, "merge-refused", Phase.MERGE_STOPPED, body)
 
 
+_HOW_TO_REBASE = (
+    "`main` moved since the audit. React 👍 to rebase the task onto `main` and re-audit it "
+    "(this spends agent budget), 👎 to leave it."
+)
+
+
+def _post_merge_moved(github, server, state, state_dir, issue_number: int, record: IssueRecord, self_id: int) -> None:
+    """Offer the rebase. The body carries the audited commit, so no earlier round's offer (with its 👍) can match it."""
+    audited_sha = server.get(f"/tasks/{require_safe_id(record.task_id)}")["audited_sha"]
+    body = render_comment(record.task_id, "merge-moved", [
+        ("Task", _HOW_TO_REBASE, False),
+        ("Merge refused", MAIN_MOVED, True),
+        ("Audited commit", audited_sha, True),
+    ])
+    exact_copy = _own_comment_id(github, issue_number, self_id, lambda c: c.body == body)
+    record.rebase_comment_id = exact_copy or github.comment(issue_number, body)
+    record.rebase_sha = audited_sha
+    record.phase = Phase.AWAITING_REBASE
+    save_state(state_dir, state)
+
+
+def _refuse_merge(github, server, state, state_dir, issue_number: int, record: IssueRecord, self_id: int, reason: str) -> None:
+    """Main having moved can be fixed by a rebase; any other refusal is for the terminal."""
+    if reason == MAIN_MOVED:
+        _post_merge_moved(github, server, state, state_dir, issue_number, record, self_id)
+    else:
+        _post_merge_refused(github, state, state_dir, issue_number, record, self_id, reason)
+
+
 def _merge_preview_or_refuse(github, server, state, state_dir, issue_number: int, record: IssueRecord, self_id: int) -> dict | None:
-    """The server's merge preview; if the server refuses the merge, post merge-refused and return None."""
+    """The server's merge preview; if the server refuses the merge, post the refusal and return None."""
     try:
         return server.get(f"/tasks/{require_safe_id(record.task_id)}/merge-preview")
     except ServerRefused as refusal:
         if refusal.error != "merge refused":
             raise
-        _post_merge_refused(github, state, state_dir, issue_number, record, self_id, refusal.detail)
+        _refuse_merge(github, server, state, state_dir, issue_number, record, self_id, refusal.detail)
         return None
 
 

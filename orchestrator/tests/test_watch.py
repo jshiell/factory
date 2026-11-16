@@ -8,6 +8,7 @@ import pytest
 from factory.answer_questions import MAX_ANSWER_BYTES
 from factory.client import ServerRefused, ServerUnreachable
 from factory.github import Comment, GitHubError, Reaction, User
+from factory.merge_task import MAIN_MOVED
 
 from factory.watch import Issue, IssueRecord, Phase, WatchState, WatchStateError, load_state, parse_issues, run_pass, save_state
 
@@ -938,7 +939,7 @@ def test_a_refused_merge_preview_posts_a_merge_refused_comment_even_with_the_aud
     save_state(tmp_path, WatchState(watching_since=SINCE, issues={5: APPROVED}))
     audited_result = Comment(3, "<!-- factory:task=t-9:kind=result -->\n\n**Steps**", 4242, "factory-bot")
     github = FakeGitHub([raw_issue(number=5)], comments={5: [audited_result]})
-    refusal = ServerRefused(409, "merge refused", "main moved since the plan; re-run the task")
+    refusal = ServerRefused(409, "merge refused", "the worktree is dirty")
     server = FakeServer(advance_result=AUDITED, merge_preview=refusal)
 
     pass_over(tmp_path, [], server=server, github=github, merge=True)
@@ -946,9 +947,27 @@ def test_a_refused_merge_preview_posts_a_merge_refused_comment_even_with_the_aud
     [(issue_number, body)] = github.comments_posted
     assert issue_number == 5
     assert body.startswith("<!-- factory:task=t-9:kind=merge-refused -->")
-    assert "```\nmain moved since the plan; re-run the task\n```" in body
+    assert "```\nthe worktree is dirty\n```" in body
     assert "factory rebase t-9" in body
     assert load_state(tmp_path).issues[5].phase is Phase.MERGE_STOPPED
+
+
+def test_a_preview_refusal_because_main_moved_posts_merge_moved_and_awaits_the_rebase_even_with_the_audited_result_already_on_the_issue(tmp_path):
+    save_state(tmp_path, WatchState(watching_since=SINCE, issues={5: APPROVED}))
+    audited_result = Comment(3, "<!-- factory:task=t-9:kind=result -->\n\n**Steps**", 4242, "factory-bot")
+    github = FakeGitHub([raw_issue(number=5)], comments={5: [audited_result]})
+    refusal = ServerRefused(409, "merge refused", MAIN_MOVED)
+    server = FakeServer(advance_result=AUDITED, merge_preview=refusal, audited_sha="abc123")
+
+    pass_over(tmp_path, [], server=server, github=github, merge=True)
+
+    [(issue_number, body)] = github.comments_posted
+    assert issue_number == 5
+    assert body.startswith("<!-- factory:task=t-9:kind=merge-moved -->")
+    assert "```\nabc123\n```" in body and "```\n" + MAIN_MOVED + "\n```" in body
+    assert "👍" in body and "👎" in body
+    record = load_state(tmp_path).issues[5]
+    assert (record.phase, record.rebase_comment_id, record.rebase_sha) == (Phase.AWAITING_REBASE, 1, "abc123")
 
 
 AWAITING_MERGE = IssueRecord(
