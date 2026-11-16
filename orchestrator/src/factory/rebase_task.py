@@ -48,11 +48,11 @@ def _failure_reason(error: subprocess.CalledProcessError) -> tuple[str, bool]:
     return next((line for line in lines if line.startswith(("error:", "fatal:"))), None) or (lines or ["no reason given"])[0], False
 
 
-def rebase_task(task_id: str, store: TaskStore, repo: Path) -> Rebased:
+def rebase_task(task_id: str, store: TaskStore, repo: Path, main_branch: str | None = None) -> Rebased:
     """Human-only by process: replay an audited task on the current main, then send it back through verify and audit."""
     task = store.load(task_id)
     apply(task, Event.REBASED)
-    worktree = _require_rebasable(task, repo)
+    worktree = _require_rebasable(task, repo, main_branch)
     main_head = run_git(repo, "rev-parse", "HEAD")
     try:
         worktree.git(*_REBASE, "--onto", main_head, task.base_sha)
@@ -72,7 +72,7 @@ def rebase_task(task_id: str, store: TaskStore, repo: Path) -> Rebased:
     return Rebased(rebased, task.audited_sha)
 
 
-def _require_rebasable(task: Task, repo: Path) -> _Worktree:
+def _require_rebasable(task: Task, repo: Path, main_branch: str | None) -> _Worktree:
     branch = f"factory/{task.id}"
     if task.fix_in_flight:
         raise RebaseRefused(f"{task.id} has a fix agent that may still be alive: run `factory advance` first")
@@ -87,7 +87,7 @@ def _require_rebasable(task: Task, repo: Path) -> _Worktree:
         raise RebaseRefused("the worktree is not at the audited commit")
     if run_git(repo, "rev-parse", branch) != task.audited_sha:
         raise RebaseRefused(f"{branch} is not at the audited commit")
-    if problem := main_checkout_problem(repo):
+    if problem := main_checkout_problem(repo, main_branch):
         raise RebaseRefused(problem)
     main_head = run_git(repo, "rev-parse", "HEAD")
     if main_head == task.base_sha:

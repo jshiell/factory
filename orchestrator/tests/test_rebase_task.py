@@ -131,6 +131,20 @@ def test_a_refusal_for_a_detached_main_leaves_main_detached(audited):
     assert git(repo, "branch", "--show-current") == ""
 
 
+def test_a_rebase_on_another_branch_than_main_branch_is_refused_and_changes_nothing(audited):
+    store, repo, worktree, task = audited
+    git(repo, "checkout", "-q", "-b", "other")
+    stored_before = store.load("t1")
+    heads_before = (git(worktree, "rev-parse", "HEAD"), git(repo, "rev-parse", "factory/t1"), git(repo, "rev-parse", "HEAD"))
+
+    with pytest.raises(RebaseRefused, match="main is on branch other, not main"):
+        rebase_task("t1", store, repo, main_branch="main")
+
+    assert store.load("t1") == stored_before
+    assert (git(worktree, "rev-parse", "HEAD"), git(repo, "rev-parse", "factory/t1"), git(repo, "rev-parse", "HEAD")) == heads_before
+    assert git(repo, "branch", "--show-current") == "other"
+
+
 def test_a_refusal_for_a_dirty_main_leaves_the_edit_in_place(audited):
     store, repo, worktree, task = audited
     break_main_dirty(store, repo, worktree, task)
