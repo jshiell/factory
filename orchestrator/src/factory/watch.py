@@ -483,6 +483,13 @@ def _merge_on_thumbs_up(github, server, state, state_dir, issue_number: int, rec
         _post_merge_refused(github, state, state_dir, issue_number, record, self_id, job["error"])
 
 
+def _rebase_on_thumbs_up(github, server, state, state_dir, issue_number: int, record: IssueRecord, approver_ids: set[int], self_id: int) -> None:
+    """Rebase the task on an approver's 👍 on the rebase offer; approvers match by numeric id, never login."""
+    reactions = github.reactions(record.rebase_comment_id)
+    if not _approver_reacted(reactions, "+1", approver_ids):
+        return
+
+
 _APPROVED_STATES = {"queued", "running", "agent_done", "verified"}  # the task was approved, here or at the terminal
 
 
@@ -520,7 +527,7 @@ def _handle_issue(github, server, state, state_dir, issue: Issue, approver_ids: 
         state.issues[issue.number] = IssueRecord(task_id)
         save_state(state_dir, state)
     record = state.issues[issue.number]
-    if record.phase not in (Phase.NEW, Phase.AWAITING_ANSWERS, Phase.AWAITING_APPROVAL, Phase.APPROVED, Phase.AWAITING_MERGE):
+    if record.phase not in (Phase.NEW, Phase.AWAITING_ANSWERS, Phase.AWAITING_APPROVAL, Phase.APPROVED, Phase.AWAITING_MERGE, Phase.AWAITING_REBASE):
         return
     task = server.get(f"/tasks/{require_safe_id(record.task_id)}")
     if task["state"] == "failed":
@@ -531,6 +538,9 @@ def _handle_issue(github, server, state, state_dir, issue: Issue, approver_ids: 
         return
     if record.phase is Phase.AWAITING_MERGE and task["state"] == "merged":  # merged at the terminal, or the 👍 job's post was lost
         _post_merged(github, state, state_dir, issue.number, record, self_id)
+        return
+    if record.phase is Phase.AWAITING_REBASE and task["state"] == "audited":
+        _rebase_on_thumbs_up(github, server, state, state_dir, issue.number, record, approver_ids, self_id)
         return
     if merge and record.phase is Phase.APPROVED and task["state"] == "audited":  # audited before its comments were posted
         _post_audited(github, server, state, state_dir, issue.number, record, self_id, {"steps": [], "state": "audited"}, merge)

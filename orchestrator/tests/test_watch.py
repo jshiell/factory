@@ -1010,6 +1010,34 @@ def test_guard_an_awaiting_merge_task_the_server_still_calls_audited_is_neither_
     assert load_state(tmp_path).issues == {5: AWAITING_MERGE}
 
 
+AWAITING_THE_REBASE = IssueRecord(
+    **{**vars(APPROVED), "phase": Phase.AWAITING_REBASE, "result_comment_id": 1, "rebase_comment_id": 2, "rebase_sha": "abc123"})
+
+
+def rebase_reaction_pass(tmp_path, reactions, server=None, merge=True):
+    save_state(tmp_path, WatchState(watching_since=SINCE, issues={5: AWAITING_THE_REBASE}))
+    server = server or FakeServer(task_state="audited", audited_sha="abc123")
+    github = FakeGitHub([raw_issue(number=5)], reactions={2: reactions})
+    pass_over(tmp_path, [], server=server, github=github, merge=merge)
+    return github, server
+
+
+def test_an_awaiting_rebase_task_the_server_calls_audited_is_neither_advanced_nor_collapsed_and_only_the_rebase_comment_is_read(tmp_path):
+    github, server = rebase_reaction_pass(tmp_path, [])
+
+    assert server.advanced == [] and server.rebase_requests == []
+    assert github.comments_posted == []
+    assert github.reactions_fetched == [2]
+    assert load_state(tmp_path).issues == {5: AWAITING_THE_REBASE}
+
+
+def test_guard_a_thumbs_up_from_someone_who_is_not_an_approver_does_not_rebase(tmp_path):
+    github, server = rebase_reaction_pass(tmp_path, [Reaction("+1", 9999, "mallory")])
+
+    assert server.rebase_requests == []
+    assert load_state(tmp_path).issues == {5: AWAITING_THE_REBASE}
+
+
 def test_an_approved_task_that_audits_gets_one_result_comment_with_steps_state_and_merge_hint(tmp_path):
     github, server = approved_pass(tmp_path, AUDITED)
 
