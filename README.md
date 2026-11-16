@@ -211,7 +211,7 @@ flowchart LR
     merge --> main[(main, fast-forward only)]
     gate -- fail --> failed([failed])
     audit -- fail --> failed
-    merge -. "main moved" .-> rebase["rebase<br/>human-run"]
+    merge -. "main moved<br/>(audited commit not in main)" .-> rebase["rebase<br/>human-run"]
     rebase --> gate
 ```
 
