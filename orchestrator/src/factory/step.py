@@ -80,7 +80,7 @@ def step(
         return _fail_with_assumed_cost(running, "runner_error", store, ledger, config)
     if result.timed_out:
         return _fail_with_assumed_cost(running, "timeout", store, ledger, config)
-    outcome = classify(result.stdout, result.exit_code)
+    outcome = classify_run(result, task_id, "implement")
     ledger.append(task_id, outcome.cost_usd, stage="implement")
     if outcome.kind in (OutcomeKind.SUCCESS, OutcomeKind.SUCCESS_WITH_DENIALS):
         finished = replace(apply(running, Event.SUCCEEDED), denials=outcome.denials)

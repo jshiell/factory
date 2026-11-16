@@ -18,8 +18,8 @@ def fixture_stdout(name: str) -> str:
 
 
 class FakeRunner:
-    def __init__(self, stdout: str = "", exit_code: int = 0, on_run=None, timed_out: bool = False):
-        self._result = RunResult(stdout, exit_code, timed_out)
+    def __init__(self, stdout: str = "", exit_code: int = 0, on_run=None, timed_out: bool = False, stderr: str = ""):
+        self._result = RunResult(stdout, exit_code, timed_out, stderr)
         self._on_run = on_run
         self.calls = 0
 
@@ -41,6 +41,17 @@ def store(tmp_path):
 @pytest.fixture
 def ledger(tmp_path):
     return Ledger(tmp_path / "ledger.jsonl")
+
+
+def test_an_unparseable_result_logs_the_exit_code_and_both_output_tails(store, ledger, caplog):
+    runner = FakeRunner("not json", exit_code=1, stderr="boom")
+
+    with caplog.at_level(logging.WARNING, logger="factory"):
+        step("t1", store, ledger, runner, CONFIG, cap_usd=10)
+
+    assert len(caplog.records) == 1
+    message = caplog.records[0].getMessage()
+    assert all(text in message for text in ("t1", "implement", "unparseable", "not json", "boom", "exit code 1"))
 
 
 def test_running_state_is_persisted_before_the_runner_is_called(store, ledger):
