@@ -567,7 +567,7 @@ def _handle_issue(github, server, state, state_dir, issue: Issue, approver_ids: 
     if record.phase is Phase.AWAITING_MERGE and task["state"] == "audited":
         _merge_on_thumbs_up(github, server, state, state_dir, issue.number, record, approver_ids, self_id)
         return
-    if record.phase is Phase.AWAITING_MERGE and task["state"] == "merged":  # merged at the terminal, or the 👍 job's post was lost
+    if record.phase in (Phase.AWAITING_MERGE, Phase.AWAITING_REBASE) and task["state"] == "merged":  # merged at the terminal, or the 👍 job's post was lost
         _post_merged(github, state, state_dir, issue.number, record, self_id)
         return
     if record.phase is Phase.AWAITING_REBASE and task["state"] == "audited":

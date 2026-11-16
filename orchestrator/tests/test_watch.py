@@ -1072,6 +1072,37 @@ def test_a_failed_rebase_job_on_a_task_that_is_now_rebased_counts_as_success(tmp
     assert load_state(tmp_path).issues[5].phase is Phase.APPROVED
 
 
+def test_an_awaiting_rebase_task_the_server_calls_merged_posts_merged(tmp_path):
+    github, server = rebase_reaction_pass(tmp_path, [], server=FakeServer(task_state="merged"))
+
+    [(_, body)] = github.comments_posted
+    assert body.startswith("<!-- factory:task=t-9:kind=merged -->")
+    assert load_state(tmp_path).issues[5].phase is Phase.MERGED
+
+
+def test_guard_an_awaiting_rebase_task_rebased_at_the_terminal_is_re_audited_and_gets_a_new_merge_comment(tmp_path):
+    server = FakeServer(task_state="agent_done", advance_result=AUDITED, merge_preview=MERGE_PREVIEW)
+
+    github, server = rebase_reaction_pass(tmp_path, [], server=server)
+
+    assert server.advanced == ["/tasks/t-9/advance"]
+    [(_, result_body), (_, merge_body)] = github.comments_posted
+    assert merge_body.startswith("<!-- factory:task=t-9:kind=merge -->")
+    record = load_state(tmp_path).issues[5]
+    assert (record.phase, record.merge_sha) == (Phase.AWAITING_MERGE, "abc123")
+    assert record.merge_comment_id == 2
+
+
+def test_guard_an_awaiting_rebase_task_the_server_calls_failed_posts_the_failure(tmp_path):
+    server = FakeServer(task_state="failed", failure_reason="boom")
+
+    github, server = rebase_reaction_pass(tmp_path, [], server=server)
+
+    [(_, body)] = github.comments_posted
+    assert "boom" in body
+    assert load_state(tmp_path).issues[5].phase is Phase.FAILED
+
+
 def test_an_approver_thumbs_down_on_the_rebase_offer_wins_over_a_thumbs_up_and_declines_the_rebase(tmp_path):
     reactions = [Reaction("+1", 1001, "alice"), Reaction("-1", 1001, "alice")]
 
