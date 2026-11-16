@@ -7,6 +7,7 @@ import pytest
 
 from factory.answer_questions import MAX_ANSWER_BYTES
 from factory.client import ServerRefused, ServerUnreachable
+from factory.comments import render_comment
 from factory.github import Comment, GitHubError, Reaction, User
 from factory.merge_task import MAIN_MOVED
 
@@ -1070,6 +1071,23 @@ def test_a_failed_rebase_job_on_a_task_that_is_now_rebased_counts_as_success(tmp
 
     assert github.comments_posted == []
     assert load_state(tmp_path).issues[5].phase is Phase.APPROVED
+
+
+def test_guard_when_main_moves_again_after_a_rebase_a_new_offer_is_posted_and_the_old_one_is_not_reused(tmp_path):
+    save_state(tmp_path, WatchState(watching_since=SINCE, issues={5: APPROVED}))
+    round_one = Comment(7, render_comment("t-9", "merge-moved", [("Audited commit", "abc123", True)]), 4242, "factory-bot")
+    github = FakeGitHub([raw_issue(number=5)], comments={5: [round_one]}, reactions={7: [Reaction("+1", 1001, "alice")]})
+    refusal = ServerRefused(409, "merge refused", MAIN_MOVED)
+    server = FakeServer(advance_result=AUDITED, merge_preview=refusal, audited_sha="def456")
+
+    pass_over(tmp_path, [], server=server, github=github, merge=True)
+
+    assert server.rebase_requests == []
+    [_result, (_, offer_body)] = github.comments_posted
+    assert offer_body.startswith("<!-- factory:task=t-9:kind=merge-moved -->") and "def456" in offer_body
+    record = load_state(tmp_path).issues[5]
+    assert (record.phase, record.rebase_sha) == (Phase.AWAITING_REBASE, "def456")
+    assert record.rebase_comment_id != 7
 
 
 def test_an_awaiting_rebase_task_the_server_calls_merged_posts_merged(tmp_path):
