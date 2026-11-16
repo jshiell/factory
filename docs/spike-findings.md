@@ -507,7 +507,7 @@ The hint also said: "Before you propose any interface, module boundary or seam, 
 - A failed merge job carries `merge refused: <text>` (`server.merge` wraps the refusal); the preview endpoint answers 409 `merge refused` with the raw text. "Main moved" is raised only in `merge_task.merge_preview`, now as `MAIN_MOVED`.
 - A rebase on a task in the wrong state is a failed job (`rebase refused: ...`), not an HTTP error.
 - Unverified: the failed-job result for a rebase conflict (the code aborts the rebase and restores the worktree, so the task should stay `audited`).
-- Known gap: `rebase_task` rebases onto the checkout's HEAD without checking it is on a branch or clean.
+- Known gap: `rebase_task` does not check that the checkout's branch is `main` (plan 46 added the detached and dirty checks).
 
 ## Plan 45 (no rebase offer when the audited commit is already in main)
 
@@ -516,3 +516,9 @@ The hint also said: "Before you propose any interface, module boundary or seam, 
 - `is_ancestor` (now in `worktrees.py`) answers False only on git exit 1; any other git error raises, and the preview endpoint turns it into a 409.
 - Nothing run against real GitHub or a real repo outside the tests.
 - Known gap: work that reached `main` under different SHAs (a cherry-pick, a GitHub rebase-merge) is not caught by the ancestor check, so the offer still appears. The rebase would then likely produce no commits and the gate fail with `no_commits` (unverified).
+
+## Plan 46 (rebase refuses a detached or dirty main checkout)
+
+- `rebase_task` now runs the merge preview's two checks through a shared `main_checkout_problem` (`worktrees.py`): "main is not on a branch" and "main has uncommitted changes" (tracked files only; untracked files are ignored, staged-only changes count). A rebase in progress in main detaches HEAD, and a conflicted merge, cherry-pick or revert shows as unmerged entries, so both are caught.
+- Nothing run against a real repo outside the tests.
+- Known gaps, shared with the merge preview: a checkout on another branch still passes; an in-progress `git am`, or a `merge --no-commit` with a clean index, is not caught (whether `merge --ff-only` refuses then is unverified); submodule changes are ignored; main can move between the check and its use.

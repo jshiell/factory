@@ -277,7 +277,8 @@ flowchart TB
   so it needs no TTY, but it is never called by `advance`. With `watch_merge` on, a merge refused only because `main` moved
   posts a `merge-moved` comment, and an approver's 👍 on it runs `rebase` (it spends verify and audit budget, lands no code); the
   re-audit then gets its own merge comment and 👍. `rebase` follows the server checkout's HEAD, not necessarily `main`: if that
-  checkout is on another branch, the refusal appears and the 👍 rebases onto that branch. If `main` has moved past the audited
+  checkout is on another branch, the refusal appears and the 👍 rebases onto that branch. `rebase` also refuses when that
+  checkout is detached ("main is not on a branch") or has uncommitted changes to tracked files, as `merge` does. If `main` has moved past the audited
   commit (it is already in `main`), the preview refuses with "already in main" and the watcher posts `merge-refused` with no
   rebase offer. If `main` is exactly at the audited commit (a merge that crashed before saving), the preview passes and `merge`
   records the task as merged.
