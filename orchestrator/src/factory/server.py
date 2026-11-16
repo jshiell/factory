@@ -239,7 +239,7 @@ def _build_app(ctx) -> Starlette:
         task_id = request.path_params["task_id"]
         service.get_task(ctx.store, task_id)
         try:
-            preview = merge_preview(task_id, ctx.store, ctx.settings.repo)
+            preview = merge_preview(task_id, ctx.store, ctx.settings.repo, ctx.settings.main_branch)
         except (MergeRefused, InvalidTransition, subprocess.CalledProcessError) as error:
             raise ApiError(409, "merge refused", str(error)) from None
         return JSONResponse({"branch": preview.branch, "audited_sha": preview.task.audited_sha,

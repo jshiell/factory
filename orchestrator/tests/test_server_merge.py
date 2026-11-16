@@ -61,6 +61,17 @@ def test_merge_preview_of_a_task_that_is_not_audited_is_409(client, ctx, audited
     assert response.json()["error"] == "merge refused"
 
 
+def test_merge_preview_on_another_branch_than_main_branch_is_409(client, ctx, audited, repo):
+    ctx.settings = replace(ctx.settings, main_branch="main")
+    git(repo, "checkout", "-q", "-b", "other")
+
+    response = client.get("/tasks/t1/merge-preview")
+
+    assert response.status_code == 409
+    assert response.json()["error"] == "merge refused"
+    assert "main is on branch other, not main" in response.json()["detail"]
+
+
 def test_merge_preview_of_an_unknown_task_is_404(client):
     assert client.get("/tasks/nope/merge-preview").status_code == 404
 
