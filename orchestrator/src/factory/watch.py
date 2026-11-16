@@ -58,6 +58,7 @@ class Phase(str, Enum):
     AUDITED = "audited"
     AWAITING_MERGE = "awaiting_merge"
     AWAITING_REBASE = "awaiting_rebase"
+    AWAITING_RETRY = "awaiting_retry"
     MERGED = "merged"
     MERGE_STOPPED = "merge_stopped"
     NOT_MERGED = "not_merged"
@@ -83,6 +84,7 @@ class IssueRecord:
     merge_sha: str | None = None
     rebase_comment_id: int | None = None
     rebase_sha: str | None = None
+    retry_comment_id: int | None = None
 
 
 @dataclass
@@ -273,6 +275,26 @@ def _post_result(github, state, state_dir, issue_number: int, record: IssueRecor
 def _post_final(github, state, state_dir, issue_number: int, record: IssueRecord, self_id: int, phase: Phase, heading: str, text: str) -> None:
     body = render_comment(record.task_id, "result", [(heading, text, True)])
     _post_result(github, state, state_dir, issue_number, record, self_id, "result", phase, body)
+
+
+_HOW_TO_RETRY = (
+    "React 👍 to retry: a new task from the original goal, which plans and reviews again "
+    "(this spends agent budget; the new plan needs its own 👍), 👎 to leave it."
+)
+
+
+def _post_failure(github, state, state_dir, issue_number: int, record: IssueRecord, self_id: int, reason: str, retry: bool) -> None:
+    """The failure comment; with retry on, also the retry offer. Both are adopted or posted before one save, so a lost post leaves the issue for the next pass."""
+    failure = render_comment(record.task_id, "result", [("Failure reason", reason, True)])
+    if not retry:
+        _post_result(github, state, state_dir, issue_number, record, self_id, "result", Phase.FAILED, failure)
+        return
+    offer = render_comment(record.task_id, "retry-offer", [("Retry", _HOW_TO_RETRY, False), ("Failure reason", reason, True)])
+    failure_id = _result_comment_id(github, issue_number, record, self_id, "result", failure)
+    record.retry_comment_id = _result_comment_id(github, issue_number, record, self_id, "retry-offer", offer)
+    record.result_comment_id = failure_id
+    record.phase = Phase.AWAITING_RETRY
+    save_state(state_dir, state)
 
 
 _HOW_TO_MERGE = "Task {task_id}. React 👍 to merge, 👎 to leave it unmerged."
@@ -567,7 +589,7 @@ def _handle_issue(github, server, state, state_dir, issue: Issue, approver_ids: 
         return
     task = server.get(f"/tasks/{require_safe_id(record.task_id)}")
     if task["state"] == "failed":
-        _post_final(github, state, state_dir, issue.number, record, self_id, Phase.FAILED, "Failure reason", _failure_text(task, home))
+        _post_failure(github, state, state_dir, issue.number, record, self_id, _failure_text(task, home), retry)
         return
     if record.phase is Phase.AWAITING_MERGE and task["state"] == "audited":
         _merge_on_thumbs_up(github, server, state, state_dir, issue.number, record, approver_ids, self_id)
@@ -610,4 +632,4 @@ def _handle_issue(github, server, state, state_dir, issue: Issue, approver_ids: 
     elif result["state"] == "audited" and record.phase is Phase.APPROVED:
         _post_audited(github, server, state, state_dir, issue.number, record, self_id, result, merge)
     elif result["state"] == "failed":
-        _post_final(github, state, state_dir, issue.number, record, self_id, Phase.FAILED, "Failure reason", _failure_text(result, home))
+        _post_failure(github, state, state_dir, issue.number, record, self_id, _failure_text(result, home), retry)

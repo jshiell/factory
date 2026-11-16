@@ -255,11 +255,11 @@ class FakeServer:
         return self.approval
 
 
-def pass_over(tmp_path, issues, server=None, github=None, merge=False):
+def pass_over(tmp_path, issues, server=None, github=None, merge=False, retry=False):
     server = server or FakeServer()
     github = github or FakeGitHub(issues)
     save_state_if_missing(tmp_path)
-    run_pass(github, server, tmp_path, {1001}, lambda: SINCE, merge=merge)
+    run_pass(github, server, tmp_path, {1001}, lambda: SINCE, merge=merge, retry=retry)
     return github, server
 
 
@@ -588,6 +588,22 @@ def test_a_task_that_fails_gets_one_result_comment_with_the_reason_fenced_and_go
     assert body.startswith("<!-- factory:task=t-1:kind=result -->")
     assert "```\nplan rejected: too vague\n```" in body
     assert load_state(tmp_path).issues == {5: IssueRecord(task_id="t-1", phase=Phase.FAILED, result_comment_id=1)}
+
+
+def test_with_retry_on_a_task_that_fails_gets_the_failure_comment_then_a_retry_offer_and_awaits_the_retry(tmp_path):
+    server = FakeServer(advance_result=FAILED)
+
+    github, _ = pass_over(tmp_path, [raw_issue(number=5)], server=server, retry=True)
+
+    [(_, failure), (offer_issue, offer)] = github.comments_posted
+    assert failure.startswith("<!-- factory:task=t-1:kind=result -->")
+    assert offer_issue == 5
+    assert offer.startswith("<!-- factory:task=t-1:kind=retry-offer -->")
+    assert "```\nplan rejected: too vague\n```" in offer
+    assert "👍" in offer and "👎" in offer
+    assert load_state(tmp_path).issues == {
+        5: IssueRecord(task_id="t-1", phase=Phase.AWAITING_RETRY, result_comment_id=1, retry_comment_id=2)
+    }
 
 
 def test_a_stopped_advance_gets_one_result_comment_saying_why_and_goes_stopped(tmp_path):
