@@ -56,6 +56,7 @@ class Phase(str, Enum):
     APPROVED = "approved"
     AUDITED = "audited"
     AWAITING_MERGE = "awaiting_merge"
+    AWAITING_REBASE = "awaiting_rebase"
     MERGED = "merged"
     MERGE_STOPPED = "merge_stopped"
     NOT_MERGED = "not_merged"
@@ -79,6 +80,8 @@ class IssueRecord:
     merge_comment_id: int | None = None
     merge_body_hash: str | None = None
     merge_sha: str | None = None
+    rebase_comment_id: int | None = None
+    rebase_sha: str | None = None
 
 
 @dataclass
