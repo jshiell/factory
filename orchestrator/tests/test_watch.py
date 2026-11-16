@@ -1048,6 +1048,30 @@ def test_an_approver_thumbs_up_on_the_rebase_offer_rebases_the_task_and_sets_app
     assert load_state(tmp_path).issues[5].phase is Phase.APPROVED
 
 
+def test_a_failed_rebase_job_on_a_task_still_audited_at_the_offered_commit_posts_rebase_refused_and_stops(tmp_path):
+    failed = {"state": "failed", "error": f"rebase refused: conflicts in {Path.home()}/wt/t-9", "result": None}
+    server = FakeServer(task_state="audited", audited_sha="abc123", rebase_job=failed)
+
+    github, server = rebase_reaction_pass(tmp_path, [Reaction("+1", 1001, "alice")], server=server)
+
+    [(issue_number, body)] = github.comments_posted
+    assert issue_number == 5
+    assert body.startswith("<!-- factory:task=t-9:kind=rebase-refused -->")
+    assert "```\nrebase refused: conflicts in ~/wt/t-9\n```" in body
+    assert "factory rebase t-9" in body
+    assert load_state(tmp_path).issues[5].phase is Phase.MERGE_STOPPED
+
+
+def test_guard_an_interrupted_rebase_job_leaves_the_task_awaiting_the_rebase(tmp_path):
+    interrupted = {"state": "interrupted", "error": "server restarted", "result": None}
+    server = FakeServer(task_state="audited", audited_sha="abc123", rebase_job=interrupted)
+
+    github, server = rebase_reaction_pass(tmp_path, [Reaction("+1", 1001, "alice")], server=server)
+
+    assert github.comments_posted == []
+    assert load_state(tmp_path).issues == {5: AWAITING_THE_REBASE}
+
+
 def test_a_thumbs_up_on_a_rebase_offer_for_a_commit_the_task_has_moved_past_does_not_rebase_again(tmp_path):
     server = FakeServer(task_state="audited", audited_sha="def456")
 

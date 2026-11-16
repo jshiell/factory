@@ -483,14 +483,28 @@ def _merge_on_thumbs_up(github, server, state, state_dir, issue_number: int, rec
         _post_merge_refused(github, state, state_dir, issue_number, record, self_id, job["error"])
 
 
-def _rebase_on_thumbs_up(github, server, state, state_dir, issue_number: int, record: IssueRecord, task: dict, approver_ids: set[int], self_id: int) -> None:
+def _post_rebase_refused(github, state, state_dir, issue_number: int, record: IssueRecord, self_id: int, reason: str) -> None:
+    task_id = require_safe_id(record.task_id)
+    body = render_comment(record.task_id, "rebase-refused", [
+        ("Rebase refused", reason, True),
+        ("Next", f"Nothing was rebased. At the terminal, run: factory rebase {task_id} once the cause is fixed.", False),
+    ])
+    _post_result(github, state, state_dir, issue_number, record, self_id, "rebase-refused", Phase.MERGE_STOPPED, body)
+
+
+def _rebase_on_thumbs_up(github, server, state, state_dir, issue_number: int, record: IssueRecord, task: dict, approver_ids: set[int], self_id: int, home: str) -> None:
     """Rebase the task on an approver's 👍 on the rebase offer, if it is still at the commit the offer showed; approvers match by numeric id, never login."""
     reactions = github.reactions(record.rebase_comment_id)
     if not _approver_reacted(reactions, "+1", approver_ids):
         return
     if task["audited_sha"] == record.rebase_sha:
         job_id = server.post(f"/tasks/{require_safe_id(record.task_id)}/rebase")["job"]["id"]
-        server.wait(job_id)
+        job = server.wait(job_id)
+        if job["state"] == "failed":
+            _post_rebase_refused(github, state, state_dir, issue_number, record, self_id, strip_home(job["error"], home))
+            return
+        if job["state"] != "succeeded":
+            return
     record.phase = Phase.APPROVED
     save_state(state_dir, state)
 
@@ -545,7 +559,7 @@ def _handle_issue(github, server, state, state_dir, issue: Issue, approver_ids: 
         _post_merged(github, state, state_dir, issue.number, record, self_id)
         return
     if record.phase is Phase.AWAITING_REBASE and task["state"] == "audited":
-        _rebase_on_thumbs_up(github, server, state, state_dir, issue.number, record, task, approver_ids, self_id)
+        _rebase_on_thumbs_up(github, server, state, state_dir, issue.number, record, task, approver_ids, self_id, home)
         return
     if merge and record.phase is Phase.APPROVED and task["state"] == "audited":  # audited before its comments were posted
         _post_audited(github, server, state, state_dir, issue.number, record, self_id, {"steps": [], "state": "audited"}, merge)
