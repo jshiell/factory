@@ -61,7 +61,8 @@ def check_gate(
         return GateResult(False, "not_descendant")
     if run_git(worktree, "rev-parse", "HEAD") == base_sha:
         return GateResult(False, "no_commits")
-    if not run_git(worktree, "diff", "--name-only", base_sha, "HEAD", "--", project_subdir):
+    allowed_changes = [f":(top,literal){entry}" for entry in allow_outside]
+    if not run_git(worktree, "diff", "--name-only", base_sha, "HEAD", "--", project_subdir, *allowed_changes):
         return GateResult(False, "no_changes")
     if _tests_tampered(worktree, base_sha, project_subdir, test_globs) or _protected_changed(
         worktree, base_sha, project_subdir, protected_names
