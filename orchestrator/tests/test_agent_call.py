@@ -52,6 +52,10 @@ def test_a_parseable_result_logs_nothing(tmp_path, caplog, stdout):
     assert run_logged(tmp_path, caplog, RunResult(stdout, 1, stderr="boom")) == []
 
 
+def test_a_timeout_logs_nothing(tmp_path, caplog):
+    assert run_logged(tmp_path, caplog, RunResult("", None, timed_out=True, stderr="boom")) == []
+
+
 def test_a_runner_exception_is_logged_with_its_text_for_the_stage(tmp_path, caplog):
     ledger = Ledger(tmp_path / "ledger.jsonl")
 
