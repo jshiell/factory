@@ -697,6 +697,22 @@ def test_a_refused_retry_is_reported_with_the_reason_home_stripped_and_stops_the
     assert load_state(tmp_path).issues[5].phase is Phase.STOPPED
 
 
+def test_guard_with_retry_off_an_awaiting_retry_issue_ignores_a_thumbs_up_and_ends_failed(tmp_path):
+    record = IssueRecord(task_id="t-9", phase=Phase.AWAITING_RETRY, result_comment_id=7, retry_comment_id=8)
+    save_state(tmp_path, WatchState(watching_since=SINCE, issues={5: record}))
+    server = FakeServer(task_state="failed", failure_reason="plan rejected: too vague")
+    failure = Comment(7, render_comment("t-9", "result", [("Failure reason", "plan rejected: too vague", True)]), 4242, "factory-bot")
+    github = FakeGitHub([raw_issue(number=5)], reactions={8: [Reaction("+1", 1001, "alice")]}, comments={5: [failure]})
+
+    pass_over(tmp_path, [], server=server, github=github, retry=False)
+
+    assert server.retry_requests == []
+    assert github.comments_posted == []
+    assert load_state(tmp_path).issues[5] == IssueRecord(
+        task_id="t-9", phase=Phase.FAILED, result_comment_id=7, retry_comment_id=8
+    )
+
+
 class RememberingGitHub(FakeGitHub):
     """Posts become the watcher's own comments, as on GitHub; the nth post (counting from 1) can be made to fail once."""
 
