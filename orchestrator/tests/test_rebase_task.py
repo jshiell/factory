@@ -74,6 +74,10 @@ def break_already_in_main(store, repo, worktree, task):
     git(repo, "merge", "-q", "--no-edit", task.audited_sha)
 
 
+def break_main_detached(store, repo, worktree, task):
+    git(repo, "checkout", "-q", "--detach")
+
+
 def break_fix_in_flight(store, repo, worktree, task):
     store.save(replace(task, fix_in_flight=True))
 
@@ -89,7 +93,7 @@ def break_worktree_dir_missing(store, repo, worktree, task):
 REFUSALS = [
     (break_dirty, "dirty"), (break_worktree_head, "audited commit"), (break_detached, "factory/t1"),
     (break_main_not_moved, "has not moved"), (break_already_in_main, "already in main"),
-    (break_fix_in_flight, "advance"), (break_no_worktree, "worktree"), (break_worktree_dir_missing, "worktree"),
+    (break_main_detached, "not on a branch"), (break_fix_in_flight, "advance"), (break_no_worktree, "worktree"), (break_worktree_dir_missing, "worktree"),
 ]
 
 
@@ -105,6 +109,16 @@ def test_a_failed_precondition_refuses_and_changes_nothing(audited, break_it, me
 
     assert store.load("t1") == stored_before
     assert (git(worktree, "rev-parse", "HEAD"), git(repo, "rev-parse", "factory/t1"), git(repo, "rev-parse", "HEAD")) == heads_before
+
+
+def test_a_refusal_for_a_detached_main_leaves_main_detached(audited):
+    store, repo, worktree, task = audited
+    break_main_detached(store, repo, worktree, task)
+
+    with pytest.raises(RebaseRefused, match="not on a branch"):
+        rebase_task("t1", store, repo)
+
+    assert git(repo, "branch", "--show-current") == ""
 
 
 def test_a_task_that_is_not_audited_is_refused_by_the_state_machine(audited):
