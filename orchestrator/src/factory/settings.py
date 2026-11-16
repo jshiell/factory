@@ -39,6 +39,7 @@ class Settings:
     stage_plugin_dirs: dict[str, tuple[Path, ...]] = field(default_factory=dict)
     watch_approvers: tuple[str, ...] = ()
     watch_merge: bool = False
+    watch_retry: bool = False
     main_branch: str | None = None
 
     @property
@@ -65,7 +66,7 @@ _STAGES = ("plan", "review", "implement", "audit")
 _FLOAT_KEYS = ("cap_usd", "gate_timeout_s", "runner_timeout_s", "budget_usd")
 _STRING_LIST_KEYS = ("test_argv", "allowed_tools", "plugins", "watch_approvers")
 _INT_KEYS = ("max_turns", "fix_rounds", "server_port", "grill_max_rounds")
-_BOOL_KEYS = ("grill", "watch_merge")
+_BOOL_KEYS = ("grill", "watch_merge", "watch_retry")
 GITHUB_LOGIN = re.compile(r"(?!.{40})[A-Za-z0-9]+(-[A-Za-z0-9]+)*")
 _KNOWN =_PATH_KEYS + _STRING_KEYS + _PROMPT_KEYS + ("stage_prompts", "stage_plugins") + _FLOAT_KEYS + _STRING_LIST_KEYS + _INT_KEYS + _BOOL_KEYS
 

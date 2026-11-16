@@ -662,3 +662,10 @@ def test_watch_merge_is_off_by_default_and_comes_from_the_config(repo_dir):
     (repo_dir / "factory.toml").write_text("watch_merge = true\n")
 
     assert load_settings(None, cwd=repo_dir).watch_merge is True
+
+
+def test_watch_retry_is_off_by_default_and_comes_from_the_config(repo_dir):
+    assert load_settings(None, cwd=repo_dir).watch_retry is False
+    (repo_dir / "factory.toml").write_text("watch_retry = true\n")
+
+    assert load_settings(None, cwd=repo_dir).watch_retry is True
