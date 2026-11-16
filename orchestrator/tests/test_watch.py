@@ -167,7 +167,13 @@ class FakeGitHub:
 
 class FakeServer:
     def __init__(self, advance_result=None, approval=None, job_state="succeeded", task_state="planned", failure_reason=None,
-                 questions=None, grill_rounds=0, merge_preview=None, merge_job=None, task_state_after_merge=None):
+                 questions=None, grill_rounds=0, merge_preview=None, merge_job=None, task_state_after_merge=None,
+                 audited_sha=None, rebase_job=None, task_state_after_rebase=None, audited_sha_after_rebase=None):
+        self.audited_sha = audited_sha
+        self.audited_sha_after_rebase = audited_sha_after_rebase
+        self.task_state_after_rebase = task_state_after_rebase
+        self.rebase_job = rebase_job or {"state": "succeeded", "error": None, "result": {"state": "agent_done", "failure_reason": None}}
+        self.rebase_requests = []
         self.task_state_after_merge = task_state_after_merge
         self.merge_preview = merge_preview
         self.merge_job = merge_job or {"state": "succeeded", "error": None, "result": {"state": "merged", "failure_reason": None}}
@@ -203,11 +209,18 @@ class FakeServer:
         if path.endswith("/merge"):
             self.merge_requests.append((path, body))
             return {"job": {"id": "j-merge"}}
+        if path.endswith("/rebase"):
+            self.rebase_requests.append(path)
+            return {"job": {"id": "j-rebase"}}
         assert path == "/tasks"
         self.created.append(body["goal"])
         return {"id": next(self.ids)}
 
     def wait(self, job_id):
+        if job_id == "j-rebase":
+            self.task_state = self.task_state_after_rebase or self.task_state
+            self.audited_sha = self.audited_sha_after_rebase or self.audited_sha
+            return self.rebase_job
         if job_id == "j-merge":
             self.task_state = self.task_state_after_merge or self.task_state
             return self.merge_job
@@ -223,7 +236,8 @@ class FakeServer:
                 raise self.merge_preview
             return self.merge_preview
         if not path.endswith("/approval"):
-            return {"state": self.task_state, "failure_reason": self.failure_reason, "grill_rounds": self.grill_rounds}
+            return {"state": self.task_state, "failure_reason": self.failure_reason, "grill_rounds": self.grill_rounds,
+                    "audited_sha": self.audited_sha}
         self.fetched.append(path)
         return self.approval
 
