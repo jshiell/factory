@@ -1,9 +1,11 @@
+import subprocess
+
 import pytest
 
 from gitutil import git
 
 from factory.ids import InvalidTaskId
-from factory.worktrees import BranchExists, WorktreeExists, WorktreeManager
+from factory.worktrees import BranchExists, WorktreeExists, WorktreeManager, is_ancestor
 
 
 @pytest.fixture
@@ -42,6 +44,20 @@ def test_remove_deletes_a_dirty_worktree_but_keeps_the_branch(repo, manager):
 
     assert not path.exists()
     assert git(repo, "branch", "--list", "factory/t1") != ""
+
+
+def test_is_ancestor_is_true_for_an_ancestor_and_false_for_a_commit_that_is_not(repo):
+    first = git(repo, "rev-parse", "HEAD")
+    git(repo, "commit", "-q", "--allow-empty", "-m", "second")
+    second = git(repo, "rev-parse", "HEAD")
+
+    assert is_ancestor(repo, first, second) and is_ancestor(repo, second, second)
+    assert not is_ancestor(repo, second, first)
+
+
+def test_is_ancestor_raises_on_a_git_error_instead_of_answering_no(repo):
+    with pytest.raises(subprocess.CalledProcessError):
+        is_ancestor(repo, "0" * 40, "HEAD")
 
 
 @pytest.mark.parametrize("task_id", ["a/b", "..", "../evil", ""])

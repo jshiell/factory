@@ -6,7 +6,7 @@ from pathlib import Path
 
 from factory.store import TaskStore
 from factory.task import Event, Task, apply
-from factory.worktrees import run_git
+from factory.worktrees import is_ancestor, run_git
 
 _IDENTITY = ("-c", "user.name=factory", "-c", "user.email=factory@localhost")
 # The user's own git config (filters, rerere, rebase.updateRefs, signing) must not steer a rebase in an agent's tree.
@@ -90,7 +90,7 @@ def _require_rebasable(task: Task, repo: Path) -> _Worktree:
     main_head = run_git(repo, "rev-parse", "HEAD")
     if main_head == task.base_sha:
         raise RebaseRefused("main has not moved: use `factory merge`")
-    if _is_ancestor(repo, task.audited_sha, main_head):
+    if is_ancestor(repo, task.audited_sha, main_head):
         raise RebaseRefused("the audited commit is already in main")
     return worktree
 
@@ -125,11 +125,3 @@ def _restore(task: Task, repo: Path, worktree: _Worktree) -> None:
         intact = False
     if not intact:
         raise RebaseRefused(f"rebase failed and {worktree.path} could not be restored to {task.audited_sha}: inspect it by hand")
-
-
-def _is_ancestor(repo: Path, ancestor: str, descendant: str) -> bool:
-    try:
-        run_git(repo, "merge-base", "--is-ancestor", ancestor, descendant)
-    except subprocess.CalledProcessError:
-        return False
-    return True

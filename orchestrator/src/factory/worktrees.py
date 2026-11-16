@@ -15,6 +15,17 @@ def run_git(cwd: Path, *args: str, env: dict[str, str] | None = None) -> str:
     return result.stdout.strip()
 
 
+def is_ancestor(repo: Path, ancestor: str, descendant: str) -> bool:
+    """True if `ancestor` is `descendant` or reachable from it. Only git's "no" (exit 1) is False; any other error raises."""
+    try:
+        run_git(repo, "merge-base", "--is-ancestor", ancestor, descendant)
+    except subprocess.CalledProcessError as error:
+        if error.returncode == 1:
+            return False
+        raise
+    return True
+
+
 class WorktreeExists(Exception):
     pass
 
