@@ -542,3 +542,11 @@ The hint also said: "Before you propose any interface, module boundary or seam, 
 - Risks: a retry at the terminal does not withdraw the offer (a 👍 would start a second task); a deleted task or offer comment is retried and logged every pass; no offer for tasks that failed before the flag was turned on.
 - Deviation from the plan: the offer is adopted by its marker (kind `retry-offer` plus the task id), not by exact body, like the failure comment.
 - Nothing run against a real repo or real GitHub outside the tests.
+
+## Plan 49 (sandbox read access to the claude binary; spike 2026-11-16, Linux, nono 0.81, run by the user)
+
+- Without a grant every confined run exits 127: nono refuses an executable whose directory the profile `nolabs-ai/claude` cannot read (here under mise).
+- `latest/claude` resolves to `.../claude-code/2.1.325/claude`, a native ELF (no node needed).
+- `--read .../latest` alone passed (exit 0, JSON `result: ok`), and `--read .../2.1.325` alone also passed, so nono accepts the unresolved or the resolved directory.
+- Rule chosen: grant `dirname(abspath(which(executable)))`, looked up per run on the child's `PATH`. Skipped when it is `/`, `$HOME` or contains the state directory.
+- Not handled: a relative `claude_executable`; a mise shim as the executable.
