@@ -41,6 +41,7 @@ class Settings:
     watch_merge: bool = False
     watch_retry: bool = False
     main_branch: str | None = None
+    gate_allow_outside: tuple[str, ...] = ()
 
     @property
     def ledger_path(self) -> Path:
@@ -64,7 +65,7 @@ _STRING_KEYS = ("project_subdir", "claude_executable", "sandbox_executable", "mo
 _PROMPT_KEYS = ("append_system_prompt",)
 _STAGES = ("plan", "review", "implement", "audit")
 _FLOAT_KEYS = ("cap_usd", "gate_timeout_s", "runner_timeout_s", "budget_usd")
-_STRING_LIST_KEYS = ("test_argv", "allowed_tools", "plugins", "watch_approvers")
+_STRING_LIST_KEYS = ("test_argv", "allowed_tools", "plugins", "watch_approvers", "gate_allow_outside")
 _INT_KEYS = ("max_turns", "fix_rounds", "server_port", "grill_max_rounds")
 _BOOL_KEYS = ("grill", "watch_merge", "watch_retry")
 GITHUB_LOGIN = re.compile(r"(?!.{40})[A-Za-z0-9]+(-[A-Za-z0-9]+)*")

@@ -672,6 +672,15 @@ def test_watch_merge_is_off_by_default_and_comes_from_the_config(repo_dir):
     assert load_settings(None, cwd=repo_dir).watch_merge is True
 
 
+def test_gate_allow_outside_defaults_to_none_and_the_local_list_replaces_the_global_one(repo_dir, global_config):
+    assert load_settings(None, cwd=repo_dir).gate_allow_outside == ()
+    global_config.write_text('gate_allow_outside = ["README.md", "docs"]\n')
+    assert load_settings(None, cwd=repo_dir).gate_allow_outside == ("README.md", "docs")
+    (repo_dir / "factory.toml").write_text('gate_allow_outside = ["LICENSE"]\n')
+
+    assert load_settings(None, cwd=repo_dir).gate_allow_outside == ("LICENSE",)
+
+
 def test_watch_retry_is_off_by_default_and_comes_from_the_config(repo_dir):
     assert load_settings(None, cwd=repo_dir).watch_retry is False
     (repo_dir / "factory.toml").write_text("watch_retry = true\n")
