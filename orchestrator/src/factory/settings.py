@@ -39,6 +39,7 @@ class Settings:
     stage_plugin_dirs: dict[str, tuple[Path, ...]] = field(default_factory=dict)
     watch_approvers: tuple[str, ...] = ()
     watch_merge: bool = False
+    main_branch: str | None = None
 
     @property
     def ledger_path(self) -> Path:
@@ -58,7 +59,7 @@ class Settings:
 
 
 _PATH_KEYS = ("repo", "state_dir", "worktree_root", "home")
-_STRING_KEYS = ("project_subdir", "claude_executable", "sandbox_executable", "model")
+_STRING_KEYS = ("project_subdir", "claude_executable", "sandbox_executable", "model", "main_branch")
 _PROMPT_KEYS = ("append_system_prompt",)
 _STAGES = ("plan", "review", "implement", "audit")
 _FLOAT_KEYS = ("cap_usd", "gate_timeout_s", "runner_timeout_s", "budget_usd")
