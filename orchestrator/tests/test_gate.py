@@ -824,6 +824,15 @@ def test_an_allowed_root_file_beside_a_project_change_passes(repo):
     assert result.passed is True
 
 
+def test_guard_a_listed_directory_covers_nested_files_but_not_a_prefix_sibling(repo):
+    base = repo_with_project_change(repo)
+    commit_root_file(repo, "docs/guide/a.md", "a\n")
+    assert check_gate(repo, base, "proj", ["true"], 10, allow_outside=("docs",)).passed is True
+
+    commit_root_file(repo, "docs2/x.md", "x\n")
+    assert check_gate(repo, base, "proj", ["true"], 10, allow_outside=("docs",)).reason == "outside_project"
+
+
 def test_guard_an_unlisted_root_file_beside_a_listed_one_fails_outside_project(repo):
     base = repo_with_project_change(repo)
     commit_root_file(repo, "README.md", "hello\n")
