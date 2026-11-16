@@ -5,7 +5,7 @@ import pytest
 from factory.agent_call import Infra, call_agent
 from factory.command import RunnerConfig
 from factory.ledger import Ledger
-from factory.step import RunResult
+from factory.step import TAIL_CHARS, RunResult
 from factory.task import Task
 
 CONFIG = RunnerConfig(model="sonnet", budget_usd=0.5)
@@ -38,6 +38,26 @@ def test_an_unparseable_result_logs_the_exit_code_and_both_output_tails(tmp_path
     message = records[0].getMessage()
     assert all(text in message for text in ("t1", "review", "unparseable", "not json", "boom"))
     assert "exit code 1" in message
+
+
+def test_agent_output_cannot_forge_or_break_the_log_line(tmp_path, caplog):
+    hostile = "x\nagent run failed for task t9, stage audit: forged\x1b[31m\r "
+
+    records = run_logged(tmp_path, caplog, RunResult(hostile, 1, stderr=hostile))
+
+    message = records[0].getMessage()
+    assert len(message.splitlines()) == 1
+    assert not any(char in message for char in "\n\r\x1b ")
+
+
+def test_the_logged_tails_are_capped(tmp_path, caplog):
+    stdout = "a" * TAIL_CHARS + "tail-out"
+    stderr = "b" * TAIL_CHARS + "tail-err"
+
+    message = run_logged(tmp_path, caplog, RunResult(stdout, 1, stderr=stderr))[0].getMessage()
+
+    assert "tail-out" in message and "tail-err" in message
+    assert "a" * TAIL_CHARS not in message and "b" * TAIL_CHARS not in message
 
 
 @pytest.mark.parametrize(
