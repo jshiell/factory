@@ -199,6 +199,7 @@ class FakeServer:
         self.rebase_job = rebase_job or {"state": "succeeded", "error": None, "result": {"state": "agent_done", "failure_reason": None}}
         self.rebase_requests = []
         self.retry_requests = []
+        self.retry_refusal = None
         self.task_state_after_merge = task_state_after_merge
         self.merge_preview = merge_preview
         self.merge_job = merge_job or {"state": "succeeded", "error": None, "result": {"state": "merged", "failure_reason": None}}
@@ -239,6 +240,8 @@ class FakeServer:
             return {"job": {"id": "j-rebase"}}
         if path.endswith("/retry"):
             self.retry_requests.append(path)
+            if self.retry_refusal:
+                raise self.retry_refusal
             return {"id": next(self.ids)}
         assert path == "/tasks"
         self.created.append(body["goal"])
@@ -673,6 +676,25 @@ def test_an_approver_thumbs_down_on_the_retry_offer_declines_it_and_wins_over_a_
     assert body.startswith("<!-- factory:task=t-9:kind=not-retried -->")
     assert server.retry_requests == []
     assert load_state(tmp_path).issues[5].phase is Phase.NOT_MERGED
+
+
+def test_a_refused_retry_is_reported_with_the_reason_home_stripped_and_stops_the_issue(tmp_path):
+    server = FakeServer(task_state="failed")
+    server.retry_refusal = ServerRefused(409, "retry refused", "task t-9 has no goal in /home/jsh/x")
+    save_state(tmp_path, WatchState(
+        watching_since=SINCE,
+        issues={5: IssueRecord(task_id="t-9", phase=Phase.AWAITING_RETRY, result_comment_id=7, retry_comment_id=8)},
+    ))
+    github = FakeGitHub([raw_issue(number=5)], reactions={8: [Reaction("+1", 1001, "alice")]})
+
+    run_pass(github, server, tmp_path, {1001}, lambda: SINCE, home=Path("/home/jsh"), retry=True)
+
+    [(issue_number, body)] = github.comments_posted
+    assert issue_number == 5
+    assert body.startswith("<!-- factory:task=t-9:kind=retry-refused -->")
+    assert "```\ntask t-9 has no goal in ~/x\n```" in body
+    assert "/home/jsh" not in body
+    assert load_state(tmp_path).issues[5].phase is Phase.STOPPED
 
 
 class RememberingGitHub(FakeGitHub):
