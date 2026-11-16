@@ -1062,6 +1062,16 @@ def test_a_failed_rebase_job_on_a_task_still_audited_at_the_offered_commit_posts
     assert load_state(tmp_path).issues[5].phase is Phase.MERGE_STOPPED
 
 
+def test_a_failed_rebase_job_on_a_task_that_is_now_rebased_counts_as_success(tmp_path):
+    failed = {"state": "failed", "error": "server restarted after the rebase", "result": None}
+    server = FakeServer(task_state="audited", audited_sha="abc123", rebase_job=failed, task_state_after_rebase="agent_done")
+
+    github, server = rebase_reaction_pass(tmp_path, [Reaction("+1", 1001, "alice")], server=server)
+
+    assert github.comments_posted == []
+    assert load_state(tmp_path).issues[5].phase is Phase.APPROVED
+
+
 def test_guard_an_interrupted_rebase_job_leaves_the_task_awaiting_the_rebase(tmp_path):
     interrupted = {"state": "interrupted", "error": "server restarted", "result": None}
     server = FakeServer(task_state="audited", audited_sha="abc123", rebase_job=interrupted)

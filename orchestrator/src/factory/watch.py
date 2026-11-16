@@ -492,6 +492,12 @@ def _post_rebase_refused(github, state, state_dir, issue_number: int, record: Is
     _post_result(github, state, state_dir, issue_number, record, self_id, "rebase-refused", Phase.MERGE_STOPPED, body)
 
 
+def _task_is_rebased(server, record: IssueRecord) -> bool:
+    """A job that failed after the rebase landed (a lost reply, a rebase at the terminal): the task has left the offered commit."""
+    task = server.get(f"/tasks/{require_safe_id(record.task_id)}")
+    return task["state"] == "agent_done" or task["audited_sha"] != record.rebase_sha
+
+
 def _rebase_on_thumbs_up(github, server, state, state_dir, issue_number: int, record: IssueRecord, task: dict, approver_ids: set[int], self_id: int, home: str) -> None:
     """Rebase the task on an approver's 👍 on the rebase offer, if it is still at the commit the offer showed; approvers match by numeric id, never login."""
     reactions = github.reactions(record.rebase_comment_id)
@@ -500,10 +506,10 @@ def _rebase_on_thumbs_up(github, server, state, state_dir, issue_number: int, re
     if task["audited_sha"] == record.rebase_sha:
         job_id = server.post(f"/tasks/{require_safe_id(record.task_id)}/rebase")["job"]["id"]
         job = server.wait(job_id)
-        if job["state"] == "failed":
+        if job["state"] == "failed" and not _task_is_rebased(server, record):
             _post_rebase_refused(github, state, state_dir, issue_number, record, self_id, strip_home(job["error"], home))
             return
-        if job["state"] != "succeeded":
+        if job["state"] not in ("succeeded", "failed"):
             return
     record.phase = Phase.APPROVED
     save_state(state_dir, state)
