@@ -13,15 +13,25 @@ from factory.step import RunResult
 from factory.task import Task
 
 
-def _executable_directory(executable: str, path: str | None) -> tuple[str, ...]:
-    """The directory the sandbox must be allowed to read for `executable` to start; none if it cannot be found."""
+def _contains(directory: str, inner: str) -> bool:
+    return Path(inner).resolve().is_relative_to(Path(directory).resolve())
+
+
+def _executable_directory(executable: str, path: str | None, private_dirs: tuple[str, ...]) -> tuple[str, ...]:
+    """The directory the sandbox must be allowed to read for `executable` to start.
+    None if it cannot be found, or if reading it would expose a private directory."""
     found = shutil.which(executable, path=path)
-    return (os.path.dirname(os.path.abspath(found)),) if found else ()
+    if not found:
+        return ()
+    directory = os.path.dirname(os.path.abspath(found))
+    return () if any(_contains(directory, private) for private in private_dirs) else (directory,)
 
 
 class SubprocessRunner:
-    def __init__(self, executable: str, project_subdir: str, timeout_s: float, sandbox_executable: str = "nono", records=None):
-        """`records`: a records object or a state directory; each agent process is recorded there for the reaper."""
+    def __init__(self, executable: str, project_subdir: str, timeout_s: float, sandbox_executable: str = "nono", records=None, private_dirs: tuple[str, ...] = ()):
+        """`records`: a records object or a state directory; each agent process is recorded there for the reaper.
+        `private_dirs`: directories the sandbox must never be granted read access to, even indirectly."""
+        self._private_dirs = private_dirs
         self._executable = executable
         self._project_subdir = project_subdir
         self._timeout_s = timeout_s
@@ -34,7 +44,7 @@ class SubprocessRunner:
         argv, env_overlay = build_command(task.prompt, config, executable=self._executable, add_dirs=add_dirs)
         child_env = self._child_env(env_overlay)
         if config.confine:
-            executable_grant = _executable_directory(self._executable, child_env.get("PATH"))
+            executable_grant = _executable_directory(self._executable, child_env.get("PATH"), self._private_dirs)
             argv = sandbox_prefix(self._sandbox_executable, worktree, read=(*config.plugin_dirs, *executable_grant)) + argv
         cwd = Path(task.worktree) / self._project_subdir
         tracker = Tracker(self._records, task.id, task.state.value) if self._records else None

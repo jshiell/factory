@@ -213,6 +213,22 @@ def test_a_claude_executable_that_cannot_be_found_adds_no_grant_and_the_run_goes
     assert result.exit_code == 127
 
 
+def test_no_grant_is_made_for_a_directory_that_contains_a_private_directory(tmp_path, task):
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    fake_claude(bin_dir, "echo ok")
+    log = tmp_path / "wrapper.log"
+    runner = SubprocessRunner(
+        str(bin_dir / "fake-claude"), project_subdir="proj", timeout_s=10,
+        sandbox_executable=fake_wrapper(tmp_path, log), private_dirs=(str(bin_dir / "state"),),
+    )
+
+    result = runner.run(task, replace(CONFIG, confine=True))
+
+    assert sandbox_reads(log) == [str(Path(task.worktree).resolve())]
+    assert result.stdout.strip() == "ok"
+
+
 def test_an_unconfined_config_does_not_touch_the_wrapper(tmp_path, task):
     log = tmp_path / "wrapper.log"
     runner = SubprocessRunner(
