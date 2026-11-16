@@ -198,6 +198,7 @@ class FakeServer:
         self.task_state_after_rebase = task_state_after_rebase
         self.rebase_job = rebase_job or {"state": "succeeded", "error": None, "result": {"state": "agent_done", "failure_reason": None}}
         self.rebase_requests = []
+        self.retry_requests = []
         self.task_state_after_merge = task_state_after_merge
         self.merge_preview = merge_preview
         self.merge_job = merge_job or {"state": "succeeded", "error": None, "result": {"state": "merged", "failure_reason": None}}
@@ -236,6 +237,9 @@ class FakeServer:
         if path.endswith("/rebase"):
             self.rebase_requests.append(path)
             return {"job": {"id": "j-rebase"}}
+        if path.endswith("/retry"):
+            self.retry_requests.append(path)
+            return {"id": next(self.ids)}
         assert path == "/tasks"
         self.created.append(body["goal"])
         return {"id": next(self.ids)}
@@ -628,6 +632,24 @@ def test_guard_with_retry_on_a_task_the_server_already_reports_failed_gets_the_s
         "<!-- factory:task=t-9:kind=retry-offer -->",
     ]
     assert load_state(tmp_path).issues[5].phase is Phase.AWAITING_RETRY
+
+
+def retry_reaction_pass(tmp_path, reactions, server=None):
+    """Issue 5 awaits a retry of failed task t-9; the offer is comment 8. A retry creates task t-1."""
+    record = IssueRecord(task_id="t-9", phase=Phase.AWAITING_RETRY, result_comment_id=7, retry_comment_id=8)
+    save_state(tmp_path, WatchState(watching_since=SINCE, issues={5: record}))
+    server = server or FakeServer(task_state="failed", failure_reason="plan rejected: too vague")
+    github = FakeGitHub([raw_issue(number=5)], reactions={8: reactions})
+    return pass_over(tmp_path, [], server=server, github=github, retry=True)
+
+
+def test_an_approver_thumbs_up_on_the_retry_offer_retries_the_task_and_follows_the_new_one(tmp_path):
+    github, server = retry_reaction_pass(tmp_path, [Reaction("+1", 1001, "alice")])
+
+    assert server.retry_requests == ["/tasks/t-9/retry"]
+    assert load_state(tmp_path).issues == {5: IssueRecord(task_id="t-1", phase=Phase.NEW)}
+    assert github.comments_posted == []
+    assert server.advanced == []
 
 
 class RememberingGitHub(FakeGitHub):
