@@ -3,7 +3,7 @@ from pathlib import Path
 
 from factory.store import TaskStore
 from factory.task import Event, Task, apply
-from factory.worktrees import WorktreeManager, is_ancestor, main_checkout_problem, run_git
+from factory.worktrees import WorktreeManager, branch_problem, is_ancestor, main_checkout_problem, run_git
 
 
 MAIN_MOVED = "main moved since the plan; re-run the task"
@@ -50,6 +50,8 @@ def merge_task(
     task = store.load(task_id)
     if shown_sha != task.audited_sha:
         raise MergeRefused("the commit shown is not the audited commit")
+    if main_branch is not None and (problem := branch_problem(repo, main_branch)):
+        raise MergeRefused(problem)
     if _already_fast_forwarded(task, repo):
         return _record_merged(task, store, worktrees)
     preview = merge_preview(task_id, store, repo, main_branch)
