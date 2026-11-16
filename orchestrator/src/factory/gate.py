@@ -54,6 +54,7 @@ def check_gate(
     capture_limit: int | None = None,
     frozen_sha: str | None = None,
     tracker=None,
+    allow_outside: tuple[str, ...] = (),
 ) -> GateResult:
     project_dir = _resolve_inside(worktree, project_subdir)
     if not _is_ancestor(worktree, base_sha):
@@ -71,7 +72,7 @@ def check_gate(
             return GateResult(False, "not_descendant")
         if _tests_changed_since(worktree, frozen_sha, project_subdir, test_globs):
             return GateResult(False, "tests_modified")
-    if _changed_outside_project(worktree, base_sha, project_dir):
+    if _changed_outside_project(worktree, base_sha, project_dir, allow_outside):
         return GateResult(False, "outside_project")
     try:
         ran = run_to_exit([*test_prefix, *test_argv], project_dir, env, timeout_s, capture_limit, tracker)
@@ -84,12 +85,15 @@ def check_gate(
     return GateResult(True)
 
 
-def _changed_outside_project(worktree: Path, base_sha: str, project_dir: Path) -> bool:
+def _changed_outside_project(
+    worktree: Path, base_sha: str, project_dir: Path, allow_outside: tuple[str, ...] = ()
+) -> bool:
     """Anything beyond the project (root config, `uv.toml`, `sitecustomize.py`, a gitlink) can change what the tests run."""
     inside = project_dir.relative_to(worktree.resolve()).as_posix()
+    allowed = [f":(top,exclude,literal){entry}" for entry in allow_outside]
     changed = run_git(
         worktree, "diff", "--name-only", "--no-renames", "--ignore-submodules=none", base_sha, "HEAD",
-        "--", ".", f":(top,exclude,literal){inside}",
+        "--", ".", f":(top,exclude,literal){inside}", *allowed,
     )
     return bool(changed)
 

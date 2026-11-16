@@ -812,3 +812,13 @@ def test_guard_a_nested_project_refuses_a_change_beside_it(repo):
     git(repo, "add", "-A")
     git(repo, "commit", "-q", "-m", "beside")
     assert check_gate(repo, base, "a/b", ["true"], 5).reason == "outside_project"
+
+
+# gate_allow_outside (plan 50)
+def test_an_allowed_root_file_beside_a_project_change_passes(repo):
+    base = repo_with_project_change(repo)
+    commit_root_file(repo, "README.md", "hello\n")
+
+    result = check_gate(repo, base, "proj", ["true"], 10, allow_outside=("README.md",))
+
+    assert result.passed is True
