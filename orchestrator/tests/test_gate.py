@@ -838,6 +838,53 @@ def test_a_change_only_to_an_allowed_path_counts_as_a_change(repo):
     assert (allowed.passed, unlisted.reason) == (True, "no_changes")
 
 
+def test_a_new_symlink_under_an_allowed_directory_fails_outside_project(repo):
+    base = repo_with_project_change(repo)
+    (repo / "docs").mkdir()
+    (repo / "docs" / "link").symlink_to("../proj/code.py")
+    git(repo, "add", "-A")
+    git(repo, "commit", "-q", "-m", "symlink")
+
+    result = check_gate(repo, base, "proj", ["true"], 10, allow_outside=("docs",))
+
+    assert result.reason == "outside_project"
+
+
+def test_guard_a_file_turned_into_a_symlink_under_an_allowed_directory_fails(repo):
+    commit_root_file(repo, "docs/a.md", "a\n")
+    base = repo_with_project_change(repo)
+    (repo / "docs" / "a.md").unlink()
+    (repo / "docs" / "a.md").symlink_to("../proj/code.py")
+    git(repo, "add", "-A")
+    git(repo, "commit", "-q", "-m", "swap")
+
+    result = check_gate(repo, base, "proj", ["true"], 10, allow_outside=("docs",))
+
+    assert result.reason == "outside_project"
+
+
+def test_a_gitlink_under_an_allowed_directory_fails_outside_project(repo):
+    base = repo_with_project_change(repo)
+    git(repo, "update-index", "--add", "--cacheinfo", f"160000,{base},docs/sub")
+    git(repo, "commit", "-q", "-m", "gitlink")
+
+    result = check_gate(repo, base, "proj", ["true"], 10, allow_outside=("docs",))
+
+    assert result.reason == "outside_project"
+
+
+def test_guard_an_unchanged_symlink_under_an_allowed_directory_passes(repo):
+    (repo / "docs").mkdir()
+    (repo / "docs" / "link").symlink_to("../proj/code.py")
+    commit_root_file(repo, "docs/a.md", "a\n")
+    base = repo_with_project_change(repo)
+    commit_root_file(repo, "docs/a.md", "changed\n")
+
+    result = check_gate(repo, base, "proj", ["true"], 10, allow_outside=("docs",))
+
+    assert result.passed is True
+
+
 def test_guard_a_listed_directory_covers_nested_files_but_not_a_prefix_sibling(repo):
     base = repo_with_project_change(repo)
     commit_root_file(repo, "docs/guide/a.md", "a\n")

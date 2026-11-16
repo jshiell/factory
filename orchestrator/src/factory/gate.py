@@ -11,6 +11,7 @@ from factory.worktrees import HARDENED_GIT, run_git
 DEFAULT_PROTECTED_NAMES = ("conftest.py", "pytest.ini", ".pytest.ini", "pytest.toml", ".pytest.toml", "tox.ini", "setup.cfg", "uv.toml", ".python-version", ".python-versions")
 WATCHED_TOOL_TABLES = ("pytest", "uv")
 DEFAULT_TEST_GLOBS = ("test_*.py", "*_test.py")
+_LINK_MODES = ("120000", "160000")
 _FACTORY_IDENTITY = ("-c", "user.name=factory", "-c", "user.email=factory@localhost")
 
 
@@ -73,7 +74,9 @@ def check_gate(
             return GateResult(False, "not_descendant")
         if _tests_changed_since(worktree, frozen_sha, project_subdir, test_globs):
             return GateResult(False, "tests_modified")
-    if _changed_outside_project(worktree, base_sha, project_dir, allow_outside):
+    if _changed_outside_project(worktree, base_sha, project_dir, allow_outside) or _link_added_under(
+        worktree, base_sha, allow_outside
+    ):
         return GateResult(False, "outside_project")
     try:
         ran = run_to_exit([*test_prefix, *test_argv], project_dir, env, timeout_s, capture_limit, tracker)
@@ -97,6 +100,17 @@ def _changed_outside_project(
         "--", ".", f":(top,exclude,literal){inside}", *allowed,
     )
     return bool(changed)
+
+
+def _link_added_under(worktree: Path, base_sha: str, allow_outside: tuple[str, ...]) -> bool:
+    """A symlink or gitlink added or changed under an allowed path can point the tests at files the gate never sees."""
+    if not allow_outside:
+        return False
+    raw = run_git(
+        worktree, "diff", "--raw", "--no-renames", "--ignore-submodules=none", base_sha, "HEAD",
+        "--", *(f":(top,literal){entry}" for entry in allow_outside),
+    )
+    return any(line.split()[1] in _LINK_MODES for line in raw.splitlines())
 
 
 def _tests_changed_since(worktree: Path, frozen_sha: str, project_subdir: str, test_globs: tuple[str, ...]) -> bool:
