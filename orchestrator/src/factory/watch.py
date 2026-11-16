@@ -483,6 +483,9 @@ def _merge_on_thumbs_up(github, server, state, state_dir, issue_number: int, rec
         _post_merge_refused(github, state, state_dir, issue_number, record, self_id, job["error"])
 
 
+_NOT_REBASED = "An approver declined the rebase, so nothing was rebased or merged. The task stays audited; rebase it at the terminal if you change your mind."
+
+
 def _post_rebase_refused(github, state, state_dir, issue_number: int, record: IssueRecord, self_id: int, reason: str) -> None:
     task_id = require_safe_id(record.task_id)
     body = render_comment(record.task_id, "rebase-refused", [
@@ -501,6 +504,9 @@ def _task_is_rebased(server, record: IssueRecord) -> bool:
 def _rebase_on_thumbs_up(github, server, state, state_dir, issue_number: int, record: IssueRecord, task: dict, approver_ids: set[int], self_id: int, home: str) -> None:
     """Rebase the task on an approver's 👍 on the rebase offer, if it is still at the commit the offer showed; approvers match by numeric id, never login."""
     reactions = github.reactions(record.rebase_comment_id)
+    if _approver_reacted(reactions, "-1", approver_ids):
+        _post_ending(github, state, state_dir, issue_number, record, self_id, "not-merged", Phase.NOT_MERGED, "Not rebased", _NOT_REBASED)
+        return
     if not _approver_reacted(reactions, "+1", approver_ids):
         return
     if task["audited_sha"] == record.rebase_sha:

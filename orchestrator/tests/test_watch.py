@@ -1072,6 +1072,18 @@ def test_a_failed_rebase_job_on_a_task_that_is_now_rebased_counts_as_success(tmp
     assert load_state(tmp_path).issues[5].phase is Phase.APPROVED
 
 
+def test_an_approver_thumbs_down_on_the_rebase_offer_wins_over_a_thumbs_up_and_declines_the_rebase(tmp_path):
+    reactions = [Reaction("+1", 1001, "alice"), Reaction("-1", 1001, "alice")]
+
+    github, server = rebase_reaction_pass(tmp_path, reactions, server=FakeServer(task_state="audited", audited_sha="abc123"))
+
+    assert server.rebase_requests == []
+    [(_, body)] = github.comments_posted
+    assert body.startswith("<!-- factory:task=t-9:kind=not-merged -->")
+    assert "declined the rebase" in body
+    assert load_state(tmp_path).issues[5].phase is Phase.NOT_MERGED
+
+
 def test_guard_an_interrupted_rebase_job_leaves_the_task_awaiting_the_rebase(tmp_path):
     interrupted = {"state": "interrupted", "error": "server restarted", "result": None}
     server = FakeServer(task_state="audited", audited_sha="abc123", rebase_job=interrupted)
