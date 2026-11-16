@@ -507,7 +507,7 @@ The hint also said: "Before you propose any interface, module boundary or seam, 
 - A failed merge job carries `merge refused: <text>` (`server.merge` wraps the refusal); the preview endpoint answers 409 `merge refused` with the raw text. "Main moved" is raised only in `merge_task.merge_preview`, now as `MAIN_MOVED`.
 - A rebase on a task in the wrong state is a failed job (`rebase refused: ...`), not an HTTP error.
 - Unverified: the failed-job result for a rebase conflict (the code aborts the rebase and restores the worktree, so the task should stay `audited`).
-- Known gap: `rebase_task` does not check that the checkout's branch is `main` (plan 46 added the detached and dirty checks).
+- Known gap: `rebase_task` does not check that the checkout's branch is `main` when `main_branch` is unset (plan 46 added the detached and dirty checks; plan 47 the `main_branch` check).
 
 ## Plan 45 (no rebase offer when the audited commit is already in main)
 
@@ -521,4 +521,12 @@ The hint also said: "Before you propose any interface, module boundary or seam, 
 
 - `rebase_task` now runs the merge preview's two checks through a shared `main_checkout_problem` (`worktrees.py`): "main is not on a branch" and "main has uncommitted changes" (tracked files only; untracked files are ignored, staged-only changes count). A rebase in progress in main detaches HEAD, and a conflicted merge, cherry-pick or revert shows as unmerged entries, so both are caught.
 - Nothing run against a real repo outside the tests.
-- Known gaps, shared with the merge preview: a checkout on another branch still passes; an in-progress `git am`, or a `merge --no-commit` with a clean index, is not caught (whether `merge --ff-only` refuses then is unverified); submodule changes are ignored; main can move between the check and its use.
+- Known gaps, shared with the merge preview: a checkout on another branch still passes when `main_branch` is unset (plan 47); an in-progress `git am`, or a `merge --no-commit` with a clean index, is not caught (whether `merge --ff-only` refuses then is unverified); submodule changes are ignored; main can move between the check and its use.
+
+## Plan 47 (per-repo `main_branch`: merge and rebase refuse another branch)
+
+- New per-repo setting `main_branch` (default unset = no check; an empty value is a settings error; an error in the global file). When set, `merge_preview`, `merge_task` and `rebase_task` refuse with `main is on branch X, not Y (main_branch in factory.toml)` if the server checkout is on another branch. The check runs before the dirty check (`branch_problem`, then `main_checkout_problem` in `worktrees.py`).
+- The crash-recovery shortcut in `merge_task` (main already at the audited commit) gets the branch-only check, and only when `main_branch` is set; unset, it is unchanged.
+- The server reads settings at `serve` startup, so a changed `main_branch` needs a restart.
+- Risks: the check compares names only, not that the branch exists; `WorktreeManager.create` and `clean`'s `branch -d` still follow HEAD; the watcher's `merge-refused` Next line does not mention `main_branch` (shared limit with plan 46); the plan-46 gaps remain.
+- Nothing run against a real repo outside the tests.
