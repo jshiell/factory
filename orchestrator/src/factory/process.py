@@ -77,11 +77,11 @@ def run_to_exit(
                 raise
             else:
                 kill_tree(process.pid)  # whatever the command left running in its session
-        tail = None if capture_limit is None else _tail(output, capture_limit)
-    return ExitResult(None if timed_out else process.returncode, timed_out, tail)
+        captured = None if capture_limit is None else tail(output, capture_limit)
+    return ExitResult(None if timed_out else process.returncode, timed_out, captured)
 
 
-def _tail(output, limit: int) -> str:
+def tail(output, limit: int) -> str:
     size = output.seek(0, os.SEEK_END)
     output.seek(max(0, size - 4 * limit))  # a character is at most 4 bytes
     return output.read().decode("utf-8", errors="replace")[-limit:]
