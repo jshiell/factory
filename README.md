@@ -51,7 +51,7 @@ or its step cap. Agent spend is capped (see `cap_usd`) and every call is recorde
 | `merge <id>` | Fast-forward `main` to the audited commit. Needs a TTY; shows what will land first |
 | `retry <id>` | Start a fresh task from a failed or audited one (new id, `retry_of` set) |
 | `retry <id> --keep-plan` | Same, but queue it with the plan you already approved, skipping plan and review. Needs a TTY: shows the plan and asks `y` |
-| `rebase <id>` | An audited task whose merge was refused because `main` moved: replay it on the new `main` and send it back through verify and audit |
+| `rebase <id>` | An audited task whose merge was refused because `main` moved: replay it on the new `main` and send it back through verify and audit. With `watch_merge` on, an approver's 👍 on the watcher's offer does the same |
 | `abandon <id>` | Fail a task that is not running (for example one stuck mid-rebase) |
 | `recover <id>` | Mark a task whose driver died (`running`) as failed, charging an assumed cost |
 | `clean` | After a preview and confirmation, remove worktrees, gate caches, orphan caches and branches of finished tasks |
