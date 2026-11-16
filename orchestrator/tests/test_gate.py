@@ -822,3 +822,13 @@ def test_an_allowed_root_file_beside_a_project_change_passes(repo):
     result = check_gate(repo, base, "proj", ["true"], 10, allow_outside=("README.md",))
 
     assert result.passed is True
+
+
+def test_guard_an_unlisted_root_file_beside_a_listed_one_fails_outside_project(repo):
+    base = repo_with_project_change(repo)
+    commit_root_file(repo, "README.md", "hello\n")
+    commit_root_file(repo, "LICENSE", "mit\n")
+
+    result = check_gate(repo, base, "proj", ["true"], 10, allow_outside=("README.md",))
+
+    assert result.reason == "outside_project"
