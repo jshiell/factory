@@ -557,3 +557,9 @@ The hint also said: "Before you propose any interface, module boundary or seam, 
 - Both git assumptions held in the cycle 5 tests: replacing a file with a symlink shows as one path with new mode `120000` under `git diff --raw --no-renames`, and a gitlink shows mode `160000` under `--ignore-submodules=none`. Only the new mode is checked, so an unchanged symlink is tolerated.
 - Settings validation runs after the merge (global lists are checked against the local `project_subdir`) and rejects globs, `:` pathspec magic, `..`, absolute paths, duplicates, the project and its ancestors or descendants, `uv.lock`, `.gitattributes`, `.gitmodules`, `.git` components and the protected names (case-insensitive).
 - Risks: the gate cannot know which allowed files the tests read; a task that changes only allowed paths is verified on an unchanged project; a global entry missing from a repo is inert; case-insensitive filesystems are not handled; the planner and reviewer prompts were not checked for steering away from root files.
+
+## Plan 52 (unparseable agent output logged; spike 2026-11-16, Linux)
+
+- After `uvicorn.Config(app, log_level="warning").configure_logging()` the root and `factory` loggers still have no handler, and a `factory` WARNING reaches stderr once, as the bare message (no timestamp or level), through the last-resort handler.
+- Checked with that snippet, not under a full `factory serve` run with a fake agent.
+- The line carries `%r` of the stdout and stderr tails (2000 characters each), so newlines and control characters are escaped and it stays on one line.
