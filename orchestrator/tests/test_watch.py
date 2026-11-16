@@ -806,6 +806,30 @@ def test_a_thumbs_up_when_the_merge_preview_is_now_refused_posts_merge_refused_a
     assert load_state(tmp_path).issues[5].phase is Phase.MERGE_STOPPED
 
 
+def test_guard_a_thumbs_up_when_the_merge_preview_says_main_moved_offers_a_rebase_and_does_not_merge(tmp_path):
+    refusal = ServerRefused(409, "merge refused", MAIN_MOVED)
+    server = FakeServer(task_state="audited", merge_preview=refusal, audited_sha="abc123")
+
+    github, server = merge_reaction_pass(tmp_path, [Reaction("+1", 1001, "alice")], server=server)
+
+    assert server.merge_requests == []
+    [(_, body)] = github.comments_posted
+    assert body.startswith("<!-- factory:task=t-9:kind=merge-moved -->")
+    record = load_state(tmp_path).issues[5]
+    assert (record.phase, record.rebase_sha) == (Phase.AWAITING_REBASE, "abc123")
+
+
+def test_a_failed_merge_job_because_main_moved_offers_a_rebase(tmp_path):
+    failed = {"state": "failed", "error": f"merge refused: {MAIN_MOVED}", "result": None}
+    server = FakeServer(task_state="audited", merge_preview=MERGE_PREVIEW, merge_job=failed, audited_sha="abc123")
+
+    github, server = merge_reaction_pass(tmp_path, [Reaction("+1", 1001, "alice")], server=server)
+
+    [(_, body)] = github.comments_posted
+    assert body.startswith("<!-- factory:task=t-9:kind=merge-moved -->")
+    assert load_state(tmp_path).issues[5].phase is Phase.AWAITING_REBASE
+
+
 def test_a_failed_merge_job_on_a_task_still_audited_posts_merge_refused_with_the_jobs_error(tmp_path):
     failed = {"state": "failed", "error": "merge refused: main moved since the audit", "result": None}
     server = FakeServer(task_state="audited", merge_preview=MERGE_PREVIEW, merge_job=failed)

@@ -452,6 +452,9 @@ def _task_is_merged(server, task_id: str) -> bool:
     return server.get(f"/tasks/{task_id}")["state"] == "merged"
 
 
+_MERGE_JOB_MAIN_MOVED = f"merge refused: {MAIN_MOVED}"  # the error a failed merge job carries
+
+
 def _merge_on_thumbs_up(github, server, state, state_dir, issue_number: int, record: IssueRecord, approver_ids: set[int], self_id: int) -> None:
     """Merge the commit the merge comment showed on an approver's 👍; approvers match by numeric id, never login."""
     reactions = github.reactions(record.merge_comment_id)
@@ -474,6 +477,8 @@ def _merge_on_thumbs_up(github, server, state, state_dir, issue_number: int, rec
     job = server.wait(job_id)
     if job["state"] == "succeeded" or _task_is_merged(server, task_id):
         _post_merged(github, state, state_dir, issue_number, record, self_id)
+    elif job["state"] == "failed" and job["error"] == _MERGE_JOB_MAIN_MOVED:
+        _post_merge_moved(github, server, state, state_dir, issue_number, record, self_id)
     elif job["state"] == "failed":
         _post_merge_refused(github, state, state_dir, issue_number, record, self_id, job["error"])
 
