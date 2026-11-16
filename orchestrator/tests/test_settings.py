@@ -684,7 +684,7 @@ def test_gate_allow_outside_defaults_to_none_and_the_local_list_replaces_the_glo
 @pytest.mark.parametrize(
     "entry",
     [
-        "/x", "../x", "a/../b", "a/*.md", "a?", "a[1]", ":(top)x", "", ".", "proj", "./proj", "proj/sub",
+        "/x", "../x", "a/../b", "a/*.md", "a?", "a[1]", ":(top)x", "", ".", "proj", "./proj", "proj/sub", "proj/sub/x",
         "uv.toml", "UV.toml", "docs/uv.toml", "uv.lock", ".gitattributes", ".gitmodules", "x/.git/y", ".git",
         "conftest.py", "docs/pytest.ini",
     ],
