@@ -642,6 +642,13 @@ def test_main_branch_is_unset_by_default_and_comes_from_the_config(repo_dir):
     assert load_settings(None, cwd=repo_dir).main_branch == "master"
 
 
+def test_an_empty_main_branch_is_rejected_naming_the_key(repo_dir):
+    (repo_dir / "factory.toml").write_text('main_branch = ""\n')
+
+    with pytest.raises(SettingsError, match="wrong type for setting: main_branch"):
+        load_settings(None, cwd=repo_dir)
+
+
 def test_watch_merge_is_off_by_default_and_comes_from_the_config(repo_dir):
     assert load_settings(None, cwd=repo_dir).watch_merge is False
     (repo_dir / "factory.toml").write_text("watch_merge = true\n")

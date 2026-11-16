@@ -211,7 +211,7 @@ def _typed(key: str, value):
         ):
             return {stage: tuple(names) for stage, names in value.items()}
     elif key in _PATH_KEYS or key in _STRING_KEYS:
-        if isinstance(value, str):
+        if isinstance(value, str) and (value or key != "main_branch"):
             return value
     elif key in _PROMPT_KEYS:
         if isinstance(value, str) and value:
