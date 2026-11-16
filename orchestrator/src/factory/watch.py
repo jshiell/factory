@@ -278,8 +278,8 @@ def _post_final(github, state, state_dir, issue_number: int, record: IssueRecord
 
 
 _HOW_TO_RETRY = (
-    "React 👍 to retry: a new task from the original goal, which plans and reviews again "
-    "(this spends agent budget; the new plan needs its own 👍), 👎 to leave it."
+    "Task {task_id}. React 👍 to retry: a new task from the original goal, not the issue's current text, "
+    "which plans and reviews again (this spends agent budget; the new plan needs its own 👍), 👎 to leave it."
 )
 
 
@@ -289,7 +289,7 @@ def _post_failure(github, state, state_dir, issue_number: int, record: IssueReco
     if not retry:
         _post_result(github, state, state_dir, issue_number, record, self_id, "result", Phase.FAILED, failure)
         return
-    offer = render_comment(record.task_id, "retry-offer", [("Retry", _HOW_TO_RETRY, False), ("Failure reason", reason, True)])
+    offer = render_comment(record.task_id, "retry-offer", [("Retry", _HOW_TO_RETRY.format(task_id=record.task_id), False), ("Failure reason", reason, True)])
     failure_id = _result_comment_id(github, issue_number, record, self_id, "result", failure)
     record.retry_comment_id = _result_comment_id(github, issue_number, record, self_id, "retry-offer", offer)
     record.result_comment_id = failure_id

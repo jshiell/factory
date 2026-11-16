@@ -619,6 +619,8 @@ def test_with_retry_on_a_task_that_fails_gets_the_failure_comment_then_a_retry_o
     assert offer.startswith("<!-- factory:task=t-1:kind=retry-offer -->")
     assert "```\nplan rejected: too vague\n```" in offer
     assert "👍" in offer and "👎" in offer
+    assert "Task t-1." in offer
+    assert "not the issue's current text" in offer
     assert load_state(tmp_path).issues == {
         5: IssueRecord(task_id="t-1", phase=Phase.AWAITING_RETRY, result_comment_id=1, retry_comment_id=2)
     }
