@@ -1,4 +1,5 @@
 import os
+import shutil
 import subprocess
 import tempfile
 import time
@@ -25,8 +26,10 @@ class SubprocessRunner:
         worktree = str(Path(task.worktree).resolve())
         add_dirs = (worktree,) if config.confine else ()
         argv, env_overlay = build_command(task.prompt, config, executable=self._executable, add_dirs=add_dirs)
+        child_env = self._child_env(env_overlay)
         if config.confine:
-            argv = sandbox_prefix(self._sandbox_executable, worktree, read=config.plugin_dirs) + argv
+            executable_dir = os.path.dirname(os.path.abspath(shutil.which(self._executable, path=child_env.get("PATH"))))
+            argv = sandbox_prefix(self._sandbox_executable, worktree, read=(*config.plugin_dirs, executable_dir)) + argv
         cwd = Path(task.worktree) / self._project_subdir
         tracker = Tracker(self._records, task.id, task.state.value) if self._records else None
         with tempfile.TemporaryFile("w+") as stdout_file:
@@ -34,7 +37,7 @@ class SubprocessRunner:
             process = subprocess.Popen(
                 argv,
                 cwd=cwd,
-                env=self._child_env(env_overlay),
+                env=child_env,
                 stdout=stdout_file,
                 stderr=subprocess.DEVNULL,
                 stdin=subprocess.DEVNULL,

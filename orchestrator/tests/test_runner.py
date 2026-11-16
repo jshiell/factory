@@ -178,6 +178,29 @@ def test_a_confined_config_runs_claude_through_the_sandbox_wrapper_with_the_work
     assert lines.index("--") < lines.index("--add-dir")
 
 
+def sandbox_reads(log: Path) -> list[str]:
+    """The paths the wrapper was asked to grant read access to, in order (before the `--`)."""
+    lines = log.read_text().splitlines()
+    before_command = lines[: lines.index("--")]
+    return [before_command[i + 1] for i, arg in enumerate(before_command) if arg == "--read"]
+
+
+def test_a_confined_run_grants_the_directory_the_claude_executable_is_found_in(tmp_path, task):
+    versioned = tmp_path / "install" / "2.1.325"
+    versioned.mkdir(parents=True)
+    fake_claude(versioned, "echo ok")
+    (tmp_path / "install" / "latest").symlink_to(versioned)
+    via_link = tmp_path / "install" / "latest" / "fake-claude"
+    log = tmp_path / "wrapper.log"
+    runner = SubprocessRunner(
+        str(via_link), project_subdir="proj", timeout_s=10, sandbox_executable=fake_wrapper(tmp_path, log)
+    )
+
+    runner.run(task, replace(CONFIG, confine=True))
+
+    assert sandbox_reads(log) == [str(Path(task.worktree).resolve()), str(tmp_path / "install" / "latest")]
+
+
 def test_an_unconfined_config_does_not_touch_the_wrapper(tmp_path, task):
     log = tmp_path / "wrapper.log"
     runner = SubprocessRunner(
@@ -324,7 +347,5 @@ def test_each_plugin_dir_is_granted_read_only_to_the_sandbox(tmp_path, task):
     runner.run(task, replace(CONFIG, confine=True, plugin_dirs=("/h/p a", "/h/p b")))
 
     lines = log.read_text().splitlines()
-    before_command = lines[: lines.index("--")]
-    reads = [before_command[i + 1] for i, arg in enumerate(before_command) if arg == "--read"]
-    assert reads[1:] == ["/h/p a", "/h/p b"]
+    assert sandbox_reads(log)[1:3] == ["/h/p a", "/h/p b"]
     assert [lines[i + 1] for i, arg in enumerate(lines) if arg == "--plugin-dir"] == ["/h/p a", "/h/p b"]
