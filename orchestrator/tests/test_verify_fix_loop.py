@@ -377,6 +377,27 @@ def test_a_change_outside_the_project_fails_outside_project_without_a_fix_round(
     assert ledger.entries() == []
 
 
+def test_an_allowed_root_change_beside_the_project_change_verifies_the_task(repo, store, ledger, task):
+    (repo / "README.md").write_text("edited by the agent")
+
+    result = verify_task("t1", store, project_subdir="proj", test_argv=["true"], gate_timeout_s=10,
+                         gate_allow_outside=("README.md",))
+
+    assert result.state is TaskState.VERIFIED
+
+
+def test_an_allowed_root_change_passes_the_sandboxed_gate_too(repo, store, ledger, task):
+    import os
+    from factory.gate_sandbox import GateSandbox
+    (repo / "README.md").write_text("edited by the agent")
+    sandbox = lambda _task: GateSandbox((), ("true",), {"PATH": os.environ["PATH"]})
+
+    result = verify_task("t1", store, project_subdir="proj", test_argv=["unused"], gate_timeout_s=10,
+                         sandbox=sandbox, gate_allow_outside=("README.md",))
+
+    assert result.state is TaskState.VERIFIED
+
+
 def test_a_uv_toml_beside_the_change_fails_tests_modified_without_a_fix_round(repo, store, ledger, task, tmp_path):
     (repo / "proj" / "uv.toml").write_text("exclude-newer = '2000-01-01T00:00:00Z'\n")
     sentinel = tmp_path / "tests-ran"

@@ -36,6 +36,7 @@ def verify_task(
     fix_rounds: int = 0,
     factory_paths: tuple[Path, ...] = (),
     records=None,
+    gate_allow_outside: tuple[str, ...] = (),
 ) -> Task:
     """Gate the agent's work; on `tests_failed`, up to `fix_rounds` fresh agent runs get the failure text.
 
@@ -48,7 +49,10 @@ def verify_task(
     capture = OUTPUT_LIMIT if fix_rounds > 0 else None
     tracker = Tracker(records, task.id, GATE_STAGE) if records else None
     while True:
-        result = _gate_once(task, project_subdir, test_argv, gate_timeout_s, sandbox, capture, factory_paths, tracker)
+        result = _gate_once(
+            task, project_subdir, test_argv, gate_timeout_s, sandbox, capture, factory_paths, tracker,
+            gate_allow_outside,
+        )
         if result.passed:
             return _finish(apply(task, Event.GATE_PASSED), store)
         if result.reason != "tests_failed" or task.fix_rounds_used >= fix_rounds:
@@ -100,6 +104,7 @@ def _gate_once(
     sandbox: Callable[[Task], GateSandbox] | None, capture_limit: int | None = None,
     factory_paths: tuple[Path, ...] = (),
     tracker=None,
+    allow_outside: tuple[str, ...] = (),
 ) -> GateResult:
     worktree = Path(task.worktree)
     if has_nested_repo(worktree, project_subdir):  # before `git add -A` records it as a gitlink
@@ -112,10 +117,11 @@ def _gate_once(
         return check_gate(
             worktree, task.base_sha, project_subdir, test_argv, gate_timeout_s,
             capture_limit=capture_limit, frozen_sha=task.fix_frozen_sha, tracker=tracker,
+            allow_outside=allow_outside,
         )
     confined = sandbox(task)
     return check_gate(
         worktree, task.base_sha, project_subdir, list(confined.argv), gate_timeout_s,
         env=confined.env, test_prefix=confined.prefix, capture_limit=capture_limit,
-        frozen_sha=task.fix_frozen_sha, tracker=tracker,
+        frozen_sha=task.fix_frozen_sha, tracker=tracker, allow_outside=allow_outside,
     )
