@@ -661,6 +661,20 @@ def test_guard_no_reaction_or_a_non_approver_thumbs_up_does_not_retry(tmp_path, 
     assert load_state(tmp_path).issues[5].phase is Phase.AWAITING_RETRY
 
 
+@pytest.mark.parametrize("reactions", [
+    [Reaction("-1", 1001, "alice")],
+    [Reaction("+1", 1001, "alice"), Reaction("-1", 1001, "alice")],
+])
+def test_an_approver_thumbs_down_on_the_retry_offer_declines_it_and_wins_over_a_thumbs_up(tmp_path, reactions):
+    github, server = retry_reaction_pass(tmp_path, reactions)
+
+    [(issue_number, body)] = github.comments_posted
+    assert issue_number == 5
+    assert body.startswith("<!-- factory:task=t-9:kind=not-retried -->")
+    assert server.retry_requests == []
+    assert load_state(tmp_path).issues[5].phase is Phase.NOT_MERGED
+
+
 class RememberingGitHub(FakeGitHub):
     """Posts become the watcher's own comments, as on GitHub; the nth post (counting from 1) can be made to fail once."""
 

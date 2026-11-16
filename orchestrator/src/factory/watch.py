@@ -548,9 +548,15 @@ def _rebase_on_thumbs_up(github, server, state, state_dir, issue_number: int, re
     save_state(state_dir, state)
 
 
-def _retry_on_thumbs_up(github, server, state, state_dir, issue_number: int, record: IssueRecord, approver_ids: set[int]) -> None:
+_NOT_RETRIED = "An approver declined the retry, so the task stays failed. Retry it at the terminal if you change your mind."
+
+
+def _retry_on_thumbs_up(github, server, state, state_dir, issue_number: int, record: IssueRecord, approver_ids: set[int], self_id: int) -> None:
     """Retry the failed task on an approver's 👍 on the offer and follow the new task from the next pass; approvers match by numeric id, never login."""
     reactions = github.reactions(record.retry_comment_id)
+    if _approver_reacted(reactions, "-1", approver_ids):
+        _post_ending(github, state, state_dir, issue_number, record, self_id, "not-retried", Phase.NOT_MERGED, "Not retried", _NOT_RETRIED)
+        return
     if not _approver_reacted(reactions, "+1", approver_ids):
         return
     new_id = server.post(f"/tasks/{require_safe_id(record.task_id)}/retry")["id"]
@@ -599,7 +605,7 @@ def _handle_issue(github, server, state, state_dir, issue: Issue, approver_ids: 
         return
     task = server.get(f"/tasks/{require_safe_id(record.task_id)}")
     if retry and record.phase is Phase.AWAITING_RETRY:
-        _retry_on_thumbs_up(github, server, state, state_dir, issue.number, record, approver_ids)
+        _retry_on_thumbs_up(github, server, state, state_dir, issue.number, record, approver_ids, self_id)
         return
     if task["state"] == "failed":
         _post_failure(github, state, state_dir, issue.number, record, self_id, _failure_text(task, home), retry)
