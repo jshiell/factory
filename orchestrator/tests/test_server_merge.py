@@ -143,6 +143,20 @@ def test_a_merge_on_another_branch_than_main_branch_ends_the_job_failed_and_chan
     assert ctx.store.load("t1").state is TaskState.AUDITED
 
 
+def test_a_rebase_on_another_branch_than_main_branch_ends_the_job_failed_and_changes_nothing(client, ctx, audited, repo):
+    ctx.settings = replace(ctx.settings, main_branch="main")
+    (repo / "c.txt").write_text("c")
+    git(repo, "add", "-A")
+    git(repo, "commit", "-q", "-m", "main moved")
+    git(repo, "checkout", "-q", "-b", "other")
+
+    job = _wait(client, client.post("/tasks/t1/rebase").json()["job"]["id"])
+
+    assert job["state"] == "failed"
+    assert job["error"] == "rebase refused: main is on branch other, not main (main_branch in factory.toml)"
+    assert ctx.store.load("t1") == audited
+
+
 @pytest.fixture
 def failed(ctx, repo):
     worktree, base = WorktreeManager(repo, ctx.settings.worktree_root).create("f1")

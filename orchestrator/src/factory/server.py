@@ -180,7 +180,7 @@ def _build_app(ctx) -> Starlette:
     async def rebase(request: Request) -> JSONResponse:
         return enqueue(
             request, "rebase", (RebaseRefused, InvalidTransition, subprocess.CalledProcessError),
-            lambda task_id: rebase_task(task_id, ctx.store, ctx.settings.repo),
+            lambda task_id: rebase_task(task_id, ctx.store, ctx.settings.repo, ctx.settings.main_branch),
             lambda rebased: {**_task_result_json(rebased.task), "old_audited_sha": rebased.old_audited_sha})
 
     async def approval_preview(request: Request) -> JSONResponse:
