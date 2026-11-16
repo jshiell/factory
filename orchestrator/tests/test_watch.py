@@ -1073,6 +1073,16 @@ def test_a_failed_rebase_job_on_a_task_that_is_now_rebased_counts_as_success(tmp
     assert load_state(tmp_path).issues[5].phase is Phase.APPROVED
 
 
+def test_guard_a_failed_rebase_job_on_a_task_audited_at_a_new_commit_counts_as_success(tmp_path):
+    failed = {"state": "failed", "error": "server restarted after the rebase", "result": None}
+    server = FakeServer(task_state="audited", audited_sha="abc123", rebase_job=failed, audited_sha_after_rebase="def456")
+
+    github, server = rebase_reaction_pass(tmp_path, [Reaction("+1", 1001, "alice")], server=server)
+
+    assert github.comments_posted == []
+    assert load_state(tmp_path).issues[5].phase is Phase.APPROVED
+
+
 def test_guard_when_main_moves_again_after_a_rebase_a_new_offer_is_posted_and_the_old_one_is_not_reused(tmp_path):
     save_state(tmp_path, WatchState(watching_since=SINCE, issues={5: APPROVED}))
     round_one = Comment(7, render_comment("t-9", "merge-moved", [("Audited commit", "abc123", True)]), 4242, "factory-bot")
