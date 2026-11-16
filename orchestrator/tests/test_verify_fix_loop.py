@@ -386,6 +386,17 @@ def test_an_allowed_root_change_beside_the_project_change_verifies_the_task(repo
     assert result.state is TaskState.VERIFIED
 
 
+def test_the_fix_prompt_names_the_allowed_outside_paths(repo, store, ledger, task):
+    runner = FakeRunner(repo, write_fix(repo))
+
+    verify_task("t1", store, project_subdir="proj", test_argv=FIXED_ONLY_IF_FILE, gate_timeout_s=10,
+                runner=runner, ledger=ledger, fix_config=CONFIG, cap_usd=10.0, fix_rounds=1,
+                gate_allow_outside=("README.md",))
+
+    (called, _), = runner.calls
+    assert "or these paths: README.md;" in called.prompt
+
+
 def test_an_allowed_root_change_passes_the_sandboxed_gate_too(repo, store, ledger, task):
     import os
     from factory.gate_sandbox import GateSandbox

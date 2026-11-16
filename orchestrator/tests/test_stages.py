@@ -14,7 +14,7 @@ from factory.process_registry import Record
 from factory.review_plan import REVIEW_CONFIG
 from factory.settings import Settings
 from factory.sqlite_process_records import SqliteProcessRecords
-from factory.stages import Deps, build_stages, implementer_config, stage_config
+from factory.stages import Deps, build_stages, fixer_config, implementer_config, stage_config
 from factory.step import RunResult
 from factory.store import TaskStore
 from factory.task import Task, TaskState
@@ -209,6 +209,22 @@ def test_the_implementer_is_told_to_stay_inside_the_project(setup):
     config = implementer_config(settings)
 
     assert "Only change files inside the project directory" in config.append_system_prompt
+
+
+def test_the_implementer_is_told_which_outside_paths_it_may_change(setup):
+    _, _, settings, _, _, _ = setup
+    settings = replace(settings, gate_allow_outside=("README.md", "docs"))
+
+    prompt = implementer_config(settings).append_system_prompt
+
+    assert "inside the project directory, or these paths: README.md, docs; changes anywhere else are refused" in prompt
+
+
+def test_the_fixer_is_told_which_outside_paths_it_may_change_too(setup):
+    _, _, settings, _, _, _ = setup
+    settings = replace(settings, gate_allow_outside=("README.md",))
+
+    assert "or these paths: README.md;" in fixer_config(settings).append_system_prompt
 
 
 def test_the_implementer_is_told_not_to_touch_uv_config(setup):

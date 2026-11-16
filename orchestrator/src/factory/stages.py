@@ -5,6 +5,7 @@ from pathlib import Path
 
 from factory.audit_task import AUDIT_CONFIG, audit_task
 from factory.command import RunnerConfig
+from factory.fix_prompt import boundary_rule
 from factory.gate_sandbox import GateSandbox, build_gate_sandbox, discover_uv_tooling
 from factory.ledger import Ledger
 from factory.plan_task import PLAN_CONFIG, plan_task
@@ -57,8 +58,8 @@ def _implementer_base(settings: Settings) -> RunnerConfig:
         confine=True,
         max_turns=settings.max_turns,
         append_system_prompt="You are in a git worktree; the project lives in the current directory. Do not commit. "
-        "Only change files inside the project directory; changes anywhere else are refused."
-        " Do not create or edit uv.toml, .python-version or the [tool.uv] table; such changes are refused.",
+        + boundary_rule(settings.gate_allow_outside)
+        + " Do not create or edit uv.toml, .python-version or the [tool.uv] table; such changes are refused.",
     )
 
 
