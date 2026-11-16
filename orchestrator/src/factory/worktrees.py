@@ -26,10 +26,20 @@ def is_ancestor(repo: Path, ancestor: str, descendant: str) -> bool:
     return True
 
 
-def main_checkout_problem(repo: Path) -> str | None:
-    """Why the main checkout cannot take a merge or rebase: detached, or uncommitted tracked changes. None when fine."""
-    if not run_git(repo, "branch", "--show-current"):
+def branch_problem(repo: Path, main_branch: str | None = None) -> str | None:
+    """Why the main checkout's branch is wrong: detached, or (when `main_branch` is set) another branch. None when fine."""
+    branch = run_git(repo, "branch", "--show-current")
+    if not branch:
         return "main is not on a branch"
+    if main_branch is not None and branch != main_branch:
+        return f"main is on branch {branch}, not {main_branch} (main_branch in factory.toml)"
+    return None
+
+
+def main_checkout_problem(repo: Path, main_branch: str | None = None) -> str | None:
+    """Why the main checkout cannot take a merge or rebase: wrong or no branch, or uncommitted tracked changes. None when fine."""
+    if problem := branch_problem(repo, main_branch):
+        return problem
     if run_git(repo, "status", "--porcelain", "--untracked-files=no"):
         return "main has uncommitted changes"
     return None

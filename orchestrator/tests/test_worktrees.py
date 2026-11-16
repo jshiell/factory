@@ -5,7 +5,7 @@ import pytest
 from gitutil import git
 
 from factory.ids import InvalidTaskId
-from factory.worktrees import BranchExists, WorktreeExists, WorktreeManager, is_ancestor
+from factory.worktrees import BranchExists, WorktreeExists, WorktreeManager, is_ancestor, main_checkout_problem
 
 
 @pytest.fixture
@@ -58,6 +58,36 @@ def test_is_ancestor_is_true_for_an_ancestor_and_false_for_a_commit_that_is_not(
 def test_is_ancestor_raises_on_a_git_error_instead_of_answering_no(repo):
     with pytest.raises(subprocess.CalledProcessError):
         is_ancestor(repo, "0" * 40, "HEAD")
+
+
+def on_other_branch(repo):
+    git(repo, "checkout", "-q", "-b", "other")
+
+
+def on_other_branch_and_dirty(repo):
+    on_other_branch(repo)
+    (repo / "a.txt").write_text("edited")
+
+
+def detached(repo):
+    git(repo, "checkout", "-q", "--detach")
+
+
+WRONG_BRANCH = "main is on branch other, not main (main_branch in factory.toml)"
+
+
+@pytest.mark.parametrize("setup, main_branch, expected", [
+    (on_other_branch, "main", WRONG_BRANCH),
+    (lambda repo: None, "main", None),
+    (lambda repo: None, None, None),
+    (on_other_branch, None, None),
+    (detached, "main", "main is not on a branch"),
+    (on_other_branch_and_dirty, "main", WRONG_BRANCH),
+], ids=["wrong-branch", "matching-branch", "unset", "unset-on-another-branch", "detached-first", "wrong-branch-before-dirty"])
+def test_main_checkout_problem_with_a_configured_main_branch(repo, setup, main_branch, expected):
+    setup(repo)
+
+    assert main_checkout_problem(repo, main_branch) == expected
 
 
 @pytest.mark.parametrize("task_id", ["a/b", "..", "../evil", ""])
