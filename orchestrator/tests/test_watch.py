@@ -652,6 +652,15 @@ def test_an_approver_thumbs_up_on_the_retry_offer_retries_the_task_and_follows_t
     assert server.advanced == []
 
 
+@pytest.mark.parametrize("reactions", [[], [Reaction("+1", 666, "mallory")]])
+def test_guard_no_reaction_or_a_non_approver_thumbs_up_does_not_retry(tmp_path, reactions):
+    github, server = retry_reaction_pass(tmp_path, reactions)
+
+    assert server.retry_requests == []
+    assert github.comments_posted == []
+    assert load_state(tmp_path).issues[5].phase is Phase.AWAITING_RETRY
+
+
 class RememberingGitHub(FakeGitHub):
     """Posts become the watcher's own comments, as on GitHub; the nth post (counting from 1) can be made to fail once."""
 
