@@ -885,6 +885,20 @@ def test_guard_an_unchanged_symlink_under_an_allowed_directory_passes(repo):
     assert result.passed is True
 
 
+@pytest.mark.parametrize("name", ["docs/conftest.py", "docs/UV.toml"])
+def test_guard_a_protected_file_alone_under_an_allowed_directory_fails_tests_modified(repo, name):
+    (repo / "proj").mkdir()
+    (repo / "proj" / "code.py").write_text("x")
+    git(repo, "add", "proj")
+    git(repo, "commit", "-q", "-m", "project")
+    base = git(repo, "rev-parse", "HEAD")
+    commit_root_file(repo, name, "x\n")
+
+    result = check_gate(repo, base, "proj", ["true"], 10, allow_outside=("docs",))
+
+    assert result.reason == "tests_modified"
+
+
 def test_guard_a_listed_directory_covers_nested_files_but_not_a_prefix_sibling(repo):
     base = repo_with_project_change(repo)
     commit_root_file(repo, "docs/guide/a.md", "a\n")
