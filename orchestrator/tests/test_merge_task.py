@@ -141,6 +141,17 @@ def test_crash_recovery_refuses_another_branch_than_main_branch(audited):
     assert store.load("t1") == task and worktree.exists()
 
 
+def test_crash_recovery_refuses_a_detached_head_when_main_branch_is_set(audited):
+    store, repo, worktree, task, manager = audited
+    git(repo, "merge", "-q", "--ff-only", task.audited_sha)
+    git(repo, "checkout", "-q", "--detach")
+
+    with pytest.raises(MergeRefused, match="main is not on a branch"):
+        merge_task("t1", store, repo, manager, shown_sha=task.audited_sha, main_branch="main")
+
+    assert store.load("t1") == task and worktree.exists()
+
+
 def test_merge_refuses_when_the_shown_sha_is_not_the_audited_sha(audited):
     store, repo, _, task, manager = audited
     main_before = git(repo, "rev-parse", "HEAD")
