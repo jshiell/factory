@@ -37,7 +37,7 @@ def merge_preview(task_id: str, store: TaskStore, repo: Path) -> Preview:
     if run_git(repo, "status", "--porcelain", "--untracked-files=no"):
         raise MergeRefused("main has uncommitted changes")
     main_head = run_git(repo, "rev-parse", "HEAD")
-    if main_head != task.base_sha:
+    if main_head not in (task.base_sha, task.audited_sha):  # at the audited commit: a crashed fast-forward, merge_task finishes it
         if is_ancestor(repo, task.audited_sha, main_head):
             raise MergeRefused(ALREADY_IN_MAIN)
         raise MergeRefused(MAIN_MOVED)
