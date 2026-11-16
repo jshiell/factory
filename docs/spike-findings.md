@@ -532,3 +532,13 @@ The hint also said: "Before you propose any interface, module boundary or seam, 
 - The server reads settings at `serve` startup, so a changed `main_branch` needs a restart.
 - Risks: the check compares names only, not that the branch exists; `WorktreeManager.create` and `clean`'s `branch -d` still follow HEAD; the watcher's `merge-refused` Next line does not mention `main_branch` (shared limit with plan 46); the plan-46 gaps remain.
 - Nothing run against a real repo outside the tests.
+
+## Plan 48 (retry from GitHub with a 👍)
+
+- New per-repo setting `watch_retry` (default false; an error in the global file). With it on, a failed task gets the failure comment and a `retry-offer` comment (`AWAITING_RETRY`, `IssueRecord.retry_comment_id`); both are adopted or posted before one save, so a lost second post is repaired on the next pass. Both failure paths (the advance result, and the server already reporting `failed`) go through `_post_failure`.
+- An approver's 👍 calls `POST /tasks/<id>/retry` (plain retry, no server change) and replaces the issue's record with the new task (phase `NEW`); the pass ends there. 👎 (which wins) posts `not-retried` and ends in `NOT_MERGED`; a 409 `retry refused` posts `retry-refused` and ends `STOPPED`.
+- With the flag off, a record already in `AWAITING_RETRY` falls through to the failure branch and ends `FAILED` without a new comment.
+- Retry reuses the goal stored on the task, not the issue's current text.
+- Risks: a retry at the terminal does not withdraw the offer (a 👍 would start a second task); a deleted task or offer comment is retried and logged every pass; no offer for tasks that failed before the flag was turned on.
+- Deviation from the plan: the offer is adopted by its marker (kind `retry-offer` plus the task id), not by exact body, like the failure comment.
+- Nothing run against a real repo or real GitHub outside the tests.
