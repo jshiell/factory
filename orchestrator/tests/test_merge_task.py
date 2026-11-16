@@ -4,7 +4,7 @@ import pytest
 
 from gitutil import git
 
-from factory.merge_task import MergeRefused, merge_preview, merge_task
+from factory.merge_task import ALREADY_IN_MAIN, MergeRefused, merge_preview, merge_task
 from factory.store import TaskStore
 from factory.task import InvalidTransition, Task, TaskState
 from factory.worktrees import WorktreeManager
@@ -71,6 +71,17 @@ def test_preview_refuses_when_main_moved_since_the_plan(audited):
 
     with pytest.raises(MergeRefused, match="moved"):
         merge_preview("t1", store, repo)
+
+
+def test_preview_refuses_when_main_has_moved_past_the_audited_commit(audited):
+    store, repo, _, task, _ = audited
+    git(repo, "merge", "-q", "--ff-only", task.audited_sha)
+    git(repo, "commit", "-q", "--allow-empty", "-m", "after the merge")
+
+    with pytest.raises(MergeRefused) as refusal:
+        merge_preview("t1", store, repo)
+
+    assert str(refusal.value) == ALREADY_IN_MAIN
 
 
 def test_preview_refuses_when_main_was_reset_backwards(audited):
