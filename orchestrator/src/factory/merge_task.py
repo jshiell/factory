@@ -43,14 +43,16 @@ def merge_preview(task_id: str, store: TaskStore, repo: Path, main_branch: str |
     return Preview(task, branch, diffstat, task.audit_findings)
 
 
-def merge_task(task_id: str, store: TaskStore, repo: Path, worktrees: WorktreeManager, shown_sha: str) -> Task:
+def merge_task(
+    task_id: str, store: TaskStore, repo: Path, worktrees: WorktreeManager, shown_sha: str, main_branch: str | None = None,
+) -> Task:
     """Human-only by process: fast-forward main to the audited commit the human was shown."""
     task = store.load(task_id)
     if shown_sha != task.audited_sha:
         raise MergeRefused("the commit shown is not the audited commit")
     if _already_fast_forwarded(task, repo):
         return _record_merged(task, store, worktrees)
-    preview = merge_preview(task_id, store, repo)
+    preview = merge_preview(task_id, store, repo, main_branch)
     run_git(repo, "-c", "core.hooksPath=/dev/null", "merge", "--ff-only", task.audited_sha)
     return _record_merged(preview.task, store, worktrees)
 

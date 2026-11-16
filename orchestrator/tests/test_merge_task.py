@@ -118,6 +118,18 @@ def test_preview_refuses_another_branch_than_main_branch(audited):
         merge_preview("t1", store, repo, main_branch="main")
 
 
+def test_merge_refuses_another_branch_than_main_branch_before_any_fast_forward(audited):
+    store, repo, worktree, task, manager = audited
+    git(repo, "checkout", "-q", "-b", "other")
+    head_before = git(repo, "rev-parse", "HEAD")
+
+    with pytest.raises(MergeRefused, match="main is on branch other, not main"):
+        merge_task("t1", store, repo, manager, shown_sha=task.audited_sha, main_branch="main")
+
+    assert git(repo, "rev-parse", "HEAD") == head_before
+    assert store.load("t1") == task and worktree.exists()
+
+
 def test_merge_refuses_when_the_shown_sha_is_not_the_audited_sha(audited):
     store, repo, _, task, manager = audited
     main_before = git(repo, "rev-parse", "HEAD")
