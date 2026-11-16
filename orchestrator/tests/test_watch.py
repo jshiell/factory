@@ -1038,6 +1038,16 @@ def test_guard_a_thumbs_up_from_someone_who_is_not_an_approver_does_not_rebase(t
     assert load_state(tmp_path).issues == {5: AWAITING_THE_REBASE}
 
 
+def test_an_approver_thumbs_up_on_the_rebase_offer_rebases_the_task_and_sets_approved_with_no_comment(tmp_path):
+    server = FakeServer(task_state="audited", audited_sha="abc123", task_state_after_rebase="agent_done")
+
+    github, server = rebase_reaction_pass(tmp_path, [Reaction("+1", 1001, "alice")], server=server)
+
+    assert server.rebase_requests == ["/tasks/t-9/rebase"]
+    assert github.comments_posted == []
+    assert load_state(tmp_path).issues[5].phase is Phase.APPROVED
+
+
 def test_an_approved_task_that_audits_gets_one_result_comment_with_steps_state_and_merge_hint(tmp_path):
     github, server = approved_pass(tmp_path, AUDITED)
 

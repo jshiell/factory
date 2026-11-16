@@ -488,6 +488,10 @@ def _rebase_on_thumbs_up(github, server, state, state_dir, issue_number: int, re
     reactions = github.reactions(record.rebase_comment_id)
     if not _approver_reacted(reactions, "+1", approver_ids):
         return
+    job_id = server.post(f"/tasks/{require_safe_id(record.task_id)}/rebase")["job"]["id"]
+    server.wait(job_id)
+    record.phase = Phase.APPROVED
+    save_state(state_dir, state)
 
 
 _APPROVED_STATES = {"queued", "running", "agent_done", "verified"}  # the task was approved, here or at the terminal
