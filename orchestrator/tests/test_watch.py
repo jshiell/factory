@@ -619,6 +619,40 @@ def test_guard_with_retry_on_a_task_the_server_already_reports_failed_gets_the_s
     assert load_state(tmp_path).issues[5].phase is Phase.AWAITING_RETRY
 
 
+class RememberingGitHub(FakeGitHub):
+    """Posts become the watcher's own comments, as on GitHub; the nth post (counting from 1) can be made to fail once."""
+
+    def __init__(self, issues, failing_post=None):
+        super().__init__(issues)
+        self.failing_post = failing_post
+        self.attempts = 0
+
+    def comment(self, issue_number, body):
+        self.attempts += 1
+        if self.attempts == self.failing_post:
+            raise GitHubError("boom")
+        comment_id = super().comment(issue_number, body)
+        self.comments_by_issue.setdefault(issue_number, []).append(Comment(comment_id, body, 4242, "factory-bot"))
+        return comment_id
+
+
+def test_with_retry_on_a_lost_offer_post_leaves_the_issue_active_and_the_next_pass_posts_only_the_offer(tmp_path):
+    server = FakeServer(advance_result=FAILED)
+    github = RememberingGitHub([raw_issue(number=5)], failing_post=2)
+
+    pass_over(tmp_path, [], server=server, github=github, retry=True)
+
+    assert load_state(tmp_path).issues == {5: IssueRecord(task_id="t-1", phase=Phase.NEW)}
+
+    pass_over(tmp_path, [], server=server, github=github, retry=True)
+
+    kinds = [body.split("\n", 1)[0] for _, body in github.comments_posted]
+    assert kinds == ["<!-- factory:task=t-1:kind=result -->", "<!-- factory:task=t-1:kind=retry-offer -->"]
+    assert load_state(tmp_path).issues[5] == IssueRecord(
+        task_id="t-1", phase=Phase.AWAITING_RETRY, result_comment_id=1, retry_comment_id=2
+    )
+
+
 def test_a_stopped_advance_gets_one_result_comment_saying_why_and_goes_stopped(tmp_path):
     stopped = {"steps": [], "state": "planned", "failure_reason": None, "stopped": "step cap (10) reached\n@mallory"}
     server = FakeServer(advance_result=stopped)
