@@ -304,6 +304,7 @@ def test_a_wrapper_that_fails_before_launching_claude_surfaces_its_exit_code_wit
     result = runner.run(task, replace(CONFIG, confine=True))
 
     assert (result.exit_code, result.stdout) == (1, "")
+    assert "profile not found" in result.stderr
     assert not marker.exists()
 
 
