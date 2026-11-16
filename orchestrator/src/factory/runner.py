@@ -13,6 +13,12 @@ from factory.step import RunResult
 from factory.task import Task
 
 
+def _executable_directory(executable: str, path: str | None) -> tuple[str, ...]:
+    """The directory the sandbox must be allowed to read for `executable` to start; none if it cannot be found."""
+    found = shutil.which(executable, path=path)
+    return (os.path.dirname(os.path.abspath(found)),) if found else ()
+
+
 class SubprocessRunner:
     def __init__(self, executable: str, project_subdir: str, timeout_s: float, sandbox_executable: str = "nono", records=None):
         """`records`: a records object or a state directory; each agent process is recorded there for the reaper."""
@@ -28,8 +34,8 @@ class SubprocessRunner:
         argv, env_overlay = build_command(task.prompt, config, executable=self._executable, add_dirs=add_dirs)
         child_env = self._child_env(env_overlay)
         if config.confine:
-            executable_dir = os.path.dirname(os.path.abspath(shutil.which(self._executable, path=child_env.get("PATH"))))
-            argv = sandbox_prefix(self._sandbox_executable, worktree, read=(*config.plugin_dirs, executable_dir)) + argv
+            executable_grant = _executable_directory(self._executable, child_env.get("PATH"))
+            argv = sandbox_prefix(self._sandbox_executable, worktree, read=(*config.plugin_dirs, *executable_grant)) + argv
         cwd = Path(task.worktree) / self._project_subdir
         tracker = Tracker(self._records, task.id, task.state.value) if self._records else None
         with tempfile.TemporaryFile("w+") as stdout_file:

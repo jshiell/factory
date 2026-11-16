@@ -201,6 +201,18 @@ def test_a_confined_run_grants_the_directory_the_claude_executable_is_found_in(t
     assert sandbox_reads(log) == [str(Path(task.worktree).resolve()), str(tmp_path / "install" / "latest")]
 
 
+def test_a_claude_executable_that_cannot_be_found_adds_no_grant_and_the_run_goes_ahead(tmp_path, task):
+    log = tmp_path / "wrapper.log"
+    runner = SubprocessRunner(
+        "no-such-claude-anywhere", project_subdir="proj", timeout_s=10, sandbox_executable=fake_wrapper(tmp_path, log)
+    )
+
+    result = runner.run(task, replace(CONFIG, confine=True))
+
+    assert sandbox_reads(log) == [str(Path(task.worktree).resolve())]
+    assert result.exit_code == 127
+
+
 def test_an_unconfined_config_does_not_touch_the_wrapper(tmp_path, task):
     log = tmp_path / "wrapper.log"
     runner = SubprocessRunner(
