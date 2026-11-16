@@ -1,6 +1,6 @@
 # Plan 49: let the sandboxed agent read the `claude` binary's directory
 
-Status: reviewed (opus plan-reviewer) and folded; decisions 2-4 made; the spike result is open; not yet approved to implement.
+Status: reviewed (opus plan-reviewer), folded, decisions and spike done; awaiting approval to implement.
 
 ## Problem
 
@@ -78,9 +78,12 @@ immune to `latest` moving); **B** = the resolved directory; **C** = both. Choose
 ## Decisions
 
 Decided by the user: 2 = add the guard (cycle 3 stays), 3 = document the shim limit, 4 = the `:317` edit is approved.
-Still open: 1, the spike result.
+Spike result (2026-11-16, Linux, nono 0.81): `latest/claude` is a symlink target resolving to
+`.../claude-code/2.1.325/claude`, a native ELF (no node needed). `--read .../latest` alone passed (exit 0, JSON
+`result: ok`); `--read .../2.1.325` alone also passed. So nono accepts either form, and rule A is chosen:
+`dirname(abspath(which(exe)))`. Nothing is open now except approval to implement.
 
-1. The spike result (grant rule A, B or C).
+1. Grant rule: A (decided by the spike).
 2. Secrets guard (cycle 3): skip the grant when the directory is `/`, `$HOME` or contains `state_dir` (the server
    `token` lives there, so a readable `state_dir` lets an agent call the server and approve its own plan). Recommended:
    add it. Alternative: accept the risk and document it. A native-installer layout puts `claude` in `~/.local/bin`,
