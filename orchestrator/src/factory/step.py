@@ -20,11 +20,15 @@ class MissingBudget(Exception):
     pass
 
 
+TAIL_CHARS = 2000  # how much of the agent's stderr is kept, and of each stream when an unparseable run is logged
+
+
 @dataclass(frozen=True)
 class RunResult:
     stdout: str
     exit_code: int
     timed_out: bool = False
+    stderr: str = ""
 
 
 class Runner(Protocol):

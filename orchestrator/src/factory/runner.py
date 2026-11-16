@@ -7,9 +7,9 @@ from contextlib import nullcontext
 from pathlib import Path
 
 from factory.command import RunnerConfig, build_command, sandbox_prefix
-from factory.process import STRIPPED_ENV, kill_tree
+from factory.process import STRIPPED_ENV, kill_tree, tail
 from factory.process_registry import Tracker
-from factory.step import RunResult
+from factory.step import TAIL_CHARS, RunResult
 from factory.task import Task
 
 
@@ -49,14 +49,14 @@ class SubprocessRunner:
             argv = sandbox_prefix(self._sandbox_executable, worktree, read=(*config.plugin_dirs, *executable_grant)) + argv
         cwd = Path(task.worktree) / self._project_subdir
         tracker = Tracker(self._records, task.id, task.state.value) if self._records else None
-        with tempfile.TemporaryFile("w+") as stdout_file:
+        with tempfile.TemporaryFile("w+") as stdout_file, tempfile.TemporaryFile() as stderr_file:
             launched_after = time.time()
             process = subprocess.Popen(
                 argv,
                 cwd=cwd,
                 env=child_env,
                 stdout=stdout_file,
-                stderr=subprocess.DEVNULL,
+                stderr=stderr_file,
                 stdin=subprocess.DEVNULL,
                 text=True,
                 start_new_session=True,
@@ -76,7 +76,7 @@ class SubprocessRunner:
                 else:
                     kill_tree(process.pid)  # whatever the agent left running in its session
             stdout_file.seek(0)
-            return RunResult(stdout_file.read(), process.returncode, timed_out)
+            return RunResult(stdout_file.read(), process.returncode, timed_out, tail(stderr_file, TAIL_CHARS))
 
     @staticmethod
     def _child_env(overlay: dict[str, str]) -> dict[str, str]:

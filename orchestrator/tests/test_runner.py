@@ -10,6 +10,7 @@ import pytest
 
 from factory.command import RunnerConfig
 from factory.runner import SubprocessRunner
+from factory.step import TAIL_CHARS
 from factory.process_registry import load_records
 from factory.task import Task, TaskState
 
@@ -65,6 +66,24 @@ def test_non_zero_exit_code_and_stdout_are_preserved(tmp_path, task):
 
     assert result.exit_code == 3
     assert result.stdout.strip() == "partial"
+
+
+def test_stderr_is_returned(tmp_path, task):
+    runner = SubprocessRunner(fake_claude(tmp_path, "echo boom >&2; exit 1"), project_subdir="proj", timeout_s=10)
+
+    result = runner.run(task, CONFIG)
+
+    assert "boom" in result.stderr
+
+
+def test_a_long_stderr_is_cut_to_its_tail(tmp_path, task):
+    body = f"i=0; while [ $i -lt {TAIL_CHARS * 2} ]; do printf x >&2; i=$((i+1)); done; echo END >&2"
+    runner = SubprocessRunner(fake_claude(tmp_path, body), project_subdir="proj", timeout_s=30)
+
+    result = runner.run(task, CONFIG)
+
+    assert len(result.stderr) == TAIL_CHARS
+    assert result.stderr.endswith("xEND\n")
 
 
 def test_timeout_returns_promptly_with_timed_out_even_if_a_grandchild_holds_stdout(tmp_path, task):
