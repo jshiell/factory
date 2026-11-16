@@ -110,6 +110,14 @@ def test_preview_refuses_tracked_changes_in_main(audited):
         merge_preview("t1", store, repo)
 
 
+def test_preview_refuses_another_branch_than_main_branch(audited):
+    store, repo, _, _, _ = audited
+    git(repo, "checkout", "-q", "-b", "other")
+
+    with pytest.raises(MergeRefused, match="main is on branch other, not main"):
+        merge_preview("t1", store, repo, main_branch="main")
+
+
 def test_merge_refuses_when_the_shown_sha_is_not_the_audited_sha(audited):
     store, repo, _, task, manager = audited
     main_before = git(repo, "rev-parse", "HEAD")

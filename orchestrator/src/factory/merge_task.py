@@ -22,7 +22,7 @@ class Preview:
     findings: tuple[str, ...]
 
 
-def merge_preview(task_id: str, store: TaskStore, repo: Path) -> Preview:
+def merge_preview(task_id: str, store: TaskStore, repo: Path, main_branch: str | None = None) -> Preview:
     task = store.load(task_id)
     apply(task, Event.MERGED)
     branch = f"factory/{task.id}"
@@ -32,7 +32,7 @@ def merge_preview(task_id: str, store: TaskStore, repo: Path) -> Preview:
         raise MergeRefused("the worktree is not at the audited commit")
     if run_git(Path(task.worktree), "status", "--porcelain"):
         raise MergeRefused("the worktree is dirty")
-    if problem := main_checkout_problem(repo):
+    if problem := main_checkout_problem(repo, main_branch):
         raise MergeRefused(problem)
     main_head = run_git(repo, "rev-parse", "HEAD")
     if main_head not in (task.base_sha, task.audited_sha):  # at the audited commit: a crashed fast-forward, merge_task finishes it
