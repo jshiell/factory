@@ -6,6 +6,8 @@ import tomllib
 from dataclasses import dataclass, field, replace
 from pathlib import Path, PurePosixPath
 
+from factory.gate import DEFAULT_PROTECTED_NAMES
+
 
 class SettingsError(Exception):
     pass
@@ -90,7 +92,7 @@ def load_settings(path: Path | None, cwd: Path) -> Settings:
         Settings(repo, state_dir, worktree_root), plugin_dirs=plugin_dirs, stage_plugin_dirs=stage_plugin_dirs, **typed
     )
     _check_project_subdir(settings.project_subdir)
-    return settings
+    return replace(settings, gate_allow_outside=_checked_allow_outside(settings))
 
 
 def _global_layer(path: Path) -> dict:
@@ -285,6 +287,34 @@ def _check_project_subdir(subdir: str) -> None:
     parts = PurePosixPath(subdir).parts
     if not subdir or PurePosixPath(subdir).is_absolute() or ".." in parts:
         raise SettingsError("project_subdir must be a relative path without '..'")
+
+
+_ALWAYS_REFUSED_NAMES = ("uv.lock", ".gitattributes", ".gitmodules")
+_GLOB_OR_MAGIC = "*?[:"
+
+
+def _checked_allow_outside(settings: Settings) -> tuple[str, ...]:
+    project = PurePosixPath(settings.project_subdir)
+    protected = {name.casefold() for name in (*DEFAULT_PROTECTED_NAMES, *_ALWAYS_REFUSED_NAMES)}
+    entries = tuple(_normalised_entry(entry, project, protected) for entry in settings.gate_allow_outside)
+    if len(set(entries)) != len(entries):
+        raise SettingsError("gate_allow_outside has a duplicate entry")
+    return entries
+
+
+def _normalised_entry(entry: str, project: PurePosixPath, protected: set[str]) -> str:
+    path = PurePosixPath(entry)
+    parts = path.parts
+    problem = None
+    if not parts or path.is_absolute() or ".." in parts or any(char in entry for char in _GLOB_OR_MAGIC):
+        problem = "must be a literal repo-relative path without '..', globs or ':'"
+    elif ".git" in parts or parts[-1].casefold() in protected:
+        problem = "may not name a file the tests or git read"
+    elif path.is_relative_to(project) or project.is_relative_to(path):
+        problem = "may not be the project or inside or above it"
+    if problem:
+        raise SettingsError(f"gate_allow_outside entry {entry!r} {problem}")
+    return path.as_posix()
 
 
 def _git_toplevel(cwd: Path) -> Path:
