@@ -2,7 +2,7 @@ import logging
 from dataclasses import dataclass, replace
 from typing import Protocol
 
-from factory.classify import OutcomeKind, classify
+from factory.classify import Outcome, OutcomeKind, classify
 from factory.command import RunnerConfig
 from factory.ledger import Ledger
 from factory.store import TaskStore
@@ -33,6 +33,18 @@ class RunResult:
 
 class Runner(Protocol):
     def run(self, task: Task, config: RunnerConfig) -> RunResult: ...
+
+
+def classify_run(result: RunResult, task_id: str, stage: str) -> Outcome:
+    """Classify a finished run; an unparseable one is logged with the tails of its output.
+    `%r` keeps agent output from forging log lines."""
+    outcome = classify(result.stdout, result.exit_code)
+    if outcome.kind is OutcomeKind.UNPARSEABLE:
+        logging.getLogger("factory").warning(
+            "agent result for task %s, stage %s is unparseable: exit code %s, stdout tail %r, stderr tail %r",
+            task_id, stage, result.exit_code, result.stdout[-TAIL_CHARS:], result.stderr[-TAIL_CHARS:],
+        )
+    return outcome
 
 
 def preflight(

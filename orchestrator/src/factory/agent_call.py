@@ -1,10 +1,10 @@
 import logging
 from dataclasses import dataclass, replace
 
-from factory.classify import Outcome, classify
+from factory.classify import Outcome
 from factory.command import RunnerConfig
 from factory.ledger import Ledger
-from factory.step import ASSUMED_COST_MULTIPLIER, Runner
+from factory.step import ASSUMED_COST_MULTIPLIER, Runner, classify_run
 from factory.task import Task
 
 
@@ -29,7 +29,7 @@ def call_agent(
         return _assumed_failure("runner_error", task, config, ledger, stage)
     if result.timed_out:
         return _assumed_failure("timeout", task, config, ledger, stage)
-    outcome = classify(result.stdout, result.exit_code)
+    outcome = classify_run(result, task.id, stage)
     ledger.append(task.id, outcome.cost_usd, stage=stage)
     return Completed(outcome)
 
