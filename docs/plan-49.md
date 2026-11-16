@@ -1,6 +1,6 @@
 # Plan 49: let the sandboxed agent read the `claude` binary's directory
 
-Status: reviewed (opus plan-reviewer) and folded; not approved. Three decisions and the spike result are open (below).
+Status: reviewed (opus plan-reviewer) and folded; decisions 2-4 made; the spike result is open; not yet approved to implement.
 
 ## Problem
 
@@ -75,7 +75,10 @@ immune to `latest` moving); **B** = the resolved directory; **C** = both. Choose
    unsupported, and that Linux has been tried once. Commit.
 6. Full suite in the background, then `verify`.
 
-## Open (user decides)
+## Decisions
+
+Decided by the user: 2 = add the guard (cycle 3 stays), 3 = document the shim limit, 4 = the `:317` edit is approved.
+Still open: 1, the spike result.
 
 1. The spike result (grant rule A, B or C).
 2. Secrets guard (cycle 3): skip the grant when the directory is `/`, `$HOME` or contains `state_dir` (the server
