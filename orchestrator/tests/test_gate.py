@@ -338,6 +338,39 @@ def test_guard_changes_beside_an_unchanged_tool_uv_table_pass(repo):
     assert gate(repo, base).passed is True
 
 
+WATCHED_ADDITIONS = {
+    "dynamic": ('dependencies = []', 'dependencies = []\ndynamic = ["entry-points"]'),
+    "dependency-groups": ("[tool.ruff]", '[dependency-groups]\ndev = ["six"]\n\n[tool.ruff]'),
+    "build-system": ("[tool.ruff]", '[build-system]\nrequires = ["setuptools"]\n\n[tool.ruff]'),
+    "pytest11": ("[tool.ruff]", '[project.entry-points.pytest11]\nplug = "p.plug"\n\n[tool.ruff]'),
+    "scripts": ("[tool.ruff]", '[project.scripts]\nrun = "p:main"\n\n[tool.ruff]'),
+    "setuptools": ("[tool.ruff]", '[tool.setuptools]\npackages = ["p"]\n\n[tool.ruff]'),
+    "poetry": ("[tool.ruff]", '[tool.poetry.plugins.pytest11]\nplug = "p.plug"\n\n[tool.ruff]'),
+    "hatch": ("[tool.ruff]", '[tool.hatch.build.hooks.custom]\npath = "hatch_build.py"\n\n[tool.ruff]'),
+}
+
+
+# Guards (start green): cycle 1's comparison already covers each of these.
+@pytest.mark.parametrize("old,new", WATCHED_ADDITIONS.values(), ids=WATCHED_ADDITIONS.keys())
+def test_guard_a_watched_pyproject_addition_fails_tests_modified(repo, old, new):
+    base = pyproject_base(repo, BASE_WITH_UV)
+    commit_project_edit(repo, "pyproject.toml", BASE_WITH_UV.replace(old, new))
+
+    assert gate(repo, base).reason == "tests_modified"
+
+
+@pytest.mark.parametrize("old,new", [
+    ('name = "p"', 'name = "q"\nversion = "1"\ndescription = "d"'),
+    ("line-length = 80", "line-length = 100"),
+    ("[tool.ruff]", '[tool.mypy]\nstrict = true\n\n[tool.ruff]'),
+], ids=["metadata", "ruff", "mypy"])
+def test_guard_an_inert_pyproject_change_passes(repo, old, new):
+    base = pyproject_base(repo, BASE_WITH_UV)
+    commit_project_edit(repo, "pyproject.toml", BASE_WITH_UV.replace(old, new))
+
+    assert gate(repo, base).passed is True
+
+
 def test_adding_a_dependency_fails_tests_modified(repo):
     base = pyproject_base(repo, BASE_WITH_UV)
     commit_project_edit(repo, "pyproject.toml", BASE_WITH_UV.replace("dependencies = []", 'dependencies = ["requests"]'))
