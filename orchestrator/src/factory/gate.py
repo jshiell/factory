@@ -9,6 +9,8 @@ from factory.process import run_to_exit
 from factory.worktrees import HARDENED_GIT, run_git
 
 DEFAULT_PROTECTED_NAMES = ("conftest.py", "pytest.ini", ".pytest.ini", "pytest.toml", ".pytest.toml", "tox.ini", "setup.cfg", "uv.toml", ".python-version", ".python-versions")
+# Build scripts a backend runs when the project is installed; they can declare dependencies and entry points.
+DEPENDENCY_FILES = ("setup.py", "hatch_build.py")
 # Everything else in these pyproject tables can add code or change what is installed or collected, so it is watched.
 INERT_PROJECT_KEYS = (
     "name", "version", "description", "readme", "authors", "maintainers", "license", "license-files",
@@ -70,8 +72,10 @@ def check_gate(
     allowed_changes = [f":(top,literal){entry}" for entry in allow_outside]
     if not run_git(worktree, "diff", "--name-only", base_sha, "HEAD", "--", project_subdir, *allowed_changes):
         return GateResult(False, "no_changes")
-    if _tests_tampered(worktree, base_sha, project_subdir, test_globs) or _protected_changed(
-        worktree, base_sha, project_subdir, protected_names
+    if (
+        _tests_tampered(worktree, base_sha, project_subdir, test_globs)
+        or _protected_changed(worktree, base_sha, project_subdir, protected_names)
+        or _dependency_file_changed(worktree, base_sha)
     ):
         return GateResult(False, "tests_modified")
     if frozen_sha is not None:
@@ -151,6 +155,11 @@ def _defines_a_test_twice(worktree: Path, path: str) -> bool:
         if len(names) != len(set(names)):
             return True
     return False
+
+
+def _dependency_file_changed(worktree: Path, base_sha: str) -> bool:
+    pathspecs = [f":(glob,icase)**/{name}" for name in DEPENDENCY_FILES]
+    return bool(run_git(worktree, "diff", "--name-only", "--no-renames", base_sha, "HEAD", "--", *pathspecs))
 
 
 def _protected_changed(

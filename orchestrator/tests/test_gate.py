@@ -388,6 +388,16 @@ def test_a_nested_pyproject_gaining_an_entry_point_fails_tests_modified(repo, pa
     assert gate(repo, base).reason == "tests_modified"
 
 
+@pytest.mark.parametrize("path", ["setup.py", "hatch_build.py", "sub/Setup.py"])
+def test_editing_a_build_script_fails_tests_modified(repo, path):
+    (repo / "proj" / "sub").mkdir(parents=True)
+    (repo / "proj" / path).write_text("a = 1\n")
+    base = repo_with_test_file(repo)
+    commit_project_edit(repo, path, "a = 2\n")
+
+    assert gate(repo, base).reason == "tests_modified"
+
+
 def test_adding_a_dependency_fails_tests_modified(repo):
     base = pyproject_base(repo, BASE_WITH_UV)
     commit_project_edit(repo, "pyproject.toml", BASE_WITH_UV.replace("dependencies = []", 'dependencies = ["requests"]'))
