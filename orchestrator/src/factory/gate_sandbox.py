@@ -31,7 +31,7 @@ def _uv_read_dirs(real_uv: str) -> tuple[str, ...]:
     """The directory holding uv, which nono needs readable to exec it; none for a bare or relative name."""
     if not os.path.isabs(real_uv):
         return ()
-    return (str(Path(real_uv).parent),)
+    return (str(Path(real_uv).resolve().parent),)
 
 
 def build_gate_sandbox(

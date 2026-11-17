@@ -72,6 +72,20 @@ def test_an_absolute_uv_adds_a_read_on_its_directory(tmp_path):
     assert str(uv.parent) in read_grants(build(tmp_path, real_uv=str(uv)))
 
 
+def test_a_symlinked_uv_adds_a_read_on_the_resolved_directory_only(tmp_path):
+    tmp_path = tmp_path.resolve()
+    target = tmp_path / "release" / "uv"
+    target.parent.mkdir()
+    target.write_text("")
+    link = tmp_path / "bins" / "uv"
+    link.parent.mkdir()
+    link.symlink_to(target)
+
+    grants = read_grants(build(tmp_path, real_uv=str(link)))
+
+    assert str(target.parent) in grants and str(link.parent) not in grants
+
+
 def test_a_bare_or_relative_uv_adds_no_read(tmp_path):
     for real_uv in ("uv", "bin/uv"):
         assert read_grants(build(tmp_path, real_uv=real_uv)) == [str(tmp_path / "wt"), "/py", "/uvpy"]
