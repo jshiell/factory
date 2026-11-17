@@ -15,3 +15,4 @@ spike/audit-eval-out/state/
 spike/review-probe-out/
 spike/review-variance-out/
 .ruff_cache/
+spike/gate-sandbox-probe-out/
