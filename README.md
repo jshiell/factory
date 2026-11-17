@@ -130,6 +130,7 @@ server_port = 8765             # where `serve` listens and the CLI connects
 worktree_root = "..."          # default: <home>/<project>/worktrees (one git worktree per task)
 project_subdir = "target"      # where the agent works and the tests run; a subdirectory, never the repo root ("." is refused at load: set a subdirectory instead). Edits outside it are refused unless listed in gate_allow_outside
 gate_allow_outside = ["README.md", "docs"]  # default unset; repo-root-relative files or directories a task may also change (see the gate section)
+gate_allow_dependency_changes = false  # default false; repo file only. true lets a task change dependencies, entry points, build config and uv.lock (see the gate section)
 grill = true                   # the planner may ask questions first
 grill_max_rounds = 3           # answer rounds before the planner must plan; 0 = no grilling
 watch_approvers = ["alice"]    # repo-only; GitHub logins whose issues and 👍/👎 `factory watch` obeys (required for `watch`)
@@ -264,7 +265,12 @@ flowchart TB
   `.git` anywhere under the project is refused.
 - **Tamper checks.** Existing tests may be added to but not removed, shrunk, renamed or shadowed (a duplicate `def test_x` that
   disables the first is caught). Protected config (`conftest.py`, `pytest.ini`, `tox.ini`, `setup.cfg`, `uv.toml`, `.python-version`, matched case-insensitively; the pytest and `[tool.uv]` tables of any
-  `pyproject.toml` from the repo root down to the project) may not change (reason `tests_modified`). Dependencies and `uv.lock` may. Every change must be inside the project subdir:
+  `pyproject.toml` from the repo root down to the project) may not change (reason `tests_modified`). So may not anything that adds code or changes what is installed: `setup.py` and `hatch_build.py`
+  anywhere, a change to an existing `uv.lock` (a newly added one is fine), and every part of a `pyproject.toml` in or above the project, or below it, except plain metadata
+  (`name`, `version`, `description`, `readme`, `authors`, `maintainers`, `license`, `license-files`, `keywords`, `classifiers`, `urls`, `requires-python`; and the `ruff`, `mypy`,
+  `black`, `isort`, `pyright` and `coverage` tool tables). That covers dependencies, dependency groups, entry points, scripts, `[build-system]` and any other `[tool.*]` table.
+  Set `gate_allow_dependency_changes = true` in the repo's `factory.toml` to allow all of that; `[tool.pytest]`, `[tool.uv]` and the protected names stay frozen. The setting is refused
+  in the global config. The agent prompts say what the gate refuses, and the planner and reviewer say a plan needing a new dependency will be refused. Every change must be inside the project subdir:
   anything outside it (root config, `sitecustomize.py`, a nested repo) fails the gate as `outside_project`.
 - **Allowed outside paths** (`gate_allow_outside`, project or global file; a project list replaces the global one). Literal
   repo-root-relative files or directories a task may also change, e.g. a root `README.md` or a `docs` tree. No globs; a directory
@@ -329,7 +335,8 @@ Anything that needs a terminal, nono, the network or the home directory is cover
 Recorded per plan in `docs/spike-findings.md`. The main ones:
 
 - A new test file can monkeypatch the code under test at import time; the gate cannot tell.
-- A new dependency can run code and is not watched; neither are `pytest11` entry points in the project's own package.
+- With `gate_allow_dependency_changes` on, a new dependency or entry point can run code in the gate. With it off, a malicious release of an
+  already-pinned dependency within its allowed range is still not caught, and neither is `setup.py`-style `dynamic` metadata or a poetry or hatch hook (watched on the assumption they can add code; not tested).
   Legitimate edits outside the project (a root README, root config) are refused and need a human, unless the path is listed in `gate_allow_outside`.
 - A rebase can change behaviour without a textual conflict; only the tests and the fresh audit catch that.
 - A SIGKILLed driver leaves an orphan agent until the next command reaps it (one launched in the last instant before the kill is unrecorded), and can leave a half-done rebase; `abandon`/`recover` and a manual check are the way out.

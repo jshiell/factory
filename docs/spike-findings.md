@@ -299,7 +299,7 @@ Command shape: `nono run -s --profile nolabs-ai/claude --allow-cwd --read <resol
 ## Plan 20: the gate watches uv config inside the project (real-git tests; no e2e needed)
 - Spike (uv 0.13.7, `uv run --offline pytest` / `uv python find`): `sitecustomize.py`, `usercustomize.py`, `.env` and a `*.pth` in the project are inert, so they are not watched. These do change the run: `.python-version`, `.python-versions` (plural), `uv.toml`, and `[tool.uv]` in `pyproject.toml`. On this case-insensitive volume `UV.toml`, `.Python-Version` are honoured too. `uv python find --no-config` ignores all three config sources.
 - Now: `uv.toml`, `.python-version`, `.python-versions` are protected names (any add, edit, delete, anywhere in the repo, reason `tests_modified`; the reason name is now loose). All protected names match case-insensitively (`:(glob,icase)`), which is stricter for the plan 16 names too. The `[tool.uv]` table of each pyproject from the repo root to the project is compared with `[tool.pytest]` (one parse per file, tuple compare).
-- Dependencies, `[dependency-groups]` and `uv.lock` stay editable by choice. `[tool.uv]` as a whole is frozen, so `sources`, `override-dependencies` and `constraint-dependencies` are too.
+- Dependencies, `[dependency-groups]` and `uv.lock` stay editable by choice (reversed by plan 54). `[tool.uv]` as a whole is frozen, so `sources`, `override-dependencies` and `constraint-dependencies` are too.
 - The factory's own unconfined `uv python find` / `uv python dir` (sandbox discovery, run before the gate refuses) now pass `--no-config`. Checked against the real `target/`: still returns the right paths.
 - One existing test edited (approved): the outside-project parametrised test no longer lists root `uv.toml` and `.python-version`, which now give `tests_modified` (separate root tests added).
 - Both agent prompts now say not to create or edit `uv.toml`, `.python-version` or `[tool.uv]`.
@@ -563,6 +563,14 @@ The hint also said: "Before you propose any interface, module boundary or seam, 
 - After `uvicorn.Config(app, log_level="warning").configure_logging()` the root and `factory` loggers still have no handler, and a `factory` WARNING reaches stderr once, as the bare message (no timestamp or level), through the last-resort handler.
 - Checked with that snippet, not under a full `factory serve` run with a fake agent.
 - The line carries `%r` of the stdout and stderr tails (2000 characters each), so newlines and control characters are escaped and it stays on one line.
+
+## Plan 54 (summary; the spike is the next section)
+
+- Closes the plan 20 gap: dependencies, `[dependency-groups]` and `uv.lock` were "editable by choice"; they are now watched, and an agent that adds a dependency, entry point or build hook fails the gate as `tests_modified`. The choice is reversed on purpose.
+- Strategy: an inert allowlist. All of `[project]` except plain metadata, plus `[build-system]`, `[dependency-groups]` and every `[tool.*]` table except `ruff`, `mypy`, `black`, `isort`, `pyright`, `coverage`, is compared between `base_sha` and `HEAD` for each changed `pyproject.toml` in or above the project, or below it. `setup.py` and `hatch_build.py` changes fail; so does a change or delete of an existing `uv.lock`.
+- Opt-in: per-repo `gate_allow_dependency_changes` (bool, refused in the global config). With it on only `[tool.pytest]`, `[tool.uv]` and the protected names stay frozen.
+- Tests reversed or removed, all asserting the old behaviour: `test_guard_changing_uv_lock_passes`, the `dependencies = []` parametrize case, and `test_adding_a_dependency_to_pyproject_passes` (not listed in the plan; same behaviour).
+- Remaining gaps: a malicious version of an existing pin within its range; a new test file that monkeypatches at import time; whether `uv run` rewrites an existing lock after a uv format bump (not verified); `dynamic`/`setup.py` metadata and poetry or hatch hooks are watched on assumption only; network inside the gate sandbox is not verified.
 
 ## Plan 54 cycle 0 (dependency and entry-point spike; 2026-11-17, Linux, a copy of `target/` under plain `uv run`, not the gate sandbox)
 
