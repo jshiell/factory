@@ -336,7 +336,7 @@ Recorded per plan in `docs/spike-findings.md`. The main ones:
 
 - A new test file can monkeypatch the code under test at import time; the gate cannot tell.
 - With `gate_allow_dependency_changes` on, a new dependency or entry point can run code in the gate. With it off, a malicious release of an
-  already-pinned dependency within its allowed range is still not caught, and neither is `setup.py`-style `dynamic` metadata or a poetry or hatch hook (watched on the assumption they can add code; not tested).
+  already-pinned dependency within its allowed range is still not caught. `setup.py`, `dynamic` metadata and poetry or hatch tables are refused; that they can load code in the gate was assumed, not tested.
   Legitimate edits outside the project (a root README, root config) are refused and need a human, unless the path is listed in `gate_allow_outside`.
 - A rebase can change behaviour without a textual conflict; only the tests and the fresh audit catch that.
 - A SIGKILLed driver leaves an orphan agent until the next command reaps it (one launched in the last instant before the kill is unrecorded), and can leave a half-done rebase; `abandon`/`recover` and a manual check are the way out.
