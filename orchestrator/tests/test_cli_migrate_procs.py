@@ -1,4 +1,3 @@
-import os
 
 from factory.process_registry import Record, write_record
 from test_cli_migrate import ctx, run, seed_old_files  # noqa: F401  (ctx is a fixture)

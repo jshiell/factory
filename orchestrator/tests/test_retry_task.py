@@ -323,7 +323,6 @@ def test_reinstating_an_earlier_waived_note_sends_it_again_and_takes_it_off_the_
 
 
 def test_a_stored_marker_is_recomputed_when_notes_are_reinstated(store):
-    from factory.audit_task import build_audit_prompt
     from factory.review_notes import MAX_ITEMS, TRUNCATED, capped_findings, notes_block
 
     required = tuple(f"Recommend (required): note {i}" for i in range(MAX_ITEMS - 1))

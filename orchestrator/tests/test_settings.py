@@ -1,9 +1,8 @@
 import subprocess
-from pathlib import Path
 
 import pytest
 
-from factory.settings import Settings, SettingsError, load_settings
+from factory.settings import SettingsError, load_settings
 
 
 @pytest.fixture(autouse=True)

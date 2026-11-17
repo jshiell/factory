@@ -723,7 +723,6 @@ def test_rebase_of_an_unknown_or_unsafe_id_exits_2(ctx, task_id):
 
 
 def test_rebase_refusal_escapes_control_characters_from_the_quoted_git_line(ctx, monkeypatch):
-    from factory import cli
     from factory.rebase_task import RebaseRefused
     put(ctx, S.AUDITED)
 

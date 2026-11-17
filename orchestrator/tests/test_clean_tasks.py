@@ -50,7 +50,7 @@ def test_a_task_that_is_not_merged_or_failed_is_never_a_candidate(env, state):
 
 def test_a_merged_task_without_a_worktree_but_with_a_live_branch_is_a_candidate(env):
     store, repo, manager, root, add = env
-    path = add("merged", S.MERGED)
+    add("merged", S.MERGED)
     manager.remove("merged")
     store.save(Task(id="merged", prompt="", state=S.MERGED))  # worktree cleared, as after a merge
     add("bare", S.MERGED, with_worktree=False)  # no worktree and no branch
@@ -65,7 +65,7 @@ def candidate(env, task_id):
 
 def test_the_flags_show_a_missing_directory_dirty_state_and_commits_ahead_of_base(env):
     _, _, _, _, add = env
-    clean_path = add("clean", S.FAILED)
+    add("clean", S.FAILED)
     dirty_path = add("dirty", S.FAILED)
     (dirty_path / "x.txt").write_text("x")
     git(dirty_path, "add", "-A")
@@ -214,9 +214,7 @@ def test_a_worktree_under_the_root_but_not_at_root_slash_id_is_flagged(env):
 # --- gate caches ---------------------------------------------------------------
 
 import os
-import stat as stat_module
 
-from factory.clean_tasks import Outcome
 
 
 def make_cache(tmp_path, task_id, content="abc"):
@@ -339,7 +337,7 @@ def test_an_outside_root_worktree_does_not_stop_the_cache_removal(env, tmp_path)
 
 
 from factory.clean_tasks import remove_orphan_caches
-from factory.gate_cache import OrphanCache, orphan_caches
+from factory.gate_cache import orphan_caches
 
 
 def test_orphan_caches_are_removed(env, tmp_path):
