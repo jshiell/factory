@@ -563,3 +563,12 @@ The hint also said: "Before you propose any interface, module boundary or seam, 
 - After `uvicorn.Config(app, log_level="warning").configure_logging()` the root and `factory` loggers still have no handler, and a `factory` WARNING reaches stderr once, as the bare message (no timestamp or level), through the last-resort handler.
 - Checked with that snippet, not under a full `factory serve` run with a fake agent.
 - The line carries `%r` of the stdout and stderr tails (2000 characters each), so newlines and control characters are escaped and it stays on one line.
+
+## Plan 54 cycle 0 (dependency and entry-point spike; 2026-11-17, Linux, a copy of `target/` under plain `uv run`, not the gate sandbox)
+
+- **Confirmed:** a new `[dependency-groups]` entry is installed by `uv run` (`six` appeared, and `uv.lock` was rewritten).
+- **Confirmed:** a lock-only edit (`uv lock --upgrade-package six==1.16.0`, `pyproject.toml` unchanged) changes what `uv run` installs (1.17.0 to 1.16.0). `uv.lock` is therefore code-selecting and must be watched.
+- **Confirmed:** `[project.entry-points.pytest11]` pointing at a module in the project's own package is loaded by `uv run pytest` (a `pytest_configure` print appeared).
+- **Confirmed:** `uv run` writes `uv.lock` when it is missing, and rewrites it when `pyproject.toml` changed. With a consistent lock and an unchanged `pyproject.toml` the lock was byte-identical after a run. A fix round that follows a run in which the agent changed dependencies would see the rewritten lock, but that case is already refused for the `pyproject.toml` change.
+- **Decision for `uv.lock`:** flag modification or deletion of a lock that exists in the base; do not flag a lock that is newly added (it only resolves `pyproject.toml`, which is watched).
+- **Not verified:** `dynamic = ["entry-points"]` via setuptools or `setup.py`, poetry-core and hatch tool tables or hooks (those are watched on the assumption they can add code); that the gate sandbox itself has network (plan 9 notes say a cold run needs it; this spike ran outside it).
