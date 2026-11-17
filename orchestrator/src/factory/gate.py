@@ -9,7 +9,12 @@ from factory.process import run_to_exit
 from factory.worktrees import HARDENED_GIT, run_git
 
 DEFAULT_PROTECTED_NAMES = ("conftest.py", "pytest.ini", ".pytest.ini", "pytest.toml", ".pytest.toml", "tox.ini", "setup.cfg", "uv.toml", ".python-version", ".python-versions")
-WATCHED_TOOL_TABLES = ("pytest", "uv")
+# Everything else in these pyproject tables can add code or change what is installed or collected, so it is watched.
+INERT_PROJECT_KEYS = (
+    "name", "version", "description", "readme", "authors", "maintainers", "license", "license-files",
+    "keywords", "classifiers", "urls", "requires-python",
+)
+INERT_TOOLS = ("ruff", "mypy", "black", "isort", "pyright", "coverage")
 DEFAULT_TEST_GLOBS = ("test_*.py", "*_test.py")
 _LINK_MODES = ("120000", "160000")
 _FACTORY_IDENTITY = ("-c", "user.name=factory", "-c", "user.email=factory@localhost")
@@ -163,7 +168,7 @@ def _protected_changed(
 
 
 def _config_tables(worktree: Path, revision: str, path: str) -> tuple | None:
-    """The `[tool.pytest]` and `[tool.uv]` tables: the parts of a pyproject that change how the tests run."""
+    """The parts of a pyproject that change what is installed or how the tests run (see INERT_*)."""
     shown = subprocess.run(
         [*HARDENED_GIT, "show", f"{revision}:{path}"], cwd=worktree, capture_output=True, stdin=subprocess.DEVNULL
     )
@@ -176,11 +181,12 @@ def _config_tables(worktree: Path, revision: str, path: str) -> tuple | None:
     tool = document.get("tool", {})
     if not isinstance(tool, dict):
         return ({"unparseable": True},)
-    return tuple(_table_or_unparseable(tool.get(name)) for name in WATCHED_TOOL_TABLES)
-
-
-def _table_or_unparseable(table):
-    return table if table is None or isinstance(table, dict) else {"unparseable": True}
+    project = document.get("project")
+    if project is not None and not isinstance(project, dict):
+        return ({"unparseable": True},)
+    watched_project = {key: value for key, value in (project or {}).items() if key not in INERT_PROJECT_KEYS}
+    watched_tools = {name: table for name, table in tool.items() if name not in INERT_TOOLS}
+    return (watched_project, document.get("build-system"), document.get("dependency-groups"), watched_tools)
 
 
 def _is_ancestor(worktree: Path, base_sha: str) -> bool:

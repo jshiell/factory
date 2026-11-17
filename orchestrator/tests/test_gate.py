@@ -246,15 +246,6 @@ def test_changing_the_pytest_table_of_pyproject_fails_tests_modified(repo):
     assert gate(repo, mid).reason == "tests_modified"
 
 
-def test_adding_a_dependency_to_pyproject_passes(repo):
-    (repo / "proj").mkdir()
-    (repo / "proj" / "pyproject.toml").write_text(PYPROJECT)
-    base = repo_with_test_file(repo)
-    commit_project_edit(repo, "pyproject.toml", PYPROJECT.replace("dependencies = []", 'dependencies = ["requests"]'))
-
-    assert gate(repo, base).passed is True
-
-
 def test_adding_a_tool_uv_table_to_pyproject_fails_tests_modified(repo):
     (repo / "proj").mkdir()
     (repo / "proj" / "pyproject.toml").write_text('[project]\nname = "p"\ndependencies = []\n')
@@ -340,15 +331,18 @@ def test_guard_a_root_pyproject_gaining_tool_uv_fails_tests_modified(repo):
     assert gate(repo, base).reason == "tests_modified"
 
 
-@pytest.mark.parametrize("old,new", [
-    ("dependencies = []", 'dependencies = ["requests"]'),
-    ("line-length = 80", "line-length = 100"),
-])
-def test_guard_changes_beside_an_unchanged_tool_uv_table_pass(repo, old, new):
+def test_guard_changes_beside_an_unchanged_tool_uv_table_pass(repo):
     base = pyproject_base(repo, BASE_WITH_UV)
-    commit_project_edit(repo, "pyproject.toml", BASE_WITH_UV.replace(old, new))
+    commit_project_edit(repo, "pyproject.toml", BASE_WITH_UV.replace("line-length = 80", "line-length = 100"))
 
     assert gate(repo, base).passed is True
+
+
+def test_adding_a_dependency_fails_tests_modified(repo):
+    base = pyproject_base(repo, BASE_WITH_UV)
+    commit_project_edit(repo, "pyproject.toml", BASE_WITH_UV.replace("dependencies = []", 'dependencies = ["requests"]'))
+
+    assert gate(repo, base).reason == "tests_modified"
 
 
 def test_guard_changing_uv_lock_passes(repo):
