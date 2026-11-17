@@ -3,7 +3,7 @@ import os
 import subprocess
 import tomllib
 from dataclasses import dataclass
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 from factory.process import run_to_exit
 from factory.worktrees import HARDENED_GIT, run_git
@@ -159,12 +159,20 @@ def _protected_changed(
     pathspecs = [f":(glob,icase)**/{name}" for name in protected_names]  # pytest reads ini files above the project too
     if run_git(worktree, "diff", "--name-only", "--no-renames", base_sha, "HEAD", "--", *pathspecs):
         return True
-    project = _resolve_inside(worktree, project_subdir).relative_to(worktree.resolve())
-    pyprojects = [(directory / "pyproject.toml").as_posix() for directory in (project, *project.parents)]
+    project = PurePosixPath(_resolve_inside(worktree, project_subdir).relative_to(worktree.resolve()).as_posix())
+    changed = run_git(
+        worktree, "diff", "--name-only", "-z", "--no-renames", base_sha, "HEAD", "--", ":(glob,icase)**/pyproject.toml"
+    ).split("\0")
     return any(
-        _config_tables(worktree, base_sha, pyproject) != _config_tables(worktree, "HEAD", pyproject)
-        for pyproject in pyprojects
+        _config_tables(worktree, base_sha, path) != _config_tables(worktree, "HEAD", path)
+        for path in changed
+        if path and _reaches_project(PurePosixPath(path).parent, project)
     )
+
+
+def _reaches_project(directory: PurePosixPath, project: PurePosixPath) -> bool:
+    """A pyproject in the project, below it (a path dependency) or above it (pytest and uv read those too)."""
+    return directory == project or project in directory.parents or directory in project.parents
 
 
 def _config_tables(worktree: Path, revision: str, path: str) -> tuple | None:

@@ -378,6 +378,16 @@ def test_changing_a_non_table_project_value_fails_tests_modified(repo):
     assert gate(repo, base).reason == "tests_modified"
 
 
+@pytest.mark.parametrize("path", ["sub/pyproject.toml", "sub/deep/PyProject.toml"])
+def test_a_nested_pyproject_gaining_an_entry_point_fails_tests_modified(repo, path):
+    (repo / "proj" / "sub" / "deep").mkdir(parents=True)
+    (repo / "proj" / path).write_text('[project]\nname = "n"\n')
+    base = repo_with_test_file(repo)
+    commit_project_edit(repo, path, '[project]\nname = "n"\n[project.entry-points.pytest11]\nplug = "n.plug"\n')
+
+    assert gate(repo, base).reason == "tests_modified"
+
+
 def test_adding_a_dependency_fails_tests_modified(repo):
     base = pyproject_base(repo, BASE_WITH_UV)
     commit_project_edit(repo, "pyproject.toml", BASE_WITH_UV.replace("dependencies = []", 'dependencies = ["requests"]'))
