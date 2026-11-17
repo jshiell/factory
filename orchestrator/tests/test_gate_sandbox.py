@@ -86,6 +86,15 @@ def test_a_symlinked_uv_adds_a_read_on_the_resolved_directory_only(tmp_path):
     assert str(target.parent) in grants and str(link.parent) not in grants
 
 
+def test_a_plain_uv_adds_exactly_one_read_for_its_own_directory(tmp_path):
+    tmp_path = tmp_path.resolve()
+    uv = tmp_path / "uvbin" / "uv"
+    uv.parent.mkdir()
+    uv.write_text("")
+
+    assert read_grants(build(tmp_path, real_uv=str(uv))) == [str(tmp_path / "wt"), "/py", "/uvpy", str(uv.parent)]
+
+
 def test_a_uv_directory_that_is_root_or_holds_home_adds_no_read(tmp_path):
     tmp_path = tmp_path.resolve()
     home = tmp_path / "home"
