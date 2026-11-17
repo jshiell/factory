@@ -332,13 +332,22 @@ Anything that needs a terminal, nono, the network or the home directory is cover
 
 ## Known limits
 
-Recorded per plan in `docs/spike-findings.md`. The main ones:
+Recorded per plan in `docs/spike-findings.md`. The main ones, by area:
 
+**The gate**
 - A new test file can monkeypatch the code under test at import time; the gate cannot tell.
 - With `gate_allow_dependency_changes` on, a new dependency or entry point can run code in the gate. With it off, a malicious release of an
-  already-pinned dependency within its allowed range is still not caught. `setup.py`, `dynamic` metadata and poetry or hatch tables are refused; that they can load code in the gate was assumed, not tested.
-  Legitimate edits outside the project (a root README, root config) are refused and need a human, unless the path is listed in `gate_allow_outside`.
+  already-pinned dependency within its allowed range is still not caught.
+- `setup.py`, `dynamic` metadata and poetry or hatch tables are refused; that they can load code in the gate was assumed, not tested.
+  Whether `uv run` rewrites an existing `uv.lock` after a uv format bump was not verified, and nor was network access inside the gate sandbox.
+- Legitimate edits outside the project (a root README, root config) are refused and need a human, unless the path is listed in `gate_allow_outside`.
+  The gate cannot know which allowed files the tests read, and a task that changes only allowed paths is "verified" on an unchanged project.
+- Submodules are only partly handled.
+
+**The audit and rebase**
+- The auditor is a model, not a guarantee (see plan 22 for what was measured).
 - A rebase can change behaviour without a textual conflict; only the tests and the fresh audit catch that.
+
+**Operations**
 - A SIGKILLed driver leaves an orphan agent until the next command reaps it (one launched in the last instant before the kill is unrecorded), and can leave a half-done rebase; `abandon`/`recover` and a manual check are the way out.
-- Submodules are only partly handled, and the auditor is a model, not a guarantee (see plan 22 for what was measured).
 - The real sandbox is macOS only; CI covers the Linux suite with fakes, not nono itself.
