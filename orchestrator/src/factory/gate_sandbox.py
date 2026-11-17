@@ -27,6 +27,13 @@ def _without_shims(path: str) -> str:
     return os.pathsep.join(d for d in path.split(os.pathsep) if "shims" not in d)
 
 
+def _uv_read_dirs(real_uv: str) -> tuple[str, ...]:
+    """The directory holding uv, which nono needs readable to exec it; none for a bare or relative name."""
+    if not os.path.isabs(real_uv):
+        return ()
+    return (str(Path(real_uv).parent),)
+
+
 def build_gate_sandbox(
     *, sandbox_executable: str, worktree: Path, project_dir: Path, cache_dir: Path, python_prefix: str,
     uv_python_dir: str, real_uv: str, base_env: dict[str, str], test_argv: tuple[str, ...],
@@ -34,7 +41,7 @@ def build_gate_sandbox(
     """Own minimal grants for the gate (no claude profile): write the project dir and a private uv cache only."""
     prefix = sandbox_prefix(
         sandbox_executable, worktree, profile=None, allow=(str(project_dir), str(cache_dir)),
-        read=(python_prefix, uv_python_dir, str(Path(real_uv).parent)),
+        read=(python_prefix, uv_python_dir, *_uv_read_dirs(real_uv)),
     )
     argv = (real_uv, *test_argv[1:]) if test_argv and test_argv[0] == "uv" else tuple(test_argv)
     env = {k: v for k, v in base_env.items() if k not in STRIPPED_ENV}

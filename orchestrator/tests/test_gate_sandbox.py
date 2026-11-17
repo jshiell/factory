@@ -70,3 +70,8 @@ def test_an_absolute_uv_adds_a_read_on_its_directory(tmp_path):
     uv.write_text("")
 
     assert str(uv.parent) in read_grants(build(tmp_path, real_uv=str(uv)))
+
+
+def test_a_bare_or_relative_uv_adds_no_read(tmp_path):
+    for real_uv in ("uv", "bin/uv"):
+        assert read_grants(build(tmp_path, real_uv=real_uv)) == [str(tmp_path / "wt"), "/py", "/uvpy"]
