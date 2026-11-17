@@ -398,6 +398,45 @@ def test_editing_a_build_script_fails_tests_modified(repo, path):
     assert gate(repo, base).reason == "tests_modified"
 
 
+def gate_allowing_dependencies(repo, base_sha):
+    return check_gate(repo, base_sha, "proj", PASSING_TESTS, timeout_s=10, allow_dependency_changes=True)
+
+
+@pytest.mark.parametrize("old,new", [
+    ("dependencies = []", 'dependencies = ["requests"]'),
+    *WATCHED_ADDITIONS.values(),
+], ids=["dependencies", *WATCHED_ADDITIONS.keys()])
+def test_allowing_dependency_changes_passes_a_dependency_edit(repo, old, new):
+    base = pyproject_base(repo, BASE_WITH_UV)
+    commit_project_edit(repo, "pyproject.toml", BASE_WITH_UV.replace(old, new))
+
+    assert gate_allowing_dependencies(repo, base).passed is True
+
+
+@pytest.mark.parametrize("path", ["setup.py", "hatch_build.py"])
+def test_allowing_dependency_changes_passes_a_build_script_and_lock_edit(repo, path):
+    (repo / "proj").mkdir()
+    (repo / "proj" / path).write_text("a = 1\n")
+    (repo / "proj" / "uv.lock").write_text("a\n")
+    base = repo_with_test_file(repo)
+    commit_project_edit(repo, path, "a = 2\n")
+    commit_project_edit(repo, "uv.lock", "b\n")
+
+    assert gate_allowing_dependencies(repo, base).passed is True
+
+
+# Guards (start green once the flag exists): the flag never relaxes the tool.uv and tool.pytest watch.
+@pytest.mark.parametrize("old,new", [
+    ("[tool.ruff]", '[tool.pytest.ini_options]\naddopts = "-p x"\n\n[tool.ruff]'),
+    ('exclude-newer = "2000-01-01T00:00:00Z"', 'exclude-newer = "1999-01-01T00:00:00Z"'),
+], ids=["pytest", "uv"])
+def test_allowing_dependency_changes_still_fails_a_pytest_or_uv_edit(repo, old, new):
+    base = pyproject_base(repo, BASE_WITH_UV)
+    commit_project_edit(repo, "pyproject.toml", BASE_WITH_UV.replace(old, new))
+
+    assert gate_allowing_dependencies(repo, base).reason == "tests_modified"
+
+
 def test_adding_a_dependency_fails_tests_modified(repo):
     base = pyproject_base(repo, BASE_WITH_UV)
     commit_project_edit(repo, "pyproject.toml", BASE_WITH_UV.replace("dependencies = []", 'dependencies = ["requests"]'))

@@ -63,6 +63,7 @@ def check_gate(
     frozen_sha: str | None = None,
     tracker=None,
     allow_outside: tuple[str, ...] = (),
+    allow_dependency_changes: bool = False,
 ) -> GateResult:
     project_dir = _resolve_inside(worktree, project_subdir)
     if not _is_ancestor(worktree, base_sha):
@@ -74,8 +75,8 @@ def check_gate(
         return GateResult(False, "no_changes")
     if (
         _tests_tampered(worktree, base_sha, project_subdir, test_globs)
-        or _protected_changed(worktree, base_sha, project_subdir, protected_names)
-        or _dependency_file_changed(worktree, base_sha)
+        or _protected_changed(worktree, base_sha, project_subdir, protected_names, allow_dependency_changes)
+        or (not allow_dependency_changes and _dependency_file_changed(worktree, base_sha))
     ):
         return GateResult(False, "tests_modified")
     if frozen_sha is not None:
@@ -169,7 +170,8 @@ def _dependency_file_changed(worktree: Path, base_sha: str) -> bool:
 
 
 def _protected_changed(
-    worktree: Path, base_sha: str, project_subdir: str, protected_names: tuple[str, ...]
+    worktree: Path, base_sha: str, project_subdir: str, protected_names: tuple[str, ...],
+    allow_dependency_changes: bool = False,
 ) -> bool:
     pathspecs = [f":(glob,icase)**/{name}" for name in protected_names]  # pytest reads ini files above the project too
     if run_git(worktree, "diff", "--name-only", "--no-renames", base_sha, "HEAD", "--", *pathspecs):
@@ -179,7 +181,8 @@ def _protected_changed(
         worktree, "diff", "--name-only", "-z", "--no-renames", base_sha, "HEAD", "--", ":(glob,icase)**/pyproject.toml"
     ).split("\0")
     return any(
-        _config_tables(worktree, base_sha, path) != _config_tables(worktree, "HEAD", path)
+        _config_tables(worktree, base_sha, path, allow_dependency_changes)
+        != _config_tables(worktree, "HEAD", path, allow_dependency_changes)
         for path in changed
         if path and _reaches_project(PurePosixPath(path).parent, project)
     )
@@ -190,8 +193,9 @@ def _reaches_project(directory: PurePosixPath, project: PurePosixPath) -> bool:
     return directory == project or project in directory.parents or directory in project.parents
 
 
-def _config_tables(worktree: Path, revision: str, path: str) -> tuple | None:
-    """The parts of a pyproject that change what is installed or how the tests run (see INERT_*)."""
+def _config_tables(worktree: Path, revision: str, path: str, allow_dependency_changes: bool = False) -> tuple | None:
+    """The parts of a pyproject that change what is installed or how the tests run (see INERT_*).
+    With `allow_dependency_changes` only `[tool.pytest]` and `[tool.uv]` remain watched."""
     shown = subprocess.run(
         [*HARDENED_GIT, "show", f"{revision}:{path}"], cwd=worktree, capture_output=True, stdin=subprocess.DEVNULL
     )
@@ -204,6 +208,8 @@ def _config_tables(worktree: Path, revision: str, path: str) -> tuple | None:
     tool = document.get("tool", {})
     if not isinstance(tool, dict):
         return ({"unparseable": True},)
+    if allow_dependency_changes:
+        return (tool.get("pytest"), tool.get("uv"))
     project = document.get("project")
     watched_project = (
         {key: value for key, value in project.items() if key not in INERT_PROJECT_KEYS}
