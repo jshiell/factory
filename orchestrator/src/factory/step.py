@@ -8,7 +8,6 @@ from factory.ledger import Ledger
 from factory.store import TaskStore
 from factory.task import Event, Task, apply
 
-
 ASSUMED_COST_MULTIPLIER = 2
 
 

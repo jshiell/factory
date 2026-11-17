@@ -250,6 +250,7 @@ def test_the_agent_is_not_granted_a_directory_that_holds_the_server_state(projec
 
 def test_a_failing_gate_runs_one_confined_fix_round_and_the_tests_then_pass(project):
     import re
+
     from factory.sqlite_store import SqliteTaskStore
     from factory.task import Task, TaskState
     repo, env, tmp_path = project
@@ -278,6 +279,7 @@ def test_a_failing_gate_runs_one_confined_fix_round_and_the_tests_then_pass(proj
 
 def test_a_task_that_kept_its_plan_is_implemented_with_the_approved_prompt_in_a_fresh_worktree(project):
     from datetime import datetime
+
     from factory.approve_plan import build_implementation_prompt
     from factory.digest import plan_digest
     from factory.retry_task import retry_with_plan

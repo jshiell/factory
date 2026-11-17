@@ -1,5 +1,5 @@
-from datetime import datetime
 from collections.abc import Callable
+from datetime import datetime
 
 from factory.approve_plan import build_implementation_prompt
 from factory.audit_gaps import gaps_to_carry, split_quoting_waived

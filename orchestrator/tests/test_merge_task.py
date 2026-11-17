@@ -2,12 +2,11 @@ from dataclasses import replace
 
 import pytest
 
-from gitutil import git
-
 from factory.merge_task import ALREADY_IN_MAIN, MergeRefused, merge_preview, merge_task
 from factory.store import TaskStore
 from factory.task import InvalidTransition, Task, TaskState
 from factory.worktrees import WorktreeManager
+from gitutil import git
 
 
 @pytest.fixture

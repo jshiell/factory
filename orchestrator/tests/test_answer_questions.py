@@ -1,6 +1,11 @@
 import pytest
 
-from factory.answer_questions import MAX_ANSWER_BYTES, AnswerRejected, RoundChanged, answer_questions
+from factory.answer_questions import (
+    MAX_ANSWER_BYTES,
+    AnswerRejected,
+    RoundChanged,
+    answer_questions,
+)
 from factory.store import TaskStore
 from factory.task import InvalidTransition, Task, TaskState
 

@@ -9,33 +9,48 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import httpx2
-from factory.question_text import questions_text
-from factory.textsafe import escape_control  # noqa: F401  (re-exported)
-from factory.client import ServerClient, ServerRefused, ServerUnreachable
+
 from factory.audit_compare import compare, find_previous
-from factory.audit_gaps import split_quoting_waived
-from factory.audit_corpus import CASES as EVAL_CASES, PROJECT_SUBDIR
+from factory.audit_corpus import CASES as EVAL_CASES
+from factory.audit_corpus import PROJECT_SUBDIR
 from factory.audit_eval import check_corpus
+from factory.audit_gaps import split_quoting_waived
+from factory.client import ServerClient, ServerRefused, ServerUnreachable
+from factory.clone_repo import RepositoryError, clone_repository
 from factory.gate import check_gate
+from factory.github import GitHub, GitHubError, origin_slug
 from factory.ids import InvalidTaskId, require_safe_id
+from factory.init_config import init_global_config
 from factory.ledger import Ledger
-from factory.migrate import DatabaseNotEmpty, migrate
 from factory.lock import AlreadyRunning, state_lock
+from factory.migrate import DatabaseNotEmpty, migrate
 from factory.process import group_alive, kill_tree
+from factory.process_registry import (
+    FileRecordsBlocked,
+    ReapResult,
+    clear_file_records,
+    ps_probe,
+    reap_orphans,
+)
+from factory.question_text import questions_text
+from factory.runner import SubprocessRunner
+from factory.settings import Settings, SettingsError, load_settings
 from factory.sqlite_ledger import SqliteLedger
 from factory.sqlite_process_records import SqliteProcessRecords
 from factory.sqlite_store import SqliteTaskStore
-from factory.process_registry import FileRecordsBlocked, ReapResult, clear_file_records, ps_probe, reap_orphans
-from factory.runner import SubprocessRunner
-from factory.clone_repo import RepositoryError, clone_repository
-from factory.init_config import init_global_config
-from factory.settings import Settings, SettingsError, load_settings
 from factory.stages import Deps, build_stages
 from factory.step import Runner
 from factory.store import TaskNotFound, TaskStore, task_from_dict
 from factory.task import Task, TaskState
-from factory.waiver import Refuse, Reinstate, Waive, approval_prompt, note_lines, parse_answer
-from factory.github import GitHub, GitHubError, origin_slug
+from factory.textsafe import escape_control  # noqa: F401  (re-exported)
+from factory.waiver import (
+    Refuse,
+    Reinstate,
+    Waive,
+    approval_prompt,
+    note_lines,
+    parse_answer,
+)
 from factory.watch import run_pass
 from factory.worktrees import WorktreeManager
 
@@ -636,7 +651,13 @@ def _merge(args, io, ctx) -> int:
 
 
 def _serve(args, io, ctx) -> int:
-    from factory.server import StartRefused, TokenFileUnsafe, claim_state_dir, create_secured_app, load_or_create_token
+    from factory.server import (
+        StartRefused,
+        TokenFileUnsafe,
+        claim_state_dir,
+        create_secured_app,
+        load_or_create_token,
+    )
     port = args.port if args.port is not None else ctx.settings.server_port
     try:
         token = load_or_create_token(ctx.settings.state_dir)

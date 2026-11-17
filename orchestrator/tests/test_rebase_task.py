@@ -4,13 +4,12 @@ from pathlib import Path
 
 import pytest
 
-from gitutil import git
-
-from factory.step import RunResult
 from factory.rebase_task import RebaseRefused, rebase_task
+from factory.step import RunResult
 from factory.store import TaskStore
 from factory.task import Task, TaskState
 from factory.worktrees import WorktreeManager
+from gitutil import git
 
 
 @pytest.fixture
@@ -198,6 +197,7 @@ def test_a_conflict_is_refused_the_rebase_aborted_and_the_old_state_left_intact(
 
 def test_an_interrupt_during_the_rebase_aborts_it_restores_the_old_tip_and_propagates(audited, monkeypatch):
     import subprocess
+
     from factory import rebase_task as module
     store, repo, worktree, task = audited
     conflict_on_main(repo)

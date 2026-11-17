@@ -2,6 +2,7 @@ from dataclasses import replace
 from datetime import datetime
 
 import pytest
+
 from factory.cli import Context
 from factory.digest import plan_digest
 from factory.rebase_task import Rebased

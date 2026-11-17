@@ -1,10 +1,9 @@
 import pytest
 
-from gitutil import git
-
 from factory.audit_corpus import BASE_FILES, CASES, PROJECT_SUBDIR
 from factory.audit_eval import build_base_repo, materialise
 from factory.worktrees import WorktreeManager
+from gitutil import git
 
 
 @pytest.fixture(autouse=True)
@@ -129,6 +128,7 @@ def test_an_agent_that_changes_the_worktree_is_a_separate_outcome(rig):
 
 def test_a_diff_over_the_size_limit_is_a_separate_outcome_and_the_agent_never_runs(rig):
     from dataclasses import replace
+
     from factory.audit_task import MAX_DIFF_BYTES
     manager, store, ledger, eval_dir = rig
     huge = replace(CASES[0], files={"src/calc/big.py": "x = 1\n" * (MAX_DIFF_BYTES // 4)})
@@ -164,8 +164,14 @@ import dataclasses
 from dataclasses import replace
 
 from factory.audit_corpus import corpus_hash
+from factory.audit_eval import (
+    ConfigChanged,
+    CorpusChanged,
+    RunsChanged,
+    load_meta,
+    run_eval,
+)
 from factory.audit_task import AUDIT_CONFIG
-from factory.audit_eval import ConfigChanged, CorpusChanged, RunsChanged, load_meta, run_eval
 
 
 class VerdictRunner:

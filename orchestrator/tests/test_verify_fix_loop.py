@@ -2,14 +2,13 @@ import json
 
 import pytest
 
-from gitutil import git
-
 from factory.command import RunnerConfig
 from factory.ledger import Ledger
 from factory.step import BudgetCapReached, RunResult
 from factory.store import TaskStore
 from factory.task import Task, TaskState
 from factory.verify_task import verify_task
+from gitutil import git
 
 CONFIG = RunnerConfig(model="sonnet", budget_usd=0.3)
 FIXED_ONLY_IF_FILE = ["sh", "-c", "echo 'FAIL: no fixed file'; test -f fixed"]
@@ -328,6 +327,7 @@ def plant_ignored_files(repo):
 
 def test_the_gate_runs_only_committed_files_and_cleans_before_the_sandbox_is_built(repo, store, ledger, task):
     import os
+
     from factory.gate_sandbox import GateSandbox
     plant_ignored_files(repo)
     seen = []
@@ -399,6 +399,7 @@ def test_the_fix_prompt_names_the_allowed_outside_paths(repo, store, ledger, tas
 
 def test_an_allowed_root_change_passes_the_sandboxed_gate_too(repo, store, ledger, task):
     import os
+
     from factory.gate_sandbox import GateSandbox
     (repo / "README.md").write_text("edited by the agent")
     sandbox = lambda _task: GateSandbox((), ("true",), {"PATH": os.environ["PATH"]})

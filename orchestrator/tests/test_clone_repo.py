@@ -6,7 +6,13 @@ from types import SimpleNamespace
 import pytest
 
 from factory.cli import IO
-from factory.clone_repo import RepositoryError, clone_repository, gh_target, github_slug, parse_repository
+from factory.clone_repo import (
+    RepositoryError,
+    clone_repository,
+    gh_target,
+    github_slug,
+    parse_repository,
+)
 
 
 def test_owner_slash_repo_becomes_the_canonical_https_url_and_the_repo_name():

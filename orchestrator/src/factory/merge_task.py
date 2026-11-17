@@ -3,8 +3,13 @@ from pathlib import Path
 
 from factory.store import TaskStore
 from factory.task import Event, Task, apply
-from factory.worktrees import WorktreeManager, branch_problem, is_ancestor, main_checkout_problem, run_git
-
+from factory.worktrees import (
+    WorktreeManager,
+    branch_problem,
+    is_ancestor,
+    main_checkout_problem,
+    run_git,
+)
 
 MAIN_MOVED = "main moved since the plan; re-run the task"
 ALREADY_IN_MAIN = "the audited commit is already in main; there is nothing to merge"

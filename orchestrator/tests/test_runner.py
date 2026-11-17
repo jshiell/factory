@@ -9,9 +9,9 @@ from pathlib import Path
 import pytest
 
 from factory.command import RunnerConfig
+from factory.process_registry import load_records
 from factory.runner import SubprocessRunner
 from factory.step import TAIL_CHARS
-from factory.process_registry import load_records
 from factory.task import Task, TaskState
 
 CONFIG = RunnerConfig(model="sonnet", budget_usd=0.5)

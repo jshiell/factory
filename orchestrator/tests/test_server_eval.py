@@ -64,6 +64,7 @@ def test_eval_audit_with_bad_input_is_422_and_starts_nothing(client, ctx, body):
 
 def test_eval_audit_with_stage_config_runs_the_audit_stage_config(client, ctx):
     from dataclasses import asdict, replace
+
     from factory.audit_task import AUDIT_CONFIG
     from factory.stages import stage_config
     plugin = ctx.settings.state_dir.parent / "plugin"
@@ -89,6 +90,7 @@ def test_eval_audit_with_stage_config_runs_the_audit_stage_config(client, ctx):
 
 def test_eval_audit_without_stage_config_keeps_the_built_in_config(client, ctx):
     from dataclasses import asdict, replace
+
     from factory.audit_task import AUDIT_CONFIG
     ctx.settings = replace(ctx.settings, stage_prompts={"audit": "Strict."})
 

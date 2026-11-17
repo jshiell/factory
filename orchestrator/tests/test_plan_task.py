@@ -4,18 +4,25 @@ from dataclasses import replace
 
 import pytest
 
-from gitutil import git
-
+from factory.command import RunnerConfig
 from factory.ledger import Ledger
 from factory.plan_task import (
-    GRILL_SCHEMA, GRILLING_PLUGIN_DIR, MAX_PLAN_BYTES, MAX_QUESTIONS, MAX_QUESTIONS_BYTES, PLAN_CONFIG, PLAN_SCHEMA, build_grill_prompt,
-    build_plan_prompt, plan_task,
+    GRILL_SCHEMA,
+    GRILLING_PLUGIN_DIR,
+    MAX_PLAN_BYTES,
+    MAX_QUESTIONS,
+    MAX_QUESTIONS_BYTES,
+    PLAN_CONFIG,
+    PLAN_SCHEMA,
+    build_grill_prompt,
+    build_plan_prompt,
+    plan_task,
 )
-from factory.command import RunnerConfig
 from factory.settings import _runs_code
 from factory.step import BudgetCapReached, MissingBudget, RunResult
 from factory.store import TaskStore
 from factory.task import InvalidTransition, Task, TaskState
+from gitutil import git
 
 
 def plan_stdout(plan="1. do x", risks=("r",), cost=0.05):

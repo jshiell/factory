@@ -12,8 +12,8 @@ from factory.plan_task import PLAN_CONFIG, plan_task
 from factory.review_plan import REVIEW_CONFIG, review_plan
 from factory.run_task import run_task
 from factory.settings import Settings
-from factory.step import Runner
 from factory.sqlite_process_records import SqliteProcessRecords
+from factory.step import Runner
 from factory.store import TaskStore
 from factory.task import Task
 from factory.verify_task import verify_task

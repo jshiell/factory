@@ -1,10 +1,10 @@
 from collections import defaultdict
-from typing import NamedTuple
-
 from collections.abc import Callable
 from datetime import datetime
+from typing import NamedTuple
 
-from factory.approve_plan import approve_plan, reject_plan as reject_reviewed_plan
+from factory.approve_plan import approve_plan
+from factory.approve_plan import reject_plan as reject_reviewed_plan
 from factory.store import Listing, create_with_fresh_id
 from factory.task import InvalidTransition, Task, TaskState
 from factory.waiver import InvalidWaiver

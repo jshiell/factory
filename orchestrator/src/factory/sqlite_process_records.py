@@ -1,6 +1,11 @@
 from pathlib import Path
 
-from factory.process_registry import NOT_A_LAUNCHED_GROUP, InvalidRecord, Record, names_a_launched_group
+from factory.process_registry import (
+    NOT_A_LAUNCHED_GROUP,
+    InvalidRecord,
+    Record,
+    names_a_launched_group,
+)
 from factory.sqlite_db import transaction
 
 

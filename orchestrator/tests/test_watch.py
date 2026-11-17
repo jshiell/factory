@@ -10,8 +10,17 @@ from factory.client import ServerRefused, ServerUnreachable
 from factory.comments import render_comment
 from factory.github import Comment, GitHubError, Reaction, User
 from factory.merge_task import ALREADY_IN_MAIN, MAIN_MOVED
-
-from factory.watch import Issue, IssueRecord, Phase, WatchState, WatchStateError, load_state, parse_issues, run_pass, save_state
+from factory.watch import (
+    Issue,
+    IssueRecord,
+    Phase,
+    WatchState,
+    WatchStateError,
+    load_state,
+    parse_issues,
+    run_pass,
+    save_state,
+)
 
 SINCE = datetime(2026, 11, 13, 0, 0, tzinfo=timezone.utc)
 

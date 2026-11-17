@@ -4,7 +4,13 @@ from pathlib import Path
 
 from factory.ids import require_safe_id
 from factory.sqlite_db import transaction
-from factory.store import Listing, TaskExists, TaskNotFound, task_from_dict, task_to_dict
+from factory.store import (
+    Listing,
+    TaskExists,
+    TaskNotFound,
+    task_from_dict,
+    task_to_dict,
+)
 from factory.task import Task
 
 

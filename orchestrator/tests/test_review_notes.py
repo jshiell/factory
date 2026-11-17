@@ -1,4 +1,10 @@
-from factory.review_notes import MAX_ITEM, MAX_ITEMS, MAX_TOTAL, TRUNCATED, capped_findings
+from factory.review_notes import (
+    MAX_ITEM,
+    MAX_ITEMS,
+    MAX_TOTAL,
+    TRUNCATED,
+    capped_findings,
+)
 
 
 def test_short_findings_pass_through_unchanged():

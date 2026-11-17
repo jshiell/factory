@@ -2,9 +2,8 @@ import stat
 
 import pytest
 
-from gitutil import git
-
 from factory.gate import ProjectSubdirEscapes, check_gate, commit_all
+from gitutil import git
 
 
 def test_commit_all_commits_new_and_changed_files_with_the_factory_identity(repo):
@@ -395,7 +394,9 @@ def _alive(pid: int) -> bool:
 
 
 def test_a_gate_timeout_kills_descendants_of_the_test_command(repo, tmp_path):
-    import os, signal, time
+    import os
+    import signal
+    import time
     base = repo_with_project_change(repo)
     pid_file = tmp_path / "sleeper.pid"
 

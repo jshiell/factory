@@ -33,14 +33,13 @@ import json
 
 import pytest
 
-from gitutil import git
-
 from factory.audit_task import MAX_DIFF_BYTES, audit_task
 from factory.command import RunnerConfig
 from factory.ledger import Ledger
 from factory.step import BudgetCapReached, MissingBudget, RunResult
 from factory.store import TaskStore
 from factory.task import InvalidTransition, TaskState
+from gitutil import git
 
 
 def verdict_stdout(verdict="pass", findings=("ok",), cost=0.05, **overrides):

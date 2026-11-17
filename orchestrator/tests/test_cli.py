@@ -6,8 +6,8 @@ import pytest
 from starlette.testclient import TestClient
 
 from factory import cli
-from factory.client import ServerClient
 from factory.cli import IO, Context, escape_control, main
+from factory.client import ServerClient
 from factory.digest import plan_digest
 from factory.ledger import Ledger
 from factory.merge_task import MergeRefused
@@ -648,8 +648,8 @@ def test_clean_with_no_worktrees_branches_or_caches_says_nothing_to_clean(ctx):
 
 
 def describe(**fields):
-    from factory.cli import _describe_candidate
     from factory.clean_tasks import Candidate
+    from factory.cli import _describe_candidate
     defaults = dict(directory_exists=True, dirty=False, commits_ahead=0, branch_exists=True)
     task = Task(id="t1", prompt="", state=S.FAILED, worktree="/w/t1")
     return _describe_candidate(Candidate(task, **{**defaults, **fields}))
@@ -678,8 +678,8 @@ def test_one_commit_is_singular():
 # --- rebase -------------------------------------------------------------------
 
 def audited_with_main_moved(ctx):
-    from gitutil import git
     from factory.worktrees import WorktreeManager
+    from gitutil import git
     repo = ctx.settings.repo
     git_repo(ctx)
     (repo / "a.txt").write_text("a")
@@ -738,8 +738,8 @@ def test_rebase_refusal_escapes_control_characters_from_the_quoted_git_line(ctx,
 
 
 def failed_with_empty_branch_after_main_was_rewritten(ctx):
-    from gitutil import git
     from factory.worktrees import WorktreeManager
+    from gitutil import git
     repo = ctx.settings.repo
     git_repo(ctx)
     (repo / "a.txt").write_text("a")
@@ -773,8 +773,8 @@ def test_a_merged_task_with_an_empty_branch_is_not_previewed_as_will_be_deleted(
 
 
 def describe_merged(**fields):
-    from factory.cli import _describe_candidate
     from factory.clean_tasks import Candidate
+    from factory.cli import _describe_candidate
     defaults = dict(directory_exists=True, dirty=False, commits_ahead=0, branch_exists=True)
     task = Task(id="t1", prompt="", state=S.MERGED, worktree="/w/t1")
     return _describe_candidate(Candidate(task, **{**defaults, **fields}))

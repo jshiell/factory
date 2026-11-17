@@ -78,9 +78,8 @@ def test_refused_run_creates_no_worktree(store, ledger):
     assert worktrees.created == []
 
 
-from gitutil import git
-
 from factory.run_task import WorktreeNotPristine
+from gitutil import git
 
 
 def planned_worktree_task(store, repo, base_sha=None):

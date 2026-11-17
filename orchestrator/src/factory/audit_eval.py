@@ -8,7 +8,13 @@ from collections.abc import Callable
 from pathlib import Path
 
 from factory.approve_plan import build_implementation_prompt
-from factory.audit_corpus import BASE_FILES, PROJECT_SUBDIR, Case, case_hash, corpus_hash
+from factory.audit_corpus import (
+    BASE_FILES,
+    PROJECT_SUBDIR,
+    Case,
+    case_hash,
+    corpus_hash,
+)
 from factory.audit_task import AUDIT_CONFIG, audit_task, build_audit_prompt
 from factory.command import RunnerConfig
 from factory.gate import GateResult, commit_all

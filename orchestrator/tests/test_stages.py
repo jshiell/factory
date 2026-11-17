@@ -3,8 +3,6 @@ from pathlib import Path
 
 import pytest
 
-from gitutil import git
-
 from factory.audit_task import AUDIT_CONFIG
 from factory.digest import plan_digest
 from factory.gate_sandbox import UvTooling
@@ -14,10 +12,17 @@ from factory.process_registry import Record
 from factory.review_plan import REVIEW_CONFIG
 from factory.settings import Settings
 from factory.sqlite_process_records import SqliteProcessRecords
-from factory.stages import Deps, build_stages, fixer_config, implementer_config, stage_config
+from factory.stages import (
+    Deps,
+    build_stages,
+    fixer_config,
+    implementer_config,
+    stage_config,
+)
 from factory.step import RunResult
 from factory.store import TaskStore
 from factory.task import Task, TaskState
+from gitutil import git
 
 
 class RecordingRunner:

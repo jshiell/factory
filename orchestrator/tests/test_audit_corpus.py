@@ -66,6 +66,7 @@ def test_the_base_project_is_inlined_with_calc_its_test_and_a_pyproject():
 
 def test_case_and_corpus_hashes_are_stable_and_follow_the_content():
     from dataclasses import replace
+
     from factory.audit_corpus import case_hash, corpus_hash
 
     first = CASES[0]
@@ -80,6 +81,7 @@ def test_case_and_corpus_hashes_are_stable_and_follow_the_content():
 
 def test_the_base_pyproject_can_run_the_tests_it_ships_with():
     import tomllib
+
     from factory.audit_corpus import BASE_FILES
 
     project = tomllib.loads(BASE_FILES["pyproject.toml"])

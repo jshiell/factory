@@ -1,7 +1,14 @@
 import pytest
 
 from factory.review_notes import MAX_ITEM, MAX_ITEMS, TRUNCATED, capped_findings
-from factory.waiver import Approve, Refuse, Reinstate, Waive, parse_answer, remove_waived
+from factory.waiver import (
+    Approve,
+    Refuse,
+    Reinstate,
+    Waive,
+    parse_answer,
+    remove_waived,
+)
 
 REQUIRED = "Recommend (required): "
 

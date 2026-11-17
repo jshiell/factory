@@ -3,7 +3,6 @@ from pathlib import Path
 
 from factory.ids import require_safe_id
 
-
 # The worktree is agent-controlled: never let its config run commands (fsmonitor, hooks) in the factory's git.
 HARDENED_GIT = ("git", "-c", "core.fsmonitor=false", "-c", "core.hooksPath=/dev/null", "-c", "diff.ignoreSubmodules=all")
 

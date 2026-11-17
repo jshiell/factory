@@ -2,10 +2,9 @@ import stat
 
 import pytest
 
-from gitutil import git
-
 from factory.gate import commit_all
 from factory.worktrees import run_git
+from gitutil import git
 
 
 @pytest.fixture

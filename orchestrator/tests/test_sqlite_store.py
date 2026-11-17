@@ -2,8 +2,8 @@ import sqlite3
 
 import pytest
 
-from factory.sqlite_store import SqliteTaskStore
 from factory.ids import InvalidTaskId
+from factory.sqlite_store import SqliteTaskStore
 from factory.store import TaskExists, TaskNotFound
 from factory.task import Task, TaskState
 

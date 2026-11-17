@@ -2,10 +2,15 @@ import subprocess
 
 import pytest
 
-from gitutil import git
-
 from factory.ids import InvalidTaskId
-from factory.worktrees import BranchExists, WorktreeExists, WorktreeManager, is_ancestor, main_checkout_problem
+from factory.worktrees import (
+    BranchExists,
+    WorktreeExists,
+    WorktreeManager,
+    is_ancestor,
+    main_checkout_problem,
+)
+from gitutil import git
 
 
 @pytest.fixture

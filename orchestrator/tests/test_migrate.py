@@ -1,6 +1,6 @@
-from factory.ledger import Ledger
 import pytest
 
+from factory.ledger import Ledger
 from factory.migrate import DatabaseNotEmpty, migrate
 from factory.sqlite_ledger import SqliteLedger
 from factory.sqlite_store import SqliteTaskStore

@@ -15,34 +15,46 @@ from starlette.responses import JSONResponse
 from starlette.routing import Route
 
 from factory import service
-from factory.digest import plan_digest
-from factory.review_notes import capped_findings, dropped_required_warning
-from factory.waiver import InvalidWaiver, note_lines
 from factory.abandon_task import AbandonRefused, abandon_task
 from factory.advance import advance
 from factory.answer_questions import AnswerRejected, RoundChanged, answer_questions
+from factory.audit_corpus import CASES as EVAL_CASES
+from factory.audit_eval import (
+    ConfigChanged,
+    CorpusChanged,
+    RunsChanged,
+    load_meta,
+    run_eval,
+)
+from factory.audit_gaps import gaps_to_carry
+from factory.audit_report import exit_code as eval_exit_code
+from factory.audit_report import load_records, render
+from factory.audit_task import AUDIT_CONFIG
+from factory.clean_tasks import clean_candidates, clean_tasks, remove_orphan_caches
+from factory.cli import _new_eval_dir
+from factory.digest import plan_digest
+from factory.gate_cache import orphan_caches
+from factory.ids import InvalidTaskId
 from factory.job_runner import JobRunner
+from factory.job_store import Job, JobNotFound, JobStore
+from factory.lock import AlreadyRunning, state_lock
+from factory.merge_task import MergeRefused, merge_preview, merge_task
+from factory.process_registry import ReapUncertain, leftover_file_records
 from factory.rebase_task import RebaseRefused, rebase_task
 from factory.recover_task import RecoverRefused, recover_task
-from factory.merge_task import MergeRefused, merge_preview, merge_task
-from factory.worktrees import WorktreeManager
-from factory.audit_gaps import gaps_to_carry
-from factory.retry_task import RetryRefused, require_keepable_plan, retry_task, retry_with_plan
-from factory.clean_tasks import clean_candidates, clean_tasks, remove_orphan_caches
-from factory.gate_cache import orphan_caches
-from factory.audit_corpus import CASES as EVAL_CASES
-from factory.audit_task import AUDIT_CONFIG
-from factory.stages import stage_config
-from factory.audit_eval import ConfigChanged, CorpusChanged, RunsChanged, load_meta, run_eval
-from factory.audit_report import exit_code as eval_exit_code, load_records, render
-from factory.cli import _new_eval_dir
-from factory.lock import AlreadyRunning, state_lock
-from factory.process_registry import ReapUncertain, leftover_file_records
+from factory.retry_task import (
+    RetryRefused,
+    require_keepable_plan,
+    retry_task,
+    retry_with_plan,
+)
+from factory.review_notes import capped_findings, dropped_required_warning
 from factory.sqlite_process_records import SqliteProcessRecords
-from factory.job_store import Job, JobNotFound, JobStore
-from factory.ids import InvalidTaskId
-from factory.task import InvalidTransition, TaskState
+from factory.stages import stage_config
 from factory.store import TaskNotFound, task_to_dict
+from factory.task import InvalidTransition, TaskState
+from factory.waiver import InvalidWaiver, note_lines
+from factory.worktrees import WorktreeManager
 
 
 class ApiError(Exception):

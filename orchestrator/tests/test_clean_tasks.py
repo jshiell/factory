@@ -3,12 +3,11 @@ import subprocess
 
 import pytest
 
-from gitutil import git
-
 from factory.clean_tasks import clean_candidates, clean_tasks
 from factory.store import TaskStore
 from factory.task import Task, TaskState
 from factory.worktrees import WorktreeManager
+from gitutil import git
 
 S = TaskState
 

@@ -4,15 +4,14 @@ from pathlib import Path
 
 import pytest
 
-from gitutil import git
-from serving import served
-
 from factory.cli import Context
 from factory.settings import Settings
 from factory.sqlite_ledger import SqliteLedger
 from factory.sqlite_store import SqliteTaskStore
 from factory.task import Task, TaskState
 from factory.worktrees import WorktreeManager
+from gitutil import git
+from serving import served
 
 
 @pytest.fixture

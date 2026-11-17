@@ -3,7 +3,14 @@ import json
 import pytest
 
 from factory.audit_corpus import CASES
-from factory.audit_report import EXIT_INCOMPLETE, EXIT_REGRESSION, exit_code, load_records, render, wilson
+from factory.audit_report import (
+    EXIT_INCOMPLETE,
+    EXIT_REGRESSION,
+    exit_code,
+    load_records,
+    render,
+    wilson,
+)
 
 BAD = next(c for c in CASES if c.label == "fail")
 GOOD = next(c for c in CASES if c.label == "pass")

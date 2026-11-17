@@ -1,11 +1,10 @@
 import pytest
 
-from gitutil import git
-
 from factory.process_registry import load_records
 from factory.store import TaskStore
 from factory.task import InvalidTransition, Task, TaskState
 from factory.verify_task import verify_task
+from gitutil import git
 
 
 @pytest.fixture

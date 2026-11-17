@@ -2,13 +2,12 @@ import json
 
 import pytest
 
-from gitutil import git
-
 from factory.command import RunnerConfig
 from factory.ledger import Ledger
 from factory.readonly_stage import Infra, Modified, Ran, run_readonly_stage
 from factory.step import RunResult
 from factory.task import Task
+from gitutil import git
 
 CONFIG = RunnerConfig(model="sonnet", budget_usd=0.3)
 

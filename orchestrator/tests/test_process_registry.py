@@ -4,7 +4,15 @@ import subprocess
 
 import pytest
 
-from factory.process_registry import InvalidRecord, ProbeFailed, Record, Tracker, load_records, ps_probe, write_record
+from factory.process_registry import (
+    InvalidRecord,
+    ProbeFailed,
+    Record,
+    Tracker,
+    load_records,
+    ps_probe,
+    write_record,
+)
 
 
 def record(**overrides):

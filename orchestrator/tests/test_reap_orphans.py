@@ -1,6 +1,13 @@
 import pytest
 
-from factory.process_registry import ProbeFailed, ReapUncertain, Record, load_records, reap_orphans, write_record
+from factory.process_registry import (
+    ProbeFailed,
+    ReapUncertain,
+    Record,
+    load_records,
+    reap_orphans,
+    write_record,
+)
 
 
 def record(**overrides):

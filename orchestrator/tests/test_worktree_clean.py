@@ -2,9 +2,8 @@ import os
 
 import pytest
 
-from gitutil import git
-
 from factory.worktree_clean import clean_worktree
+from gitutil import git
 
 
 @pytest.fixture
