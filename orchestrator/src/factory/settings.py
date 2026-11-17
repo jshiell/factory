@@ -42,6 +42,7 @@ class Settings:
     watch_approvers: tuple[str, ...] = ()
     watch_merge: bool = False
     watch_retry: bool = False
+    gate_allow_dependency_changes: bool = False
     main_branch: str | None = None
     gate_allow_outside: tuple[str, ...] = ()
 
@@ -69,7 +70,7 @@ _STAGES = ("plan", "review", "implement", "audit")
 _FLOAT_KEYS = ("cap_usd", "gate_timeout_s", "runner_timeout_s", "budget_usd")
 _STRING_LIST_KEYS = ("test_argv", "allowed_tools", "plugins", "watch_approvers", "gate_allow_outside")
 _INT_KEYS = ("max_turns", "fix_rounds", "server_port", "grill_max_rounds")
-_BOOL_KEYS = ("grill", "watch_merge", "watch_retry")
+_BOOL_KEYS = ("grill", "watch_merge", "watch_retry", "gate_allow_dependency_changes")
 GITHUB_LOGIN = re.compile(r"(?!.{40})[A-Za-z0-9]+(-[A-Za-z0-9]+)*")
 _KNOWN =_PATH_KEYS + _STRING_KEYS + _PROMPT_KEYS + ("stage_prompts", "stage_plugins") + _FLOAT_KEYS + _STRING_LIST_KEYS + _INT_KEYS + _BOOL_KEYS
 
@@ -103,7 +104,10 @@ def _global_layer(path: Path) -> dict:
         raise SettingsError(message if str(path) in message else f"{message} (in {path})") from None
 
 
-_PER_REPO_KEYS = ("repo", "state_dir", "worktree_root", "watch_approvers", "watch_merge", "watch_retry", "main_branch")
+_PER_REPO_KEYS = (
+    "repo", "state_dir", "worktree_root", "watch_approvers", "watch_merge", "watch_retry", "main_branch",
+    "gate_allow_dependency_changes",  # a standing opt-out of a security check: never global
+)
 
 
 def _layer(path: Path, per_repo_allowed: bool = True) -> dict:

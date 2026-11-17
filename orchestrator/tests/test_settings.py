@@ -732,6 +732,28 @@ def test_a_global_entry_that_is_an_ancestor_of_the_local_project_subdir_is_rejec
         load_settings(None, cwd=repo_dir)
 
 
+def test_gate_allow_dependency_changes_is_off_by_default_and_comes_from_the_repo_config(repo_dir):
+    assert load_settings(None, cwd=repo_dir).gate_allow_dependency_changes is False
+    (repo_dir / "factory.toml").write_text("gate_allow_dependency_changes = true\n")
+
+    assert load_settings(None, cwd=repo_dir).gate_allow_dependency_changes is True
+
+
+def test_gate_allow_dependency_changes_is_rejected_in_the_global_config(repo_dir, global_config):
+    key = "gate_allow_dependency_changes"
+    global_config.write_text(f"{key} = true\n")
+
+    with pytest.raises(SettingsError, match=f"{key}.*global|global.*{key}"):
+        load_settings(None, cwd=repo_dir)
+
+
+def test_gate_allow_dependency_changes_must_be_a_boolean(repo_dir):
+    (repo_dir / "factory.toml").write_text('gate_allow_dependency_changes = "yes"\n')
+
+    with pytest.raises(SettingsError, match="gate_allow_dependency_changes"):
+        load_settings(None, cwd=repo_dir)
+
+
 def test_watch_retry_is_off_by_default_and_comes_from_the_config(repo_dir):
     assert load_settings(None, cwd=repo_dir).watch_retry is False
     (repo_dir / "factory.toml").write_text("watch_retry = true\n")
