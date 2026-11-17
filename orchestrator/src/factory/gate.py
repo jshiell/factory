@@ -159,7 +159,13 @@ def _defines_a_test_twice(worktree: Path, path: str) -> bool:
 
 def _dependency_file_changed(worktree: Path, base_sha: str) -> bool:
     pathspecs = [f":(glob,icase)**/{name}" for name in DEPENDENCY_FILES]
-    return bool(run_git(worktree, "diff", "--name-only", "--no-renames", base_sha, "HEAD", "--", *pathspecs))
+    if run_git(worktree, "diff", "--name-only", "--no-renames", base_sha, "HEAD", "--", *pathspecs):
+        return True
+    # An existing lock selects the installed versions; a new one only resolves pyproject.toml, which is watched.
+    lock_changes = run_git(
+        worktree, "diff", "--name-status", "--no-renames", base_sha, "HEAD", "--", ":(glob,icase)**/uv.lock"
+    )
+    return any(line[0] != "A" for line in lock_changes.splitlines())
 
 
 def _protected_changed(

@@ -405,9 +405,28 @@ def test_adding_a_dependency_fails_tests_modified(repo):
     assert gate(repo, base).reason == "tests_modified"
 
 
-def test_guard_changing_uv_lock_passes(repo):
+def test_changing_an_existing_uv_lock_fails_tests_modified(repo):
     (repo / "proj").mkdir()
     (repo / "proj" / "uv.lock").write_text("a\n")
+    base = repo_with_test_file(repo)
+    commit_project_edit(repo, "uv.lock", "b\n")
+
+    assert gate(repo, base).reason == "tests_modified"
+
+
+def test_deleting_an_existing_uv_lock_fails_tests_modified(repo):
+    (repo / "proj").mkdir()
+    (repo / "proj" / "uv.lock").write_text("a\n")
+    base = repo_with_test_file(repo)
+    (repo / "proj" / "uv.lock").unlink()
+    git(repo, "add", "-A")
+    git(repo, "commit", "-q", "-m", "drop lock")
+
+    assert gate(repo, base).reason == "tests_modified"
+
+
+# Guard (starts green): a lock that did not exist in the base only resolves the watched pyproject.
+def test_guard_adding_a_uv_lock_passes(repo):
     base = repo_with_test_file(repo)
     commit_project_edit(repo, "uv.lock", "b\n")
 
