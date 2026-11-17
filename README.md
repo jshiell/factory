@@ -338,8 +338,8 @@ Recorded per plan in `docs/spike-findings.md`. The main ones, by area:
 - A new test file can monkeypatch the code under test at import time; the gate cannot tell.
 - With `gate_allow_dependency_changes` on, a new dependency or entry point can run code in the gate. With it off, a malicious release of an
   already-pinned dependency within its allowed range is still not caught.
-- `setup.py`, `dynamic` metadata and poetry or hatch tables are refused; that they can load code in the gate was assumed, not tested.
-  Whether `uv run` rewrites an existing `uv.lock` after a uv format bump was not verified, and nor was network access inside the gate sandbox.
+- `setup.py`, `dynamic` metadata and poetry or hatch tables are refused. On Linux (plan 55) a `setup.py` entry point and a hatch build hook were both seen to run in the gate; poetry hooks were not tested.
+  On Linux the gate sandbox has network, and `uv run` left an old-format `uv.lock` untouched. macOS was not measured.
 - Legitimate edits outside the project (a root README, root config) are refused and need a human, unless the path is listed in `gate_allow_outside`.
   The gate cannot know which allowed files the tests read, and a task that changes only allowed paths is "verified" on an unchanged project.
 - Submodules are only partly handled.
@@ -350,4 +350,5 @@ Recorded per plan in `docs/spike-findings.md`. The main ones, by area:
 
 **Operations**
 - A SIGKILLed driver leaves an orphan agent until the next command reaps it (one launched in the last instant before the kill is unrecorded), and can leave a half-done rebase; `abandon`/`recover` and a manual check are the way out.
-- The real sandbox is macOS only; CI covers the Linux suite with fakes, not nono itself.
+- The real sandbox is mostly exercised on macOS; CI covers the Linux suite with fakes, not nono itself.
+- On Linux the gate sandbox does not grant read on the directory holding `uv`, so when `uv` lives there (for example under mise) the gate's test run exits 127 (plan 55; a fix is not yet planned).
