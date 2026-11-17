@@ -6,15 +6,11 @@ import time
 from contextlib import nullcontext
 from pathlib import Path
 
-from factory.command import RunnerConfig, build_command, sandbox_prefix
+from factory.command import RunnerConfig, build_command, contains, sandbox_prefix
 from factory.process import STRIPPED_ENV, kill_tree, tail
 from factory.process_registry import Tracker
 from factory.step import TAIL_CHARS, RunResult
 from factory.task import Task
-
-
-def _contains(directory: str, inner: str) -> bool:
-    return Path(inner).resolve().is_relative_to(Path(directory).resolve())
 
 
 def _executable_directory(executable: str, path: str | None, private_dirs: tuple[str, ...]) -> tuple[str, ...]:
@@ -24,7 +20,7 @@ def _executable_directory(executable: str, path: str | None, private_dirs: tuple
     if not found:
         return ()
     directory = os.path.dirname(os.path.abspath(found))
-    return () if any(_contains(directory, private) for private in private_dirs) else (directory,)
+    return () if any(contains(directory, private) for private in private_dirs) else (directory,)
 
 
 class SubprocessRunner:

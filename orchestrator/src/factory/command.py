@@ -47,6 +47,10 @@ def build_command(
     return argv, {"CLAUDE_CODE_DISABLE_CLAUDE_MDS": "1"}
 
 
+def contains(directory: str, inner: str) -> bool:
+    return Path(inner).resolve().is_relative_to(Path(directory).resolve())
+
+
 def sandbox_prefix(
     executable: str, worktree: str | Path, profile: str | None = SANDBOX_PROFILE,
     allow: tuple[str, ...] = (), read: tuple[str, ...] = (),
