@@ -62,7 +62,9 @@ PLAN_CONFIG = RunnerConfig(
     confine=True,
     json_schema=PLAN_SCHEMA,
     max_turns=8,
-    append_system_prompt="You are a read-only planner. Never try to modify files.",
+    append_system_prompt="You are a read-only planner. Never try to modify files. "
+    "A plan that needs a new dependency, entry point or build change will be refused unless the repository allows "
+    "dependency changes; avoid one, or name it in the risks.",
 )
 
 

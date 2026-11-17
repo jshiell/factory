@@ -87,6 +87,11 @@ def test_the_plan_config_is_read_only_with_a_plan_schema():
     assert PLAN_CONFIG.max_turns and 0 < PLAN_CONFIG.budget_usd < 0.5
 
 
+def test_the_planner_is_told_a_plan_needing_a_new_dependency_is_refused():
+    assert "needs a new dependency" in PLAN_CONFIG.append_system_prompt
+    assert "refused" in PLAN_CONFIG.append_system_prompt
+
+
 def test_a_task_that_is_not_proposed_is_rejected_first(repo, store, ledger):
     store.save(Task(id="t1", prompt="p", state=TaskState.QUEUED))
     worktrees = Worktrees(repo)

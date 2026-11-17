@@ -25,7 +25,9 @@ REVIEW_CONFIG = RunnerConfig(
     confine=True,
     json_schema=REVIEW_SCHEMA,
     max_turns=8,
-    append_system_prompt="You are a read-only plan reviewer. Never try to modify files.",
+    append_system_prompt="You are a read-only plan reviewer. Never try to modify files. "
+    "A plan that needs a new dependency, entry point or build change will be refused unless the repository allows "
+    "dependency changes; flag one as a risk.",
 )
 
 

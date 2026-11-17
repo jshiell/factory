@@ -1,4 +1,5 @@
 import json
+from dataclasses import replace
 
 import pytest
 
@@ -402,6 +403,18 @@ def test_the_fix_prompt_names_the_allowed_outside_paths(repo, store, ledger, tas
     assert "or these paths: README.md;" in called.prompt
 
 
+@pytest.mark.parametrize("allowed", [False, True])
+def test_the_fix_prompt_follows_the_dependency_setting(repo, store, ledger, task, allowed):
+    runner = FakeRunner(repo, write_fix(repo))
+
+    verify_task("t1", store, project_subdir="proj", test_argv=FIXED_ONLY_IF_FILE, gate_timeout_s=10,
+                runner=runner, ledger=ledger, fix_config=CONFIG, cap_usd=10.0, fix_rounds=1,
+                gate_allow_dependency_changes=allowed)
+
+    (called, _), = runner.calls
+    assert ("Do not add or change dependencies" in called.prompt) is not allowed
+
+
 def test_an_allowed_root_change_passes_the_sandboxed_gate_too(repo, store, ledger, task):
     import os
 
@@ -418,7 +431,6 @@ def test_an_allowed_root_change_passes_the_sandboxed_gate_too(repo, store, ledge
 
 def add_a_dependency(repo, store):
     """The base already has a pyproject; the agent then adds a dependency to it."""
-    from dataclasses import replace
     pyproject = repo / "proj" / "pyproject.toml"
     pyproject.write_text('[project]\nname = "p"\n')
     stash = (repo / "proj" / "code.py").read_text()
@@ -449,7 +461,6 @@ def test_a_dependency_change_verifies_when_allowed(repo, store, ledger, task):
 
 def test_a_dependency_change_fails_the_sandboxed_gate_by_default_and_passes_when_allowed(repo, store, ledger, task):
     import os
-    from dataclasses import replace
 
     from factory.gate_sandbox import GateSandbox
     add_a_dependency(repo, store)

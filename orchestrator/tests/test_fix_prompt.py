@@ -173,6 +173,19 @@ def test_guard_the_test_output_marker_is_drawn_before_the_gaps_marker():
     assert "<test-output-aaaa>" in prompt and "<audit-gaps-bbbb>" in prompt
 
 
+def test_the_prompt_forbids_dependency_changes_by_default():
+    prompt = build_fix_prompt(task(), "out")
+
+    assert "Do not add or change dependencies, entry points, build configuration or uv.lock; such changes are refused." in prompt
+
+
+def test_the_prompt_does_not_forbid_dependency_changes_when_allowed():
+    prompt = build_fix_prompt(task(), "out", allow_dependency_changes=True)
+
+    assert "Do not add or change dependencies" not in prompt
+    assert "[tool.uv]" in prompt
+
+
 def test_guard_whitespace_only_gaps_give_no_block_and_draw_no_marker():
     draws = []
 

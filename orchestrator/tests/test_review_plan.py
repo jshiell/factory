@@ -117,6 +117,11 @@ def test_the_recommend_sentence_comes_after_the_verdict_rule():
     assert text.index("revise only for errors in the plan itself") < text.index("Recommend (required): ")
 
 
+def test_the_reviewer_is_told_a_plan_needing_a_new_dependency_is_refused():
+    assert "needs a new dependency" in REVIEW_CONFIG.append_system_prompt
+    assert "refused" in REVIEW_CONFIG.append_system_prompt
+
+
 def test_the_review_config_is_read_only_with_an_approve_or_revise_schema():
     assert REVIEW_CONFIG.allowed_tools == ()
     assert REVIEW_CONFIG.confine is True

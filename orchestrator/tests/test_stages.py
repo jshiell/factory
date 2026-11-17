@@ -164,6 +164,31 @@ def test_the_verify_stage_passes_the_dependency_changes_setting(setup, monkeypat
     assert seen["gate_allow_dependency_changes"] is True
 
 
+def test_the_implementer_prompt_forbids_dependency_changes_by_default(setup):
+    prompt = implementer_config(setup[2]).append_system_prompt
+
+    assert "Do not add or change dependencies, entry points, build configuration or uv.lock; such changes are refused." in prompt
+
+
+def test_the_implementer_prompt_does_not_forbid_dependency_changes_when_the_setting_is_on(setup):
+    settings = replace(setup[2], gate_allow_dependency_changes=True)
+
+    prompt = implementer_config(settings).append_system_prompt
+
+    assert "Do not add or change dependencies" not in prompt
+    assert "[tool.uv]" in prompt  # the uv rule stays
+
+
+def test_the_fixer_prompt_follows_the_dependency_setting(setup):
+    settings = setup[2]
+
+    forbidding = fixer_config(settings).append_system_prompt
+    permitting = fixer_config(replace(settings, gate_allow_dependency_changes=True)).append_system_prompt
+
+    assert "Do not add or change dependencies" in forbidding
+    assert "Do not add or change dependencies" not in permitting
+
+
 def test_the_verify_stage_gets_the_fix_loop_wiring(setup, monkeypatch):
     store, runner, settings, deps, repo, base = setup
     settings = replace(settings, fix_rounds=3)
