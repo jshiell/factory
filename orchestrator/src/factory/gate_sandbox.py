@@ -34,7 +34,7 @@ def build_gate_sandbox(
     """Own minimal grants for the gate (no claude profile): write the project dir and a private uv cache only."""
     prefix = sandbox_prefix(
         sandbox_executable, worktree, profile=None, allow=(str(project_dir), str(cache_dir)),
-        read=(python_prefix, uv_python_dir),
+        read=(python_prefix, uv_python_dir, str(Path(real_uv).parent)),
     )
     argv = (real_uv, *test_argv[1:]) if test_argv and test_argv[0] == "uv" else tuple(test_argv)
     env = {k: v for k, v in base_env.items() if k not in STRIPPED_ENV}

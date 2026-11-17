@@ -56,3 +56,17 @@ def test_discovery_ignores_the_projects_own_uv_config(tmp_path):
 
     calls = log.read_text().splitlines()
     assert len(calls) == 2 and all("--no-config" in call.split() for call in calls)
+
+
+def read_grants(sandbox):
+    prefix = list(sandbox.prefix)
+    return [b for a, b in zip(prefix, prefix[1:]) if a == "--read"]
+
+
+def test_an_absolute_uv_adds_a_read_on_its_directory(tmp_path):
+    tmp_path = tmp_path.resolve()
+    uv = tmp_path / "uvbin" / "uv"
+    uv.parent.mkdir()
+    uv.write_text("")
+
+    assert str(uv.parent) in read_grants(build(tmp_path, real_uv=str(uv)))
