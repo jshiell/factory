@@ -96,6 +96,7 @@ def build_stages(settings: Settings, deps: Deps) -> dict[str, Callable[[str], Ta
             factory_paths=(settings.state_dir, settings.worktree_root),
             records=SqliteProcessRecords(settings.db_path),
             gate_allow_outside=settings.gate_allow_outside,
+            gate_allow_dependency_changes=settings.gate_allow_dependency_changes,
         ),
         "audit": lambda task_id: audit_task(
             task_id, store, ledger, runner, audit_config, cap, settings.project_subdir

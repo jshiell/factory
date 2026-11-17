@@ -137,7 +137,7 @@ def test_verify_receives_the_test_command_subdir_and_timeout(setup, monkeypatch)
     (args, kwargs), = calls
     sandbox = kwargs.pop("sandbox")
     assert callable(sandbox)
-    for fix_kwarg in ("runner", "ledger", "fix_config", "cap_usd", "fix_rounds", "factory_paths", "records", "gate_allow_outside"):
+    for fix_kwarg in ("runner", "ledger", "fix_config", "cap_usd", "fix_rounds", "factory_paths", "records", "gate_allow_outside", "gate_allow_dependency_changes"):
         kwargs.pop(fix_kwarg)
     assert (args, kwargs) == (("t1", deps.store), {"project_subdir": "proj", "test_argv": ["pytest", "-x"], "gate_timeout_s": 7.0})
 
@@ -151,6 +151,17 @@ def test_the_verify_stage_passes_the_allowed_outside_paths(setup, monkeypatch):
     build_stages(settings, deps)["verify"]("t1")
 
     assert seen["gate_allow_outside"] == ("README.md", "docs")
+
+
+def test_the_verify_stage_passes_the_dependency_changes_setting(setup, monkeypatch):
+    store, runner, settings, deps, repo, base = setup
+    settings = replace(settings, gate_allow_dependency_changes=True)
+    seen = {}
+    monkeypatch.setattr("factory.stages.verify_task", lambda *a, **k: seen.update(k))
+
+    build_stages(settings, deps)["verify"]("t1")
+
+    assert seen["gate_allow_dependency_changes"] is True
 
 
 def test_the_verify_stage_gets_the_fix_loop_wiring(setup, monkeypatch):

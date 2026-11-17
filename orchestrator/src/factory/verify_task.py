@@ -37,6 +37,7 @@ def verify_task(
     factory_paths: tuple[Path, ...] = (),
     records=None,
     gate_allow_outside: tuple[str, ...] = (),
+    gate_allow_dependency_changes: bool = False,
 ) -> Task:
     """Gate the agent's work; on `tests_failed`, up to `fix_rounds` fresh agent runs get the failure text.
 
@@ -51,7 +52,7 @@ def verify_task(
     while True:
         result = _gate_once(
             task, project_subdir, test_argv, gate_timeout_s, sandbox, capture, factory_paths, tracker,
-            gate_allow_outside,
+            gate_allow_outside, gate_allow_dependency_changes,
         )
         if result.passed:
             return _finish(apply(task, Event.GATE_PASSED), store)
@@ -109,6 +110,7 @@ def _gate_once(
     factory_paths: tuple[Path, ...] = (),
     tracker=None,
     allow_outside: tuple[str, ...] = (),
+    allow_dependency_changes: bool = False,
 ) -> GateResult:
     worktree = Path(task.worktree)
     if has_nested_repo(worktree, project_subdir):  # before `git add -A` records it as a gitlink
@@ -121,11 +123,12 @@ def _gate_once(
         return check_gate(
             worktree, task.base_sha, project_subdir, test_argv, gate_timeout_s,
             capture_limit=capture_limit, frozen_sha=task.fix_frozen_sha, tracker=tracker,
-            allow_outside=allow_outside,
+            allow_outside=allow_outside, allow_dependency_changes=allow_dependency_changes,
         )
     confined = sandbox(task)
     return check_gate(
         worktree, task.base_sha, project_subdir, list(confined.argv), gate_timeout_s,
         env=confined.env, test_prefix=confined.prefix, capture_limit=capture_limit,
         frozen_sha=task.fix_frozen_sha, tracker=tracker, allow_outside=allow_outside,
+        allow_dependency_changes=allow_dependency_changes,
     )

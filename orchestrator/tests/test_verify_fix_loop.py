@@ -416,6 +416,54 @@ def test_an_allowed_root_change_passes_the_sandboxed_gate_too(repo, store, ledge
     assert result.state is TaskState.VERIFIED
 
 
+def add_a_dependency(repo, store):
+    """The base already has a pyproject; the agent then adds a dependency to it."""
+    from dataclasses import replace
+    pyproject = repo / "proj" / "pyproject.toml"
+    pyproject.write_text('[project]\nname = "p"\n')
+    stash = (repo / "proj" / "code.py").read_text()
+    (repo / "proj" / "code.py").write_text("x")
+    git(repo, "add", "proj")
+    git(repo, "commit", "-q", "-m", "base pyproject")
+    store.save(replace(store.load("t1"), base_sha=git(repo, "rev-parse", "HEAD")))
+    (repo / "proj" / "code.py").write_text(stash)
+    pyproject.write_text('[project]\nname = "p"\ndependencies = ["requests"]\n')
+
+
+def test_a_dependency_change_fails_tests_modified_by_default(repo, store, ledger, task):
+    add_a_dependency(repo, store)
+
+    result = verify_task("t1", store, project_subdir="proj", test_argv=["true"], gate_timeout_s=10)
+
+    assert result.state is TaskState.FAILED and result.failure_reason == "tests_modified"
+
+
+def test_a_dependency_change_verifies_when_allowed(repo, store, ledger, task):
+    add_a_dependency(repo, store)
+
+    result = verify_task("t1", store, project_subdir="proj", test_argv=["true"], gate_timeout_s=10,
+                         gate_allow_dependency_changes=True)
+
+    assert result.state is TaskState.VERIFIED
+
+
+def test_a_dependency_change_fails_the_sandboxed_gate_by_default_and_passes_when_allowed(repo, store, ledger, task):
+    import os
+    from dataclasses import replace
+
+    from factory.gate_sandbox import GateSandbox
+    add_a_dependency(repo, store)
+    def sandbox(_task):
+        return GateSandbox((), ("true",), {"PATH": os.environ["PATH"]})
+
+    refused = verify_task("t1", store, project_subdir="proj", test_argv=["unused"], gate_timeout_s=10, sandbox=sandbox)
+    store.save(replace(store.load("t1"), state=TaskState.AGENT_DONE, failure_reason=None))
+    allowed = verify_task("t1", store, project_subdir="proj", test_argv=["unused"], gate_timeout_s=10,
+                          sandbox=sandbox, gate_allow_dependency_changes=True)
+
+    assert refused.failure_reason == "tests_modified" and allowed.state is TaskState.VERIFIED
+
+
 def test_a_uv_toml_beside_the_change_fails_tests_modified_without_a_fix_round(repo, store, ledger, task, tmp_path):
     (repo / "proj" / "uv.toml").write_text("exclude-newer = '2000-01-01T00:00:00Z'\n")
     sentinel = tmp_path / "tests-ran"
