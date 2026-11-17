@@ -4,7 +4,7 @@ A personal "agentic software factory": a small Python orchestrator that takes a 
 [Claude Code](https://claude.com/claude-code) agents (`claude -p`) through **plan → review → implement → verify → audit → merge**,
 with a human approving the plan and the merge (at the terminal, or from GitHub with a 👍 under `factory watch`).
 
-It is a learning project, built plan by plan (`docs/plan-1.md` … `docs/plan-43.md`), test-first. The point is to find out how far you
+It is a learning project, built plan by plan (`docs/plan-N.md`, one per increment), test-first. The point is to find out how far you
 can trust unattended agents when every step is sandboxed, every result is checked by something that is not the agent, and the
 only things that need a person are the two decisions that matter: *is this the right plan* and *should this land on main*.
 
@@ -12,14 +12,14 @@ only things that need a person are the two decisions that matter: *is this the r
 
 | Path | What it is |
 |---|---|
-| `orchestrator/` | The factory: a Python 3.14 package, CLI `factory`; the standard library plus `httpx2`, `starlette` and `uvicorn` for the server; ~1000 tests |
+| `orchestrator/` | The factory: a Python 3.14 package, CLI `factory`; the standard library plus `httpx2`, `starlette` and `uvicorn` for the server; ~2000 tests |
 | `target/` | A tiny Python project (`calc`) the agents work on. Replace it with any `uv` + `pytest` project |
 | `docs/` | One `plan-N.md` per increment (decisions, cycles, reviewer findings) and `spike-findings.md` (what was measured, known gaps) |
 | `spike/` | Throwaway probes and end-to-end scripts. Not production code; several make real API calls or need a terminal |
 
 ## Requirements
 
-- macOS (the sandbox is Seatbelt via `nono`; written against nono 0.81). Linux has been tried once, by hand, and only the `claude` executable grant below was needed there; other macOS assumptions may remain
+- macOS (the sandbox is Seatbelt via `nono`; written against nono 0.81). The real sandbox is only exercised on macOS. Linux has been tried once, by hand, and only the `claude` executable grant below was needed there; other macOS assumptions may remain. CI runs ruff and the test suite on Linux, where `claude` and `nono` are faked
 - `git`, [`uv`](https://docs.astral.sh/uv/), Python 3.14
 - the `claude` CLI, logged in (OAuth). `ANTHROPIC_API_KEY` is stripped from the agents' environment on purpose
 - `nono` on `PATH`
@@ -316,7 +316,8 @@ flowchart TB
 ## Development
 
 ```sh
-cd orchestrator && uv run pytest -q      # ~1000 tests, real git in temp repos
+cd orchestrator && uv run ruff check     # lint (E, F, I); CI runs this on every push
+cd orchestrator && uv run pytest -q      # ~2000 tests, real git in temp repos; CI runs this on Linux
 cd target && uv run pytest -q
 ```
 
@@ -333,4 +334,4 @@ Recorded per plan in `docs/spike-findings.md`. The main ones:
 - A rebase can change behaviour without a textual conflict; only the tests and the fresh audit catch that.
 - A SIGKILLed driver leaves an orphan agent until the next command reaps it (one launched in the last instant before the kill is unrecorded), and can leave a half-done rebase; `abandon`/`recover` and a manual check are the way out.
 - Submodules are only partly handled, and the auditor is a model, not a guarantee (see plan 22 for what was measured).
-- macOS only.
+- The real sandbox is macOS only; CI covers the Linux suite with fakes, not nono itself.
