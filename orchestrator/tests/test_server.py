@@ -1,3 +1,4 @@
+import threading
 from dataclasses import replace
 from datetime import datetime
 
@@ -503,7 +504,6 @@ def test_retry_keeping_the_plan_can_reinstate_a_waived_note(client, ctx):
 
 # --- C10: a long job does not block the quick endpoints, and a queued job re-checks its task ----------------
 
-import threading
 
 
 @pytest.fixture

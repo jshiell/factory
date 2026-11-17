@@ -1,9 +1,11 @@
+import os
 import shutil
 import subprocess
 
 import pytest
 
-from factory.clean_tasks import clean_candidates, clean_tasks
+from factory.clean_tasks import clean_candidates, clean_tasks, remove_orphan_caches
+from factory.gate_cache import orphan_caches
 from factory.store import TaskStore
 from factory.task import Task, TaskState
 from factory.worktrees import WorktreeManager
@@ -213,7 +215,6 @@ def test_a_worktree_under_the_root_but_not_at_root_slash_id_is_flagged(env):
 
 # --- gate caches ---------------------------------------------------------------
 
-import os
 
 
 
@@ -336,8 +337,6 @@ def test_an_outside_root_worktree_does_not_stop_the_cache_removal(env, tmp_path)
     assert not cache.exists() and any("outside the worktree root" in p for o in outcomes for p in o.problems)
 
 
-from factory.clean_tasks import remove_orphan_caches
-from factory.gate_cache import orphan_caches
 
 
 def test_orphan_caches_are_removed(env, tmp_path):

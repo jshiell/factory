@@ -1,6 +1,7 @@
 import ast
+from dataclasses import replace
 
-from factory.audit_corpus import CASES, PROJECT_SUBDIR
+from factory.audit_corpus import CASES, PROJECT_SUBDIR, case_hash, corpus_hash
 
 
 def test_there_are_twenty_five_cases_with_unique_ids_and_known_labels():
@@ -91,9 +92,7 @@ def test_the_base_pyproject_can_run_the_tests_it_ships_with():
 
 
 # --- reviewer notes on a case (plan 24 C6) --------------------------------------
-from dataclasses import replace
 
-from factory.audit_corpus import case_hash, corpus_hash
 
 
 def test_guard_the_first_twenty_cases_keep_their_corpus_hash():

@@ -1,6 +1,14 @@
+from datetime import datetime
+
 import pytest
 
-from factory.store import InvalidTaskId, TaskNotFound, TaskStore
+from factory.store import (
+    InvalidTaskId,
+    TaskExists,
+    TaskNotFound,
+    TaskStore,
+    new_task_id,
+)
 from factory.task import Task, TaskState
 
 
@@ -105,9 +113,7 @@ def test_json_saved_without_front_half_fields_still_loads(tmp_path):
     assert (task.goal, task.plan, task.plan_risks, task.review_findings) == (None, None, (), ())
 
 
-from datetime import datetime
 
-from factory.store import TaskExists, new_task_id
 
 
 def test_list_returns_tasks_sorted_by_id(tmp_path):

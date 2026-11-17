@@ -1,6 +1,20 @@
-from factory.audit_task import AUDIT_CONFIG, build_audit_prompt
+import json
+
+import pytest
+
+from factory.audit_task import (
+    AUDIT_CONFIG,
+    MAX_DIFF_BYTES,
+    audit_task,
+    build_audit_prompt,
+)
+from factory.command import RunnerConfig
+from factory.ledger import Ledger
 from factory.review_notes import notes_block
-from factory.task import Task
+from factory.step import BudgetCapReached, MissingBudget, RunResult
+from factory.store import TaskStore
+from factory.task import InvalidTransition, Task, TaskState
+from gitutil import git
 
 
 def test_the_audit_prompt_carries_the_required_and_optional_rule_when_the_task_has_notes():
@@ -29,17 +43,8 @@ def test_audit_config_is_read_only_with_a_verdict_schema_and_a_modest_budget():
     assert 0 < AUDIT_CONFIG.budget_usd < 0.5
 
 
-import json
 
-import pytest
 
-from factory.audit_task import MAX_DIFF_BYTES, audit_task
-from factory.command import RunnerConfig
-from factory.ledger import Ledger
-from factory.step import BudgetCapReached, MissingBudget, RunResult
-from factory.store import TaskStore
-from factory.task import InvalidTransition, TaskState
-from gitutil import git
 
 
 def verdict_stdout(verdict="pass", findings=("ok",), cost=0.05, **overrides):

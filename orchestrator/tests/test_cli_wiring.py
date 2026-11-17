@@ -376,8 +376,8 @@ def test_eval_audit_runs_the_real_runner_in_the_corpus_project_and_records_under
     auditor = tmp_path / "fake-auditor"
     auditor.write_text(FAKE_AUDITOR)
     auditor.chmod(auditor.stat().st_mode | stat.S_IEXEC)
-    config = (repo / "factory.toml").read_text().replace(next(l for l in (repo / "factory.toml").read_text().splitlines()
-                                                              if l.startswith("claude_executable")), f'claude_executable = "{auditor}"')
+    config = (repo / "factory.toml").read_text().replace(next(line for line in (repo / "factory.toml").read_text().splitlines()
+                                                              if line.startswith("claude_executable")), f'claude_executable = "{auditor}"')
     (repo / "factory.toml").write_text(config + 'project_subdir = "elsewhere"\n')
     env["FAKE_STATE_DIR"] = str(tmp_path / "state")
     project = (repo, env, tmp_path)

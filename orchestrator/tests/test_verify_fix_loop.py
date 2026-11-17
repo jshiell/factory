@@ -200,7 +200,8 @@ def test_a_round_that_deletes_a_line_of_an_existing_test_fails_tests_modified(re
     store.save(Task(id="t1", prompt="p", state=TaskState.AGENT_DONE, worktree=str(repo),
                     base_sha=git(repo, "rev-parse", "HEAD")))
     (repo / "proj" / "test_old.py").write_text("def test_a():\n    pass\n\n\ndef test_b():\n    pass\n\n\ndef test_c():\n    pass\n")
-    weaken = lambda: (repo / "proj" / "test_old.py").write_text("def test_a():\n    pass\n")
+    def weaken():
+        (repo / "proj" / "test_old.py").write_text("def test_a():\n    pass\n")
 
     result = verify(store, ledger, FakeRunner(repo, weaken))
 
@@ -274,7 +275,9 @@ def implementer_test(repo):
 
 def test_a_round_that_rewrites_a_test_the_implementer_added_fails_tests_modified(repo, store, ledger, task):
     implementer_test(repo)
-    rewrite = lambda: ((repo / "proj" / "test_new.py").write_text("def test_n():\n    assert True\n"), write_fix(repo)())
+    def rewrite():
+        (repo / "proj" / "test_new.py").write_text("def test_n():\n    assert True\n")
+        write_fix(repo)()
     runner = FakeRunner(repo, rewrite)
 
     result = verify(store, ledger, runner)
@@ -294,7 +297,9 @@ def test_a_round_that_deletes_a_test_the_implementer_added_fails_tests_modified(
 
 def test_a_round_that_only_adds_a_new_test_file_still_reaches_the_gate_result(repo, store, ledger, task):
     implementer_test(repo)
-    add = lambda: ((repo / "proj" / "test_extra.py").write_text("def test_e():\n    pass\n"), write_fix(repo)())
+    def add():
+        (repo / "proj" / "test_extra.py").write_text("def test_e():\n    pass\n")
+        write_fix(repo)()
     runner = FakeRunner(repo, add)
 
     result = verify(store, ledger, runner, test_argv=["sh", "-c", "test -f fixed"])
@@ -402,7 +407,8 @@ def test_an_allowed_root_change_passes_the_sandboxed_gate_too(repo, store, ledge
 
     from factory.gate_sandbox import GateSandbox
     (repo / "README.md").write_text("edited by the agent")
-    sandbox = lambda _task: GateSandbox((), ("true",), {"PATH": os.environ["PATH"]})
+    def sandbox(_task):
+        return GateSandbox((), ("true",), {"PATH": os.environ["PATH"]})
 
     result = verify_task("t1", store, project_subdir="proj", test_argv=["unused"], gate_timeout_s=10,
                          sandbox=sandbox, gate_allow_outside=("README.md",))

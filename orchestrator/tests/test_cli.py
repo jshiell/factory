@@ -1,4 +1,5 @@
 import io
+import json as _json
 from dataclasses import replace
 from datetime import datetime
 
@@ -6,6 +7,7 @@ import pytest
 from starlette.testclient import TestClient
 
 from factory import cli
+from factory.audit_corpus import CASES as EVAL_CASES
 from factory.cli import IO, Context, escape_control, main
 from factory.client import ServerClient
 from factory.digest import plan_digest
@@ -945,9 +947,7 @@ def test_a_context_has_a_defaulted_eval_runner_factory(ctx):
 
 # --- plan 23: factory eval-audit ----------------------------------------------------
 
-import json as _json
 
-from factory.audit_corpus import CASES as EVAL_CASES
 
 FIRST_EVAL = "20260102T030405"  # the directory name for the fixtures' clock, 2026-01-02 03:04:05
 

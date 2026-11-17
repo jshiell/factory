@@ -1,7 +1,28 @@
+import dataclasses
+import json
+import os
+from dataclasses import replace
+from pathlib import Path
+
 import pytest
 
-from factory.audit_corpus import BASE_FILES, CASES, PROJECT_SUBDIR
-from factory.audit_eval import build_base_repo, materialise
+from factory.audit_corpus import BASE_FILES, CASES, PROJECT_SUBDIR, corpus_hash
+from factory.audit_eval import (
+    ConfigChanged,
+    CorpusChanged,
+    RunsChanged,
+    build_base_repo,
+    check_corpus,
+    load_meta,
+    materialise,
+    run_eval,
+    run_one,
+)
+from factory.audit_task import AUDIT_CONFIG
+from factory.gate import GateResult
+from factory.ledger import Ledger
+from factory.step import RunResult
+from factory.store import TaskStore
 from factory.worktrees import WorktreeManager
 from gitutil import git
 
@@ -34,14 +55,7 @@ def test_materialise_commits_the_after_state_on_a_fresh_worktree_with_neutral_na
 
 # --- one audited run ------------------------------------------------------------
 
-import json
-import os
-from pathlib import Path
 
-from factory.audit_eval import run_one
-from factory.ledger import Ledger
-from factory.step import RunResult
-from factory.store import TaskStore
 
 
 def verdict_stdout(verdict, findings=("because",), cost=0.05):
@@ -160,18 +174,7 @@ def test_the_result_is_written_through_a_temporary_file_so_a_kill_cannot_leave_h
 
 # --- the whole run: meta, round-robin, resume, budget ----------------------------
 
-import dataclasses
-from dataclasses import replace
 
-from factory.audit_corpus import corpus_hash
-from factory.audit_eval import (
-    ConfigChanged,
-    CorpusChanged,
-    RunsChanged,
-    load_meta,
-    run_eval,
-)
-from factory.audit_task import AUDIT_CONFIG
 
 
 class VerdictRunner:
@@ -389,8 +392,6 @@ def test_resuming_with_a_different_set_of_cases_is_refused_before_anything_runs(
     assert runner.order == []
 
 
-from factory.audit_eval import check_corpus
-from factory.gate import GateResult
 
 
 def test_check_corpus_gives_every_case_to_the_gate_in_a_committed_worktree(tmp_path):

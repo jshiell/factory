@@ -4,10 +4,11 @@ import pytest
 
 from factory.command import RunnerConfig
 from factory.ledger import Ledger
-from factory.run_task import run_task
+from factory.run_task import WorktreeNotPristine, run_task
 from factory.step import BudgetCapReached, RunResult
 from factory.store import TaskStore
 from factory.task import Task, TaskState
+from gitutil import git
 
 CONFIG = RunnerConfig(model="sonnet", budget_usd=0.5)
 
@@ -78,8 +79,6 @@ def test_refused_run_creates_no_worktree(store, ledger):
     assert worktrees.created == []
 
 
-from factory.run_task import WorktreeNotPristine
-from gitutil import git
 
 
 def planned_worktree_task(store, repo, base_sha=None):
