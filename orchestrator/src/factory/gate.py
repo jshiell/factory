@@ -182,9 +182,10 @@ def _config_tables(worktree: Path, revision: str, path: str) -> tuple | None:
     if not isinstance(tool, dict):
         return ({"unparseable": True},)
     project = document.get("project")
-    if project is not None and not isinstance(project, dict):
-        return ({"unparseable": True},)
-    watched_project = {key: value for key, value in (project or {}).items() if key not in INERT_PROJECT_KEYS}
+    watched_project = (
+        {key: value for key, value in project.items() if key not in INERT_PROJECT_KEYS}
+        if isinstance(project, dict) else project  # a non-table value is compared as it stands
+    )
     watched_tools = {name: table for name, table in tool.items() if name not in INERT_TOOLS}
     return (watched_project, document.get("build-system"), document.get("dependency-groups"), watched_tools)
 

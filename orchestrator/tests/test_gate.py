@@ -371,6 +371,13 @@ def test_guard_an_inert_pyproject_change_passes(repo, old, new):
     assert gate(repo, base).passed is True
 
 
+def test_changing_a_non_table_project_value_fails_tests_modified(repo):
+    base = pyproject_base(repo, 'project = "x"\n')
+    commit_project_edit(repo, "pyproject.toml", 'project = "y"\n')
+
+    assert gate(repo, base).reason == "tests_modified"
+
+
 def test_adding_a_dependency_fails_tests_modified(repo):
     base = pyproject_base(repo, BASE_WITH_UV)
     commit_project_edit(repo, "pyproject.toml", BASE_WITH_UV.replace("dependencies = []", 'dependencies = ["requests"]'))
