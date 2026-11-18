@@ -3,7 +3,7 @@ import stat
 import pytest
 
 from factory.gate import commit_all
-from factory.worktrees import run_git
+from factory.worktrees import WorktreeManager, run_git
 from gitutil import git
 
 
@@ -79,3 +79,31 @@ def test_the_audit_diff_does_not_run_a_textconv_driver_selected_by_a_gitattribut
     audit_task("t1", store, Ledger(tmp_path / "l.jsonl"), Runner(), RunnerConfig(model="m", budget_usd=0.3), 5.0, "proj")
 
     assert not marker.exists()
+
+
+@pytest.fixture
+def user_filter(tmp_path, monkeypatch):
+    """Defines a clean/smudge filter in the user's global git config (as git-lfs would); returns the canary directory the filter writes to."""
+    canaries = tmp_path / "canaries"
+    canaries.mkdir()
+    for name in ("clean", "smudge"):
+        script = tmp_path / f"{name}.sh"
+        script.write_text(f"#!/bin/sh\necho x >> {canaries}/{name}\ncat\n")
+        script.chmod(script.stat().st_mode | stat.S_IEXEC)
+    config = tmp_path / "user-gitconfig"
+    config.write_text(f"[filter \"probe\"]\n\tclean = {tmp_path}/clean.sh\n\tsmudge = {tmp_path}/smudge.sh\n")
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(config))
+    return canaries
+
+
+def test_creating_a_worktree_still_applies_the_users_smudge_filter_to_the_committed_tree(repo, tmp_path, user_filter, monkeypatch):
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", "/dev/null")  # commit the fixture without the filter
+    (repo / ".gitattributes").write_text("*.probe filter=probe\n")
+    (repo / "big.probe").write_text("content")
+    git(repo, "add", "-A")
+    git(repo, "commit", "-q", "-m", "attrs")
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(tmp_path / "user-gitconfig"))
+
+    WorktreeManager(repo, tmp_path / "wt").create("t1")
+
+    assert (user_filter / "smudge").exists()
