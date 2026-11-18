@@ -170,10 +170,10 @@ def _handle_issue(github, server, state, state_dir, issue: Issue, approver_ids: 
         return
     task = server.get(f"/tasks/{require_safe_id(record.task_id)}")
     if retry and record.phase is Phase.AWAITING_RETRY:
-        _retry_on_thumbs_up(github, server, state, state_dir, issue.number, record, approver_ids, self_id, home)
+        _retry_on_thumbs_up(thread, server, state, state_dir, record, approver_ids, home)
         return
     if task["state"] == "failed":
-        _post_failure(github, state, state_dir, issue.number, record, self_id, _failure_text(task, home), retry)
+        _post_failure(thread, state, state_dir, record, _failure_text(task, home), retry)
         return
     if record.phase is Phase.AWAITING_MERGE and task["state"] == "audited":
         _merge_on_thumbs_up(thread, server, state, state_dir, record, approver_ids)
@@ -216,4 +216,4 @@ def _handle_issue(github, server, state, state_dir, issue: Issue, approver_ids: 
     elif result["state"] == "audited" and record.phase is Phase.APPROVED:
         _post_audited(thread, server, state, state_dir, record, result, merge)
     elif result["state"] == "failed":
-        _post_failure(github, state, state_dir, issue.number, record, self_id, _failure_text(result, home), retry)
+        _post_failure(thread, state, state_dir, record, _failure_text(result, home), retry)
