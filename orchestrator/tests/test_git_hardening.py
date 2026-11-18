@@ -161,3 +161,34 @@ def test_the_hardened_prefix_is_only_used_by_the_module_that_adds_the_hardened_e
     outside = [path.name for path in source.rglob("*.py") if path.name != "worktrees.py" and "HARDENED_GIT" in path.read_text()]
 
     assert outside == []
+
+
+@pytest.mark.parametrize(("user_config", "filter_runs"), [(False, False), (True, True)])
+def test_a_filter_in_the_xdg_git_config_is_ignored_too(repo, tmp_path, user_filter, monkeypatch, user_config, filter_runs):
+    xdg = tmp_path / "xdg"
+    (xdg / "git").mkdir(parents=True)
+    (xdg / "git" / "config").write_text((tmp_path / "user-gitconfig").read_text())
+    monkeypatch.delenv("GIT_CONFIG_GLOBAL")
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(xdg))
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    (repo / ".gitattributes").write_text("*.probe filter=probe\n")
+    (repo / "agent.probe").write_text("from the agent")
+
+    run_git(repo, "add", "-A", user_config=user_config)
+
+    assert (user_filter / "clean").exists() is filter_runs
+
+
+def test_the_gates_commit_and_the_status_after_a_same_size_edit_run_no_user_filter(repo, user_filter, monkeypatch):
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", "/dev/null")
+    (repo / ".gitattributes").write_text("*.probe filter=probe\n")
+    (repo / "agent.probe").write_text("hello")
+    git(repo, "add", "-A")
+    git(repo, "commit", "-q", "-m", "attrs")
+    (repo / "agent.probe").write_text("jello")
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(user_filter.parent / "user-gitconfig"))
+
+    run_git(repo, "status", "--porcelain")
+    commit_all(repo, "Task t1")
+
+    assert not (user_filter / "clean").exists()
