@@ -24,7 +24,7 @@ from factory.sqlite_store import SqliteTaskStore
 from factory.step import Runner
 from factory.store import TaskStore
 from factory.task import Task
-from factory.textsafe import escape_control  # re-exported
+from factory.textsafe import escape_control
 from factory.waiver import (
     Refuse,
     Reinstate,
