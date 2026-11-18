@@ -14,8 +14,9 @@ from factory.task import Task
 
 
 def _executable_directory(executable: str, path: str | None, private_dirs: tuple[str, ...]) -> tuple[str, ...]:
-    """The directory the sandbox must be allowed to read for `executable` to start.
-    None if it cannot be found, or if reading it would expose a private directory."""
+    """The directories the sandbox must be allowed to read for `executable` to start: the one it is found in and,
+    for a symlinked file, the one it resolves into. Empty if it cannot be found; each is dropped if reading it
+    would expose a private directory."""
     found = shutil.which(executable, path=path)
     if not found:
         return ()
