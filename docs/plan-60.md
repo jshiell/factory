@@ -7,6 +7,7 @@ The README says macOS (`README.md:22`) with Linux "tried by hand", but does not 
 Document the platforms and refuse Windows with a clear message. Out of scope: Linux first-class, a macOS CI runner, real-`nono` Linux spikes. Refuse `win32` only: Cygwin and MSYS2 are believed to have `fcntl` (unverified), so no claim about them. `python -m factory.cli` bypasses the launcher; accepted.
 
 ## Step 0 (before any edit): greps, list the hits here
+Done before increment 1; no hit needed a change beyond the files listed below, and the hits were not recorded.
 - `factory.cli:run`, `factory.cli`, `-m factory`, `console_scripts`, `project.scripts` across `orchestrator/src`, `orchestrator/tests`, `spike/`, `docs/`, `README.md`, `AGENTS.md`; anything that launches a `factory` binary (server, JobRunner, nono profiles).
 - Other importers of `factory.lock`.
 - Tests that read README text: `grep -rn 'README\|Seatbelt\|macOS\|Requirements' orchestrator/tests`; any test comparing the README command table to the parser.
