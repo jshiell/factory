@@ -10,13 +10,15 @@ from factory.watch.posting import (
     _post_final,
     _sha256,
 )
-from factory.watch.state import IssueRecord, Phase, save_state
+from factory.watch.progress import Progress
+from factory.watch.state import IssueRecord, Phase
 from factory.watch.thread import IssueThread
 
 _HOW_TO_ACT = "Task {task_id}. React 👍 to approve this plan, 👎 to reject it."
 
 
-def _post_plan(thread: IssueThread, server, state, state_dir, record: IssueRecord) -> None:
+def _post_plan(thread: IssueThread, server, progress: Progress) -> None:
+    record = progress.record
     approval = server.get(f"/tasks/{require_safe_id(record.task_id)}/approval")
     findings = _findings_text(approval)
     required = "\n\n".join(filter(None, ["\n".join(approval["required"]), approval["warning"]]))
@@ -32,13 +34,14 @@ def _post_plan(thread: IssueThread, server, state, state_dir, record: IssueRecor
     record.plan_body_hash = _sha256(body)
     record.findings_hash = _sha256(findings)
     record.phase = Phase.AWAITING_APPROVAL
-    save_state(state_dir, state)
+    progress.save()
 
 
 _HOW_TO_ANSWER = "Task {task_id}. Reply to this comment with your answers; the plan is written once you have answered."
 
 
-def _post_questions(thread: IssueThread, server, state, state_dir, record: IssueRecord) -> None:
+def _post_questions(thread: IssueThread, server, progress: Progress) -> None:
+    record = progress.record
     shown = server.get(f"/tasks/{require_safe_id(record.task_id)}/questions")
     body = render_comment(record.task_id, "questions", [
         ("Task", _HOW_TO_ANSWER.format(task_id=record.task_id), False),
@@ -48,7 +51,7 @@ def _post_questions(thread: IssueThread, server, state, state_dir, record: Issue
     record.questions_comment_id = exact_copy or thread.comment(body)
     record.questions_round = shown["round"]
     record.phase = Phase.AWAITING_ANSWERS
-    save_state(state_dir, state)
+    progress.save()
 
 
 def _is_factory_comment(comment) -> bool:
@@ -75,12 +78,13 @@ _QUESTIONS_GONE = (
 )
 
 
-def _forward_answers(thread: IssueThread, server, state, state_dir, record: IssueRecord, approver_ids: set[int]) -> bool:
+def _forward_answers(thread: IssueThread, server, progress: Progress, approver_ids: set[int]) -> bool:
     """Send the approvers' answers to the server; True when the wait is over."""
+    record = progress.record
     answers = _answers_after(thread.comments(), record.questions_comment_id, approver_ids)
     if answers is None:
         text = f"{_QUESTIONS_GONE} Run: factory answer {require_safe_id(record.task_id)}"
-        _post_final(thread, state, state_dir, record, Phase.STOPPED, "Stopped", text)
+        _post_final(thread, progress.state, progress.state_dir, progress.record, Phase.STOPPED, "Stopped", text)
         return False
     if not answers:
         return False
@@ -93,7 +97,7 @@ def _forward_answers(thread: IssueThread, server, state, state_dir, record: Issu
         if (refusal.status, refusal.error) not in ((409, "round changed"), (409, "wrong state")):
             raise
     record.phase = Phase.NEW
-    save_state(state_dir, state)
+    progress.save()
     return True
 
 
@@ -106,12 +110,12 @@ _CHANGED = (
 _REJECTED = "An approver rejected this plan, so the task is rejected and no work will be done."
 
 
-def _post_changed(thread: IssueThread, state, state_dir, record: IssueRecord) -> None:
-    _post_ending(thread, state, state_dir, record, "changed", Phase.CHANGED, "Plan changed", _CHANGED)
+def _post_changed(thread: IssueThread, progress: Progress) -> None:
+    _post_ending(thread, progress.state, progress.state_dir, progress.record, "changed", Phase.CHANGED, "Plan changed", _CHANGED)
 
 
-def _post_rejected(thread: IssueThread, state, state_dir, record: IssueRecord) -> None:
-    _post_ending(thread, state, state_dir, record, "rejected", Phase.REJECTED, "Plan rejected", _REJECTED)
+def _post_rejected(thread: IssueThread, progress: Progress) -> None:
+    _post_ending(thread, progress.state, progress.state_dir, progress.record, "rejected", Phase.REJECTED, "Plan rejected", _REJECTED)
 
 
 def _approval_if_as_posted(thread: IssueThread, server, record: IssueRecord) -> dict | None:
@@ -125,18 +129,19 @@ def _approval_if_as_posted(thread: IssueThread, server, record: IssueRecord) -> 
     return approval
 
 
-def _approve_on_thumbs_up(thread: IssueThread, server, state, state_dir, record: IssueRecord, approver_ids: set[int]) -> None:
+def _approve_on_thumbs_up(thread: IssueThread, server, progress: Progress, approver_ids: set[int]) -> None:
     """Reject on an approver's 👎 (which wins), else approve on their 👍; approvers match by numeric id, never login. `approved` is saved only after the server accepts."""
+    record = progress.record
     reactions = thread.reactions(record.plan_comment_id)
     if _approver_reacted(reactions, "-1", approver_ids):
         server.post(f"/tasks/{require_safe_id(record.task_id)}/reject")
-        _post_rejected(thread, state, state_dir, record)
+        _post_rejected(thread, progress)
         return
     if not _approver_reacted(reactions, "+1", approver_ids):
         return
     approval = _approval_if_as_posted(thread, server, record)
     if approval is None:
-        _post_changed(thread, state, state_dir, record)
+        _post_changed(thread, progress)
         return
     try:
         server.post(f"/tasks/{require_safe_id(record.task_id)}/approve", {
@@ -144,7 +149,7 @@ def _approve_on_thumbs_up(thread: IssueThread, server, state, state_dir, record:
     except ServerRefused as refusal:
         if (refusal.status, refusal.error) != (409, "plan changed"):
             raise
-        _post_changed(thread, state, state_dir, record)
+        _post_changed(thread, progress)
         return
     record.phase = Phase.APPROVED
-    save_state(state_dir, state)
+    progress.save()

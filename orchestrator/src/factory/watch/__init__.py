@@ -20,6 +20,7 @@ from factory.watch.planning import (
     _post_questions,
 )
 from factory.watch.posting import _post_final
+from factory.watch.progress import Progress
 from factory.watch.retrying import _post_failure, _retry_on_thumbs_up
 from factory.watch.state import IssueRecord, Phase, _utc_now, load_state, save_state
 from factory.watch.state import WatchState as WatchState
@@ -166,6 +167,7 @@ def _handle_issue(github, server, state, state_dir, issue: Issue, approver_ids: 
         state.issues[issue.number] = IssueRecord(task_id)
         save_state(state_dir, state)
     record = state.issues[issue.number]
+    progress = Progress(state, state_dir, record)
     if record.phase not in (Phase.NEW, Phase.AWAITING_ANSWERS, Phase.AWAITING_APPROVAL, Phase.APPROVED, Phase.AWAITING_MERGE, Phase.AWAITING_REBASE, Phase.AWAITING_RETRY):
         return
     task = server.get(f"/tasks/{require_safe_id(record.task_id)}")
@@ -189,20 +191,20 @@ def _handle_issue(github, server, state, state_dir, issue: Issue, approver_ids: 
         return
     if task["state"] in ("audited", "merged"):  # finished at the terminal; no steps to report
         record.phase = Phase.AUDITED
-        save_state(state_dir, state)
+        progress.save()
         return
     if task["state"] in _APPROVED_STATES:
         record.phase = Phase.APPROVED
-        save_state(state_dir, state)
+        progress.save()
     if record.phase is Phase.AWAITING_ANSWERS:
         if task["state"] == "open_questions" and task["grill_rounds"] == record.questions_round:
-            if not _forward_answers(thread, server, state, state_dir, record, approver_ids):
+            if not _forward_answers(thread, server, progress, approver_ids):
                 return
         else:
             record.phase = Phase.NEW
-            save_state(state_dir, state)
+            progress.save()
     if record.phase is Phase.AWAITING_APPROVAL:
-        _approve_on_thumbs_up(thread, server, state, state_dir, record, approver_ids)
+        _approve_on_thumbs_up(thread, server, progress, approver_ids)
         return
     result = _advance(server, record.task_id)
     if result is None:
@@ -210,9 +212,9 @@ def _handle_issue(github, server, state, state_dir, issue: Issue, approver_ids: 
     if result["stopped"]:
         _post_final(thread, state, state_dir, record, Phase.STOPPED, "Stopped", strip_home(result["stopped"], home))
     elif result["state"] == "open_questions" and record.phase is Phase.NEW:
-        _post_questions(thread, server, state, state_dir, record)
+        _post_questions(thread, server, progress)
     elif result["state"] == "reviewed" and record.phase is Phase.NEW:
-        _post_plan(thread, server, state, state_dir, record)
+        _post_plan(thread, server, progress)
     elif result["state"] == "audited" and record.phase is Phase.APPROVED:
         _post_audited(thread, server, state, state_dir, record, result, merge)
     elif result["state"] == "failed":
