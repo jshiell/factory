@@ -4,8 +4,8 @@ import os
 import sys
 import tempfile
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from enum import Enum
+from datetime import UTC, datetime
+from enum import StrEnum
 from pathlib import Path
 
 from factory.answer_questions import MAX_ANSWER_BYTES
@@ -50,7 +50,7 @@ def parse_issues(raw: list[dict], approver_ids: set[int], watching_since: dateti
     return issues
 
 
-class Phase(str, Enum):
+class Phase(StrEnum):
     NEW = "new"
     AWAITING_ANSWERS = "awaiting_answers"
     AWAITING_APPROVAL = "awaiting_approval"
@@ -121,7 +121,7 @@ class WatchStateError(Exception):
 
 
 def _utc_now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def load_state(state_dir, clock=_utc_now) -> WatchState:

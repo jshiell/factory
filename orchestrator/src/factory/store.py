@@ -46,7 +46,7 @@ def new_task_id(now: datetime, suffix: str = "") -> str:
     return f"{now:%Y%m%d-%H%M%S}" + (f"-{suffix}" if suffix else "")
 
 
-def create_with_fresh_id(store: "TaskStore", clock: Callable[[], datetime], build: Callable[[str], Task]) -> Task:
+def create_with_fresh_id(store: TaskStore, clock: Callable[[], datetime], build: Callable[[str], Task]) -> Task:
     """Create the task `build(id)` under a timestamp id, adding a numeric suffix if the id is taken."""
     suffix = 1
     while True:

@@ -45,7 +45,7 @@ class GitHub:
         self._name = name
 
     @classmethod
-    def default(cls, owner: str, name: str) -> "GitHub":
+    def default(cls, owner: str, name: str) -> GitHub:
         return cls(_subprocess_run, owner, name)
 
     def self_user(self) -> User:

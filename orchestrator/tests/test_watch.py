@@ -1,6 +1,6 @@
 import hashlib
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -22,7 +22,7 @@ from factory.watch import (
     save_state,
 )
 
-SINCE = datetime(2026, 11, 13, 0, 0, tzinfo=timezone.utc)
+SINCE = datetime(2026, 11, 13, 0, 0, tzinfo=UTC)
 
 
 def raw_issue(**overrides):
@@ -47,7 +47,7 @@ def test_an_open_issue_by_an_approver_is_considered():
             body="do the thing",
             author_id=1001,
             author_login="Alice",
-            created_at=datetime(2026, 11, 13, 10, 0, tzinfo=timezone.utc),
+            created_at=datetime(2026, 11, 13, 10, 0, tzinfo=UTC),
         )
     ]
 
