@@ -13,7 +13,8 @@ Touches: a fixture under $HOME (`confprobe-<pid>/`: repo, two worktrees, state d
 $HOME, one in $TMPDIR, `~/.claude/` and `~/.cache/` write canaries (only if those directories exist). All removed at the end.
 Does NOT touch ~/.claude.json (the older `nono_impl_probe.py` does, and restores it).
 Opt-in: `--claude-dir` plants a canary beside the real `claude` binary and checks the executable grant; `--ssh` tries to
-open ONE real file in ~/.ssh and reports only opened or the errno (the contents are never read out or printed).
+open ONE real file in ~/.ssh (and ~/.claude/.credentials.json if present) and reports only opened or the errno (never read out).
+A canary file is always planted in ~/.claude (if it exists) to test reads there; it is removed at the end.
 Paste the printed SUMMARY back."""
 import json, os, shutil, subprocess, sys, tempfile, uuid
 from pathlib import Path
@@ -145,6 +146,12 @@ if WITH_SSH:
         READS.append(("one real ~/.ssh file (opened only)", ssh_file))
     else:
         print("--ssh: no regular file in ~/.ssh, skipped")
+
+if (HOME / ".claude").is_dir():
+    READS.append(("~/.claude file (canary)", plant(HOME / ".claude" / f"confprobe-read-{PID}.txt", "~/.claude file (canary)", TOKENS)))
+    cleanup_files.append(HOME / ".claude" / f"confprobe-read-{PID}.txt")
+    if WITH_SSH and (HOME / ".claude" / ".credentials.json").is_file():
+        READS.append(("~/.claude/.credentials.json (opened only)", HOME / ".claude" / ".credentials.json"))
 
 WRITES = [
     ("project dir (positive control)", PROJECT / "escape.txt"),
