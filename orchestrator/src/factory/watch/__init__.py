@@ -1,16 +1,25 @@
-import hashlib
 import sys
 from pathlib import Path
 
 from factory.answer_questions import MAX_ANSWER_BYTES
 from factory.client import ServerRefused, ServerUnreachable
-from factory.comments import has_marker, render_comment, strip_home
+from factory.comments import render_comment, strip_home
 from factory.github import GitHubError
 from factory.ids import require_safe_id
 from factory.merge_task import ALREADY_IN_MAIN, MAIN_MOVED
 from factory.question_text import questions_text
 from factory.textsafe import escape_control
 from factory.watch.issues import Issue, _goal, parse_issues
+from factory.watch.posting import (
+    _approver_reacted,
+    _findings_text,
+    _own_comment_id,
+    _post_ending,
+    _post_final,
+    _post_result,
+    _result_comment_id,
+    _sha256,
+)
 from factory.watch.state import IssueRecord, Phase, _utc_now, load_state, save_state
 from factory.watch.state import WatchState as WatchState
 from factory.watch.state import WatchStateError as WatchStateError
@@ -18,8 +27,6 @@ from factory.watch.state import WatchStateError as WatchStateError
 _HOW_TO_ACT = "Task {task_id}. React 👍 to approve this plan, 👎 to reject it."
 
 
-def _sha256(text: str) -> str:
-    return hashlib.sha256(text.encode()).hexdigest()
 
 
 def _advance(server, task_id: str) -> dict | None:
@@ -29,8 +36,6 @@ def _advance(server, task_id: str) -> dict | None:
     return job["result"] if job["state"] == "succeeded" else None
 
 
-def _findings_text(approval: dict) -> str:
-    return "\n".join(f"- {finding}" for finding in approval["review_findings"])
 
 
 def _post_plan(github, server, state, state_dir, issue_number: int, record: IssueRecord, self_id: int) -> None:
@@ -114,26 +119,12 @@ def _forward_answers(github, server, state, state_dir, issue_number: int, record
     return True
 
 
-def _own_comment_id(github, issue_number: int, self_id: int, matches) -> int | None:
-    """A comment this watcher posted before a crash lost its id; authorship is by numeric id, never login, so nobody else's comment is adopted."""
-    return next((c.id for c in github.comments(issue_number) if c.user_id == self_id and matches(c)), None)
 
 
-def _result_comment_id(github, issue_number: int, record: IssueRecord, self_id: int, kind: str, body: str) -> int:
-    """Post the task's ending, or adopt this watcher's earlier one; nothing downstream reads its text, so the marker alone identifies it."""
-    earlier = _own_comment_id(github, issue_number, self_id, lambda c: has_marker(c.body, record.task_id, kind))
-    return earlier or github.comment(issue_number, body)
 
 
-def _post_result(github, state, state_dir, issue_number: int, record: IssueRecord, self_id: int, kind: str, phase: Phase, body: str) -> None:
-    record.result_comment_id = _result_comment_id(github, issue_number, record, self_id, kind, body)
-    record.phase = phase
-    save_state(state_dir, state)
 
 
-def _post_final(github, state, state_dir, issue_number: int, record: IssueRecord, self_id: int, phase: Phase, heading: str, text: str) -> None:
-    body = render_comment(record.task_id, "result", [(heading, text, True)])
-    _post_result(github, state, state_dir, issue_number, record, self_id, "result", phase, body)
 
 
 _HOW_TO_RETRY = (
@@ -254,9 +245,6 @@ _CHANGED = (
 _REJECTED = "An approver rejected this plan, so the task is rejected and no work will be done."
 
 
-def _post_ending(github, state, state_dir, issue_number: int, record: IssueRecord, self_id: int, kind: str, phase: Phase, heading: str, text: str) -> None:
-    body = render_comment(record.task_id, kind, [(heading, text, False)])
-    _post_result(github, state, state_dir, issue_number, record, self_id, kind, phase, body)
 
 
 def _post_changed(github, state, state_dir, issue_number: int, record: IssueRecord, self_id: int) -> None:
@@ -267,9 +255,6 @@ def _post_rejected(github, state, state_dir, issue_number: int, record: IssueRec
     _post_ending(github, state, state_dir, issue_number, record, self_id, "rejected", Phase.REJECTED, "Plan rejected", _REJECTED)
 
 
-def _approver_reacted(reactions, content: str, approver_ids: set[int]) -> bool:
-    """Approvers match by numeric id, never login."""
-    return any(r.content == content and r.user_id in approver_ids for r in reactions)
 
 
 def _approval_if_as_posted(github, server, issue_number: int, record: IssueRecord) -> dict | None:
