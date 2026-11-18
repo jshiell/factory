@@ -285,6 +285,20 @@ def test_a_symlink_within_the_same_directory_is_granted_one_directory(tmp_path, 
     assert sandbox_reads(log) == [str(Path(task.worktree).resolve()), str(tmp_path)]
 
 
+def test_a_resolved_directory_that_is_home_is_not_granted(tmp_path, task, monkeypatch):
+    tmp_path = tmp_path.resolve()
+    link, release = symlinked_claude(tmp_path)
+    monkeypatch.setenv("HOME", str(release))
+    log = tmp_path / "wrapper.log"
+    runner = SubprocessRunner(
+        str(link), project_subdir="proj", timeout_s=10, sandbox_executable=fake_wrapper(tmp_path, log),
+    )
+
+    runner.run(task, replace(CONFIG, confine=True))
+
+    assert sandbox_reads(log) == [str(Path(task.worktree).resolve()), str(tmp_path / "bin")]
+
+
 def test_a_claude_executable_that_cannot_be_found_adds_no_grant_and_the_run_goes_ahead(tmp_path, task):
     log = tmp_path / "wrapper.log"
     runner = SubprocessRunner(
