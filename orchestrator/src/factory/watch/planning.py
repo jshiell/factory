@@ -6,17 +6,17 @@ from factory.question_text import questions_text
 from factory.watch.posting import (
     _approver_reacted,
     _findings_text,
-    _own_comment_id,
     _post_ending,
     _post_final,
     _sha256,
 )
 from factory.watch.state import IssueRecord, Phase, save_state
+from factory.watch.thread import IssueThread
 
 _HOW_TO_ACT = "Task {task_id}. React 👍 to approve this plan, 👎 to reject it."
 
 
-def _post_plan(github, server, state, state_dir, issue_number: int, record: IssueRecord, self_id: int) -> None:
+def _post_plan(thread: IssueThread, server, state, state_dir, record: IssueRecord) -> None:
     approval = server.get(f"/tasks/{require_safe_id(record.task_id)}/approval")
     findings = _findings_text(approval)
     required = "\n\n".join(filter(None, ["\n".join(approval["required"]), approval["warning"]]))
@@ -26,8 +26,8 @@ def _post_plan(github, server, state, state_dir, issue_number: int, record: Issu
         ("Review findings", findings, True),
         ("Required review notes", required, True),
     ])
-    exact_copy = _own_comment_id(github, issue_number, self_id, lambda c: c.body == body)
-    record.plan_comment_id = exact_copy or github.comment(issue_number, body)
+    exact_copy = thread.own_comment_id(lambda c: c.body == body)
+    record.plan_comment_id = exact_copy or thread.comment(body)
     record.posted_digest = approval["plan_digest"]
     record.plan_body_hash = _sha256(body)
     record.findings_hash = _sha256(findings)
@@ -38,14 +38,14 @@ def _post_plan(github, server, state, state_dir, issue_number: int, record: Issu
 _HOW_TO_ANSWER = "Task {task_id}. Reply to this comment with your answers; the plan is written once you have answered."
 
 
-def _post_questions(github, server, state, state_dir, issue_number: int, record: IssueRecord, self_id: int) -> None:
+def _post_questions(thread: IssueThread, server, state, state_dir, record: IssueRecord) -> None:
     shown = server.get(f"/tasks/{require_safe_id(record.task_id)}/questions")
     body = render_comment(record.task_id, "questions", [
         ("Task", _HOW_TO_ANSWER.format(task_id=record.task_id), False),
         (f"Questions (round {shown['round']})", questions_text(shown["questions"]), True),
     ])
-    exact_copy = _own_comment_id(github, issue_number, self_id, lambda c: c.body == body)
-    record.questions_comment_id = exact_copy or github.comment(issue_number, body)
+    exact_copy = thread.own_comment_id(lambda c: c.body == body)
+    record.questions_comment_id = exact_copy or thread.comment(body)
     record.questions_round = shown["round"]
     record.phase = Phase.AWAITING_ANSWERS
     save_state(state_dir, state)
@@ -75,12 +75,12 @@ _QUESTIONS_GONE = (
 )
 
 
-def _forward_answers(github, server, state, state_dir, issue_number: int, record: IssueRecord, approver_ids: set[int], self_id: int) -> bool:
+def _forward_answers(thread: IssueThread, server, state, state_dir, record: IssueRecord, approver_ids: set[int]) -> bool:
     """Send the approvers' answers to the server; True when the wait is over."""
-    answers = _answers_after(github.comments(issue_number), record.questions_comment_id, approver_ids)
+    answers = _answers_after(thread.comments(), record.questions_comment_id, approver_ids)
     if answers is None:
         text = f"{_QUESTIONS_GONE} Run: factory answer {require_safe_id(record.task_id)}"
-        _post_final(github, state, state_dir, issue_number, record, self_id, Phase.STOPPED, "Stopped", text)
+        _post_final(thread.github, state, state_dir, thread.number, record, thread.self_id, Phase.STOPPED, "Stopped", text)
         return False
     if not answers:
         return False
@@ -106,17 +106,17 @@ _CHANGED = (
 _REJECTED = "An approver rejected this plan, so the task is rejected and no work will be done."
 
 
-def _post_changed(github, state, state_dir, issue_number: int, record: IssueRecord, self_id: int) -> None:
-    _post_ending(github, state, state_dir, issue_number, record, self_id, "changed", Phase.CHANGED, "Plan changed", _CHANGED)
+def _post_changed(thread: IssueThread, state, state_dir, record: IssueRecord) -> None:
+    _post_ending(thread.github, state, state_dir, thread.number, record, thread.self_id, "changed", Phase.CHANGED, "Plan changed", _CHANGED)
 
 
-def _post_rejected(github, state, state_dir, issue_number: int, record: IssueRecord, self_id: int) -> None:
-    _post_ending(github, state, state_dir, issue_number, record, self_id, "rejected", Phase.REJECTED, "Plan rejected", _REJECTED)
+def _post_rejected(thread: IssueThread, state, state_dir, record: IssueRecord) -> None:
+    _post_ending(thread.github, state, state_dir, thread.number, record, thread.self_id, "rejected", Phase.REJECTED, "Plan rejected", _REJECTED)
 
 
-def _approval_if_as_posted(github, server, issue_number: int, record: IssueRecord) -> dict | None:
+def _approval_if_as_posted(thread: IssueThread, server, record: IssueRecord) -> dict | None:
     """The server's approval preview, if the plan comment is unedited and the preview's plan digest and findings are the ones it showed."""
-    posted = [_sha256(c.body) for c in github.comments(issue_number) if c.id == record.plan_comment_id]
+    posted = [_sha256(c.body) for c in thread.comments() if c.id == record.plan_comment_id]
     if posted != [record.plan_body_hash]:
         return None
     approval = server.get(f"/tasks/{require_safe_id(record.task_id)}/approval")
@@ -125,18 +125,18 @@ def _approval_if_as_posted(github, server, issue_number: int, record: IssueRecor
     return approval
 
 
-def _approve_on_thumbs_up(github, server, state, state_dir, issue_number: int, record: IssueRecord, approver_ids: set[int], self_id: int) -> None:
+def _approve_on_thumbs_up(thread: IssueThread, server, state, state_dir, record: IssueRecord, approver_ids: set[int]) -> None:
     """Reject on an approver's 👎 (which wins), else approve on their 👍; approvers match by numeric id, never login. `approved` is saved only after the server accepts."""
-    reactions = github.reactions(record.plan_comment_id)
+    reactions = thread.reactions(record.plan_comment_id)
     if _approver_reacted(reactions, "-1", approver_ids):
         server.post(f"/tasks/{require_safe_id(record.task_id)}/reject")
-        _post_rejected(github, state, state_dir, issue_number, record, self_id)
+        _post_rejected(thread, state, state_dir, record)
         return
     if not _approver_reacted(reactions, "+1", approver_ids):
         return
-    approval =_approval_if_as_posted(github, server, issue_number, record)
+    approval = _approval_if_as_posted(thread, server, record)
     if approval is None:
-        _post_changed(github, state, state_dir, issue_number, record, self_id)
+        _post_changed(thread, state, state_dir, record)
         return
     try:
         server.post(f"/tasks/{require_safe_id(record.task_id)}/approve", {
@@ -144,7 +144,7 @@ def _approve_on_thumbs_up(github, server, state, state_dir, issue_number: int, r
     except ServerRefused as refusal:
         if (refusal.status, refusal.error) != (409, "plan changed"):
             raise
-        _post_changed(github, state, state_dir, issue_number, record, self_id)
+        _post_changed(thread, state, state_dir, record)
         return
     record.phase = Phase.APPROVED
     save_state(state_dir, state)

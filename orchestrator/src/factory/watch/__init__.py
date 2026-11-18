@@ -24,6 +24,7 @@ from factory.watch.retrying import _post_failure, _retry_on_thumbs_up
 from factory.watch.state import IssueRecord, Phase, _utc_now, load_state, save_state
 from factory.watch.state import WatchState as WatchState
 from factory.watch.state import WatchStateError as WatchStateError
+from factory.watch.thread import IssueThread
 
 
 def _advance(server, task_id: str) -> dict | None:
@@ -159,6 +160,7 @@ def _log_failure(subject: str, text: str) -> None:
 
 
 def _handle_issue(github, server, state, state_dir, issue: Issue, approver_ids: set[int], self_id: int, home: str, merge: bool, retry: bool) -> None:
+    thread = IssueThread(github, issue.number, self_id)
     if issue.number not in state.issues:
         task_id = server.post("/tasks", {"goal": _goal(issue)})["id"]
         state.issues[issue.number] = IssueRecord(task_id)
@@ -194,13 +196,13 @@ def _handle_issue(github, server, state, state_dir, issue: Issue, approver_ids: 
         save_state(state_dir, state)
     if record.phase is Phase.AWAITING_ANSWERS:
         if task["state"] == "open_questions" and task["grill_rounds"] == record.questions_round:
-            if not _forward_answers(github, server, state, state_dir, issue.number, record, approver_ids, self_id):
+            if not _forward_answers(thread, server, state, state_dir, record, approver_ids):
                 return
         else:
             record.phase = Phase.NEW
             save_state(state_dir, state)
     if record.phase is Phase.AWAITING_APPROVAL:
-        _approve_on_thumbs_up(github, server, state, state_dir, issue.number, record, approver_ids, self_id)
+        _approve_on_thumbs_up(thread, server, state, state_dir, record, approver_ids)
         return
     result = _advance(server, record.task_id)
     if result is None:
@@ -208,9 +210,9 @@ def _handle_issue(github, server, state, state_dir, issue: Issue, approver_ids: 
     if result["stopped"]:
         _post_final(github, state, state_dir, issue.number, record, self_id, Phase.STOPPED, "Stopped", strip_home(result["stopped"], home))
     elif result["state"] == "open_questions" and record.phase is Phase.NEW:
-        _post_questions(github, server, state, state_dir, issue.number, record, self_id)
+        _post_questions(thread, server, state, state_dir, record)
     elif result["state"] == "reviewed" and record.phase is Phase.NEW:
-        _post_plan(github, server, state, state_dir, issue.number, record, self_id)
+        _post_plan(thread, server, state, state_dir, record)
     elif result["state"] == "audited" and record.phase is Phase.APPROVED:
         _post_audited(github, server, state, state_dir, issue.number, record, self_id, result, merge)
     elif result["state"] == "failed":
