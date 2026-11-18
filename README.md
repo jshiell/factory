@@ -19,13 +19,26 @@ only things that need a person are the two decisions that matter: *is this the r
 
 ## Requirements
 
-- A supported platform:
-  - macOS: the main platform (the sandbox is Seatbelt via `nono`; written against nono 0.81). The real sandbox is mostly exercised here.
-  - Linux: CI runs ruff and the test suite with `claude` and `nono` faked. The real sandbox was tried by hand: plan 49 (the `claude` executable grant below), plan 55 (the gate sandbox has network and runs build hooks), plan 56 (read on the directory holding `uv`, confirmed with `uv` under mise). Plan 57 was measured on a fabricated layout, not a real install. Other macOS assumptions may remain.
-  - Windows: refused at startup, because factory needs `fcntl`, `pgrep`, `ps` and process groups. WSL is untested.
+- macOS or Linux (the sandbox is `nono` 0.81 or later). What was verified on each is in [Platform verification](#platform-verification). Windows is refused at startup (`launcher.py`), because factory needs `fcntl`, `pgrep`, `ps` and process groups. WSL is untested.
 - `git`, [`uv`](https://docs.astral.sh/uv/), Python 3.14
 - the `claude` CLI, logged in (OAuth). `ANTHROPIC_API_KEY` is stripped from the agents' environment on purpose
 - `nono` on `PATH`
+
+### Platform verification
+
+Linux was re-measured on 2026-11-18 (nono 0.81.0, kernel 7.0.0-43). macOS was measured earlier, up to about plan 36 (2026-11-11), and has not been re-measured since the changes in plans 49 to 57 and O7. Detail and sources are in `docs/spike-findings.md`.
+
+| What | Linux | macOS |
+|---|---|---|
+| Unit suite and ruff | CI (`ubuntu-latest`, serial, no `claude` or `nono` installed on the runner) and by hand, 2026-11-18 | Not in CI. Run by hand in the early plans; later runs not recorded |
+| Agent confinement under `nono` | Current: plan O7. No read of other worktrees, the repo root, the state dir, `$TMPDIR`, `$HOME` or `~/.ssh`; no write to `~/.cache`. Agents can read and write `~/.claude`, including `.credentials.json` | Older code: plans 6 and 9. `$TMPDIR` was readable and `~/.cache`, `~/.claude.json` and Keychain files were writable, which differs from Linux. Plan O7 not re-run |
+| `claude` executable grant | Plan 49 (real install under mise); plan 57 (symlinked file, on a fabricated layout) | Never measured |
+| Gate sandbox grant for `uv` | Current: plan 56, with `uv` under mise only | Older mechanism: plan 9 (real `uv`, mise shims, Python prefix, private cache). The plan 56 grant has not been tried |
+| Gate network and build hooks | Plans 55 and 56: network works; a `setup.py` entry point and a hatch hook run | Plan 9: a cold gate run needs network (observed, not probed). Build hooks not measured |
+| Orphan reaping | Plan O7: SQLite records, real `ps`. A `setsid` grandchild whose parent had already exited survives | Older code: plan 21, file records, end-to-end 15 of 15 (`ps` start time read with `LC_ALL=C TZ=UTC0`). Plan 21 also lists `killpg` after a reaped leader as unverified on macOS. The SQLite records have not been run on macOS |
+| Prompt size in `argv` | **Defect, 2026-11-18.** A single argument of 131072 bytes or more fails with `E2BIG`. Prompts are one argument, and the audit diff limit is 200,000 bytes, so a diff between about 125 KB and 200 KB cannot launch. Not yet fixed | Total `ARG_MAX` is 1048576 (plan 3), the figure the diff limit was based on. No per-argument cap measured |
+| Server signals (`factory serve`) | Never measured | Plan 35 C0: SIGTERM and SIGINT run shutdown; uvicorn ignores SIGHUP, so `serve` installs its own handler |
+| Case-insensitive filesystem | Not applicable | Plan 20: `UV.toml` and `.Python-Version` are honoured by `uv`; protected names match case-insensitively. Plan 50: `gate_allow_outside` does not handle it |
 
 ## Using it
 
