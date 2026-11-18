@@ -1,8 +1,15 @@
 import json
+import os
 from dataclasses import dataclass
 from pathlib import Path
 
 SANDBOX_PROFILE = "nolabs-ai/claude"
+# Linux caps one argv string at 131072 bytes including the NUL (measured with /usr/bin/true: 131071 runs, 131072 is E2BIG).
+MAX_PROMPT_BYTES = 131_071
+
+
+class PromptTooLarge(ValueError):
+    """The prompt cannot be passed as one argv string."""
 
 
 @dataclass(frozen=True)
@@ -24,6 +31,9 @@ def build_command(
 ) -> tuple[list[str], dict[str, str]]:
     if prompt.startswith("-"):
         raise ValueError("prompt must not start with '-'")
+    size = len(os.fsencode(prompt))
+    if size > MAX_PROMPT_BYTES:
+        raise PromptTooLarge(f"prompt is {size} bytes, the limit is {MAX_PROMPT_BYTES}")
     argv = [executable, "-p", prompt, "--output-format", "json", "--model", config.model]
     argv += ["--setting-sources", ""]
     if config.budget_usd is not None:

@@ -3,7 +3,13 @@ from itertools import pairwise
 
 import pytest
 
-from factory.command import RunnerConfig, build_command, sandbox_prefix
+from factory.command import (
+    MAX_PROMPT_BYTES,
+    PromptTooLarge,
+    RunnerConfig,
+    build_command,
+    sandbox_prefix,
+)
 
 
 def test_base_argv_has_prompt_json_output_and_model():
@@ -65,6 +71,14 @@ def test_append_system_prompt_is_passed_as_one_argument():
 def test_prompt_starting_with_dash_is_rejected_because_it_would_parse_as_a_flag():
     with pytest.raises(ValueError):
         build_command("--dangerous", RunnerConfig(model="sonnet"))
+
+
+def test_a_prompt_of_the_limit_in_bytes_plus_one_is_refused_even_when_it_has_fewer_characters():
+    prompt = "é" * (MAX_PROMPT_BYTES // 2) + "ab"
+
+    assert len(prompt) < MAX_PROMPT_BYTES
+    with pytest.raises(PromptTooLarge):
+        build_command(prompt, RunnerConfig(model="sonnet"))
 
 
 def test_max_turns_is_passed():
