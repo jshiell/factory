@@ -11,7 +11,7 @@ dependencies = [
 ]
 
 [project.scripts]
-factory = "factory.cli:run"
+factory = "factory.launcher:run"
 
 [build-system]
 requires = ["uv_build>=0.13.7,<0.14.0"]

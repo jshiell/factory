@@ -1,3 +1,4 @@
+import importlib.metadata
 import subprocess
 import sys
 
@@ -36,3 +37,9 @@ def test_on_a_supported_platform_the_launcher_runs_the_cli(monkeypatch):
     run()
 
     assert calls == ["ran"]
+
+
+def test_the_factory_script_starts_at_the_launcher():
+    script = importlib.metadata.entry_points(group="console_scripts", name="factory")
+
+    assert [entry.value for entry in script] == ["factory.launcher:run"]
