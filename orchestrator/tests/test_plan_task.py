@@ -4,7 +4,7 @@ from dataclasses import replace
 
 import pytest
 
-from factory.command import RunnerConfig
+from factory.command import PromptTooLarge, RunnerConfig
 from factory.ledger import Ledger
 from factory.plan_task import (
     GRILL_SCHEMA,
@@ -205,7 +205,17 @@ def test_a_planner_that_modifies_the_worktree_fails_the_task(repo, store, ledger
     assert task.plan_error is None
 
 
-QUESTION = {"number": 1, "title": "Scope", "body": "Which module?", "recommended": "calc.py"}
+def test_a_prompt_too_large_for_one_argv_string_fails_the_task_for_good_without_a_charge(repo, store, ledger):
+    runner = PlanRunner(raises=PromptTooLarge("prompt is 131072 bytes, the limit is 131071"))
+
+    task = plan(store, ledger, runner, Worktrees(repo))
+
+    assert (task.state, task.failure_reason) == (TaskState.FAILED, "prompt_too_large")
+    assert task.plan_error is None
+    assert ledger.total() == 0
+
+
+QUESTION ={"number": 1, "title": "Scope", "body": "Which module?", "recommended": "calc.py"}
 
 
 def questions_stdout(questions=(QUESTION,), cost=0.16):

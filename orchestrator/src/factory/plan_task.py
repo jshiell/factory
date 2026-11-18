@@ -144,6 +144,8 @@ def plan_task(
         failed = apply(task, Event.PLAN_FAILED, "plan_modified_worktree")
         return _finish(store, replace(failed, plan_error=None))
     if isinstance(staged, Infra):
+        if staged.reason == "prompt_too_large":  # a retry would build the same prompt
+            return _finish(store, replace(apply(task, Event.PLAN_FAILED, staged.reason), plan_error=None))
         return _finish(store, replace(task, plan_error=staged.reason))
     if grilling and _asks_questions(staged.structured_output):
         questions = _parse_questions(staged.structured_output["questions"])
