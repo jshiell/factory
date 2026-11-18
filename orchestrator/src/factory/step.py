@@ -3,7 +3,7 @@ from dataclasses import dataclass, replace
 from typing import Protocol
 
 from factory.classify import Outcome, OutcomeKind, classify
-from factory.command import RunnerConfig
+from factory.command import PromptTooLarge, RunnerConfig
 from factory.ledger import Ledger
 from factory.store import TaskStore
 from factory.task import Event, Task, apply
@@ -74,6 +74,11 @@ def step(
     store.save(running)
     try:
         result = runner.run(running, config)
+    except PromptTooLarge as error:
+        logging.getLogger("factory").warning("agent run refused for task %s, stage implement: %s", task_id, error)
+        failed = apply(running, Event.FAILED, reason="prompt_too_large")
+        store.save(failed)
+        return failed
     except Exception as error:
         logging.getLogger("factory").warning("agent run failed for task %s, stage implement: %r", task_id, error)
         return _fail_with_assumed_cost(running, "runner_error", store, ledger, config)

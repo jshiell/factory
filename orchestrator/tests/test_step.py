@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from factory.command import RunnerConfig
+from factory.command import PromptTooLarge, RunnerConfig
 from factory.ledger import Ledger
 from factory.step import BudgetCapReached, MissingBudget, RunResult, step
 from factory.store import TaskStore
@@ -184,6 +184,20 @@ def test_runner_exception_fails_the_task_instead_of_leaving_it_running(store, le
     assert task.failure_reason == "runner_error"
     assert store.load("t1").state is TaskState.FAILED
     assert ledger.total() == 1.0
+
+
+def test_an_oversized_prompt_fails_the_task_without_a_charge_and_is_logged(store, ledger, caplog):
+    def refuse(task):
+        raise PromptTooLarge("prompt is 200000 bytes, the limit is 131071")
+
+    with caplog.at_level(logging.WARNING, logger="factory"):
+        task = step("t1", store, ledger, FakeRunner(on_run=refuse), CONFIG, cap_usd=10)
+
+    assert task.state is TaskState.FAILED
+    assert task.failure_reason == "prompt_too_large"
+    assert store.load("t1").failure_reason == "prompt_too_large"
+    assert ledger.entries() == []
+    assert any("t1" in r.getMessage() and "implement" in r.getMessage() and "200000" in r.getMessage() for r in caplog.records)
 
 
 def test_implementer_cost_is_recorded_under_the_implement_stage(store, ledger):
