@@ -494,6 +494,18 @@ def test_allowing_dependency_changes_still_fails_a_protected_name(repo, name):
     assert gate_allowing_dependencies(repo, base).reason == "tests_modified"
 
 
+# Guard (starts green): the flag lets a lock be removed; uv re-resolves within the pyproject's ranges.
+def test_allowing_dependency_changes_passes_a_deleted_uv_lock(repo):
+    (repo / "proj").mkdir()
+    (repo / "proj" / "uv.lock").write_text("a\n")
+    base = repo_with_test_file(repo)
+    (repo / "proj" / "uv.lock").unlink()
+    git(repo, "add", "-A")
+    git(repo, "commit", "-q", "-m", "drop lock")
+
+    assert gate_allowing_dependencies(repo, base).passed is True
+
+
 def test_adding_a_dependency_fails_tests_modified(repo):
     base = pyproject_base(repo, BASE_WITH_UV)
     commit_project_edit(repo, "pyproject.toml", BASE_WITH_UV.replace("dependencies = []", 'dependencies = ["requests"]'))
