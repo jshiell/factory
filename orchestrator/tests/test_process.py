@@ -8,6 +8,7 @@ import pytest
 
 from factory.process import group_alive, kill_tree, run_to_exit
 from factory.process_registry import Tracker, load_records
+from slowrecords import RecordsWrittenLate
 
 
 def python(code):
@@ -90,12 +91,19 @@ def _alive(pid):
     return str(pid) in listed
 
 
-LIST_RECORDS = "import os, sys; print(os.getpid(), sorted(os.listdir(sys.argv[1])))"
+# The record is written after the launch, so wait (bounded) until it is there before listing.
+LIST_RECORDS = (
+    "import os, sys, time\n"
+    "directory, end = sys.argv[1], time.time() + 5\n"
+    "while time.time() < end and not (os.path.isdir(directory) and os.listdir(directory)):\n"
+    "    time.sleep(0.05)\n"
+    "print(os.getpid(), sorted(os.listdir(directory)))"
+)
 
 
 def test_the_command_is_recorded_while_it_runs_and_the_record_goes_after_a_normal_exit(tmp_path):
     result = run_to_exit([sys.executable, "-c", LIST_RECORDS, str(tmp_path / "procs")], tmp_path, None, 10,
-                         capture_limit=200, tracker=Tracker(tmp_path, "t1", "gate"))
+                         capture_limit=200, tracker=Tracker(RecordsWrittenLate(tmp_path), "t1", "gate"))
 
     pid, listing = result.tail.split(" ", 1)
     assert f"{pid}.json" in listing

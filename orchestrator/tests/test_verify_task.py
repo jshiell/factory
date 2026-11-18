@@ -5,6 +5,7 @@ from factory.store import TaskStore
 from factory.task import InvalidTransition, Task, TaskState
 from factory.verify_task import verify_task
 from gitutil import git
+from slowrecords import RecordsWrittenLate
 
 
 @pytest.fixture
@@ -111,8 +112,8 @@ def test_the_gate_test_run_is_recorded_as_a_gate_process_while_it_runs_and_the_r
     store.save(agent_done_task(repo))
     (repo / "proj" / "code.py").write_text("changed by agent")
 
-    task = verify_task("t1", store, project_subdir="proj", gate_timeout_s=10, records=state,
-                       test_argv=["sh", "-c", 'cat "$1"/*.json > "$2"', "_", str(state / "procs"), str(seen)])
+    task = verify_task("t1", store, project_subdir="proj", gate_timeout_s=10, records=RecordsWrittenLate(state),
+                       test_argv=["sh", "-c", 'for _ in $(seq 100); do ls "$1"/*.json >/dev/null 2>&1 && break; sleep 0.05; done; cat "$1"/*.json > "$2"', "_", str(state / "procs"), str(seen)])
 
     assert task.state is TaskState.VERIFIED
     assert '"task_id": "t1"' in seen.read_text() and '"stage": "gate"' in seen.read_text()
