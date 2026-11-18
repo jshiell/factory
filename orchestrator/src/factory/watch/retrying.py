@@ -1,6 +1,7 @@
 from factory.client import ServerRefused
 from factory.comments import render_comment, strip_home
 from factory.ids import require_safe_id
+from factory.watch.options import Options
 from factory.watch.posting import (
     _approver_reacted,
     _post_ending,
@@ -44,21 +45,21 @@ def _post_retry_refused(thread: IssueThread, progress: Progress, reason: str) ->
     _post_result(thread, progress, "retry-refused", Phase.STOPPED, body)
 
 
-def _retry_on_thumbs_up(thread: IssueThread, server, state, progress: Progress, approver_ids: set[int], home: str) -> None:
+def _retry_on_thumbs_up(thread: IssueThread, server, state, progress: Progress, options: Options) -> None:
     """Retry the failed task on an approver's 👍 on the offer and follow the new task from the next pass; approvers match by numeric id, never login."""
     record = progress.record
     reactions = thread.reactions(record.retry_comment_id)
-    if _approver_reacted(reactions, "-1", approver_ids):
+    if _approver_reacted(reactions, "-1", options.approver_ids):
         _post_ending(thread, progress, "not-retried", Phase.NOT_MERGED, "Not retried", _NOT_RETRIED)
         return
-    if not _approver_reacted(reactions, "+1", approver_ids):
+    if not _approver_reacted(reactions, "+1", options.approver_ids):
         return
     try:
         new_id = server.post(f"/tasks/{require_safe_id(record.task_id)}/retry")["id"]
     except ServerRefused as refusal:
         if (refusal.status, refusal.error) != (409, "retry refused"):
             raise
-        _post_retry_refused(thread, progress, strip_home(refusal.detail, home))
+        _post_retry_refused(thread, progress, strip_home(refusal.detail, options.home))
         return
     state.issues[thread.number] = IssueRecord(task_id=new_id)
     progress.save()

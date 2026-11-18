@@ -2,6 +2,7 @@ from factory.client import ServerRefused
 from factory.comments import render_comment, strip_home
 from factory.ids import require_safe_id
 from factory.merge_task import ALREADY_IN_MAIN, MAIN_MOVED
+from factory.watch.options import Options
 from factory.watch.posting import (
     _approver_reacted,
     _post_ending,
@@ -142,14 +143,14 @@ _MERGE_JOB_MAIN_MOVED = f"merge refused: {MAIN_MOVED}"  # the error a failed mer
 _MERGE_JOB_ALREADY_IN_MAIN = f"merge refused: {ALREADY_IN_MAIN}"
 
 
-def _merge_on_thumbs_up(thread: IssueThread, server, progress: Progress, approver_ids: set[int]) -> None:
+def _merge_on_thumbs_up(thread: IssueThread, server, progress: Progress, options: Options) -> None:
     """Merge the commit the merge comment showed on an approver's 👍; approvers match by numeric id, never login."""
     record = progress.record
     reactions = thread.reactions(record.merge_comment_id)
-    if _approver_reacted(reactions, "-1", approver_ids):
+    if _approver_reacted(reactions, "-1", options.approver_ids):
         _post_ending(thread, progress, "not-merged", Phase.NOT_MERGED, "Not merged", _NOT_MERGED)
         return
-    if not _approver_reacted(reactions, "+1", approver_ids):
+    if not _approver_reacted(reactions, "+1", options.approver_ids):
         return
     task_id =require_safe_id(record.task_id)
     if not _merge_comment_is_unedited(thread, record):
@@ -190,20 +191,20 @@ def _task_is_rebased(server, record: IssueRecord) -> bool:
     return task["state"] == "agent_done" or task["audited_sha"] != record.rebase_sha
 
 
-def _rebase_on_thumbs_up(thread: IssueThread, server, progress: Progress, task: dict, approver_ids: set[int], home: str) -> None:
+def _rebase_on_thumbs_up(thread: IssueThread, server, progress: Progress, task: dict, options: Options) -> None:
     """Rebase the task on an approver's 👍 on the rebase offer, if it is still at the commit the offer showed; approvers match by numeric id, never login."""
     record = progress.record
     reactions = thread.reactions(record.rebase_comment_id)
-    if _approver_reacted(reactions, "-1", approver_ids):
+    if _approver_reacted(reactions, "-1", options.approver_ids):
         _post_ending(thread, progress, "not-merged", Phase.NOT_MERGED, "Not rebased", _NOT_REBASED)
         return
-    if not _approver_reacted(reactions, "+1", approver_ids):
+    if not _approver_reacted(reactions, "+1", options.approver_ids):
         return
     if task["audited_sha"] == record.rebase_sha:
         job_id = server.post(f"/tasks/{require_safe_id(record.task_id)}/rebase")["job"]["id"]
         job = server.wait(job_id)
         if job["state"] == "failed" and not _task_is_rebased(server, record):
-            _post_rebase_refused(thread, progress, strip_home(job["error"], home))
+            _post_rebase_refused(thread, progress, strip_home(job["error"], options.home))
             return
         if job["state"] not in ("succeeded", "failed"):
             return

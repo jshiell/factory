@@ -3,6 +3,7 @@ from factory.client import ServerRefused
 from factory.comments import render_comment
 from factory.ids import require_safe_id
 from factory.question_text import questions_text
+from factory.watch.options import Options
 from factory.watch.posting import (
     _approver_reacted,
     _findings_text,
@@ -78,10 +79,10 @@ _QUESTIONS_GONE = (
 )
 
 
-def _forward_answers(thread: IssueThread, server, progress: Progress, approver_ids: set[int]) -> bool:
+def _forward_answers(thread: IssueThread, server, progress: Progress, options: Options) -> bool:
     """Send the approvers' answers to the server; True when the wait is over."""
     record = progress.record
-    answers = _answers_after(thread.comments(), record.questions_comment_id, approver_ids)
+    answers = _answers_after(thread.comments(), record.questions_comment_id, options.approver_ids)
     if answers is None:
         text = f"{_QUESTIONS_GONE} Run: factory answer {require_safe_id(record.task_id)}"
         _post_final(thread, progress, Phase.STOPPED, "Stopped", text)
@@ -129,15 +130,15 @@ def _approval_if_as_posted(thread: IssueThread, server, record: IssueRecord) -> 
     return approval
 
 
-def _approve_on_thumbs_up(thread: IssueThread, server, progress: Progress, approver_ids: set[int]) -> None:
+def _approve_on_thumbs_up(thread: IssueThread, server, progress: Progress, options: Options) -> None:
     """Reject on an approver's 👎 (which wins), else approve on their 👍; approvers match by numeric id, never login. `approved` is saved only after the server accepts."""
     record = progress.record
     reactions = thread.reactions(record.plan_comment_id)
-    if _approver_reacted(reactions, "-1", approver_ids):
+    if _approver_reacted(reactions, "-1", options.approver_ids):
         server.post(f"/tasks/{require_safe_id(record.task_id)}/reject")
         _post_rejected(thread, progress)
         return
-    if not _approver_reacted(reactions, "+1", approver_ids):
+    if not _approver_reacted(reactions, "+1", options.approver_ids):
         return
     approval = _approval_if_as_posted(thread, server, record)
     if approval is None:
