@@ -19,7 +19,10 @@ only things that need a person are the two decisions that matter: *is this the r
 
 ## Requirements
 
-- macOS (the sandbox is Seatbelt via `nono`; written against nono 0.81). The real sandbox is mostly exercised on macOS. On Linux it was tried by hand (plan 49: the `claude` executable grant below; plan 55: the gate sandbox has network and runs build hooks; plan 56: it is granted read on the directory holding `uv`, confirmed with `uv` under mise); other macOS assumptions may remain. CI runs ruff and the test suite on Linux, where `claude` and `nono` are faked
+- A supported platform:
+  - macOS: the main platform (the sandbox is Seatbelt via `nono`; written against nono 0.81). The real sandbox is mostly exercised here.
+  - Linux: CI runs ruff and the test suite with `claude` and `nono` faked. The real sandbox was tried by hand: plan 49 (the `claude` executable grant below), plan 55 (the gate sandbox has network and runs build hooks), plan 56 (read on the directory holding `uv`, confirmed with `uv` under mise). Plan 57 was measured on a fabricated layout, not a real install. Other macOS assumptions may remain.
+  - Windows: refused at startup, because factory needs `fcntl`, `pgrep`, `ps` and process groups. WSL is untested.
 - `git`, [`uv`](https://docs.astral.sh/uv/), Python 3.14
 - the `claude` CLI, logged in (OAuth). `ANTHROPIC_API_KEY` is stripped from the agents' environment on purpose
 - `nono` on `PATH`
@@ -322,7 +325,7 @@ flowchart TB
 ## Development
 
 ```sh
-cd orchestrator && uv run ruff check     # lint (E, F, I); CI runs this on every push
+cd orchestrator && uv run ruff check     # lint (E, F, I, B, UP, C4, SIM, RUF); CI runs this on every push
 cd orchestrator && uv run pytest -q      # ~2000 tests, real git in temp repos; CI runs this on Linux
 cd target && uv run pytest -q
 ```
