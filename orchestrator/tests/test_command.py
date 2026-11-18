@@ -81,6 +81,14 @@ def test_a_prompt_of_the_limit_in_bytes_plus_one_is_refused_even_when_it_has_few
         build_command(prompt, RunnerConfig(model="sonnet"))
 
 
+def test_a_prompt_of_exactly_the_limit_in_bytes_is_built():
+    prompt = "é" * (MAX_PROMPT_BYTES // 2) + "a"
+
+    argv, _env = build_command(prompt, RunnerConfig(model="sonnet"))
+
+    assert argv[2] == prompt
+
+
 def test_max_turns_is_passed():
     argv, _env = build_command("p", RunnerConfig(model="sonnet", max_turns=12))
 
