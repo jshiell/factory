@@ -478,8 +478,9 @@ def test_allowing_dependency_changes_still_fails_a_nested_pytest_or_uv_edit(repo
 
 
 def test_allowing_dependency_changes_still_fails_a_root_tool_uv_edit(repo):
+    commit_root_file(repo, "pyproject.toml", BASE_WITH_UV)
     base = repo_with_test_file(repo)
-    commit_root_file(repo, "pyproject.toml", '[tool.uv]\nexclude-newer = "2000-01-01T00:00:00Z"\n')
+    commit_root_file(repo, "pyproject.toml", BASE_WITH_UV.replace("2000", "1999"))
     commit_project_edit(repo, "code.py", "y")
 
     assert gate_allowing_dependencies(repo, base).reason == "tests_modified"
