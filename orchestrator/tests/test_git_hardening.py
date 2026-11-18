@@ -117,3 +117,39 @@ def test_the_factorys_git_ignores_the_users_filter_unless_asked_to_use_it(repo, 
     run_git(repo, "add", "-A", user_config=user_config)
 
     assert (user_filter / "clean").exists() is filter_runs
+
+
+def test_an_injected_git_config_environment_does_not_run_a_filter(repo, tmp_path, user_filter, monkeypatch):
+    monkeypatch.setenv("GIT_CONFIG_COUNT", "1")
+    monkeypatch.setenv("GIT_CONFIG_KEY_0", "filter.probe.clean")
+    monkeypatch.setenv("GIT_CONFIG_VALUE_0", str(tmp_path / "clean.sh"))
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", "/dev/null")
+    (repo / ".gitattributes").write_text("*.probe filter=probe\n")
+    (repo / "agent.probe").write_text("from the agent")
+
+    run_git(repo, "add", "-A")
+
+    assert not (user_filter / "clean").exists()
+
+
+def test_merging_into_the_main_checkout_does_not_run_the_users_smudge_filter(repo, tmp_path, user_filter, monkeypatch):
+    from factory.merge_task import merge_task
+    from factory.store import TaskStore
+    from factory.task import Task, TaskState
+
+    (tmp_path / "tasks").mkdir()
+    store = TaskStore(tmp_path / "tasks")
+    manager = WorktreeManager(repo, tmp_path / "wt")
+    worktree, base = manager.create("t1")
+    (worktree / ".gitattributes").write_text("*.probe filter=probe\n")
+    (worktree / "agent.probe").write_text("from the agent")
+    git(worktree, "add", "-A")
+    git(worktree, "commit", "-q", "-m", "Task t1")
+    tip = git(worktree, "rev-parse", "HEAD")
+    store.save(Task(id="t1", prompt="p", state=TaskState.AUDITED, worktree=str(worktree), base_sha=base, audited_sha=tip))
+    for canary in user_filter.iterdir():
+        canary.unlink()
+
+    merge_task("t1", store, repo, manager, shown_sha=tip, main_branch="main")
+
+    assert not (user_filter / "smudge").exists()
