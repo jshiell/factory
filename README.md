@@ -326,7 +326,7 @@ flowchart TB
 
 ```sh
 cd orchestrator && uv run ruff check     # lint (E, F, I, B, UP, C4, SIM, RUF); CI runs this on every push
-cd orchestrator && uv run pytest -q      # ~2000 tests, real git in temp repos; CI runs this on Linux
+cd orchestrator && uv run pytest -q -n auto  # ~2000 tests, real git in temp repos, ~25s in parallel; CI runs them serially on Linux
 cd target && uv run pytest -q
 ```
 
