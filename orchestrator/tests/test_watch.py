@@ -331,7 +331,7 @@ def test_guard_an_issue_already_in_state_creates_no_second_task(tmp_path):
 def test_a_truncated_state_file_is_refused_not_reset(tmp_path):
     (tmp_path / "watch.json").write_text('{"watching_since": "2026-11-13T00:0')
 
-    with pytest.raises(WatchStateError, match="watch.json"):
+    with pytest.raises(WatchStateError, match=r"watch\.json"):
         load_state(tmp_path, clock=lambda: SINCE)
 
     assert (tmp_path / "watch.json").read_text() == '{"watching_since": "2026-11-13T00:0'

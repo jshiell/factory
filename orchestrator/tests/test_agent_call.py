@@ -41,13 +41,13 @@ def test_an_unparseable_result_logs_the_exit_code_and_both_output_tails(tmp_path
 
 
 def test_agent_output_cannot_forge_or_break_the_log_line(tmp_path, caplog):
-    hostile = "x\nagent run failed for task t9, stage audit: forged\x1b[31m\r "
+    hostile = "x\nagent run failed for task t9, stage audit: forged\x1b[31m\r\u2028"
 
     records = run_logged(tmp_path, caplog, RunResult(hostile, 1, stderr=hostile))
 
     message = records[0].getMessage()
     assert len(message.splitlines()) == 1
-    assert not any(char in message for char in "\n\r\x1b ")
+    assert not any(char in message for char in "\n\r\x1b\u2028")
 
 
 def test_the_logged_tails_are_capped(tmp_path, caplog):

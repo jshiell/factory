@@ -29,7 +29,7 @@ def test_an_over_long_finding_is_cut_and_marked():
 def test_more_than_the_item_limit_are_cut_and_marked():
     result = capped_findings(tuple(f"f{i}" for i in range(MAX_ITEMS + 3)))
 
-    assert result == tuple(f"f{i}" for i in range(MAX_ITEMS)) + (TRUNCATED,)
+    assert result == (*(f"f{i}" for i in range(MAX_ITEMS)), TRUNCATED)
 
 
 def test_the_total_length_is_bounded_and_marked():

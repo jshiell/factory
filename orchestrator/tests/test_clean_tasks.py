@@ -404,7 +404,7 @@ def test_an_unset_base_or_a_missing_branch_is_never_empty(env):
     store.save(Task(id="nobranch", prompt="", state=S.FAILED, worktree=str(path), base_sha="deadbeef"))
 
     assert candidate(env, "nobase").branch_empty is False
-    assert [c for c in clean_candidates(store, repo, root) if c.task.id == "nobranch"][0].branch_empty is False
+    assert next(c for c in clean_candidates(store, repo, root) if c.task.id == "nobranch").branch_empty is False
 
 
 def clear_worktree(env, task_id):

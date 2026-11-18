@@ -3,7 +3,7 @@ import signal
 import sys
 import time
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from types import SimpleNamespace
@@ -42,7 +42,7 @@ from factory.stages import Deps, build_stages
 from factory.step import Runner
 from factory.store import TaskNotFound, TaskStore, task_from_dict
 from factory.task import Task, TaskState
-from factory.textsafe import escape_control  # noqa: F401  (re-exported)
+from factory.textsafe import escape_control  # re-exported
 from factory.waiver import (
     Refuse,
     Reinstate,
@@ -93,7 +93,7 @@ class Context:
     eval_runner: Callable[[Settings, Path], Runner] = _real_eval_runner
     serve: Callable[[object, str, int], None] = _serve_with_uvicorn
     server: ServerClient | None = None
-    probe: Callable[[int], float | None] = ps_probe()
+    probe: Callable[[int], float | None] = field(default_factory=ps_probe)
     group_alive: Callable[[int], bool] = group_alive
     watch_pass: Callable[..., None] = run_pass
     github: Callable[[str, str], GitHub] = GitHub.default

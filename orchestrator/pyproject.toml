@@ -27,8 +27,8 @@ dev = [
 src = ["src", "tests"]
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "B", "UP", "C4", "SIM"]
-ignore = ["E501"]
+select = ["E", "F", "I", "B", "UP", "C4", "SIM", "RUF"]
+ignore = ["E501", "RUF059"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/test_cli_migrate_procs.py" = ["F811"]  # imports the ctx fixture from test_cli_migrate

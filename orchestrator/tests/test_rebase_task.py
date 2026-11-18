@@ -187,7 +187,7 @@ def test_a_conflict_is_refused_the_rebase_aborted_and_the_old_state_left_intact(
     conflict_on_main(repo)
     stored_before = store.load("t1")
 
-    with pytest.raises(RebaseRefused, match="conflict.*abandon.*retry"):
+    with pytest.raises(RebaseRefused, match=r"conflict.*abandon.*retry"):
         rebase_task("t1", store, repo)
 
     assert store.load("t1") == stored_before

@@ -62,4 +62,4 @@ def sandbox_prefix(
         prefix += ["--allow", directory]
     for directory in read:
         prefix += ["--read", directory]
-    return prefix + ["--"]
+    return [*prefix, "--"]

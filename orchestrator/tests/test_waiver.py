@@ -49,7 +49,7 @@ def test_w_without_note_numbers_is_refused(text):
     assert isinstance(answer, Refuse) and answer.reason
 
 
-@pytest.mark.parametrize("text", ['w x', 'w ²', 'w -1', 'w 1.5', 'w +1', 'w ١'])
+@pytest.mark.parametrize("text", ['w x', 'w \u00b2', 'w -1', 'w 1.5', 'w +1', 'w \u0661'])
 def test_a_note_number_must_be_plain_ascii_digits(text):
     answer = parse_answer(text, required_count=3)
 

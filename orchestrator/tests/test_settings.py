@@ -66,7 +66,7 @@ def test_only_repo_state_and_worktree_paths_resolve_against_the_config_directory
 
 
 def test_an_explicit_missing_config_file_raises(repo_dir):
-    with pytest.raises(SettingsError, match="missing.toml"):
+    with pytest.raises(SettingsError, match=r"missing\.toml"):
         load_settings(repo_dir / "missing.toml", cwd=repo_dir)
 
 
@@ -580,7 +580,7 @@ def test_a_plugin_with_an_unreadable_manifest_is_refused(repo_dir, isolated_home
     (plugin / ".claude-plugin" / "plugin.json").write_text("{not json")
     (repo_dir / "factory.toml").write_text('plugins = ["bad"]\n')
 
-    with pytest.raises(SettingsError, match="bad.*plugin.json"):
+    with pytest.raises(SettingsError, match=r"bad.*plugin\.json"):
         load_settings(None, cwd=repo_dir)
 
 
@@ -593,7 +593,7 @@ def test_a_plugin_manifest_that_cannot_be_read_is_refused_not_a_crash(repo_dir, 
     manifest.chmod(0)
     (repo_dir / "factory.toml").write_text('plugins = ["bad"]\n')
     try:
-        with pytest.raises(SettingsError, match="bad.*plugin.json"):
+        with pytest.raises(SettingsError, match=r"bad.*plugin\.json"):
             load_settings(None, cwd=repo_dir)
     finally:
         manifest.chmod(0o644)
