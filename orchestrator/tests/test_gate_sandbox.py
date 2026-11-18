@@ -1,3 +1,4 @@
+from itertools import pairwise
 from pathlib import Path
 
 from factory.gate_sandbox import build_gate_sandbox, discover_uv_tooling
@@ -18,7 +19,7 @@ def test_the_prefix_has_no_profile_and_grants_write_to_the_project_and_private_c
 
     prefix = list(sandbox.prefix)
     assert prefix[:2] == ["nono", "run"] and "--profile" not in prefix and prefix[-1] == "--"
-    pairs = list(zip(prefix, prefix[1:]))
+    pairs = list(pairwise(prefix))
     assert [b for a, b in pairs if a == "--allow"] == [str(tmp_path / "wt" / "target"), str(tmp_path / "cache")]
     assert {"/py", "/uvpy"} <= {b for a, b in pairs if a == "--read"}
 
@@ -60,7 +61,7 @@ def test_discovery_ignores_the_projects_own_uv_config(tmp_path):
 
 def read_grants(sandbox):
     prefix = list(sandbox.prefix)
-    return [b for a, b in zip(prefix, prefix[1:]) if a == "--read"]
+    return [b for a, b in pairwise(prefix) if a == "--read"]
 
 
 def test_an_absolute_uv_adds_a_read_on_its_directory(tmp_path):

@@ -101,7 +101,7 @@ def apply(task: Task, event: Event, reason: str | None = None) -> Task:
     try:
         new_state = _TRANSITIONS[(task.state, event)]
     except KeyError:
-        raise InvalidTransition(f"{event.value} not allowed from {task.state.value}")
+        raise InvalidTransition(f"{event.value} not allowed from {task.state.value}") from None
     attempts = task.attempts + 1 if event is Event.START else task.attempts
     return replace(
         task, state=new_state, attempts=attempts, failure_reason=reason

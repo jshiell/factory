@@ -1,4 +1,5 @@
 import json
+from itertools import pairwise
 
 import pytest
 
@@ -113,7 +114,7 @@ def test_a_profile_less_sandbox_prefix_grants_write_to_the_given_dirs_and_read_t
     assert "--profile" not in prefix
     assert prefix[:5] == ["nono", "run", "-s", "--allow-cwd", "--read"]
     assert prefix[-1] == "--"
-    pairs = list(zip(prefix, prefix[1:]))
+    pairs = list(pairwise(prefix))
     assert [b for a, b in pairs if a == "--allow"] == ["/p/target", "/p/cache"]
     assert [b for a, b in pairs if a == "--read"] == [str(tmp_path.resolve()), "/py", "/uvpy"]
 

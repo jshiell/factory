@@ -253,7 +253,7 @@ def test_the_ledger_and_state_are_written_before_any_later_git_call_can_fail(rep
     import shutil
     runner = FakeRunner(repo, lambda: shutil.rmtree(repo / ".git"))
 
-    with pytest.raises(Exception):
+    with pytest.raises(Exception):  # noqa: B017  any later git failure will do, whichever call fails first
         verify(store, ledger, runner)
 
     assert [e["stage"] for e in ledger.entries()] == ["fix"]
