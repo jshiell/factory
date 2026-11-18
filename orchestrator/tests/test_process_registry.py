@@ -16,7 +16,7 @@ from factory.process_registry import (
 
 
 def record(**overrides):
-    fields = dict(pid=4242, pgid=4242, task_id="t1", stage="implement", launched_after=100.0, launched_before=100.5)
+    fields = {"pid": 4242, "pgid": 4242, "task_id": "t1", "stage": "implement", "launched_after": 100.0, "launched_before": 100.5}
     return Record(**{**fields, **overrides})
 
 

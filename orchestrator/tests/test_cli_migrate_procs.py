@@ -4,7 +4,7 @@ from test_cli_migrate import ctx, run, seed_old_files  # noqa: F401  (ctx is a f
 
 
 def old_record(state_dir, pid=7, **overrides):
-    fields = dict(pid=pid, pgid=pid, task_id="t1", stage="implement", launched_after=100.0, launched_before=100.5)
+    fields = {"pid": pid, "pgid": pid, "task_id": "t1", "stage": "implement", "launched_after": 100.0, "launched_before": 100.5}
     write_record(state_dir, Record(**{**fields, **overrides}))
     return state_dir / "procs" / f"{pid}.json"
 

@@ -8,9 +8,9 @@ BASE_ENV = {"HOME": "/h", "PATH": "/h/.local/share/mise/shims:/usr/bin:/bin", "A
 
 
 def build(tmp_path, **overrides):
-    args = dict(sandbox_executable="nono", worktree=tmp_path / "wt", project_dir=tmp_path / "wt" / "target",
-                cache_dir=tmp_path / "cache", python_prefix="/py", uv_python_dir="/uvpy", real_uv="/real/uv",
-                base_env=BASE_ENV, test_argv=("uv", "run", "pytest", "-q"))
+    args = {"sandbox_executable": "nono", "worktree": tmp_path / "wt", "project_dir": tmp_path / "wt" / "target",
+                "cache_dir": tmp_path / "cache", "python_prefix": "/py", "uv_python_dir": "/uvpy", "real_uv": "/real/uv",
+                "base_env": BASE_ENV, "test_argv": ("uv", "run", "pytest", "-q")}
     return build_gate_sandbox(**{**args, **overrides})
 
 

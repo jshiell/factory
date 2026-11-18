@@ -493,7 +493,7 @@ def test_tamper_is_reported_before_tests_run(repo, tmp_path):
 def test_test_globs_and_protected_names_can_be_overridden(repo):
     base = repo_with_test_file(repo, name="check_calc.py")
     commit_project_edit(repo, "check_calc.py", "a\n")
-    custom = dict(test_globs=("check_*.py",), protected_names=("locked.cfg",))
+    custom = {"test_globs": ("check_*.py",), "protected_names": ("locked.cfg",)}
 
     assert check_gate(repo, base, "proj", ["true"], 10, **custom).reason == "tests_modified"
 
@@ -803,7 +803,7 @@ def test_guard_an_unrelated_root_change_beside_a_project_change_passes(repo):
 def test_guard_the_protected_names_override_applies_repo_wide(repo):
     base = repo_with_project_change(repo)
     commit_root_file(repo, "locked.cfg", "x\n")
-    custom = dict(protected_names=("locked.cfg",))
+    custom = {"protected_names": ("locked.cfg",)}
     assert check_gate(repo, base, "proj", ["true"], 5, **custom).reason == "tests_modified"
 
     git(repo, "reset", "-q", "--hard", "HEAD~1")
