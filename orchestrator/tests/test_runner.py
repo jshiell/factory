@@ -271,6 +271,20 @@ def test_a_plain_claude_file_is_granted_exactly_one_directory(tmp_path, task):
     assert sandbox_reads(log) == [str(Path(task.worktree).resolve()), str(tmp_path)]
 
 
+def test_a_symlink_within_the_same_directory_is_granted_one_directory(tmp_path, task):
+    tmp_path = tmp_path.resolve()
+    fake_claude(tmp_path, "echo ok")
+    (tmp_path / "claude").symlink_to(tmp_path / "fake-claude")
+    log = tmp_path / "wrapper.log"
+    runner = SubprocessRunner(
+        str(tmp_path / "claude"), project_subdir="proj", timeout_s=10, sandbox_executable=fake_wrapper(tmp_path, log),
+    )
+
+    runner.run(task, replace(CONFIG, confine=True))
+
+    assert sandbox_reads(log) == [str(Path(task.worktree).resolve()), str(tmp_path)]
+
+
 def test_a_claude_executable_that_cannot_be_found_adds_no_grant_and_the_run_goes_ahead(tmp_path, task):
     log = tmp_path / "wrapper.log"
     runner = SubprocessRunner(
