@@ -3,7 +3,7 @@ import logging
 import pytest
 
 from factory.agent_call import Infra, call_agent
-from factory.command import RunnerConfig
+from factory.command import PromptTooLarge, RunnerConfig
 from factory.ledger import Ledger
 from factory.step import TAIL_CHARS, RunResult
 from factory.task import Task
@@ -84,3 +84,19 @@ def test_a_runner_exception_is_logged_with_its_text_for_the_stage(tmp_path, capl
 
     assert result == Infra("runner_error")
     assert any("t1" in r.getMessage() and "plan" in r.getMessage() and "no such cwd: /w/target" in r.getMessage() for r in caplog.records)
+
+
+class OversizedRunner:
+    def run(self, task, config):
+        raise PromptTooLarge("prompt is 200000 bytes, the limit is 131071")
+
+
+def test_an_oversized_prompt_is_refused_without_a_charge_and_logged(tmp_path, caplog):
+    ledger = Ledger(tmp_path / "ledger.jsonl")
+
+    with caplog.at_level(logging.WARNING, logger="factory"):
+        result = call_agent(Task(id="t1", prompt="p"), "prompt", OversizedRunner(), CONFIG, ledger, "audit")
+
+    assert result == Infra("prompt_too_large")
+    assert ledger.entries() == []
+    assert any("t1" in r.getMessage() and "audit" in r.getMessage() and "200000" in r.getMessage() for r in caplog.records)

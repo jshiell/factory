@@ -2,7 +2,7 @@ import logging
 from dataclasses import dataclass, replace
 
 from factory.classify import Outcome
-from factory.command import RunnerConfig
+from factory.command import PromptTooLarge, RunnerConfig
 from factory.ledger import Ledger
 from factory.step import ASSUMED_COST_MULTIPLIER, Runner, classify_run
 from factory.task import Task
@@ -24,6 +24,9 @@ def call_agent(
     """Run the agent with `prompt` (never saved on the task); every outcome is charged to the ledger."""
     try:
         result = runner.run(replace(task, prompt=prompt), config)
+    except PromptTooLarge as error:
+        logging.getLogger("factory").warning("agent run refused for task %s, stage %s: %s", task.id, stage, error)
+        return Infra("prompt_too_large")
     except Exception as error:
         logging.getLogger("factory").warning("agent run failed for task %s, stage %s: %r", task.id, stage, error)
         return _assumed_failure("runner_error", task, config, ledger, stage)
