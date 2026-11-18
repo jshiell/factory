@@ -1,7 +1,8 @@
 import hashlib
 
 from factory.comments import has_marker, render_comment
-from factory.watch.state import IssueRecord, Phase, save_state
+from factory.watch.progress import Progress
+from factory.watch.state import IssueRecord, Phase
 from factory.watch.thread import IssueThread
 
 
@@ -19,20 +20,23 @@ def _result_comment_id(thread: IssueThread, record: IssueRecord, kind: str, body
     return earlier or thread.comment(body)
 
 
-def _post_result(thread: IssueThread, state, state_dir, record: IssueRecord, kind: str, phase: Phase, body: str) -> None:
+def _post_result(thread: IssueThread, progress: Progress, kind: str, phase: Phase, body: str) -> None:
+    record = progress.record
     record.result_comment_id = _result_comment_id(thread, record, kind, body)
     record.phase = phase
-    save_state(state_dir, state)
+    progress.save()
 
 
-def _post_final(thread: IssueThread, state, state_dir, record: IssueRecord, phase: Phase, heading: str, text: str) -> None:
+def _post_final(thread: IssueThread, progress: Progress, phase: Phase, heading: str, text: str) -> None:
+    record = progress.record
     body = render_comment(record.task_id, "result", [(heading, text, True)])
-    _post_result(thread, state, state_dir, record, "result", phase, body)
+    _post_result(thread, progress, "result", phase, body)
 
 
-def _post_ending(thread: IssueThread, state, state_dir, record: IssueRecord, kind: str, phase: Phase, heading: str, text: str) -> None:
+def _post_ending(thread: IssueThread, progress: Progress, kind: str, phase: Phase, heading: str, text: str) -> None:
+    record = progress.record
     body = render_comment(record.task_id, kind, [(heading, text, False)])
-    _post_result(thread, state, state_dir, record, kind, phase, body)
+    _post_result(thread, progress, kind, phase, body)
 
 
 def _approver_reacted(reactions, content: str, approver_ids: set[int]) -> bool:

@@ -210,7 +210,7 @@ def _handle_issue(github, server, state, state_dir, issue: Issue, approver_ids: 
     if result is None:
         return
     if result["stopped"]:
-        _post_final(thread, state, state_dir, record, Phase.STOPPED, "Stopped", strip_home(result["stopped"], home))
+        _post_final(thread, progress, Phase.STOPPED, "Stopped", strip_home(result["stopped"], home))
     elif result["state"] == "open_questions" and record.phase is Phase.NEW:
         _post_questions(thread, server, progress)
     elif result["state"] == "reviewed" and record.phase is Phase.NEW:

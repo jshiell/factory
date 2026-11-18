@@ -22,7 +22,7 @@ def _post_failure(thread: IssueThread, progress: Progress, reason: str, retry: b
     record = progress.record
     failure = render_comment(record.task_id, "result", [("Failure reason", reason, True)])
     if not retry:
-        _post_result(thread, progress.state, progress.state_dir, progress.record, "result", Phase.FAILED, failure)
+        _post_result(thread, progress, "result", Phase.FAILED, failure)
         return
     offer = render_comment(record.task_id, "retry-offer", [("Retry", _HOW_TO_RETRY.format(task_id=record.task_id), False), ("Failure reason", reason, True)])
     failure_id = _result_comment_id(thread, record, "result", failure)
@@ -41,7 +41,7 @@ def _post_retry_refused(thread: IssueThread, progress: Progress, reason: str) ->
         ("Retry refused", reason, True),
         ("Next", f"Nothing was retried. At the terminal, run: factory retry {require_safe_id(record.task_id)} once the cause is fixed.", False),
     ])
-    _post_result(thread, progress.state, progress.state_dir, progress.record, "retry-refused", Phase.STOPPED, body)
+    _post_result(thread, progress, "retry-refused", Phase.STOPPED, body)
 
 
 def _retry_on_thumbs_up(thread: IssueThread, server, state, progress: Progress, approver_ids: set[int], home: str) -> None:
@@ -49,7 +49,7 @@ def _retry_on_thumbs_up(thread: IssueThread, server, state, progress: Progress, 
     record = progress.record
     reactions = thread.reactions(record.retry_comment_id)
     if _approver_reacted(reactions, "-1", approver_ids):
-        _post_ending(thread, progress.state, progress.state_dir, progress.record, "not-retried", Phase.NOT_MERGED, "Not retried", _NOT_RETRIED)
+        _post_ending(thread, progress, "not-retried", Phase.NOT_MERGED, "Not retried", _NOT_RETRIED)
         return
     if not _approver_reacted(reactions, "+1", approver_ids):
         return

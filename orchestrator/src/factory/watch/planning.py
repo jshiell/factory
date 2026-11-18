@@ -84,7 +84,7 @@ def _forward_answers(thread: IssueThread, server, progress: Progress, approver_i
     answers = _answers_after(thread.comments(), record.questions_comment_id, approver_ids)
     if answers is None:
         text = f"{_QUESTIONS_GONE} Run: factory answer {require_safe_id(record.task_id)}"
-        _post_final(thread, progress.state, progress.state_dir, progress.record, Phase.STOPPED, "Stopped", text)
+        _post_final(thread, progress, Phase.STOPPED, "Stopped", text)
         return False
     if not answers:
         return False
@@ -111,11 +111,11 @@ _REJECTED = "An approver rejected this plan, so the task is rejected and no work
 
 
 def _post_changed(thread: IssueThread, progress: Progress) -> None:
-    _post_ending(thread, progress.state, progress.state_dir, progress.record, "changed", Phase.CHANGED, "Plan changed", _CHANGED)
+    _post_ending(thread, progress, "changed", Phase.CHANGED, "Plan changed", _CHANGED)
 
 
 def _post_rejected(thread: IssueThread, progress: Progress) -> None:
-    _post_ending(thread, progress.state, progress.state_dir, progress.record, "rejected", Phase.REJECTED, "Plan rejected", _REJECTED)
+    _post_ending(thread, progress, "rejected", Phase.REJECTED, "Plan rejected", _REJECTED)
 
 
 def _approval_if_as_posted(thread: IssueThread, server, record: IssueRecord) -> dict | None:

@@ -25,7 +25,7 @@ def _post_audited(thread: IssueThread, server, progress: Progress, result: dict,
         ("Merge", f"When ready, run: factory merge {require_safe_id(record.task_id)}", False),
     ])
     if not merge:
-        _post_result(thread, progress.state, progress.state_dir, progress.record, "result", Phase.AUDITED, body)
+        _post_result(thread, progress, "result", Phase.AUDITED, body)
         return
     record.result_comment_id = _result_comment_id(thread, record, "result", body)
     _post_merge_comment(thread, server, progress)
@@ -42,7 +42,7 @@ def _post_merge_refused(thread: IssueThread, progress: Progress, reason: str) ->
         ("Merge refused", reason, True),
         ("Next", next_step, False),
     ])
-    _post_result(thread, progress.state, progress.state_dir, progress.record, "merge-refused", Phase.MERGE_STOPPED, body)
+    _post_result(thread, progress, "merge-refused", Phase.MERGE_STOPPED, body)
 
 
 _HOW_TO_REBASE = (
@@ -111,7 +111,7 @@ _MERGED = "Merged. The commits are unsigned: sign them before pushing."
 
 
 def _post_merged(thread: IssueThread, progress: Progress) -> None:
-    _post_ending(thread, progress.state, progress.state_dir, progress.record, "merged", Phase.MERGED, "Merged", _MERGED)
+    _post_ending(thread, progress, "merged", Phase.MERGED, "Merged", _MERGED)
 
 
 _NOT_MERGED = "An approver declined the merge, so nothing was merged. The task stays audited; merge it at the terminal if you change your mind."
@@ -124,7 +124,7 @@ _MERGE_CHANGED = (
 
 
 def _post_merge_changed(thread: IssueThread, progress: Progress) -> None:
-    _post_ending(thread, progress.state, progress.state_dir, progress.record, "merge-changed", Phase.MERGE_STOPPED, "Merge changed", _MERGE_CHANGED)
+    _post_ending(thread, progress, "merge-changed", Phase.MERGE_STOPPED, "Merge changed", _MERGE_CHANGED)
 
 
 def _merge_comment_is_unedited(thread: IssueThread, record: IssueRecord) -> bool:
@@ -147,7 +147,7 @@ def _merge_on_thumbs_up(thread: IssueThread, server, progress: Progress, approve
     record = progress.record
     reactions = thread.reactions(record.merge_comment_id)
     if _approver_reacted(reactions, "-1", approver_ids):
-        _post_ending(thread, progress.state, progress.state_dir, progress.record, "not-merged", Phase.NOT_MERGED, "Not merged", _NOT_MERGED)
+        _post_ending(thread, progress, "not-merged", Phase.NOT_MERGED, "Not merged", _NOT_MERGED)
         return
     if not _approver_reacted(reactions, "+1", approver_ids):
         return
@@ -181,7 +181,7 @@ def _post_rebase_refused(thread: IssueThread, progress: Progress, reason: str) -
         ("Rebase refused", reason, True),
         ("Next", f"Nothing was rebased. At the terminal, run: factory rebase {task_id} once the cause is fixed.", False),
     ])
-    _post_result(thread, progress.state, progress.state_dir, progress.record, "rebase-refused", Phase.MERGE_STOPPED, body)
+    _post_result(thread, progress, "rebase-refused", Phase.MERGE_STOPPED, body)
 
 
 def _task_is_rebased(server, record: IssueRecord) -> bool:
@@ -195,7 +195,7 @@ def _rebase_on_thumbs_up(thread: IssueThread, server, progress: Progress, task: 
     record = progress.record
     reactions = thread.reactions(record.rebase_comment_id)
     if _approver_reacted(reactions, "-1", approver_ids):
-        _post_ending(thread, progress.state, progress.state_dir, progress.record, "not-merged", Phase.NOT_MERGED, "Not rebased", _NOT_REBASED)
+        _post_ending(thread, progress, "not-merged", Phase.NOT_MERGED, "Not rebased", _NOT_REBASED)
         return
     if not _approver_reacted(reactions, "+1", approver_ids):
         return
