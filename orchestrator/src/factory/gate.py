@@ -1,12 +1,11 @@
 import ast
 import os
-import subprocess
 import tomllib
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 
 from factory.process import run_to_exit
-from factory.worktrees import HARDENED_GIT, run_git
+from factory.worktrees import git_completed, run_git
 
 DEFAULT_PROTECTED_NAMES = ("conftest.py", "pytest.ini", ".pytest.ini", "pytest.toml", ".pytest.toml", "tox.ini", "setup.cfg", "uv.toml", ".python-version", ".python-versions")
 # Build scripts a backend runs when the project is installed; they can declare dependencies and entry points.
@@ -144,9 +143,7 @@ def _tests_tampered(worktree: Path, base_sha: str, project_subdir: str, test_glo
 
 def _defines_a_test_twice(worktree: Path, path: str) -> bool:
     """A later `def test_x` silently replaces an earlier one: appending it disables an existing test."""
-    shown = subprocess.run(
-        [*HARDENED_GIT, "show", f"HEAD:{path}"], cwd=worktree, capture_output=True, stdin=subprocess.DEVNULL
-    )
+    shown = git_completed(worktree, "show", f"HEAD:{path}")
     try:
         tree = ast.parse(shown.stdout.decode())
     except (SyntaxError, ValueError):
@@ -196,9 +193,7 @@ def _reaches_project(directory: PurePosixPath, project: PurePosixPath) -> bool:
 def _config_tables(worktree: Path, revision: str, path: str, allow_dependency_changes: bool = False) -> tuple | None:
     """The parts of a pyproject that change what is installed or how the tests run (see INERT_*).
     With `allow_dependency_changes` only `[tool.pytest]` and `[tool.uv]` remain watched."""
-    shown = subprocess.run(
-        [*HARDENED_GIT, "show", f"{revision}:{path}"], cwd=worktree, capture_output=True, stdin=subprocess.DEVNULL
-    )
+    shown = git_completed(worktree, "show", f"{revision}:{path}")
     if shown.returncode != 0:
         return None
     try:
@@ -220,10 +215,7 @@ def _config_tables(worktree: Path, revision: str, path: str, allow_dependency_ch
 
 
 def _is_ancestor(worktree: Path, base_sha: str) -> bool:
-    completed = subprocess.run(
-        [*HARDENED_GIT, "merge-base", "--is-ancestor", base_sha, "HEAD"],
-        cwd=worktree, capture_output=True, stdin=subprocess.DEVNULL,
-    )
+    completed = git_completed(worktree, "merge-base", "--is-ancestor", base_sha, "HEAD")
     return completed.returncode == 0
 
 

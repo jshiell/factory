@@ -153,3 +153,11 @@ def test_merging_into_the_main_checkout_does_not_run_the_users_smudge_filter(rep
     merge_task("t1", store, repo, manager, shown_sha=tip, main_branch="main")
 
     assert not (user_filter / "smudge").exists()
+
+
+def test_the_hardened_prefix_is_only_used_by_the_module_that_adds_the_hardened_environment():
+    from pathlib import Path
+    source = Path(__file__).parent.parent / "src" / "factory"
+    outside = [path.name for path in source.rglob("*.py") if path.name != "worktrees.py" and "HARDENED_GIT" in path.read_text()]
+
+    assert outside == []

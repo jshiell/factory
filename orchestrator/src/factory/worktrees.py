@@ -27,6 +27,11 @@ def run_git(cwd: Path, *args: str, env: dict[str, str] | None = None, user_confi
     return result.stdout.strip()
 
 
+def git_completed(cwd: Path, *args: str) -> subprocess.CompletedProcess[bytes]:
+    """Hardened git whose exit code and raw (bytes) output the caller inspects itself."""
+    return subprocess.run([*HARDENED_GIT, *args], cwd=cwd, capture_output=True, stdin=subprocess.DEVNULL, env=hardened_env())
+
+
 def is_ancestor(repo: Path, ancestor: str, descendant: str) -> bool:
     """True if `ancestor` is `descendant` or reachable from it. Only git's "no" (exit 1) is False; any other error raises."""
     try:
