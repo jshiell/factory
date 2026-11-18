@@ -6,7 +6,10 @@ import time
 from contextlib import nullcontext, suppress
 from typing import NamedTuple
 
-STRIPPED_ENV = ("VIRTUAL_ENV", "GIT_DIR", "GIT_WORK_TREE", "ANTHROPIC_API_KEY")
+STRIPPED_ENV = (
+    "VIRTUAL_ENV", "GIT_DIR", "GIT_WORK_TREE", "ANTHROPIC_API_KEY",
+    "GH_TOKEN", "GITHUB_TOKEN", "GH_ENTERPRISE_TOKEN", "GITHUB_ENTERPRISE_TOKEN",
+)
 
 
 def _kill(pid: int) -> None:
