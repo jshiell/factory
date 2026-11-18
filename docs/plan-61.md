@@ -27,6 +27,11 @@ The full suite takes about 75s (2034 tests, none over 3s), so every verification
 5. Stability: run the fixed tests about 100 times under `-n 16`; then 20 full runs of the gate command `uv run pytest -q -n auto` in a background loop logging failures to the scratchpad (about 9 minutes, past the tool timeout). One failure means back to step 2.
 6. Docs: AGENTS.md gate command becomes `uv run pytest -q -n auto`, time about 25s (serial about 75s); keep the background and Monitor advice (a loaded machine can exceed the tool timeout). README Development line gets the same command. No nonce note: nonces are iterators inside one process and each worker is its own process.
 
+## Audit findings (increment 2, done)
+- Children that read the process records, all fixed with `RecordsWrittenLate` plus a bounded wait: `test_runner.py` (two tests), `test_process.py` (`LIST_RECORDS`), `test_verify_task.py` (the gate test).
+- `test_cli_wiring.py` fake-claude and fake-auditor scripts also read records, but run through the real CLI, so no slow-records object can be injected. Treated as a guard: 40 runs at `-n 16` over those files and the four fixed ones, then 20 full `-n auto` runs, none failed.
+- `pgrep -f` patterns are unique (`sleep 29.4712`; `test_process.py` markers come from per-test paths); the one `bind` uses port 0; `Path.home` and `/tmp/` hits are only strings.
+
 ## Verification
 Ruff; a serial full run; the 20 parallel runs above; `uv lock --check`; the `verify` skill.
 
