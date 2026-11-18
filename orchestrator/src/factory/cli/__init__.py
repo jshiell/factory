@@ -861,6 +861,3 @@ def run() -> None:
         signal.signal(signum, _exit_on_signal)
     sys.exit(main(rest, io, ctx))
 
-
-if __name__ == "__main__":
-    run()
