@@ -4,18 +4,18 @@ from factory.ids import require_safe_id
 from factory.merge_task import ALREADY_IN_MAIN, MAIN_MOVED
 from factory.watch.posting import (
     _approver_reacted,
-    _own_comment_id,
     _post_ending,
     _post_result,
     _result_comment_id,
     _sha256,
 )
 from factory.watch.state import IssueRecord, Phase, save_state
+from factory.watch.thread import IssueThread
 
 _HOW_TO_MERGE = "Task {task_id}. React 👍 to merge, 👎 to leave it unmerged."
 
 
-def _post_audited(github, server, state, state_dir, issue_number: int, record: IssueRecord, self_id: int, result: dict, merge: bool) -> None:
+def _post_audited(thread: IssueThread, server, state, state_dir, record: IssueRecord, result: dict, merge: bool) -> None:
     steps = "\n".join(f"{step['stage']} -> {step['state']}" for step in result["steps"])
     body = render_comment(record.task_id, "result", [
         ("Steps", steps, True),
@@ -23,13 +23,13 @@ def _post_audited(github, server, state, state_dir, issue_number: int, record: I
         ("Merge", f"When ready, run: factory merge {require_safe_id(record.task_id)}", False),
     ])
     if not merge:
-        _post_result(github, state, state_dir, issue_number, record, self_id, "result", Phase.AUDITED, body)
+        _post_result(thread.github, state, state_dir, thread.number, record, thread.self_id, "result", Phase.AUDITED, body)
         return
-    record.result_comment_id = _result_comment_id(github, issue_number, record, self_id, "result", body)
-    _post_merge_comment(github, server, state, state_dir, issue_number, record, self_id)
+    record.result_comment_id = _result_comment_id(thread.github, thread.number, record, thread.self_id, "result", body)
+    _post_merge_comment(thread, server, state, state_dir, record)
 
 
-def _post_merge_refused(github, state, state_dir, issue_number: int, record: IssueRecord, self_id: int, reason: str) -> None:
+def _post_merge_refused(thread: IssueThread, state, state_dir, record: IssueRecord, reason: str) -> None:
     task_id = require_safe_id(record.task_id)
     if reason in (ALREADY_IN_MAIN, _MERGE_JOB_ALREADY_IN_MAIN):
         next_step = "Nothing was merged by the factory: the audited commit is already in main. Check main, then close this issue."
@@ -39,7 +39,7 @@ def _post_merge_refused(github, state, state_dir, issue_number: int, record: Iss
         ("Merge refused", reason, True),
         ("Next", next_step, False),
     ])
-    _post_result(github, state, state_dir, issue_number, record, self_id, "merge-refused", Phase.MERGE_STOPPED, body)
+    _post_result(thread.github, state, state_dir, thread.number, record, thread.self_id, "merge-refused", Phase.MERGE_STOPPED, body)
 
 
 _HOW_TO_REBASE = (
@@ -48,7 +48,7 @@ _HOW_TO_REBASE = (
 )
 
 
-def _post_merge_moved(github, server, state, state_dir, issue_number: int, record: IssueRecord, self_id: int) -> None:
+def _post_merge_moved(thread: IssueThread, server, state, state_dir, record: IssueRecord) -> None:
     """Offer the rebase. The body carries the audited commit, so no earlier round's offer (with its 👍) can match it."""
     audited_sha = server.get(f"/tasks/{require_safe_id(record.task_id)}")["audited_sha"]
     body = render_comment(record.task_id, "merge-moved", [
@@ -56,34 +56,34 @@ def _post_merge_moved(github, server, state, state_dir, issue_number: int, recor
         ("Merge refused", MAIN_MOVED, True),
         ("Audited commit", audited_sha, True),
     ])
-    exact_copy = _own_comment_id(github, issue_number, self_id, lambda c: c.body == body)
-    record.rebase_comment_id = exact_copy or github.comment(issue_number, body)
+    exact_copy = thread.own_comment_id(lambda c: c.body == body)
+    record.rebase_comment_id = exact_copy or thread.comment(body)
     record.rebase_sha = audited_sha
     record.phase = Phase.AWAITING_REBASE
     save_state(state_dir, state)
 
 
-def _refuse_merge(github, server, state, state_dir, issue_number: int, record: IssueRecord, self_id: int, reason: str) -> None:
+def _refuse_merge(thread: IssueThread, server, state, state_dir, record: IssueRecord, reason: str) -> None:
     """Main having moved can be fixed by a rebase; any other refusal is for the terminal."""
     if reason == MAIN_MOVED:
-        _post_merge_moved(github, server, state, state_dir, issue_number, record, self_id)
+        _post_merge_moved(thread, server, state, state_dir, record)
     else:
-        _post_merge_refused(github, state, state_dir, issue_number, record, self_id, reason)
+        _post_merge_refused(thread, state, state_dir, record, reason)
 
 
-def _merge_preview_or_refuse(github, server, state, state_dir, issue_number: int, record: IssueRecord, self_id: int) -> dict | None:
+def _merge_preview_or_refuse(thread: IssueThread, server, state, state_dir, record: IssueRecord) -> dict | None:
     """The server's merge preview; if the server refuses the merge, post the refusal and return None."""
     try:
         return server.get(f"/tasks/{require_safe_id(record.task_id)}/merge-preview")
     except ServerRefused as refusal:
         if refusal.error != "merge refused":
             raise
-        _refuse_merge(github, server, state, state_dir, issue_number, record, self_id, refusal.detail)
+        _refuse_merge(thread, server, state, state_dir, record, refusal.detail)
         return None
 
 
-def _post_merge_comment(github, server, state, state_dir, issue_number: int, record: IssueRecord, self_id: int) -> None:
-    preview = _merge_preview_or_refuse(github, server, state, state_dir, issue_number, record, self_id)
+def _post_merge_comment(thread: IssueThread, server, state, state_dir, record: IssueRecord) -> None:
+    preview = _merge_preview_or_refuse(thread, server, state, state_dir, record)
     if preview is None:
         return
     body = render_comment(record.task_id, "merge", [
@@ -93,8 +93,8 @@ def _post_merge_comment(github, server, state, state_dir, issue_number: int, rec
         ("Changes", preview["diffstat"], True),
         ("Audit findings", "\n".join(f"- {finding}" for finding in preview["findings"]), True),
     ])
-    exact_copy = _own_comment_id(github, issue_number, self_id, lambda c: c.body == body)
-    record.merge_comment_id = exact_copy or github.comment(issue_number, body)
+    exact_copy = thread.own_comment_id(lambda c: c.body == body)
+    record.merge_comment_id = exact_copy or thread.comment(body)
     record.merge_body_hash = _sha256(body)
     record.merge_sha = preview["audited_sha"]
     record.phase = Phase.AWAITING_MERGE
@@ -104,8 +104,8 @@ def _post_merge_comment(github, server, state, state_dir, issue_number: int, rec
 _MERGED = "Merged. The commits are unsigned: sign them before pushing."
 
 
-def _post_merged(github, state, state_dir, issue_number: int, record: IssueRecord, self_id: int) -> None:
-    _post_ending(github, state, state_dir, issue_number, record, self_id, "merged", Phase.MERGED, "Merged", _MERGED)
+def _post_merged(thread: IssueThread, state, state_dir, record: IssueRecord) -> None:
+    _post_ending(thread.github, state, state_dir, thread.number, record, thread.self_id, "merged", Phase.MERGED, "Merged", _MERGED)
 
 
 _NOT_MERGED = "An approver declined the merge, so nothing was merged. The task stays audited; merge it at the terminal if you change your mind."
@@ -117,12 +117,12 @@ _MERGE_CHANGED = (
 )
 
 
-def _post_merge_changed(github, state, state_dir, issue_number: int, record: IssueRecord, self_id: int) -> None:
-    _post_ending(github, state, state_dir, issue_number, record, self_id, "merge-changed", Phase.MERGE_STOPPED, "Merge changed", _MERGE_CHANGED)
+def _post_merge_changed(thread: IssueThread, state, state_dir, record: IssueRecord) -> None:
+    _post_ending(thread.github, state, state_dir, thread.number, record, thread.self_id, "merge-changed", Phase.MERGE_STOPPED, "Merge changed", _MERGE_CHANGED)
 
 
-def _merge_comment_is_unedited(github, issue_number: int, record: IssueRecord) -> bool:
-    posted = [_sha256(c.body) for c in github.comments(issue_number) if c.id == record.merge_comment_id]
+def _merge_comment_is_unedited(thread: IssueThread, record: IssueRecord) -> bool:
+    posted = [_sha256(c.body) for c in thread.comments() if c.id == record.merge_comment_id]
     return posted == [record.merge_body_hash]
 
 
@@ -136,44 +136,44 @@ _MERGE_JOB_MAIN_MOVED = f"merge refused: {MAIN_MOVED}"  # the error a failed mer
 _MERGE_JOB_ALREADY_IN_MAIN = f"merge refused: {ALREADY_IN_MAIN}"
 
 
-def _merge_on_thumbs_up(github, server, state, state_dir, issue_number: int, record: IssueRecord, approver_ids: set[int], self_id: int) -> None:
+def _merge_on_thumbs_up(thread: IssueThread, server, state, state_dir, record: IssueRecord, approver_ids: set[int]) -> None:
     """Merge the commit the merge comment showed on an approver's 👍; approvers match by numeric id, never login."""
-    reactions = github.reactions(record.merge_comment_id)
+    reactions = thread.reactions(record.merge_comment_id)
     if _approver_reacted(reactions, "-1", approver_ids):
-        _post_ending(github, state, state_dir, issue_number, record, self_id, "not-merged", Phase.NOT_MERGED, "Not merged", _NOT_MERGED)
+        _post_ending(thread.github, state, state_dir, thread.number, record, thread.self_id, "not-merged", Phase.NOT_MERGED, "Not merged", _NOT_MERGED)
         return
     if not _approver_reacted(reactions, "+1", approver_ids):
         return
     task_id =require_safe_id(record.task_id)
-    if not _merge_comment_is_unedited(github, issue_number, record):
-        _post_merge_changed(github, state, state_dir, issue_number, record, self_id)
+    if not _merge_comment_is_unedited(thread, record):
+        _post_merge_changed(thread, state, state_dir, record)
         return
-    preview = _merge_preview_or_refuse(github, server, state, state_dir, issue_number, record, self_id)
+    preview = _merge_preview_or_refuse(thread, server, state, state_dir, record)
     if preview is None:
         return
     if preview["audited_sha"] != record.merge_sha:
-        _post_merge_changed(github, state, state_dir, issue_number, record, self_id)
+        _post_merge_changed(thread, state, state_dir, record)
         return
     job_id = server.post(f"/tasks/{task_id}/merge", {"audited_sha": record.merge_sha})["job"]["id"]
     job = server.wait(job_id)
     if job["state"] == "succeeded" or _task_is_merged(server, task_id):
-        _post_merged(github, state, state_dir, issue_number, record, self_id)
+        _post_merged(thread, state, state_dir, record)
     elif job["state"] == "failed" and job["error"] == _MERGE_JOB_MAIN_MOVED:
-        _post_merge_moved(github, server, state, state_dir, issue_number, record, self_id)
+        _post_merge_moved(thread, server, state, state_dir, record)
     elif job["state"] == "failed":
-        _post_merge_refused(github, state, state_dir, issue_number, record, self_id, job["error"])
+        _post_merge_refused(thread, state, state_dir, record, job["error"])
 
 
 _NOT_REBASED = "An approver declined the rebase, so nothing was rebased or merged. The task stays audited; rebase it at the terminal if you change your mind."
 
 
-def _post_rebase_refused(github, state, state_dir, issue_number: int, record: IssueRecord, self_id: int, reason: str) -> None:
+def _post_rebase_refused(thread: IssueThread, state, state_dir, record: IssueRecord, reason: str) -> None:
     task_id = require_safe_id(record.task_id)
     body = render_comment(record.task_id, "rebase-refused", [
         ("Rebase refused", reason, True),
         ("Next", f"Nothing was rebased. At the terminal, run: factory rebase {task_id} once the cause is fixed.", False),
     ])
-    _post_result(github, state, state_dir, issue_number, record, self_id, "rebase-refused", Phase.MERGE_STOPPED, body)
+    _post_result(thread.github, state, state_dir, thread.number, record, thread.self_id, "rebase-refused", Phase.MERGE_STOPPED, body)
 
 
 def _task_is_rebased(server, record: IssueRecord) -> bool:
@@ -182,11 +182,11 @@ def _task_is_rebased(server, record: IssueRecord) -> bool:
     return task["state"] == "agent_done" or task["audited_sha"] != record.rebase_sha
 
 
-def _rebase_on_thumbs_up(github, server, state, state_dir, issue_number: int, record: IssueRecord, task: dict, approver_ids: set[int], self_id: int, home: str) -> None:
+def _rebase_on_thumbs_up(thread: IssueThread, server, state, state_dir, record: IssueRecord, task: dict, approver_ids: set[int], home: str) -> None:
     """Rebase the task on an approver's 👍 on the rebase offer, if it is still at the commit the offer showed; approvers match by numeric id, never login."""
-    reactions = github.reactions(record.rebase_comment_id)
+    reactions = thread.reactions(record.rebase_comment_id)
     if _approver_reacted(reactions, "-1", approver_ids):
-        _post_ending(github, state, state_dir, issue_number, record, self_id, "not-merged", Phase.NOT_MERGED, "Not rebased", _NOT_REBASED)
+        _post_ending(thread.github, state, state_dir, thread.number, record, thread.self_id, "not-merged", Phase.NOT_MERGED, "Not rebased", _NOT_REBASED)
         return
     if not _approver_reacted(reactions, "+1", approver_ids):
         return
@@ -194,7 +194,7 @@ def _rebase_on_thumbs_up(github, server, state, state_dir, issue_number: int, re
         job_id = server.post(f"/tasks/{require_safe_id(record.task_id)}/rebase")["job"]["id"]
         job = server.wait(job_id)
         if job["state"] == "failed" and not _task_is_rebased(server, record):
-            _post_rebase_refused(github, state, state_dir, issue_number, record, self_id, strip_home(job["error"], home))
+            _post_rebase_refused(thread, state, state_dir, record, strip_home(job["error"], home))
             return
         if job["state"] not in ("succeeded", "failed"):
             return
