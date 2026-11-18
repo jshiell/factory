@@ -462,6 +462,29 @@ def test_allowing_dependency_changes_passes_a_nested_pyproject_dependency_edit(r
     assert gate_allowing_dependencies(repo, base).passed is True
 
 
+NESTED_WATCHED_EDITS = [
+    ("[tool.ruff]", '[tool.pytest.ini_options]\naddopts = "-p x"\n\n[tool.ruff]'),
+    ('exclude-newer = "2000-01-01T00:00:00Z"', 'exclude-newer = "1999-01-01T00:00:00Z"'),
+]
+
+
+# Guard (starts green): the flag keeps watching tool.pytest and tool.uv in pyprojects below and above the project.
+@pytest.mark.parametrize("old,new", NESTED_WATCHED_EDITS, ids=["pytest", "uv"])
+def test_allowing_dependency_changes_still_fails_a_nested_pytest_or_uv_edit(repo, old, new):
+    base = nested_pyproject_base(repo, BASE_WITH_UV)
+    commit_project_edit(repo, "sub/pyproject.toml", BASE_WITH_UV.replace(old, new))
+
+    assert gate_allowing_dependencies(repo, base).reason == "tests_modified"
+
+
+def test_allowing_dependency_changes_still_fails_a_root_tool_uv_edit(repo):
+    base = repo_with_test_file(repo)
+    commit_root_file(repo, "pyproject.toml", '[tool.uv]\nexclude-newer = "2000-01-01T00:00:00Z"\n')
+    commit_project_edit(repo, "code.py", "y")
+
+    assert gate_allowing_dependencies(repo, base).reason == "tests_modified"
+
+
 def test_adding_a_dependency_fails_tests_modified(repo):
     base = pyproject_base(repo, BASE_WITH_UV)
     commit_project_edit(repo, "pyproject.toml", BASE_WITH_UV.replace("dependencies = []", 'dependencies = ["requests"]'))
