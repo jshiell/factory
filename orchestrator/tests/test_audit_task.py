@@ -135,7 +135,8 @@ def test_an_oversized_diff_fails_the_task_without_cost(verified, store, ledger):
 def save_task_whose_audit_prompt_is_the_given_bytes_over_the_launch_limit(repo, store, over):
     diff = run_git(repo, "diff", "--no-ext-diff", "--no-textconv", store.load("t1").base_sha, "HEAD", "--", "proj")
     overhead = len(build_audit_prompt(Task(id="t1", prompt=""), diff).encode())
-    store.save(replace(store.load("t1"), prompt="p" * (MAX_PROMPT_BYTES - overhead + over)))
+    wanted = MAX_PROMPT_BYTES - overhead + over
+    store.save(replace(store.load("t1"), prompt="é" * (wanted // 2) + "p" * (wanted % 2)))
 
 
 def test_a_diff_that_fits_alone_but_overflows_next_to_a_long_task_prompt_fails_the_task_without_cost(
