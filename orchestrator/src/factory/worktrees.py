@@ -1,3 +1,4 @@
+import os
 import subprocess
 from pathlib import Path
 
@@ -7,9 +8,21 @@ from factory.ids import require_safe_id
 HARDENED_GIT = ("git", "-c", "core.fsmonitor=false", "-c", "core.hooksPath=/dev/null", "-c", "diff.ignoreSubmodules=all")
 
 
-def run_git(cwd: Path, *args: str, env: dict[str, str] | None = None) -> str:
+# The user's own git config (filters such as git-lfs, textconv, merge drivers) must not run on agent-written files.
+NO_USER_CONFIG_OVERRIDES = {"GIT_CONFIG_GLOBAL": "/dev/null", "GIT_CONFIG_NOSYSTEM": "1"}
+_INJECTED_CONFIG = ("GIT_CONFIG_COUNT", "GIT_CONFIG_PARAMETERS")
+
+
+def hardened_env(base: dict[str, str] | None = None) -> dict[str, str]:
+    env = {**(os.environ if base is None else base), **NO_USER_CONFIG_OVERRIDES}
+    return {k: v for k, v in env.items() if k not in _INJECTED_CONFIG and not k.startswith(("GIT_CONFIG_KEY_", "GIT_CONFIG_VALUE_"))}
+
+
+def run_git(cwd: Path, *args: str, env: dict[str, str] | None = None, user_config: bool = False) -> str:
+    """Run hardened git. The user's global and system config is ignored unless `user_config` (only for the user's own checkout)."""
     result = subprocess.run(
-        [*HARDENED_GIT, *args], cwd=cwd, capture_output=True, text=True, check=True, stdin=subprocess.DEVNULL, env=env
+        [*HARDENED_GIT, *args], cwd=cwd, capture_output=True, text=True, check=True, stdin=subprocess.DEVNULL,
+        env=env if user_config else hardened_env(env),
     )
     return result.stdout.strip()
 
@@ -66,7 +79,7 @@ class WorktreeManager:
         if run_git(self._repo, "branch", "--list", branch):
             raise BranchExists(branch)
         base_sha = run_git(self._repo, "rev-parse", "HEAD")
-        run_git(self._repo, "worktree", "add", "-q", "-b", branch, str(path), base_sha)
+        run_git(self._repo, "worktree", "add", "-q", "-b", branch, str(path), base_sha, user_config=True)
         return path, base_sha
 
     def remove(self, task_id: str) -> None:

@@ -107,3 +107,13 @@ def test_creating_a_worktree_still_applies_the_users_smudge_filter_to_the_commit
     WorktreeManager(repo, tmp_path / "wt").create("t1")
 
     assert (user_filter / "smudge").exists()
+
+
+@pytest.mark.parametrize(("user_config", "filter_runs"), [(False, False), (True, True)])
+def test_the_factorys_git_ignores_the_users_filter_unless_asked_to_use_it(repo, user_filter, user_config, filter_runs):
+    (repo / ".gitattributes").write_text("*.probe filter=probe\n")
+    (repo / "agent.probe").write_text("from the agent")
+
+    run_git(repo, "add", "-A", user_config=user_config)
+
+    assert (user_filter / "clean").exists() is filter_runs
