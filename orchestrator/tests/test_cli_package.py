@@ -11,3 +11,10 @@ def test_the_server_imports_on_its_own_before_the_cli_is_loaded():
     result = _in_a_fresh_interpreter("-c", "import factory.server")
 
     assert result.returncode == 0, result.stderr
+
+
+def test_the_cli_runs_as_a_module():
+    result = _in_a_fresh_interpreter("-m", "factory.cli", "--help")
+
+    assert result.returncode == 0, result.stderr
+    assert "usage: factory" in result.stdout
