@@ -113,7 +113,7 @@ Reads and quick actions answer at once; `advance`, `abandon`, `recover`, `rebase
 
 | Endpoint | Purpose |
 |---|---|
-| `POST /tasks {goal}` / `GET /tasks` / `GET /tasks/{id}` / `GET /costs?task_id=` | create and read |
+| `POST /tasks {goal}` / `GET /tasks` / `GET /tasks/{id}` / `GET /costs?task_id=` | create and read. A goal over 20,000 bytes is 422; the watcher cuts an issue to fit and ends it with `[issue text truncated]` |
 | `GET /tasks/{id}/approval`, `POST .../approve {plan_digest, waive, review_findings?}`, `POST .../reject` | approve a reviewed plan; a stale digest is 409. An optional `review_findings` (the lines `/approval` showed) makes changed findings 409 too |
 | `GET /tasks/{id}/merge-preview`, `POST .../merge {audited_sha}` | a stale sha is 409 |
 | `GET /tasks/{id}/retry-preview`, `POST .../retry` or `{keep_plan, plan_digest, waive, reinstate}` | fresh or keep-plan retry |
@@ -398,6 +398,6 @@ Recorded per plan in `docs/spike-findings.md`. The main ones, by area:
 
 **Operations**
 - A SIGKILLed driver leaves an orphan agent until the next `factory serve` reaps it (one launched in the last instant before the kill is unrecorded; a process that called `setsid` and whose parent had already exited survives the reap, measured on Linux), and can leave a half-done rebase; `abandon`/`recover` and a manual check are the way out.
-- A prompt of 131,072 bytes or more cannot be passed (Linux limits one `argv` string; see [Platform verification](#platform-verification)). It is refused as `prompt_too_large` without a charge. The implement and fix stages fail the task with that reason (`fix_prompt_too_large` for the fix stage). The plan and review stages report it as an error and leave the task unchanged, so each retry is refused again until the prompt shrinks. The audit refuses (`diff_too_large`) a diff over 200,000 bytes, or over whatever room the task prompt, which holds the whole plan, leaves under that limit.
+- A prompt of 131,072 bytes or more cannot be passed (Linux limits one `argv` string; see [Platform verification](#platform-verification)). It is refused as `prompt_too_large` without a charge. Every stage but the audit fails the task with that reason (`fix_prompt_too_large` for the fix stage), since a retry would build the same prompt. A goal is capped at 20,000 bytes so the plan and review prompts always fit; the implement, fix and grill prompts can still overflow, because they also carry the plan, notes or answers. The audit refuses (`diff_too_large`) a diff over 200,000 bytes, or over whatever room the task prompt, which holds the whole plan, leaves under that limit.
 - The sandbox was re-measured on Linux only (nono 0.81, plan O7 probes), by a human running the spike scripts; CI covers the Linux suite with fakes, not nono itself. For macOS see [Platform verification](#platform-verification).
 - The gate sandbox grants read on the resolved directory holding `uv` (plan 56), without which the gate's test run exited 127 when `uv` lives under mise. Confirmed on Linux by the smoke and full probe runs (nono 0.81, uv 0.13.8, uv under mise only). Not covered: a relative `uv` path gets no grant and still exits 127; other layouts (system path, `~/.local/bin`) were not tried (for macOS see [Platform verification](#platform-verification)); the state directory is not refused (only `/` and `$HOME`).
