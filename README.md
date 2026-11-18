@@ -291,6 +291,14 @@ flowchart TB
 - **The gate is a clean checkout.** Before the tests run, the worktree is committed and cleaned (`git clean -ffdx`), so only
   committed files can influence the result. Git itself is run with `fsmonitor`, hooks and submodule tricks disabled, and a nested
   `.git` anywhere under the project is refused.
+- **The factory's git ignores your git config.** An agent can write a `.gitattributes` that selects a filter, textconv or
+  merge driver your own config defines (git-lfs, say), and the factory's `git add -A` or `status` would run it (measured with
+  fixture drivers, `spike/git_hardening_probe.py`). So every git call the factory makes reads no global or system git config and drops
+  `GIT_CONFIG_COUNT`, `GIT_CONFIG_PARAMETERS` and `GIT_CONFIG_KEY_*`/`VALUE_*`, including the merge into your main checkout. The one
+  exception is creating a worktree, which checks out your own committed tree with your config. The repo's own `.git/config` still
+  applies (an agent cannot write it). Consequences: repos that need clean/smudge filters (git-lfs, git-crypt, `ident`) are not
+  supported; a global `core.excludesFile` is not honoured (put ignores in the repo's `.gitignore`); a repo that needs a global
+  `safe.directory` fails after the worktree is created; and git 2.32 or later is needed (older git ignores `GIT_CONFIG_GLOBAL`).
 - **Tamper checks.** Existing tests may be added to but not removed, shrunk, renamed or shadowed (a duplicate `def test_x` that
   disables the first is caught). Protected config (`conftest.py`, `pytest.ini`, `tox.ini`, `setup.cfg`, `uv.toml`, `.python-version`, matched case-insensitively; the pytest and `[tool.uv]` tables of any
   `pyproject.toml` from the repo root down to the project) may not change (reason `tests_modified`). So may not anything that adds code or changes what is installed: `setup.py` and `hatch_build.py`
