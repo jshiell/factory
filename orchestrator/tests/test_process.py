@@ -95,7 +95,7 @@ def _alive(pid):
 LIST_RECORDS = (
     "import os, sys, time\n"
     "directory, end = sys.argv[1], time.time() + 5\n"
-    "while time.time() < end and not (os.path.isdir(directory) and os.listdir(directory)):\n"
+    "while time.time() < end and not (os.path.isdir(directory) and any(n.endswith('.json') for n in os.listdir(directory))):\n"
     "    time.sleep(0.05)\n"
     "print(os.getpid(), sorted(os.listdir(directory)))"
 )
