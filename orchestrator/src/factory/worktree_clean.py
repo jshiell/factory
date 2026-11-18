@@ -1,4 +1,5 @@
 import subprocess
+from contextlib import suppress
 from pathlib import Path
 
 from factory.worktrees import run_git
@@ -10,10 +11,8 @@ def clean_worktree(worktree: Path, factory_paths: tuple[Path, ...] = ()) -> str 
     Returns a gate failure reason, or None when nothing but tracked files remains."""
     if not _safe_to_clean(worktree, factory_paths):
         return "worktree_mismatch"
-    try:
+    with suppress(subprocess.CalledProcessError):  # judged by what is left, not by the exit code
         run_git(worktree, "clean", "-ffdxq")
-    except subprocess.CalledProcessError:
-        pass  # judged by what is left, not by the exit code
     status = run_git(worktree, "status", "--porcelain", "--ignored", "--untracked-files=all")
     if any(line.startswith(("??", "!!")) for line in status.splitlines()):
         return "worktree_not_clean"

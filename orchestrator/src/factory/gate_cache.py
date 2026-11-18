@@ -1,6 +1,7 @@
 import os
 import shutil
 import stat
+from contextlib import suppress
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -37,10 +38,8 @@ def cache_size(cache_root: Path, name: str) -> int | None:
     total = 0
     for current, dirnames, filenames in os.walk(directory, followlinks=False):
         for entry in dirnames + filenames:
-            try:
+            with suppress(OSError):
                 total += os.lstat(os.path.join(current, entry)).st_size
-            except OSError:
-                pass
     return total
 
 

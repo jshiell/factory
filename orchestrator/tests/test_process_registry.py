@@ -104,8 +104,7 @@ def test_a_tracked_launch_has_a_record_only_while_it_runs(tmp_path):
 
 
 def test_a_tracked_launch_that_raises_still_removes_its_record(tmp_path):
-    with pytest.raises(KeyboardInterrupt):
-        with Tracker(tmp_path, "t1", "gate").launched(4242, 100.0, 100.5):
-            raise KeyboardInterrupt
+    with pytest.raises(KeyboardInterrupt), Tracker(tmp_path, "t1", "gate").launched(4242, 100.0, 100.5):
+        raise KeyboardInterrupt
 
     assert load_records(tmp_path) == []

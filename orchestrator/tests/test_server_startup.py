@@ -2,6 +2,7 @@ import os
 import signal
 import subprocess
 import time
+from contextlib import suppress
 from datetime import datetime
 
 import pytest
@@ -39,10 +40,8 @@ def test_claiming_reaps_orphans_once_from_the_process_table_in_the_database(ctx)
 
 
 def test_a_second_claim_on_the_same_state_dir_is_refused_and_reaps_nothing(ctx):
-    with claim_state_dir(ctx):
-        with pytest.raises(StartRefused, match="another factory run holds the lock"):
-            with claim_state_dir(ctx):
-                pass
+    with claim_state_dir(ctx), pytest.raises(StartRefused, match="another factory run holds the lock"), claim_state_dir(ctx):
+        pass
 
     assert len(ctx.reaped) == 1
 
@@ -81,9 +80,8 @@ def test_agents_that_cannot_be_proved_dead_stop_the_start_and_leave_jobs_alone(c
 
     ctx.reap = uncertain
 
-    with pytest.raises(StartRefused, match="cannot prove these processes dead"):
-        with claim_state_dir(ctx):
-            pass
+    with pytest.raises(StartRefused, match="cannot prove these processes dead"), claim_state_dir(ctx):
+        pass
 
     assert jobs.get(running.id).state == "running"
 
@@ -112,10 +110,8 @@ def test_claiming_kills_a_live_orphan_recorded_in_the_database_and_empties_the_t
         with pytest.raises(ProcessLookupError):
             os.kill(member, 0)
     finally:
-        try:
+        with suppress(ProcessLookupError):
             os.kill(member, signal.SIGKILL)
-        except ProcessLookupError:
-            pass
 
 
 @pytest.mark.parametrize("leftover", ["7.json", ".7.tmp"])
@@ -126,9 +122,8 @@ def test_old_file_records_stop_the_start_and_leave_jobs_alone_until_migrated(ctx
     (ctx.settings.state_dir / "procs").mkdir()
     (ctx.settings.state_dir / "procs" / leftover).write_text("{}")
 
-    with pytest.raises(StartRefused, match="`factory migrate` first; nothing changed"):
-        with claim_state_dir(ctx):
-            pass
+    with pytest.raises(StartRefused, match="`factory migrate` first; nothing changed"), claim_state_dir(ctx):
+        pass
 
     assert ctx.reaped == [] and jobs.get(running.id).state == "running"
 

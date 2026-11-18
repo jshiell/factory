@@ -3,17 +3,15 @@ import signal
 import subprocess
 import tempfile
 import time
-from contextlib import nullcontext
+from contextlib import nullcontext, suppress
 from typing import NamedTuple
 
 STRIPPED_ENV = ("VIRTUAL_ENV", "GIT_DIR", "GIT_WORK_TREE", "ANTHROPIC_API_KEY")
 
 
 def _kill(pid: int) -> None:
-    try:
+    with suppress(ProcessLookupError):
         os.kill(pid, signal.SIGKILL)
-    except ProcessLookupError:
-        pass
 
 
 def _descendants(pid: int) -> list[int]:
@@ -26,10 +24,8 @@ def kill_tree(root_pid: int) -> None:
     """Kill every descendant (even those that left the process group), then the root's process group."""
     for pid in _descendants(root_pid):
         _kill(pid)
-    try:
+    with suppress(ProcessLookupError):
         os.killpg(root_pid, signal.SIGKILL)
-    except ProcessLookupError:
-        pass
 
 
 def group_alive(pgid: int) -> bool:

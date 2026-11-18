@@ -59,9 +59,8 @@ def test_the_state_dir_is_locked_while_serving(ctx):
     held = []
 
     def serve_and_probe(app, host, port):
-        with pytest.raises(AlreadyRunning):
-            with state_lock(ctx.settings.state_dir):
-                pass
+        with pytest.raises(AlreadyRunning), state_lock(ctx.settings.state_dir):
+            pass
         held.append(True)
 
     ctx.serve = serve_and_probe

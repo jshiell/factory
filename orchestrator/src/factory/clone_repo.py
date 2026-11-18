@@ -1,5 +1,6 @@
 import re
 import subprocess
+from contextlib import suppress
 from pathlib import Path
 
 from factory.settings import harness_home
@@ -79,7 +80,5 @@ def _missing_ancestors(path: Path) -> list[Path]:
 
 
 def _remove_if_empty(directory: Path) -> None:
-    try:
+    with suppress(OSError):
         directory.rmdir()
-    except OSError:
-        pass
