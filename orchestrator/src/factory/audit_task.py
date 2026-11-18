@@ -1,7 +1,8 @@
+import os
 from dataclasses import replace
 from pathlib import Path
 
-from factory.command import RunnerConfig
+from factory.command import MAX_PROMPT_BYTES, RunnerConfig
 from factory.ledger import Ledger
 from factory.readonly_stage import Infra, Modified, run_readonly_stage
 from factory.step import Runner, check_budget
@@ -40,6 +41,11 @@ def build_audit_prompt(task: Task, diff: str) -> str:
     )
 
 
+def _room_for_diff(task: Task) -> int:
+    """What the launch limit leaves for the diff once the template and the task prompt are in."""
+    return MAX_PROMPT_BYTES - len(os.fsencode(build_audit_prompt(task, "")))
+
+
 def audit_task(
     task_id: str,
     store: TaskStore,
@@ -54,7 +60,7 @@ def audit_task(
     check_budget(task_id, ledger, config, cap_usd)
     worktree = Path(task.worktree)
     diff = run_git(worktree, "diff", "--no-ext-diff", "--no-textconv", task.base_sha, "HEAD", "--", project_subdir)
-    if len(diff.encode()) > MAX_DIFF_BYTES:
+    if len(diff.encode()) > min(MAX_DIFF_BYTES, _room_for_diff(task)):
         return _reject(store, task, "diff_too_large")
     staged = run_readonly_stage(task, build_audit_prompt(task, diff), runner, config, ledger, "audit")
     if isinstance(staged, Modified):

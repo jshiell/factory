@@ -1,4 +1,5 @@
 import json
+from dataclasses import replace
 
 import pytest
 
@@ -8,12 +9,13 @@ from factory.audit_task import (
     audit_task,
     build_audit_prompt,
 )
-from factory.command import RunnerConfig
+from factory.command import MAX_PROMPT_BYTES, RunnerConfig
 from factory.ledger import Ledger
 from factory.review_notes import notes_block
 from factory.step import BudgetCapReached, MissingBudget, RunResult
 from factory.store import TaskStore
 from factory.task import InvalidTransition, Task, TaskState
+from factory.worktrees import run_git
 from gitutil import git
 
 
@@ -128,6 +130,35 @@ def test_an_oversized_diff_fails_the_task_without_cost(verified, store, ledger):
 
     assert (task.state, task.failure_reason) == (TaskState.FAILED, "diff_too_large")
     assert runner.tasks == [] and ledger.total() == 0
+
+
+def save_task_whose_audit_prompt_is_the_given_bytes_over_the_launch_limit(repo, store, over):
+    diff = run_git(repo, "diff", "--no-ext-diff", "--no-textconv", store.load("t1").base_sha, "HEAD", "--", "proj")
+    overhead = len(build_audit_prompt(Task(id="t1", prompt=""), diff).encode())
+    store.save(replace(store.load("t1"), prompt="p" * (MAX_PROMPT_BYTES - overhead + over)))
+
+
+def test_a_diff_that_fits_alone_but_overflows_next_to_a_long_task_prompt_fails_the_task_without_cost(
+    verified, store, ledger
+):
+    save_task_whose_audit_prompt_is_the_given_bytes_over_the_launch_limit(verified, store, over=1)
+    runner = AuditRunner(verdict_stdout())
+
+    task = audit(store, ledger, runner)
+
+    assert (task.state, task.failure_reason) == (TaskState.FAILED, "diff_too_large")
+    assert runner.tasks == [] and ledger.total() == 0
+
+
+def test_a_diff_that_exactly_fills_the_room_next_to_the_task_prompt_is_audited(verified, store, ledger):
+    # guard: the room check is not off by one
+    save_task_whose_audit_prompt_is_the_given_bytes_over_the_launch_limit(verified, store, over=0)
+    runner = AuditRunner(verdict_stdout())
+
+    task = audit(store, ledger, runner)
+
+    assert task.state is TaskState.AUDITED
+    assert len(runner.tasks) == 1
 
 
 def test_the_runner_gets_the_audit_prompt_but_the_stored_task_keeps_its_own(verified, store, ledger):
