@@ -205,6 +205,7 @@ def _new_eval_dir(evals_root: Path, clock) -> Path:
     return directory
 
 
+# _check_corpus and _eval_audit stay here: tests patch factory.cli.check_gate, which only works while they read it from this namespace.
 def _check_corpus(io, ctx) -> int:
     """Needs uv (and usually network): the gate's real test run over every case, no agents."""
     settings = ctx.settings

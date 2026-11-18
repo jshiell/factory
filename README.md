@@ -248,7 +248,7 @@ flowchart LR
 
 ```mermaid
 flowchart TB
-    cli["cli.py<br/>commands, TTY prompts, exit codes"]
+    cli["cli/<br/>commands, TTY prompts, exit codes"]
     advance["advance.py<br/>state → next stage"]
     stages["stages.py<br/>wires settings into stages"]
     subgraph stage_fns [stages]
