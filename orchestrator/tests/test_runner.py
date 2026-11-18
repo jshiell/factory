@@ -13,6 +13,7 @@ from factory.process_registry import load_records
 from factory.runner import SubprocessRunner
 from factory.step import TAIL_CHARS
 from factory.task import Task, TaskState
+from slowrecords import WAIT_FOR_RECORD, RecordsWrittenLate
 
 CONFIG = RunnerConfig(model="sonnet", budget_usd=0.5)
 
@@ -463,7 +464,7 @@ def _sleepers():
 def test_the_agent_is_recorded_under_the_task_state_while_it_runs_and_the_record_goes_after(tmp_path, task, monkeypatch):
     state = tmp_path / "state"
     monkeypatch.setenv("STATE", str(state))
-    runner = SubprocessRunner(fake_claude(tmp_path, 'ls "$STATE/procs"'), project_subdir="proj", timeout_s=10, records=state)
+    runner = SubprocessRunner(fake_claude(tmp_path, WAIT_FOR_RECORD + 'ls "$STATE/procs"'), project_subdir="proj", timeout_s=10, records=RecordsWrittenLate(state))
 
     result = runner.run(replace(task, state=TaskState.QUEUED), CONFIG)
 
@@ -475,7 +476,7 @@ def test_the_agent_is_recorded_under_the_task_state_while_it_runs_and_the_record
 def test_the_agent_record_names_the_task_and_its_state(tmp_path, task, monkeypatch):
     state = tmp_path / "state"
     monkeypatch.setenv("STATE", str(state))
-    runner = SubprocessRunner(fake_claude(tmp_path, 'cat "$STATE/procs/"*.json'), project_subdir="proj", timeout_s=10, records=state)
+    runner = SubprocessRunner(fake_claude(tmp_path, WAIT_FOR_RECORD + 'cat "$STATE/procs/"*.json'), project_subdir="proj", timeout_s=10, records=RecordsWrittenLate(state))
 
     result = runner.run(replace(task, state=TaskState.QUEUED), CONFIG)
 
