@@ -35,7 +35,9 @@ Plan numbers refer to `docs/plan-<n>.md`. "TTY" means it prompts y/N and needs a
 | `merge_e2e.py` | 7 | TTY, `uv` | `merge` and its y/N prompt |
 | `rebase_e2e.py` | 15 | `uv`, your real env and global git config | `factory rebase` never asks for a signature |
 | `test_freeze_e2e.py` | 12 | real git, real gate | Real git and the real gate (isolated git config, temp dir) |
-| `orphan_e2e.py` | 21 | real `nono`, `ps`, `uv` | SIGKILL the driver mid-run, then `recover` / `abandon` leave no processes. Starts real processes (`sleep 31337`, `sleep 31338`) |
+| `orphan_e2e.py` | 21 | real `nono`, `ps`, `uv` | SIGKILL the driver mid-run, then `recover` / `abandon` leave no processes. Starts real processes (`sleep 31337`, `sleep 31338`). **Stale**: it checks `procs/*.json` and drives the old `factory advance`; see `orphan_setsid_probe.py` |
+| `confinement_probe.py` | O7 | real `nono`, `uv`; `$0` | What an agent and the gate can read, write and see in their env under the real nono prefixes, with canaries. Plants fixtures under `$HOME`, `~/.claude` and `$TMPDIR` (not `~/.claude.json`). Flags: `--claude-dir`, `--ssh` (outcome only for one real `~/.ssh` file and `~/.claude/.credentials.json`) |
+| `orphan_setsid_probe.py` | O7 | real `nono`, `ps`, `pgrep`, `setsid`, `uv`; `$0` | SIGKILL the driver, then `reap_orphans` with SQLite records: control, a `setsid` child and a `setsid` grandchild whose parent exited. Starts `sleep 31351`..`31356` |
 | `gate_sandbox_probe.py` | 55 | real `nono`, `uv`, network | The gate sandbox: network, filesystem and older `uv` versions. Wipes and rewrites `gate-sandbox-probe-out/` on every run. Flags: `--smoke` (only `uv --version` through the sandbox prefix), `--tmp DIR` |
 | `cli_probe/` | 5 | a TTY to be meaningful | A tiny uv package that reports the cwd, `isatty`, and whether `/dev/tty` opens. Entry point `cli-probe` |
 | `nono_impl_probe.py` | 9 | real `nono`, `uv`; `$0` unless `--paid` | The nono sandbox for the implementer (its docstring is the authority). `--paid` adds two real `claude` runs (about $0.3 at most) |
