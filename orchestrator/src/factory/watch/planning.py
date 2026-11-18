@@ -80,7 +80,7 @@ def _forward_answers(thread: IssueThread, server, state, state_dir, record: Issu
     answers = _answers_after(thread.comments(), record.questions_comment_id, approver_ids)
     if answers is None:
         text = f"{_QUESTIONS_GONE} Run: factory answer {require_safe_id(record.task_id)}"
-        _post_final(thread.github, state, state_dir, thread.number, record, thread.self_id, Phase.STOPPED, "Stopped", text)
+        _post_final(thread, state, state_dir, record, Phase.STOPPED, "Stopped", text)
         return False
     if not answers:
         return False
@@ -107,11 +107,11 @@ _REJECTED = "An approver rejected this plan, so the task is rejected and no work
 
 
 def _post_changed(thread: IssueThread, state, state_dir, record: IssueRecord) -> None:
-    _post_ending(thread.github, state, state_dir, thread.number, record, thread.self_id, "changed", Phase.CHANGED, "Plan changed", _CHANGED)
+    _post_ending(thread, state, state_dir, record, "changed", Phase.CHANGED, "Plan changed", _CHANGED)
 
 
 def _post_rejected(thread: IssueThread, state, state_dir, record: IssueRecord) -> None:
-    _post_ending(thread.github, state, state_dir, thread.number, record, thread.self_id, "rejected", Phase.REJECTED, "Plan rejected", _REJECTED)
+    _post_ending(thread, state, state_dir, record, "rejected", Phase.REJECTED, "Plan rejected", _REJECTED)
 
 
 def _approval_if_as_posted(thread: IssueThread, server, record: IssueRecord) -> dict | None:
