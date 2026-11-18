@@ -4,7 +4,8 @@ from pathlib import Path
 from factory.gate_sandbox import build_gate_sandbox, discover_uv_tooling
 
 BASE_ENV = {"HOME": "/h", "PATH": "/h/.local/share/mise/shims:/usr/bin:/bin", "ANTHROPIC_API_KEY": "secret",
-            "VIRTUAL_ENV": "/v", "GIT_DIR": "/g", "TOKEN": "t"}
+            "VIRTUAL_ENV": "/v", "GIT_DIR": "/g", "TOKEN": "t",
+            "GH_TOKEN": "g", "GITHUB_TOKEN": "g", "GH_ENTERPRISE_TOKEN": "g", "GITHUB_ENTERPRISE_TOKEN": "g"}
 
 
 def build(tmp_path, **overrides):
@@ -32,7 +33,8 @@ def test_the_first_uv_in_the_test_command_becomes_the_real_binary(tmp_path):
 def test_the_environment_is_filtered_and_points_uv_at_the_private_cache_without_shims(tmp_path):
     env = build(tmp_path).env
 
-    for stripped in ("ANTHROPIC_API_KEY", "VIRTUAL_ENV", "GIT_DIR"):
+    for stripped in ("ANTHROPIC_API_KEY", "VIRTUAL_ENV", "GIT_DIR",
+                     "GH_TOKEN", "GITHUB_TOKEN", "GH_ENTERPRISE_TOKEN", "GITHUB_ENTERPRISE_TOKEN"):
         assert stripped not in env
     assert env["UV_CACHE_DIR"] == str(tmp_path / "cache") and env["UV_LINK_MODE"] == "copy"
     assert env["PATH"] == "/usr/bin:/bin" and env["TOKEN"] == "t"
