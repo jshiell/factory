@@ -444,6 +444,24 @@ def test_allowing_dependency_changes_still_fails_a_pytest_or_uv_edit(repo, old, 
     assert gate_allowing_dependencies(repo, base).reason == "tests_modified"
 
 
+def nested_pyproject_base(repo, content, path="sub/pyproject.toml"):
+    (repo / "proj" / path).parent.mkdir(parents=True)
+    (repo / "proj" / path).write_text(content)
+    return repo_with_test_file(repo)
+
+
+# Guard (starts green): the flag relaxes a pyproject below the project the same way as the project's own.
+@pytest.mark.parametrize("old,new", [
+    ("dependencies = []", 'dependencies = ["requests"]'),
+    *WATCHED_ADDITIONS.values(),
+], ids=["dependencies", *WATCHED_ADDITIONS.keys()])
+def test_allowing_dependency_changes_passes_a_nested_pyproject_dependency_edit(repo, old, new):
+    base = nested_pyproject_base(repo, BASE_WITH_UV)
+    commit_project_edit(repo, "sub/pyproject.toml", BASE_WITH_UV.replace(old, new))
+
+    assert gate_allowing_dependencies(repo, base).passed is True
+
+
 def test_adding_a_dependency_fails_tests_modified(repo):
     base = pyproject_base(repo, BASE_WITH_UV)
     commit_project_edit(repo, "pyproject.toml", BASE_WITH_UV.replace("dependencies = []", 'dependencies = ["requests"]'))
