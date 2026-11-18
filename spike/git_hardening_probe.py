@@ -249,18 +249,18 @@ def run(outside, cleanup_files, summary):
         print(f"   {label:58} agent: {(agent['report'] or {}).get(label)!s:8} (host saw: {truth[label]})   "
               f"gate: {(parse(p.stdout) or {}).get(label)!s:8} (host saw: {gate_truth[label]})", flush=True)
 
-    # ---- 3 exec-harness controls (host-written; factory calls with the fixture drivers) ----------------------
+    # ---- 3 exec-harness controls (host-written; RAW git with the fixture drivers: the factory's git now ignores them) ----------------------
     print("3 harness controls (fixture drivers via GIT_CONFIG_GLOBAL)", flush=True)
     controls = []
     with fixture_git_config():
         (wa / SUBDIR / "neg.probe").write_text("negative\n")
-        controls.append(call("NEG: new *.probe file, no attributes: commit_all", lambda: commit_all(wa, "neg")))
+        controls.append(call("NEG: new *.probe file, no attributes: raw git add", lambda: (git("add", "-A", cwd=wa), git("commit", "-m", "neg", cwd=wa))))
         (wa / SUBDIR / ".gitattributes").write_text("*.probe filter=probe diff=probe\n")
         (wa / SUBDIR / "pos.probe").write_text("positive\n")
-        controls.append(call("POS: attributes + new file: commit_all (clean)", lambda: commit_all(wa, "pos")))
-        controls.append(call("POS: plain diff base..HEAD (textconv)", lambda: run_git(wa, "diff", base_sha, "HEAD", "--", SUBDIR)))
+        controls.append(call("POS: attributes + new file: raw git add (clean)", lambda: (git("add", "-A", cwd=wa), git("commit", "-m", "pos", cwd=wa))))
+        controls.append(call("POS: plain diff base..HEAD (textconv)", lambda: git("diff", base_sha, "HEAD", "--", SUBDIR, cwd=wa)))
         (wa / SUBDIR / "pos.probe").unlink()
-        controls.append(call("POS: checkout of pos.probe (smudge)", lambda: run_git(wa, "checkout", "--", f"{SUBDIR}/pos.probe")))
+        controls.append(call("POS: checkout of pos.probe (smudge)", lambda: git("checkout", "--", f"{SUBDIR}/pos.probe", cwd=wa)))
     summary["3 controls"] = controls
     neg_ok = not controls[0]["canaries"]
     clean_ok = "filter-clean" in controls[1]["canaries"]
