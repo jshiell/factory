@@ -69,6 +69,8 @@ def review_plan(
     if isinstance(staged, Modified):
         return _reject(store, task, "review_modified_worktree")
     if isinstance(staged, Infra):
+        if staged.reason == "prompt_too_large":  # a retry would build the same prompt
+            return _reject(store, task, staged.reason)
         return _finish(store, replace(task, review_error=staged.reason))
     verdict = _parse_verdict(staged.structured_output)
     if verdict is None:

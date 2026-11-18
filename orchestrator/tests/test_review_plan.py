@@ -2,7 +2,7 @@ import json
 
 import pytest
 
-from factory.command import RunnerConfig
+from factory.command import PromptTooLarge, RunnerConfig
 from factory.digest import plan_digest
 from factory.ledger import Ledger
 from factory.review_plan import (
@@ -229,3 +229,13 @@ def test_a_reviewer_that_modifies_the_worktree_fails_the_task(repo, store, ledge
     task = review(store, ledger, runner)
 
     assert (task.state, task.failure_reason) == (TaskState.FAILED, "review_modified_worktree")
+
+
+def test_a_prompt_too_large_for_one_argv_string_fails_the_task_for_good_without_a_charge(repo, store, ledger):
+    runner = ReviewRunner(raises=PromptTooLarge("prompt is 131072 bytes, the limit is 131071"))
+
+    task = review(store, ledger, runner)
+
+    assert (task.state, task.failure_reason) == (TaskState.FAILED, "prompt_too_large")
+    assert task.review_error is None
+    assert ledger.total() == 0
