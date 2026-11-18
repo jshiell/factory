@@ -299,6 +299,20 @@ def test_a_resolved_directory_that_is_home_is_not_granted(tmp_path, task, monkey
     assert sandbox_reads(log) == [str(Path(task.worktree).resolve()), str(tmp_path / "bin")]
 
 
+def test_a_refused_unresolved_directory_still_leaves_the_resolved_one_granted(tmp_path, task):
+    tmp_path = tmp_path.resolve()
+    link, release = symlinked_claude(tmp_path)
+    log = tmp_path / "wrapper.log"
+    runner = SubprocessRunner(
+        str(link), project_subdir="proj", timeout_s=10, sandbox_executable=fake_wrapper(tmp_path, log),
+        private_dirs=(str(tmp_path / "bin" / "state"),),
+    )
+
+    runner.run(task, replace(CONFIG, confine=True))
+
+    assert sandbox_reads(log) == [str(Path(task.worktree).resolve()), str(release)]
+
+
 def test_a_claude_executable_that_cannot_be_found_adds_no_grant_and_the_run_goes_ahead(tmp_path, task):
     log = tmp_path / "wrapper.log"
     runner = SubprocessRunner(
