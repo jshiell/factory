@@ -485,6 +485,15 @@ def test_allowing_dependency_changes_still_fails_a_root_tool_uv_edit(repo):
     assert gate_allowing_dependencies(repo, base).reason == "tests_modified"
 
 
+# Guard (starts green): the flag never relaxes the protected file names.
+@pytest.mark.parametrize("name", ["uv.toml", "conftest.py", ".python-version"])
+def test_allowing_dependency_changes_still_fails_a_protected_name(repo, name):
+    base = repo_with_test_file(repo)
+    commit_project_edit(repo, name, "x\n")
+
+    assert gate_allowing_dependencies(repo, base).reason == "tests_modified"
+
+
 def test_adding_a_dependency_fails_tests_modified(repo):
     base = pyproject_base(repo, BASE_WITH_UV)
     commit_project_edit(repo, "pyproject.toml", BASE_WITH_UV.replace("dependencies = []", 'dependencies = ["requests"]'))
