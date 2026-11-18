@@ -21,8 +21,8 @@ def _executable_directory(executable: str, path: str | None, private_dirs: tuple
         return ()
     directory = os.path.dirname(os.path.abspath(found))
     resolved = str(Path(found).resolve().parent)
-    extra = () if resolved == str(Path(directory).resolve()) else (resolved,)
-    return () if any(contains(directory, private) for private in private_dirs) else (directory, *extra)
+    candidates = (directory,) if resolved == str(Path(directory).resolve()) else (directory, resolved)
+    return tuple(d for d in candidates if not any(contains(d, private) for private in private_dirs))
 
 
 class SubprocessRunner:

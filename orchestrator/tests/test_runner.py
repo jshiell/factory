@@ -220,23 +220,42 @@ def test_a_confined_run_grants_the_directory_the_claude_executable_is_found_in(t
     assert sandbox_reads(log) == [str(Path(task.worktree).resolve()), str(tmp_path / "install" / "latest")]
 
 
-def test_a_symlinked_claude_file_is_granted_both_its_own_and_its_resolved_directory(tmp_path, task):
-    tmp_path = tmp_path.resolve()
+def symlinked_claude(tmp_path):
+    """`bin/fake-claude` is a symlink to `release/fake-claude`; returns (link, release directory)."""
     release = tmp_path / "release"
     release.mkdir()
     fake_claude(release, "echo ok")
     (tmp_path / "bin").mkdir()
     (tmp_path / "bin" / "fake-claude").symlink_to(release / "fake-claude")
+    return tmp_path / "bin" / "fake-claude", release
+
+
+def test_a_symlinked_claude_file_is_granted_both_its_own_and_its_resolved_directory(tmp_path, task):
+    tmp_path = tmp_path.resolve()
+    link, release = symlinked_claude(tmp_path)
     log = tmp_path / "wrapper.log"
     runner = SubprocessRunner(
-        str(tmp_path / "bin" / "fake-claude"), project_subdir="proj", timeout_s=10,
-        sandbox_executable=fake_wrapper(tmp_path, log),
+        str(link), project_subdir="proj", timeout_s=10, sandbox_executable=fake_wrapper(tmp_path, log),
     )
 
     result = runner.run(task, replace(CONFIG, confine=True))
 
     assert sandbox_reads(log) == [str(Path(task.worktree).resolve()), str(tmp_path / "bin"), str(release)]
     assert result.stdout.strip() == "ok"
+
+
+def test_the_resolved_directory_is_refused_when_it_contains_a_private_directory(tmp_path, task):
+    tmp_path = tmp_path.resolve()
+    link, release = symlinked_claude(tmp_path)
+    log = tmp_path / "wrapper.log"
+    runner = SubprocessRunner(
+        str(link), project_subdir="proj", timeout_s=10, sandbox_executable=fake_wrapper(tmp_path, log),
+        private_dirs=(str(release / "state"),),
+    )
+
+    runner.run(task, replace(CONFIG, confine=True))
+
+    assert sandbox_reads(log) == [str(Path(task.worktree).resolve()), str(tmp_path / "bin")]
 
 
 def test_a_claude_executable_that_cannot_be_found_adds_no_grant_and_the_run_goes_ahead(tmp_path, task):
