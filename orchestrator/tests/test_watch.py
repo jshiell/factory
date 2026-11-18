@@ -312,6 +312,15 @@ def test_a_long_issue_becomes_a_goal_capped_at_20000_characters_ending_with_a_tr
     assert goal.endswith("[issue text truncated]")
 
 
+def test_a_long_multibyte_issue_becomes_a_goal_within_20000_bytes_that_the_server_accepts(tmp_path):
+    github, server = pass_over(tmp_path, [raw_issue(title="Big", body="é" * 15_000)])
+
+    goal = server.created[0]
+    assert len(goal.encode()) <= 20_000
+    assert len(goal.encode()) > 19_000
+    assert goal.endswith("[issue text truncated]")
+
+
 def test_guard_a_non_approver_issue_creates_no_task_and_no_record(tmp_path):
     github, server = pass_over(tmp_path, [raw_issue(user={"login": "mallory", "id": 666})])
 
