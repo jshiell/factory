@@ -1,6 +1,13 @@
+import subprocess
+import sys
+
 import pytest
 
 from factory.launcher import unsupported_reason
+
+PRETEND_WINDOWS_WITHOUT_FCNTL = (
+    "import sys; sys.modules['fcntl'] = None; sys.platform = 'win32'; from factory.launcher import run; run()"
+)
 
 
 def test_windows_is_unsupported_with_a_message_saying_so():
@@ -10,3 +17,12 @@ def test_windows_is_unsupported_with_a_message_saying_so():
 @pytest.mark.parametrize("platform", ["darwin", "linux"])
 def test_macos_and_linux_are_supported(platform):
     assert unsupported_reason(platform) is None
+
+
+def test_on_windows_the_launcher_refuses_before_loading_the_cli_or_fcntl():
+    # a fresh interpreter: tests that already imported factory.cli cannot hide a regression
+    ran = subprocess.run([sys.executable, "-I", "-c", PRETEND_WINDOWS_WITHOUT_FCNTL], capture_output=True, text=True)
+
+    assert ran.returncode == 2
+    assert ran.stderr == "unsupported platform: Windows is not supported; factory needs macOS or Linux\n"
+    assert ran.stdout == ""
