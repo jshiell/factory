@@ -6,11 +6,16 @@ from pathlib import Path
 
 from factory.store import TaskStore
 from factory.task import Event, Task, apply
-from factory.worktrees import is_ancestor, main_checkout_problem, run_git
+from factory.worktrees import (
+    NO_USER_CONFIG_OVERRIDES,
+    is_ancestor,
+    main_checkout_problem,
+    run_git,
+)
 
 _IDENTITY = ("-c", "user.name=factory", "-c", "user.email=factory@localhost")
 # The user's own git config (filters, rerere, rebase.updateRefs, signing) must not steer a rebase in an agent's tree.
-_NO_USER_CONFIG = {**os.environ, "GIT_CONFIG_GLOBAL": "/dev/null", "GIT_CONFIG_NOSYSTEM": "1"}
+_NO_USER_CONFIG = {**os.environ, **NO_USER_CONFIG_OVERRIDES}
 _REBASE = ("-c", "commit.gpgsign=false", "-c", "rerere.enabled=false", *_IDENTITY, "rebase",
            "--no-verify", "--no-autostash", "--no-update-refs", "--no-gpg-sign")
 
