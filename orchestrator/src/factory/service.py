@@ -16,6 +16,9 @@ class NotReviewed(Exception):
         self.task = task
 
 
+MAX_GOAL_BYTES = 20_000  # the goal rides in every stage prompt, which must fit one argv string
+
+
 class PlanChanged(Exception):
     """The plan or review notes differ from what the approver was shown."""
 

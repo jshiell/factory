@@ -7,6 +7,7 @@ import pytest
 from factory.cli import Context
 from factory.digest import plan_digest
 from factory.rebase_task import Rebased
+from factory.service import MAX_GOAL_BYTES
 from factory.settings import Settings
 from factory.sqlite_ledger import SqliteLedger
 from factory.sqlite_store import SqliteTaskStore
@@ -71,6 +72,24 @@ def test_post_tasks_without_a_goal_string_is_422_and_creates_nothing(client, ctx
     assert response.status_code == 422
     assert response.json()["error"] == "invalid input"
     assert ctx.store.list().tasks == []
+
+
+def test_post_tasks_with_a_goal_over_the_byte_limit_is_422_even_with_fewer_characters(client, ctx):
+    goal = "é" * (MAX_GOAL_BYTES // 2) + "a"
+
+    response = client.post("/tasks", json={"goal": goal})
+
+    assert len(goal) < MAX_GOAL_BYTES
+    assert response.status_code == 422
+    assert "20000" in response.json()["detail"]
+    assert ctx.store.list().tasks == []
+
+
+def test_post_tasks_accepts_a_goal_of_exactly_the_byte_limit(client):
+    # guard: the limit is inclusive
+    goal = "é" * (MAX_GOAL_BYTES // 2)
+
+    assert client.post("/tasks", json={"goal": goal}).status_code == 201
 
 
 def test_post_tasks_with_a_body_that_is_not_json_is_422(client):

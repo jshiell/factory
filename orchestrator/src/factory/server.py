@@ -151,6 +151,8 @@ def _build_app(ctx) -> Starlette:
     async def create_task(request: Request) -> JSONResponse:
         body = await _json_object(request)
         goal = _required_string(body, "goal")
+        if len(goal.encode(errors="surrogatepass")) > service.MAX_GOAL_BYTES:  # JSON admits lone surrogates
+            raise ApiError(422, "invalid input", f"goal must be at most {service.MAX_GOAL_BYTES} bytes")
         grill = body.get("grill", ctx.settings.grill)
         if not isinstance(grill, bool):
             raise ApiError(422, "invalid input", "grill must be true or false")
