@@ -15,3 +15,6 @@ def run() -> None:
     if reason:
         print(f"unsupported platform: {reason}", file=sys.stderr)
         sys.exit(2)
+    from factory import cli
+
+    cli.run()

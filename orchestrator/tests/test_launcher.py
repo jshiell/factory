@@ -3,7 +3,7 @@ import sys
 
 import pytest
 
-from factory.launcher import unsupported_reason
+from factory.launcher import run, unsupported_reason
 
 PRETEND_WINDOWS_WITHOUT_FCNTL = (
     "import sys; sys.modules['fcntl'] = None; sys.platform = 'win32'; from factory.launcher import run; run()"
@@ -26,3 +26,13 @@ def test_on_windows_the_launcher_refuses_before_loading_the_cli_or_fcntl():
     assert ran.returncode == 2
     assert ran.stderr == "unsupported platform: Windows is not supported; factory needs macOS or Linux\n"
     assert ran.stdout == ""
+
+
+def test_on_a_supported_platform_the_launcher_runs_the_cli(monkeypatch):
+    calls = []
+    monkeypatch.setattr(sys, "platform", "linux")
+    monkeypatch.setattr("factory.cli.run", lambda: calls.append("ran"))
+
+    run()
+
+    assert calls == ["ran"]
