@@ -178,16 +178,16 @@ def _handle_issue(github, server, state, state_dir, issue: Issue, approver_ids: 
         _post_failure(thread, state, state_dir, record, _failure_text(task, home), retry)
         return
     if record.phase is Phase.AWAITING_MERGE and task["state"] == "audited":
-        _merge_on_thumbs_up(thread, server, state, state_dir, record, approver_ids)
+        _merge_on_thumbs_up(thread, server, progress, approver_ids)
         return
     if record.phase in (Phase.AWAITING_MERGE, Phase.AWAITING_REBASE) and task["state"] == "merged":  # merged at the terminal, or the 👍 job's post was lost
-        _post_merged(thread, state, state_dir, record)
+        _post_merged(thread, progress)
         return
     if record.phase is Phase.AWAITING_REBASE and task["state"] == "audited":
-        _rebase_on_thumbs_up(thread, server, state, state_dir, record, task, approver_ids, home)
+        _rebase_on_thumbs_up(thread, server, progress, task, approver_ids, home)
         return
     if merge and record.phase is Phase.APPROVED and task["state"] == "audited":  # audited before its comments were posted
-        _post_audited(thread, server, state, state_dir, record, {"steps": [], "state": "audited"}, merge)
+        _post_audited(thread, server, progress, {"steps": [], "state": "audited"}, merge)
         return
     if task["state"] in ("audited", "merged"):  # finished at the terminal; no steps to report
         record.phase = Phase.AUDITED
@@ -216,6 +216,6 @@ def _handle_issue(github, server, state, state_dir, issue: Issue, approver_ids: 
     elif result["state"] == "reviewed" and record.phase is Phase.NEW:
         _post_plan(thread, server, progress)
     elif result["state"] == "audited" and record.phase is Phase.APPROVED:
-        _post_audited(thread, server, state, state_dir, record, result, merge)
+        _post_audited(thread, server, progress, result, merge)
     elif result["state"] == "failed":
         _post_failure(thread, state, state_dir, record, _failure_text(result, home), retry)
