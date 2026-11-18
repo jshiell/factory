@@ -30,7 +30,7 @@ def _without_shims(path: str) -> str:
 def _uv_read_dirs(real_uv: str, home: str) -> tuple[str, ...]:
     """The directory holding uv, which nono needs readable to exec it.
 
-    None for a bare or relative name, or for a directory that is `/` or holds home (agent tests must not read it)."""
+    Empty for a bare or relative name, or for a directory that is `/` or holds home (agent tests must not read it)."""
     if not os.path.isabs(real_uv):
         return ()
     directory = str(Path(real_uv).resolve().parent)
