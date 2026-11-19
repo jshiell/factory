@@ -6,7 +6,7 @@ IDS = ["case-01", "case-02", "case-03"]
 
 
 def make_run(root, name, verdicts, *, hashes=None, complete=True, cases=None, config=None, prompt="p1", cost=0.03,
-             plugin_hashes=None, harness=None):
+             plugin_hashes=None, harness=None, sandbox=None):
     directory = root / name
     directory.mkdir(parents=True)
     hashes = hashes or {i: f"h-{i}" for i in IDS}
@@ -16,6 +16,8 @@ def make_run(root, name, verdicts, *, hashes=None, complete=True, cases=None, co
         meta["plugin_hashes"] = plugin_hashes
     if harness is not None:
         meta["harness"] = harness
+    if sandbox is not None:
+        meta["sandbox"] = sandbox
     (directory / "meta.json").write_text(json.dumps(meta))
     for case_id, outcomes in verdicts.items():
         for run, outcome in enumerate(outcomes, 1):
@@ -113,6 +115,22 @@ def test_compare_does_not_need_its_metas_normalised_to_treat_a_missing_harness_a
     monkeypatch.setattr("factory.audit_compare.load_run", lambda path: runs[path])
 
     assert "harness differs" not in "\n".join(compare("old", "new"))
+
+
+def test_the_header_says_when_the_sandbox_differs(tmp_path):
+    old = make_run(tmp_path, "old", steady())
+    other = make_run(tmp_path, "other", steady(), sandbox="other")
+    explicit = make_run(tmp_path, "explicit", steady(), sandbox="nono")
+
+    assert "sandbox differs" in "\n".join(compare(old, other))
+    assert "sandbox differs" not in "\n".join(compare(old, explicit))  # a meta without a sandbox is nono
+
+
+def test_compare_does_not_need_its_metas_normalised_to_treat_a_missing_sandbox_as_nono(monkeypatch):
+    runs = {"old": Run("old", {}, {}, 0.0), "new": Run("new", {"sandbox": "nono"}, {}, 0.0)}
+    monkeypatch.setattr("factory.audit_compare.load_run", lambda path: runs[path])
+
+    assert "sandbox differs" not in "\n".join(compare("old", "new"))
 
 
 def test_a_directory_without_meta_is_compared_by_case_id_with_a_warning(tmp_path):

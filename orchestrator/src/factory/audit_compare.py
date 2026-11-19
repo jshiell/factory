@@ -76,6 +76,8 @@ def compare(old: Path, new: Path) -> list[str]:
     else:
         if with_defaults(old_meta)["harness"] != with_defaults(new_meta)["harness"]:
             lines.append("  harness differs")
+        if with_defaults(old_meta)["sandbox"] != with_defaults(new_meta)["sandbox"]:
+            lines.append("  sandbox differs")
         if old_meta.get("audit_config") != new_meta.get("audit_config"):
             lines.append("  AUDIT_CONFIG differs")
         if old_meta.get("plugin_hashes", {}) != new_meta.get("plugin_hashes", {}):
