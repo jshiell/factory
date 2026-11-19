@@ -4,9 +4,8 @@ import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
-from factory.command import contains
 from factory.process import STRIPPED_ENV
-from factory.sandbox import NonoSandbox, Sandbox, SandboxPolicy
+from factory.sandbox import NonoSandbox, Sandbox, SandboxPolicy, contains
 
 
 @dataclass(frozen=True)

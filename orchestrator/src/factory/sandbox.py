@@ -36,6 +36,10 @@ class NonoSandbox:
         return [*prefix, "--"]
 
 
+def contains(directory: str, inner: str) -> bool:
+    return Path(inner).resolve().is_relative_to(Path(directory).resolve())
+
+
 DEFAULT_SANDBOX = "nono"
 SANDBOXES: dict[str, Callable[[str], Sandbox]] = {DEFAULT_SANDBOX: NonoSandbox}
 

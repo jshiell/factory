@@ -6,11 +6,11 @@ import time
 from contextlib import nullcontext
 from pathlib import Path
 
-from factory.command import RunnerConfig, contains
+from factory.command import RunnerConfig
 from factory.harness import ClaudeHarness, Harness
 from factory.process import STRIPPED_ENV, kill_tree, tail
 from factory.process_registry import Tracker
-from factory.sandbox import NonoSandbox, Sandbox, SandboxPolicy
+from factory.sandbox import NonoSandbox, Sandbox, SandboxPolicy, contains
 from factory.step import TAIL_CHARS, RunResult
 from factory.task import Task
 

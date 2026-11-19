@@ -1,5 +1,4 @@
 from dataclasses import dataclass
-from pathlib import Path
 
 # Linux caps one argv string at 131072 bytes including the NUL (measured with /usr/bin/true: 131071 runs, 131072 is E2BIG).
 MAX_PROMPT_BYTES = 131_071
@@ -23,5 +22,3 @@ class RunnerConfig:
     plugin_dirs: tuple[str, ...] = ()
 
 
-def contains(directory: str, inner: str) -> bool:
-    return Path(inner).resolve().is_relative_to(Path(directory).resolve())
