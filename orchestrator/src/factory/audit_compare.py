@@ -3,6 +3,7 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 
+from factory.audit_eval import with_defaults
 from factory.audit_report import VERDICTS, load_records
 from factory.audit_share import shareable_meta
 
@@ -73,7 +74,7 @@ def compare(old: Path, new: Path) -> list[str]:
     if old_meta is None:
         lines.append("  no meta.json there: cases compared by id, not by content (the corpus may differ)")
     else:
-        if old_meta.get("harness") != new_meta.get("harness"):
+        if with_defaults(old_meta)["harness"] != with_defaults(new_meta)["harness"]:
             lines.append("  harness differs")
         if old_meta.get("audit_config") != new_meta.get("audit_config"):
             lines.append("  AUDIT_CONFIG differs")

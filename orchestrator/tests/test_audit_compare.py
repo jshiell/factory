@@ -1,6 +1,6 @@
 import json
 
-from factory.audit_compare import compare, find_previous
+from factory.audit_compare import Run, compare, find_previous
 
 IDS = ["case-01", "case-02", "case-03"]
 
@@ -106,6 +106,13 @@ def test_the_header_says_when_the_harness_differs(tmp_path):
 
     assert "harness differs" in "\n".join(compare(old, other))
     assert "harness differs" not in "\n".join(compare(old, explicit))  # a meta without a harness is claude
+
+
+def test_compare_does_not_need_its_metas_normalised_to_treat_a_missing_harness_as_claude(monkeypatch):
+    runs = {"old": Run("old", {}, {}, 0.0), "new": Run("new", {"harness": "claude"}, {}, 0.0)}
+    monkeypatch.setattr("factory.audit_compare.load_run", lambda path: runs[path])
+
+    assert "harness differs" not in "\n".join(compare("old", "new"))
 
 
 def test_a_directory_without_meta_is_compared_by_case_id_with_a_warning(tmp_path):
