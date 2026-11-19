@@ -7,7 +7,7 @@ from typing import Protocol
 @dataclass(frozen=True)
 class SandboxPolicy:
     """What a confined process is granted, as run today: the worktree read-only, `write` and `read` directories,
-    the working directory (writable only if `profile` grants it) and open network. `profile` is opaque: nono uses
+    the working directory (writable, granted by `--allow-cwd` in nono, not by the profile) and open network. `profile` is opaque: nono uses
     it, another sandbox may ignore it (and then grants too little, never too much)."""
 
     worktree: str | Path
