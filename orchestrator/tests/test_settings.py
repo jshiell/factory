@@ -94,8 +94,8 @@ def test_bad_settings_are_rejected_with_a_message_naming_the_key(repo_dir, line,
         load_settings(None, cwd=repo_dir)
 
 
-def test_sandbox_executable_defaults_to_nono_and_can_be_set(repo_dir):
-    assert load_settings(None, cwd=repo_dir).sandbox_executable == "nono"
+def test_sandbox_executable_defaults_to_unset_and_can_be_set(repo_dir):
+    assert load_settings(None, cwd=repo_dir).sandbox_executable is None
     (repo_dir / "factory.toml").write_text('sandbox_executable = "/opt/fake-nono"\n')
 
     assert load_settings(None, cwd=repo_dir).sandbox_executable == "/opt/fake-nono"

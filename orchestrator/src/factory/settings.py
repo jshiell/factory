@@ -28,7 +28,7 @@ class Settings:
     claude_executable: str = "claude"
     harness: str = DEFAULT_HARNESS
     sandbox: str = DEFAULT_SANDBOX
-    sandbox_executable: str = "nono"
+    sandbox_executable: str | None = None
     model: str = "sonnet"
     budget_usd: float = 0.5
     allowed_tools: tuple[str, ...] = ()
