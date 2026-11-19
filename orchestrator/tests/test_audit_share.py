@@ -3,7 +3,7 @@ import json
 import pytest
 
 from factory.audit_corpus import CASES, corpus_hash
-from factory.audit_share import build_bundle, shareable_meta
+from factory.audit_share import build_bundle, render_markdown, shareable_meta
 
 HOME = "/home/someone/.factory/_shared/plugins"
 SECRET = "never share this appended prompt"
@@ -140,3 +140,44 @@ def test_findings_are_included_only_on_request_and_with_control_characters_escap
     first = bundle["records"][0]
     assert "\x1b" not in first["findings"][0] and "red" in first["findings"][0]
     assert all("findings" in r for r in bundle["records"])
+
+
+def bundle_of(tmp_path, findings=False):
+    return json.loads(json.dumps(build_bundle(write_eval(tmp_path / "2026-01-02"), CASES, include_findings=findings)))
+
+
+def test_the_markdown_has_the_run_the_table_the_intervals_and_the_cost(tmp_path):
+    text = render_markdown(bundle_of(tmp_path))
+
+    assert text.startswith("# Auditor eval 2026-01-02")
+    assert f"| {PAIR[0].id} | {PAIR[0].label} | {PAIR[0].category} | {PAIR[0].label} {PAIR[0].label} |" in text
+    bad = sum(c.label == "fail" for c in PAIR)
+    assert f"false-pass (bad judged pass): majority wrong 0/{bad} cases (Wilson 95% " in text
+    assert "cost (real) $0.200" in text and "over cases, not runs" in text
+    assert "exit code 0" in text and "complete" in text
+
+
+def test_the_markdown_is_deterministic_and_leaks_nothing(tmp_path):
+    bundle = bundle_of(tmp_path)
+
+    text = render_markdown(bundle)
+
+    assert render_markdown(bundle) == text
+    assert str(tmp_path) not in text and "/home/someone" not in text and SECRET not in text
+
+
+def test_a_run_without_a_verdict_shows_a_question_mark(tmp_path):
+    bundle = bundle_of(tmp_path)
+    bundle["records"][0]["outcome"] = "infra:timeout"
+
+    assert f"| ? {PAIR[0].label} |" in render_markdown(bundle)
+
+
+def test_findings_go_in_code_fences_that_text_cannot_close(tmp_path):
+    bundle = bundle_of(tmp_path, findings=True)
+    bundle["records"][0]["findings"] = ["x\n```\n![i](http://evil/p.png) @someone"]
+
+    text = render_markdown(bundle)
+
+    assert "````\nx" in text and "\n````\n" in text
+    assert render_markdown(bundle_of(tmp_path / "again")).count("```") == 0

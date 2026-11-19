@@ -1,6 +1,7 @@
 """Turn an eval directory into something safe to hand to someone else (plan eval-export)."""
 import hashlib
 import json
+import re
 from pathlib import Path
 
 from factory.audit_corpus import Case, corpus_hash
@@ -70,3 +71,55 @@ def build_bundle(eval_dir: Path, corpus: list[Case], include_findings: bool = Fa
         "summary": summary(records, cases),
         "exit_code": exit_code(records, meta["runs"], meta["complete"], cases),
     }
+
+
+def _cell(text: str) -> str:
+    return text.replace("|", "\\|").replace("\n", " ")
+
+
+def _fence(text: str) -> str:
+    longest = max((len(run) for run in re.findall("`+", text)), default=0)
+    ticks = "`" * max(3, longest + 1)
+    return f"{ticks}\n{text}\n{ticks}"
+
+
+def _percent(low_high: list[float]) -> str:
+    return f"{low_high[0]:.0%}-{low_high[1]:.0%}"
+
+
+def render_markdown(bundle: dict) -> str:
+    """The bundle as Markdown. Reads only the bundle, so it is deterministic and cannot show more than the JSON does."""
+    meta, totals = bundle["meta"], bundle["summary"]
+    by_case: dict[str, list[dict]] = {}
+    for record in bundle["records"]:
+        by_case.setdefault(record["case"], []).append(record)
+    labels = {record["case"]: record for record in bundle["records"]}
+    lines = [
+        f"# Auditor eval {bundle['eval']}", "",
+        f"- corpus {meta['corpus_hash']}, audit prompt {meta['prompt_hash']}, model {meta['audit_config'].get('model')}",
+        f"- {meta['runs']} runs per case, {'complete' if meta['complete'] else 'incomplete'}, exit code {bundle['exit_code']}",
+        "", "| case | label | category | verdicts (? is a run with no verdict) |", "| --- | --- | --- | --- |",
+    ]
+    for case_id in meta["cases"]:
+        runs = sorted(by_case.get(case_id, []), key=lambda r: r["run"])
+        shown = " ".join(r["outcome"] if r["outcome"] in ("pass", "fail") else "?" for r in runs)
+        head = labels.get(case_id, {})
+        lines.append(f"| {_cell(case_id)} | {head.get('label', '')} | {_cell(head.get('category', ''))} | {shown} |")
+    lines.append("")
+    for title, key in (("false-pass (bad judged pass)", "false_pass"), ("false-fail (good judged fail)", "false_fail")):
+        part = totals[key]
+        lines.append(f"- {title}: majority wrong {len(part['majority'])}/{part['eligible']} cases "
+                     f"(Wilson 95% {_percent(part['wilson'])}); wrong in any run: {part['any_run']}")
+    lines += [
+        f"- runs {totals['runs']}; without a verdict: {[tuple(entry) for entry in totals['infra']]}",
+        f"- inconsistent cases: {totals['inconsistent']}",
+        f"- cost (real) ${totals['cost_usd']:.3f}; assumed ${totals['assumed_usd']:.2f}",
+        "", "Intervals are over cases, not runs: runs of one case are correlated.",
+    ]
+    with_findings = [r for r in bundle["records"] if r.get("findings")]
+    if with_findings:
+        lines += ["", "## Findings"]
+        for record in with_findings:
+            lines += ["", f"{_cell(record['case'])} run {record['run']} ({record['outcome']}):"]
+            lines += [_fence(finding) for finding in record["findings"]]
+    return "\n".join(lines) + "\n"
