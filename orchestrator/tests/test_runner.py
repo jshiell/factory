@@ -590,7 +590,7 @@ def test_a_confined_run_is_wrapped_by_the_given_sandbox_with_the_policy_the_runn
     harness.sandbox_profile = "acme/fake"
     sandbox = RecordingSandbox([fake_wrapper(tmp_path, log), "--"])
     runner = SubprocessRunner(
-        claude, project_subdir="proj", timeout_s=10, sandbox=sandbox, sandbox_executable="/no/such/nono", harness=harness,
+        claude, project_subdir="proj", timeout_s=10, sandbox=sandbox, harness=harness,
     )
 
     result = runner.run(task, replace(CONFIG, confine=True, plugin_dirs=("/plug",)))

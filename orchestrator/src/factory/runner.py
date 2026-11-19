@@ -10,7 +10,13 @@ from factory.command import RunnerConfig
 from factory.harness import ClaudeHarness, Harness
 from factory.process import STRIPPED_ENV, kill_tree, tail
 from factory.process_registry import Tracker
-from factory.sandbox import NonoSandbox, Sandbox, SandboxPolicy, without_private
+from factory.sandbox import (
+    DEFAULT_SANDBOX,
+    Sandbox,
+    SandboxPolicy,
+    sandbox_named,
+    without_private,
+)
 from factory.step import TAIL_CHARS, RunResult
 from factory.task import Task
 
@@ -29,13 +35,13 @@ def _executable_directory(executable: str, path: str | None, private_dirs: tuple
 
 
 class SubprocessRunner:
-    def __init__(self, executable: str, project_subdir: str, timeout_s: float, sandbox_executable: str = "nono", records=None, private_dirs: tuple[str, ...] = (), harness: Harness | None = None, sandbox: Sandbox | None = None):
+    def __init__(self, executable: str, project_subdir: str, timeout_s: float, records=None, private_dirs: tuple[str, ...] = (), harness: Harness | None = None, sandbox: Sandbox | None = None):
         """`records`: a records object or a state directory; each agent process is recorded there for the reaper.
         `private_dirs`: directories the sandbox must never be granted read access to, even indirectly.
         `harness`: how the agent CLI is started (default: Claude).
-        `sandbox`: how a confined run is wrapped (default: nono at `sandbox_executable`; `sandbox` wins if both are given)."""
+        `sandbox`: how a confined run is wrapped (default: the default sandbox, `sandbox_named(DEFAULT_SANDBOX, "nono")`)."""
         self._harness = harness or ClaudeHarness()
-        self._sandbox = sandbox or NonoSandbox(sandbox_executable)
+        self._sandbox = sandbox or sandbox_named(DEFAULT_SANDBOX, "nono")
         self._private_dirs = private_dirs
         self._executable = executable
         self._project_subdir = project_subdir
