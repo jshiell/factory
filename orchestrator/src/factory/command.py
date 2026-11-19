@@ -2,8 +2,6 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
-from factory.sandbox import NonoSandbox, SandboxPolicy
-
 SANDBOX_PROFILE = "nolabs-ai/claude"
 # Linux caps one argv string at 131072 bytes including the NUL (measured with /usr/bin/true: 131071 runs, 131072 is E2BIG).
 MAX_PROMPT_BYTES = 131_071
@@ -36,22 +34,5 @@ class RunnerConfig:
     plugin_dirs: tuple[str, ...] = ()
 
 
-def build_command(
-    prompt: str, config: RunnerConfig, executable: str = "claude", add_dirs: tuple[str, ...] = ()
-) -> tuple[list[str], dict[str, str]]:
-    from factory.harness import ClaudeHarness  # harness.py imports this module
-
-    invocation = ClaudeHarness().build(prompt, config, executable, add_dirs)
-    return invocation.argv, invocation.env
-
-
 def contains(directory: str, inner: str) -> bool:
     return Path(inner).resolve().is_relative_to(Path(directory).resolve())
-
-
-def sandbox_prefix(
-    executable: str, worktree: str | Path, profile: str | None = SANDBOX_PROFILE,
-    allow: tuple[str, ...] = (), read: tuple[str, ...] = (),
-) -> list[str]:
-    """nono prefix; without a profile `--allow-cwd` is read-only, so write access is granted via `allow`."""
-    return NonoSandbox(executable).wrap(SandboxPolicy(worktree, write=allow, read=read, profile=profile))

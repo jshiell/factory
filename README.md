@@ -36,7 +36,7 @@ Linux was re-measured on 2026-11-18 (nono 0.81.0, kernel 7.0.0-43). macOS was me
 | Gate sandbox grant for `uv` | Current: plan 56, with `uv` under mise only | Older mechanism: plan 9 (real `uv`, mise shims, Python prefix, private cache). The plan 56 grant has not been tried |
 | Gate network and build hooks | Plans 55 and 56: network works; a `setup.py` entry point and a hatch hook run | Plan 9: a cold gate run needs network (observed, not probed). Build hooks not measured |
 | Orphan reaping | Plan O7: SQLite records, real `ps`. A `setsid` grandchild whose parent had already exited survives | Older code: plan 21, file records, end-to-end 15 of 15 (`ps` start time read with `LC_ALL=C TZ=UTC0`). Plan 21 also lists `killpg` after a reaped leader as unverified on macOS. The SQLite records have not been run on macOS |
-| Prompt size in `argv` | Measured 2026-11-18: a single argument of 131072 bytes or more fails with `E2BIG`; 131071 runs. Prompts are one argument, so `build_command` refuses a prompt over 131,071 bytes (`prompt_too_large`, no charge), and the audit shrinks its diff limit to the room the task prompt leaves | Total `ARG_MAX` is 1048576 (plan 3), the figure the diff limit was based on. No per-argument cap measured |
+| Prompt size in `argv` | Measured 2026-11-18: a single argument of 131072 bytes or more fails with `E2BIG`; 131071 runs. Prompts are one argument, so `ClaudeHarness.build` refuses a prompt over 131,071 bytes (`prompt_too_large`, no charge), and the audit shrinks its diff limit to the room the task prompt leaves | Total `ARG_MAX` is 1048576 (plan 3), the figure the diff limit was based on. No per-argument cap measured |
 | Server signals (`factory serve`) | Never measured | Plan 35 C0: SIGTERM and SIGINT run shutdown; uvicorn ignores SIGHUP, so `serve` installs its own handler |
 | Case-insensitive filesystem | Not applicable | Plan 20: `UV.toml` and `.Python-Version` are honoured by `uv`; protected names match case-insensitively. Plan 50: `gate_allow_outside` does not handle it |
 
@@ -291,7 +291,7 @@ flowchart TB
     end
     task["task.py<br/>state machine"]
     store["sqlite_store.py<br/>one row per task, in factory.db"]
-    runner["runner.py / command.py<br/>build and run `claude -p` under nono"]
+    runner["runner.py, harness.py, sandbox.py, command.py (RunnerConfig)<br/>build and run `claude -p` under nono"]
     gate["gate.py, gate_sandbox.py,<br/>worktree_clean.py<br/>the trusted checker"]
     wt["worktrees.py<br/>git worktree per task, hardened git"]
     ledger["ledger.py, step.py<br/>spend cap, cost accounting"]
