@@ -51,12 +51,11 @@ Everything the factory knows is reachable only through the CLI or GitHub. A brow
   - `X-Content-Type-Options: nosniff`;
   - `Cross-Origin-Resource-Policy: same-origin`.
 
-  htmx gets `includeIndicatorStyles: false`, `allowEval: false` and `allowScriptTags: false` through `<meta name="htmx-config">`; the spike confirms these key names. Templates use no `style=` attributes and no `hx-on`.
+  htmx gets `{"includeIndicatorStyles": false, "allowEval": false, "allowScriptTags": false, "historyCacheSize": 0}` through `<meta name="htmx-config">` (key names checked in increment 0). `historyCacheSize: 0` stops htmx keeping page snapshots, which contain task text, in `sessionStorage`. Templates use no `style=` attributes and no `hx-on`.
 - **Login.**
   - `LoginCodes` issues a random single-use code with a 5-minute expiry (injected clock) and prunes expired codes on each issue.
   - `POST /ui-login-codes` (Bearer) returns `{"url": "http://<Host>/ui/login?code=…"}`, built from the request's Host. `factory ui` prints that URL.
-  - `GET /ui/login?code=…` redeems the code and creates a session (a random id held in memory, so a restart logs everyone out). It sets `factory_session_<port>` (port taken from Host; HttpOnly; SameSite=Strict; Path=/ui) and answers 303 to `/ui/`.
-  - If the spike shows that a Strict cookie is dropped on that redirect after a cross-site click, login answers 200 instead, with a same-origin link to `/ui/`.
+  - `GET /ui/login?code=…` redeems the code and creates a session (a random id held in memory, so a restart logs everyone out). It sets `factory_session_<port>` (port taken from Host; HttpOnly; SameSite=Strict; Path=/ui) and answers 200 with a page whose only content is a same-origin link to `/ui/`. No redirect: a Strict cookie may not be sent on a redirect that starts from a cross-site click (from a terminal or chat app; not measured), but it is always sent on a same-origin click (user, 2026-11-19).
   - A link-preview prefetcher can use up the code; get another with `factory ui`.
 - **Task page.** `GET /ui/` shows a table of id, state, truncated goal and failure reason, newest first. Human-gate states (`open_questions`, `reviewed`, `audited`) are marked, and skipped rows are listed. The table is `templates/_tasks.html`, rendered both into the page and into SSE events.
 - **Change feed.**
@@ -84,23 +83,30 @@ Everything the factory knows is reachable only through the CLI or GitHub. A brow
 - Long actions return a job. The change feed can also carry job changes, as a second SSE event name, through the same listener pattern on `JobStore`.
 - Logic shared by JSON and HTML handlers moves to the service layer when its second caller arrives.
 
-## Still unverified (increment 0)
-1. When Chrome and Firefox send `Origin` and `Sec-Fetch-Site` on a page load, an htmx GET, an EventSource connection and an htmx POST.
-2. Whether a SameSite=Strict cookie is sent on the 303 after following the link from a cross-site context (a terminal, a chat app).
-3. The htmx 2 SSE extension's attribute names and reconnect behaviour, and the `htmx-config` key names, under the CSP above.
-4. Whether `uv_build` puts `web/templates/*` and `web/static/*` in the wheel.
+## Increment 0 results (2026-11-19; detail in `docs/spike-findings.md`)
+- Settled:
+  - `uv_build` ships `web/templates/*` and `web/static/*`.
+  - htmx 2.0.11 and htmx-ext-sse 2.2.4 (both 0BSD) are pinned. The sha256 values are in the findings.
+  - The SSE attributes and the `htmx-config` keys are as the Design says.
+  - The extension reconnects with backoff (0.5 s to 64 s) and fires `htmx:sseError`, which `ui.js` uses for the banner.
+  - New: `historyCacheSize: 0`.
+- Not measured, because no browser is installed:
+  - Which `Origin` and `Sec-Fetch-Site` headers browsers send. The guard accepts `Origin` absent or exact, so it does not depend on the answer.
+  - Whether a Strict cookie survives a redirect after a cross-site click. Designed around: login answers 200 with a link.
+
+  Increment 22's manual check records the headers browsers actually send, for the later CSRF design.
 
 ## Increments (one commit each; red = failing test first; guard = passes before the green)
 Refer to tests by name; line numbers drift.
 
-0. **Spike**, throwaway, in `spike/web-sse/`: settle the four points above, write the results (and the uvicorn shutdown reading above) to `docs/spike-findings.md`, and commit the findings with this plan.
+0. **Spike: done** (see "Increment 0 results"). No spike code was kept: the probes were a throwaway wheel and npm packages read in the scratchpad.
 1. **Login codes.** Red: a code from `LoginCodes.issue()` redeems once; a second use, an unknown code and an expired code (via the clock) are refused. Then red: issuing prunes expired codes. Green: `web/auth.py`.
 2. **Sessions.** Red: `Sessions.create()` returns an id that `valid()` accepts; an unknown id is refused.
 3. **Store hook.** Red: a subscribed listener is called after `save` and after `create`, and not when `create` raises `TaskExists`. Then red: a listener that raises does not make `save` raise, and the row is saved.
 4. **Wiring.** Red: a listener subscribed on `build_context(settings).store` is called when a stage from that context's `stages` saves a task. This proves the stages and `ctx` share the observed instance. Guard if it already passes, which is expected: say so and commit it as a guard.
 5. **`TaskChanges`** (hand to the implementation-complex agent). Red: `wait_past(v)` returns after `notify()` is called from another thread. Guard: `wait_past(old)` returns at once. Red: `notify()` before a loop is attached, and after the loop is closed, does not raise.
 6. **The guard on `/ui`.** Red: `GET /ui/` with no cookie gets 401 HTML naming `factory ui`. Green: the guard's path branch, the `/ui` 308 route, and a placeholder page. Guards (same commit): `/tasks` with a same-origin `Origin` is still 403 (existing test); `/ui/` with only Bearer is 401; `POST /ui-login-codes` without Bearer is 401 once that route exists (move this guard to 8 if needed).
-7. **Login route.** Red: `/ui/login?code=<valid>` answers 303 to `/ui/` and sets `factory_session_8765` with HttpOnly, SameSite=Strict and Path=/ui; reusing the code gets 401; with the cookie, `/ui/` gets 200 (the placeholder). Use the spike's 200 bridge variant if point 2 calls for it.
+7. **Login route.** Red: `/ui/login?code=<valid>` answers 200 with a link to `/ui/` and sets `factory_session_8765` with HttpOnly, SameSite=Strict and Path=/ui; reusing the code gets 401; with the cookie, `/ui/` gets 200 (the placeholder).
 8. **Code endpoint.** Red: `POST /ui-login-codes` with Bearer returns a `url` built from the request's Host whose code logs in.
 9. **Origin rules.** Red: with the cookie, a foreign `Origin` gets 403, `Origin: http://<Host>` gets 200, `Sec-Fetch-Site: same-site` and `cross-site` get 403, and `same-origin` and `none` get 200. Guard: a non-loopback Host gets 403.
 10. **Security headers.** Red: the 200 page, the guard's 401 and 403 pages and the `/ui` 308 all carry the five headers.
@@ -115,7 +121,7 @@ Refer to tests by name; line numbers drift.
 19. **Stopping, in uvicorn.** Red, as a subprocess test in the style of `test_cli_wiring`: with an SSE stream open, SIGTERM and SIGHUP make `serve` exit within the backstop, and the lock is released. Green: the `uvicorn.Server` subclass, the SIGHUP handler change and `timeout_graceful_shutdown=5`.
 20. **Page wiring.** Red: the page has the `sse-connect` and `sse-swap` attributes and the htmx config meta, and `ui.js` is served. The banner behaviour is checked in the browser in increment 22, not in a unit test.
 21. **`factory ui` command.** Red: it prints the URL from `POST /ui-login-codes`. Guard: with no server running it prints `no factory server is running`.
-22. **Docs, then a manual check.** README: a "Web UI" subsection under "Server" (`factory ui`, cookie scope, the logout on restart, the port-less cookie risk, what the page shows, the limits); reword the "any `Origin` header is refused" sentence to "outside `/ui`"; add `ui` to the command table and to the "client of this server" sentence. Record deviations here. Then check by hand in a real browser (the `run` skill): log in; watch a row change during `factory advance`; restart and see the banner; with a tab open, send SIGTERM and close the terminal (SIGHUP), and confirm `serve` exits and releases the lock.
+22. **Docs, then a manual check.** README: a "Web UI" subsection under "Server" (`factory ui`, cookie scope, the logout on restart, the port-less cookie risk, what the page shows, the limits); reword the "any `Origin` header is refused" sentence to "outside `/ui`"; add `ui` to the command table and to the "client of this server" sentence. Record deviations here. Then check by hand in a real browser (the `run` skill): log in; record the `Origin` and `Sec-Fetch-Site` headers each request kind carries (add them to `docs/spike-findings.md`); watch a row change during `factory advance`; restart and see the banner; with a tab open, send SIGTERM and close the terminal (SIGHUP), and confirm `serve` exits and releases the lock.
 23. **Gate.** `uv run ruff check`, `uv run pytest -q -n auto` in the background, `verify`, `audit-commits`.
 
 ## Tests touched (CLAUDE.md step 2)

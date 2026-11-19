@@ -636,3 +636,25 @@ Linux was re-measured through plans 49 to 57 and O7; macOS was last measured abo
 - `spike/orphan_setsid_probe.py`: orphan reaping with SQLite records (O7).
 - Not covered by any script: the `claude` executable grant (plans 49, 57), `factory serve` signals, the per-argument limit.
 - `spike/orphan_e2e.py` is stale (see the plan O7 entry); do not use it.
+
+## Plan 69 increment 0 (web UI; 2026-11-19, Linux, uv 0.13.9, uvicorn 0.54.0, starlette 1.10.0, run by me, $0)
+- **uvicorn shutdown with a stream open (read from source, not run):**
+  - `timeout_graceful_shutdown` defaults to `None` (`uvicorn/config.py:236`).
+  - `Server.shutdown()` (`uvicorn/server.py:281-311`) only sets `keep_alive = False` on in-flight responses. It waits for connections with that timeout, and only then runs the lifespan shutdown. No `http.disconnect` is sent.
+  - So an open SSE stream blocks SIGTERM and SIGHUP indefinitely, and a "stopping" flag set in the lifespan would be set too late.
+  - httptools is not installed, so h11 is the protocol.
+- **`uv_build` 0.13 includes non-Python files:** a probe wheel (`src/probe/web/templates/page.html`, `src/probe/web/static/{htmx.min.js,VENDORED.md}`) contained all three. No `package-data` setting is needed.
+- **htmx 2.0.11** (npm `htmx.org`, published 2026-09-22, 0BSD; `npm pack --ignore-scripts`, source read, not run):
+  - `<meta name="htmx-config">` is parsed as JSON. The keys `includeIndicatorStyles` (when true, it injects an inline `<style>`), `allowEval` (when false, `hx-on`, `js:` values and event filters fire `htmx:evalDisallowedError` instead of running `eval` or `new Function`) and `allowScriptTags` all exist.
+  - `historyCacheSize` defaults to 10 page snapshots in `sessionStorage`; `0` disables the cache and clears it.
+  - sha256 of `dist/htmx.min.js`: `d6fdc75f204e6bdefa99b69bf1e6d4ac69b8a364f77929f45c13476b4000f717`.
+- **htmx-ext-sse 2.2.4** (published 2025-10-18, 0BSD):
+  - Attributes: `sse-connect`, `sse-swap`, `sse-close`, and `hx-trigger="sse:<event>"`, each also with a `data-` prefix.
+  - It opens `new EventSource(url, {withCredentials: true})`.
+  - On `onerror` with the stream `CLOSED` (a 401 after a restart, for example), it reconnects after 0.5 s, then backs off up to 64 s, and fires `htmx:sseError` each time.
+  - sha256 of `dist/sse.min.js`: `98a46496de0c3605fbffdce9167ba427bdd9553184f83f149c261891a92c0136`.
+- **Not measured (no browser installed here):**
+  - When Chrome and Firefox send `Origin` and `Sec-Fetch-Site`.
+  - Whether a SameSite=Strict cookie survives a 303 after a link clicked in a cross-site context.
+
+  Designed around (user, 2026-11-19): login always answers a 200 page with a same-origin link, and the guard accepts `Origin` absent or exact. The headers browsers actually send are recorded during the plan's manual browser check.
