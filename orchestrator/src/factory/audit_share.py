@@ -7,6 +7,7 @@ from pathlib import Path
 from factory.audit_corpus import Case, corpus_hash
 from factory.audit_eval import _write_atomically
 from factory.audit_report import exit_code, load_records, summary
+from factory.harness import DEFAULT_HARNESS
 from factory.textsafe import escape_control
 
 SCHEMA = 1
@@ -37,6 +38,7 @@ def shareable_meta(meta: dict) -> dict:
         prompt = config.pop("append_system_prompt")
         config["append_system_prompt_sha256"] = None if prompt is None else hashlib.sha256(prompt.encode()).hexdigest()[:16]
     shared = {key: meta[key] for key in KEPT if key in meta}
+    shared["harness"] = meta.get("harness", DEFAULT_HARNESS)
     shared["audit_config"] = config
     shared["plugin_hashes"] = {_name(directory): digest for directory, digest in hashes.items()}
     return shared
@@ -97,7 +99,8 @@ def render_markdown(bundle: dict) -> str:
     labels = {record["case"]: record for record in bundle["records"]}
     lines = [
         f"# Auditor eval {bundle['eval']}", "",
-        f"- corpus {meta['corpus_hash']}, audit prompt {meta['prompt_hash']}, model {meta['audit_config'].get('model')}",
+        f"- corpus {meta['corpus_hash']}, audit prompt {meta['prompt_hash']}, model {meta['audit_config'].get('model')}, "
+        f"harness {meta['harness']}",
         f"- {meta['runs']} runs per case, {'complete' if meta['complete'] else 'incomplete'}, exit code {bundle['exit_code']}",
         "", "| case | label | category | verdicts (? is a run with no verdict) |", "| --- | --- | --- | --- |",
     ]

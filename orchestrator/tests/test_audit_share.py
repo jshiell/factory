@@ -51,6 +51,14 @@ def test_shareable_meta_is_idempotent_so_a_bundle_and_a_directory_compare_equal(
     assert shareable_meta(once) == once
 
 
+def test_the_shareable_meta_names_the_harness_and_a_missing_one_reads_as_claude():
+    other = raw_meta()
+    other["harness"] = "other"
+
+    assert shareable_meta(other)["harness"] == "other"
+    assert shareable_meta(raw_meta())["harness"] == "claude"
+
+
 def test_two_plugin_directories_with_one_name_are_refused():
     meta = raw_meta()
     meta["audit_config"]["plugin_dirs"] = ["/a/same", "/b/same"]
@@ -155,6 +163,10 @@ def test_the_markdown_has_the_run_the_table_the_intervals_and_the_cost(tmp_path)
     assert f"false-pass (bad judged pass): majority wrong 0/{bad} cases (Wilson 95% " in text
     assert "cost (real) $0.200" in text and "over cases, not runs" in text
     assert "exit code 0" in text and "complete" in text
+
+
+def test_the_markdown_names_the_harness(tmp_path):
+    assert "harness claude" in render_markdown(bundle_of(tmp_path))
 
 
 def test_the_markdown_is_deterministic_and_leaks_nothing(tmp_path):
