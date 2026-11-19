@@ -6,7 +6,7 @@ IDS = ["case-01", "case-02", "case-03"]
 
 
 def make_run(root, name, verdicts, *, hashes=None, complete=True, cases=None, config=None, prompt="p1", cost=0.03,
-             plugin_hashes=None):
+             plugin_hashes=None, harness=None):
     directory = root / name
     directory.mkdir(parents=True)
     hashes = hashes or {i: f"h-{i}" for i in IDS}
@@ -14,6 +14,8 @@ def make_run(root, name, verdicts, *, hashes=None, complete=True, cases=None, co
             "complete": complete, "audit_config": config or {"model": "sonnet"}, "prompt_hash": prompt}
     if plugin_hashes is not None:
         meta["plugin_hashes"] = plugin_hashes
+    if harness is not None:
+        meta["harness"] = harness
     (directory / "meta.json").write_text(json.dumps(meta))
     for case_id, outcomes in verdicts.items():
         for run, outcome in enumerate(outcomes, 1):
@@ -95,6 +97,15 @@ def test_the_header_says_when_the_audit_plugin_files_differ(tmp_path):
     assert "audit plugins differ" in "\n".join(compare(old, new))
     assert "audit plugins differ" not in "\n".join(compare(old, same))
     assert "audit plugins differ" not in "\n".join(compare(legacy, empty))
+
+
+def test_the_header_says_when_the_harness_differs(tmp_path):
+    old = make_run(tmp_path, "old", steady())
+    other = make_run(tmp_path, "other", steady(), harness="other")
+    explicit = make_run(tmp_path, "explicit", steady(), harness="claude")
+
+    assert "harness differs" in "\n".join(compare(old, other))
+    assert "harness differs" not in "\n".join(compare(old, explicit))  # a meta without a harness is claude
 
 
 def test_a_directory_without_meta_is_compared_by_case_id_with_a_warning(tmp_path):

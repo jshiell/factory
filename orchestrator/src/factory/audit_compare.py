@@ -73,6 +73,8 @@ def compare(old: Path, new: Path) -> list[str]:
     if old_meta is None:
         lines.append("  no meta.json there: cases compared by id, not by content (the corpus may differ)")
     else:
+        if old_meta.get("harness") != new_meta.get("harness"):
+            lines.append("  harness differs")
         if old_meta.get("audit_config") != new_meta.get("audit_config"):
             lines.append("  AUDIT_CONFIG differs")
         if old_meta.get("plugin_hashes", {}) != new_meta.get("plugin_hashes", {}):
