@@ -2,7 +2,8 @@ import json
 
 import pytest
 
-from factory.audit_share import shareable_meta
+from factory.audit_corpus import CASES, corpus_hash
+from factory.audit_share import build_bundle, shareable_meta
 
 HOME = "/home/someone/.factory/_shared/plugins"
 SECRET = "never share this appended prompt"
@@ -57,3 +58,71 @@ def test_two_plugin_directories_with_one_name_are_refused():
 
     with pytest.raises(ValueError, match="same"):
         shareable_meta(meta)
+
+
+PAIR = [CASES[0], CASES[1]]
+
+
+def write_eval(directory, cases=PAIR, runs=2, complete=True, config=None):
+    config = config or {"model": "sonnet", "append_system_prompt": SECRET, "plugin_dirs": [f"{HOME}/alpha"]}
+    meta = {"corpus_hash": corpus_hash(cases), "case_hashes": {c.id: "h" for c in cases}, "cases": [c.id for c in cases],
+            "runs": runs, "complete": complete, "prompt_hash": "p0", "audit_config": config,
+            "plugin_hashes": {f"{HOME}/alpha": "a1"}}
+    directory.mkdir(parents=True, exist_ok=True)
+    (directory / "meta.json").write_text(json.dumps(meta))
+    for case in cases:
+        for run in range(1, runs + 1):
+            record = {"case": case.id, "run": run, "label": case.label, "category": case.category, "outcome": case.label,
+                      "findings": [f"see {directory}/x.py"], "cost_usd": 0.05, "assumed_usd": 0.0}
+            (directory / f"{case.id}-r{run}.json").write_text(json.dumps(record))
+    return directory
+
+
+def test_the_bundle_has_meta_records_summary_and_the_exit_code(tmp_path):
+    directory = write_eval(tmp_path / "2026-01-02")
+
+    bundle = build_bundle(directory, CASES)
+
+    assert bundle["schema"] == 1 and bundle["eval"] == "2026-01-02"
+    assert bundle["meta"] == shareable_meta(json.loads((directory / "meta.json").read_text()))
+    assert [(r["case"], r["run"], r["outcome"]) for r in bundle["records"]] == [(c.id, n, c.label) for c in PAIR for n in (1, 2)]
+    assert bundle["summary"]["runs"] == 4 and bundle["exit_code"] == 0
+
+
+def test_the_bundle_is_json_with_no_path_finding_or_prompt_text_by_default(tmp_path):
+    directory = write_eval(tmp_path / "2026-01-02")
+
+    text = json.dumps(build_bundle(directory, CASES))
+
+    assert str(tmp_path) not in text and "/home/someone" not in text and SECRET not in text and "see " not in text
+    assert all("findings" not in r for r in json.loads(text)["records"])
+
+
+def test_the_exit_code_comes_from_the_meta_runs_and_complete(tmp_path):
+    directory = write_eval(tmp_path / "e", complete=False)
+
+    assert build_bundle(directory, CASES)["exit_code"] == 3
+
+
+def test_a_directory_without_meta_is_refused(tmp_path):
+    (tmp_path / "e").mkdir()
+
+    with pytest.raises(ValueError, match=r"meta\.json"):
+        build_bundle(tmp_path / "e", CASES)
+
+
+def test_a_corpus_that_changed_since_the_run_is_refused(tmp_path):
+    directory = write_eval(tmp_path / "e")
+    meta = json.loads((directory / "meta.json").read_text())
+    meta["corpus_hash"] = "0" * 16
+    (directory / "meta.json").write_text(json.dumps(meta))
+
+    with pytest.raises(ValueError, match="corpus"):
+        build_bundle(directory, CASES)
+
+
+def test_a_case_that_is_no_longer_in_the_corpus_is_refused(tmp_path):
+    directory = write_eval(tmp_path / "e")
+
+    with pytest.raises(ValueError, match="corpus"):
+        build_bundle(directory, CASES[1:])

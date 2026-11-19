@@ -1,6 +1,13 @@
 """Turn an eval directory into something safe to hand to someone else (plan eval-export)."""
 import hashlib
+import json
 from pathlib import Path
+
+from factory.audit_corpus import Case, corpus_hash
+from factory.audit_report import exit_code, load_records, summary
+
+SCHEMA = 1
+RECORD_KEYS = ("case", "run", "label", "category", "outcome", "cost_usd", "assumed_usd")
 
 KEPT = ("corpus_hash", "case_hashes", "cases", "runs", "complete", "prompt_hash")
 
@@ -30,3 +37,28 @@ def shareable_meta(meta: dict) -> dict:
     shared["audit_config"] = config
     shared["plugin_hashes"] = {_name(directory): digest for directory, digest in hashes.items()}
     return shared
+
+
+def _meta_of(eval_dir: Path) -> dict:
+    try:
+        meta = json.loads((eval_dir / "meta.json").read_text())
+    except (OSError, ValueError):
+        raise ValueError(f"{eval_dir.name} has no readable meta.json") from None
+    if not isinstance(meta, dict):
+        raise ValueError(f"{eval_dir.name} has no readable meta.json")
+    return meta
+
+
+def build_bundle(eval_dir: Path, corpus: list[Case]) -> dict:
+    """Everything needed to read or compare a run, with no paths, no prompt text and (unless asked) no findings."""
+    meta = _meta_of(eval_dir)
+    cases = [case for case in corpus if case.id in meta.get("cases", [])]
+    if [c.id for c in cases] != meta.get("cases") or corpus_hash(cases) != meta.get("corpus_hash"):
+        raise ValueError("the corpus changed since this run: its labels cannot be trusted")
+    records = load_records(eval_dir)
+    return {
+        "schema": SCHEMA, "eval": eval_dir.name, "meta": shareable_meta(meta),
+        "records": [{key: record[key] for key in RECORD_KEYS} for record in records],
+        "summary": summary(records, cases),
+        "exit_code": exit_code(records, meta["runs"], meta["complete"], cases),
+    }
