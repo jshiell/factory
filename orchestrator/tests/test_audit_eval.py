@@ -392,9 +392,14 @@ def test_resuming_with_a_different_harness_is_refused_before_anything_runs(tmp_p
 def test_with_defaults_fills_a_missing_harness_and_keeps_a_given_one_without_mutating():
     bare = {"runs": 1}
 
-    assert with_defaults(bare) == {"runs": 1, "harness": "claude"}
+    assert with_defaults(bare) == {"runs": 1, "harness": "claude", "sandbox": "nono"}
     assert with_defaults({"harness": "other"})["harness"] == "other"
     assert bare == {"runs": 1}
+
+
+def test_with_defaults_fills_a_missing_sandbox_and_keeps_a_given_one():
+    assert with_defaults({})["sandbox"] == "nono"
+    assert with_defaults({"sandbox": "other"})["sandbox"] == "other"
 
 
 def test_a_meta_without_a_harness_counts_as_claude(tmp_path):

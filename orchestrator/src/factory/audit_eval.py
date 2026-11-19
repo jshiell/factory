@@ -20,6 +20,7 @@ from factory.command import RunnerConfig
 from factory.gate import GateResult, commit_all
 from factory.harness import DEFAULT_HARNESS
 from factory.ledger import Ledger
+from factory.sandbox import DEFAULT_SANDBOX
 from factory.step import BudgetCapReached, Runner
 from factory.store import TaskStore
 from factory.task import Task, TaskState
@@ -120,7 +121,7 @@ def load_meta(eval_dir: Path) -> dict:
 
 
 # What a meta written before a field existed means; the one place these defaults are written.
-META_DEFAULTS = {"harness": DEFAULT_HARNESS}
+META_DEFAULTS = {"harness": DEFAULT_HARNESS, "sandbox": DEFAULT_SANDBOX}
 
 
 def with_defaults(meta: dict) -> dict:
