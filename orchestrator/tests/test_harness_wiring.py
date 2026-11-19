@@ -32,3 +32,16 @@ def test_the_eval_runner_starts_the_agent_the_way_the_configured_harness_does(tm
     )
 
     assert result.stdout.strip() == "do it from-fake"
+
+
+def test_the_context_builds_its_agent_runner_with_the_configured_harness(tmp_path, monkeypatch):
+    import factory.cli as cli
+    harness = EchoHarness()
+    monkeypatch.setitem(HARNESSES, "echo", harness)
+    deps = []
+    monkeypatch.setattr(cli, "build_stages", lambda settings, given: deps.append(given) or {})
+    settings = Settings(tmp_path / "repo", tmp_path / "state", tmp_path / "wts", harness="echo")
+
+    cli.build_context(settings)
+
+    assert deps[0].runner._harness is harness

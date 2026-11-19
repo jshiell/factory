@@ -7,6 +7,7 @@ Run from the repo root; the package, `uv.lock` and `.python-version` live in `or
 
 ## Harnesses
 - A harness (`orchestrator/src/factory/harness.py`) builds the agent command and parses its output; `SubprocessRunner` owns launch, timeout, sandbox and records. To add one: implement `Harness`, register it in `HARNESSES`, and set `harness = "<name>"`. It must provide every `Capability`, or startup refuses it.
+- The `harness` setting is not the harness home (`~/.harness`). The prompt checks for an argv prompt live in `command.check_prompt`; call it from any harness that passes the prompt that way.
 - The eval meta, the shared bundle and `eval-audit --compare` record the harness; a meta without one reads as `claude`.
 
 ## Tests

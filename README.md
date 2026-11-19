@@ -211,6 +211,8 @@ These hints are examples, and none of them has been shown to improve output. A h
 
 Appended text follows the built-in prompt: built-in, then `append_system_prompt`, then the stage's entry, separated by blank lines. Values must be non-empty strings; an unknown stage name is an error. `eval-audit` ignores both unless run with `--stage-config`, so its runs stay comparable. To compare an audit prompt or plugin, run both evals with `--stage-config`, change only the `audit` plugin list and prompt between them, and restart `serve` in between (settings are read once at startup); `--compare` then prints `AUDIT_CONFIG differs`, which is expected.
 
+The `harness` setting names the agent CLI adapter, nothing to do with the harness home (`~/.harness`, the `home` key). Only `claude` is built in. An unknown name is a settings error. A harness must provide every capability the stages use (JSON-schema output, plugins, a budget, tool rules), or startup refuses it with a settings error and exit code 2. That check runs while the context is built, so every command that reads the repo (`list` and `show` included) fails the same way, not just the ones that start an agent. `eval-audit` records the harness in its meta, refuses to `--resume` a run made with another one, and `--compare` prints `harness differs` when the two runs used different harnesses; a meta without one reads as `claude`.
+
 ## Design
 
 ### Task lifecycle
