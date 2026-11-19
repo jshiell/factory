@@ -46,5 +46,7 @@ Option A2. Implementation not yet approved.
 ## Out of scope
 Remaining candidate 2 items: the `$HOME` private-set difference (`runner.py:59` vs `gate_sandbox.py:49`) and the duplicated `sandbox_named(...)` at `stages.py:76` and `cli/base.py:63`.
 
+Closed (user, 2026-11-19): not worth doing. The `$HOME` difference matters only when `$HOME` is unset, which is unreachable; the duplicated call is one line in two places. Do not re-suggest them.
+
 ## Risks
 - A and A2 change no behaviour. Option B changes meta content; older evals must still resume and compare.
