@@ -135,6 +135,17 @@ def _first_eval(client):
     return queued["eval_dir"]
 
 
+def test_resuming_under_a_different_sandbox_fails_the_job_and_names_the_sandbox(client, ctx):
+    from dataclasses import replace
+    eval_dir = _first_eval(client)
+    ctx.settings = replace(ctx.settings, sandbox="other")
+
+    response = client.post("/eval-audit", json={"runs": 1, "only": ["case-01"], "resume": Path(eval_dir).name})
+
+    job = _wait(client, response.json()["job"]["id"])
+    assert job["state"] == "failed" and "sandbox" in job["error"] and Path(eval_dir).name in job["error"]
+
+
 def test_resuming_reuses_the_earlier_directory_and_reruns_nothing_valid(client, ctx):
     eval_dir = _first_eval(client)
     ctx.built.clear()
