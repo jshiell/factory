@@ -37,7 +37,8 @@ def shareable_meta(meta: dict) -> dict:
         prompt = config.pop("append_system_prompt")
         config["append_system_prompt_sha256"] = None if prompt is None else hashlib.sha256(prompt.encode()).hexdigest()[:16]
     shared = {key: meta[key] for key in KEPT if key in meta}
-    shared["harness"] = with_defaults(meta)["harness"]
+    defaulted = with_defaults(meta)
+    shared["harness"], shared["sandbox"] = defaulted["harness"], defaulted["sandbox"]
     shared["audit_config"] = config
     shared["plugin_hashes"] = {_name(directory): digest for directory, digest in hashes.items()}
     return shared

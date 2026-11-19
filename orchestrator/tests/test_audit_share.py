@@ -59,6 +59,14 @@ def test_the_shareable_meta_names_the_harness_and_a_missing_one_reads_as_claude(
     assert shareable_meta(raw_meta())["harness"] == "claude"
 
 
+def test_the_shareable_meta_names_the_sandbox_and_a_missing_one_reads_as_nono():
+    other = raw_meta()
+    other["sandbox"] = "other"
+
+    assert shareable_meta(other)["sandbox"] == "other"
+    assert shareable_meta(raw_meta())["sandbox"] == "nono"
+
+
 def test_two_plugin_directories_with_one_name_are_refused():
     meta = raw_meta()
     meta["audit_config"]["plugin_dirs"] = ["/a/same", "/b/same"]
