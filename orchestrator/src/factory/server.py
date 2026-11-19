@@ -469,6 +469,26 @@ _NOT_SIGNED_IN = HTMLResponse("<!doctype html><title>factory</title><p>not signe
                               status_code=401)
 
 
+_FORBIDDEN_PAGE = HTMLResponse("<!doctype html><title>factory</title><p>forbidden: not a same-origin request</p>", status_code=403)
+
+
+def _is_same_origin_request(headers) -> bool:
+    return (headers.get("origin", "http://" + headers["host"]) == "http://" + headers["host"]
+            and headers.get("sec-fetch-site", "same-origin") in {"same-origin", "none"})
+
+
+def _needs_session(path: str) -> bool:
+    return path != "/ui/login"
+
+
+def _ui_refusal(headers, path, sessions: Sessions):
+    if not _is_same_origin_request(headers):
+        return _FORBIDDEN_PAGE
+    if _needs_session(path) and not _has_valid_session(headers, sessions):
+        return _NOT_SIGNED_IN
+    return None
+
+
 def _is_ui_path(path: str) -> bool:
     return path == "/ui" or path.startswith("/ui/")
 
@@ -500,7 +520,7 @@ class _Guard:
         if _host_name(headers.get("host", "")) not in _LOOPBACK_HOSTS:
             return JSONResponse({"error": "forbidden", "detail": "host must be loopback"}, status_code=403)
         if _is_ui_path(path):
-            return None if path == "/ui/login" or _has_valid_session(headers, self._app.state.sessions) else _NOT_SIGNED_IN
+            return _ui_refusal(headers, path, self._app.state.sessions)
         if "origin" in headers:
             return JSONResponse({"error": "forbidden", "detail": "browser requests are not accepted"}, status_code=403)
         scheme, _, presented = headers.get("authorization", "").partition(" ")

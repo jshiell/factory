@@ -50,3 +50,40 @@ def test_guard_the_api_is_not_opened_by_a_same_origin_origin(client, token):
 def test_guard_a_path_that_only_starts_with_ui_is_the_api(client):
     assert client.post("/ui-login-codes").status_code == 401
     assert client.post("/ui-login-codes").headers["content-type"] == "application/json"
+
+
+@pytest.fixture
+def signed_in(client):
+    client.get("/ui/login", params={"code": client.app.state.login_codes.issue()})
+    return client
+
+
+@pytest.mark.parametrize("origin", ["http://evil.example", "http://127.0.0.1:9", "https://127.0.0.1:8765", "null"])
+def test_a_foreign_origin_is_403_even_with_the_session(signed_in, origin):
+    assert signed_in.get("/ui/", headers={"Origin": origin}).status_code == 403
+
+
+def test_the_exact_origin_is_served(signed_in):
+    assert signed_in.get("/ui/", headers={"Origin": "http://127.0.0.1:8765"}).status_code == 200
+
+
+@pytest.mark.parametrize("site", ["same-site", "cross-site"])
+def test_a_request_from_another_site_is_403_even_with_the_session(signed_in, site):
+    assert signed_in.get("/ui/", headers={"Sec-Fetch-Site": site}).status_code == 403
+
+
+@pytest.mark.parametrize("site", ["same-origin", "none"])
+def test_a_same_origin_or_user_initiated_request_is_served(signed_in, site):
+    assert signed_in.get("/ui/", headers={"Sec-Fetch-Site": site}).status_code == 200
+
+
+def test_guard_a_non_loopback_host_is_403_on_the_ui(signed_in):
+    assert signed_in.get("/ui/", headers={"Host": "evil.example"}).status_code == 403
+
+
+def test_login_needs_no_session_but_still_refuses_a_foreign_origin_and_site(client):
+    code = client.app.state.login_codes.issue()
+
+    assert client.get("/ui/login", params={"code": code}, headers={"Origin": "http://evil.example"}).status_code == 403
+    assert client.get("/ui/login", params={"code": code}, headers={"Sec-Fetch-Site": "cross-site"}).status_code == 403
+    assert client.get("/ui/login", params={"code": code}).status_code == 200
