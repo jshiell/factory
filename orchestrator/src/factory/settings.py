@@ -7,7 +7,7 @@ from dataclasses import dataclass, field, replace
 from pathlib import Path, PurePosixPath
 
 from factory.gate import DEFAULT_PROTECTED_NAMES
-from factory.harness import HARNESSES
+from factory.harness import DEFAULT_HARNESS, HARNESSES
 
 
 class SettingsError(Exception):
@@ -25,7 +25,7 @@ class Settings:
     gate_timeout_s: float = 120.0
     runner_timeout_s: float = 300.0
     claude_executable: str = "claude"
-    harness: str = "claude"
+    harness: str = DEFAULT_HARNESS
     sandbox_executable: str = "nono"
     model: str = "sonnet"
     budget_usd: float = 0.5

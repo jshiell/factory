@@ -18,6 +18,7 @@ from factory.audit_corpus import (
 from factory.audit_task import AUDIT_CONFIG, audit_task, build_audit_prompt
 from factory.command import RunnerConfig
 from factory.gate import GateResult, commit_all
+from factory.harness import DEFAULT_HARNESS
 from factory.ledger import Ledger
 from factory.step import BudgetCapReached, Runner
 from factory.store import TaskStore
@@ -143,8 +144,10 @@ def _prompt_hash() -> str:
     return hashlib.sha256(template.encode()).hexdigest()[:16]
 
 
-def _meta(cases: list[Case], runs: int, complete: bool, config: RunnerConfig, hashes: dict[str, str]) -> dict:
+def _meta(cases: list[Case], runs: int, complete: bool, config: RunnerConfig, hashes: dict[str, str],
+          harness: str) -> dict:
     return {
+        "harness": harness,
         "corpus_hash": corpus_hash(cases), "case_hashes": {c.id: case_hash(c) for c in cases},
         "cases": [c.id for c in cases], "runs": runs, "complete": complete,
         "audit_config": _as_stored(dataclasses.asdict(config)), "plugin_hashes": hashes, "prompt_hash": _prompt_hash(),
@@ -161,6 +164,7 @@ def valid_result(eval_dir: Path, case_id: str, run: int) -> dict | None:
 
 def run_eval(
     eval_dir: Path, cases: list[Case], runs: int, runner: Runner, cap_usd: float, config: RunnerConfig = AUDIT_CONFIG,
+    harness: str = DEFAULT_HARNESS,
 ) -> bool:
     """Round-robin over runs, resumable. True when every (case, run) has a result."""
     (eval_dir / "tasks").mkdir(parents=True, exist_ok=True)
@@ -173,7 +177,9 @@ def run_eval(
     hashes = plugin_hashes(config)
     if meta_path(eval_dir).exists() and load_meta(eval_dir).get("plugin_hashes", {}) != hashes:
         raise ConfigChanged(str(eval_dir))
-    _write_atomically(meta_path(eval_dir), json.dumps(_meta(cases, runs, False, config, hashes), indent=1))
+    if meta_path(eval_dir).exists() and load_meta(eval_dir).get("harness", DEFAULT_HARNESS) != harness:
+        raise ConfigChanged(str(eval_dir))
+    _write_atomically(meta_path(eval_dir), json.dumps(_meta(cases, runs, False, config, hashes, harness), indent=1))
     store, ledger = TaskStore(eval_dir / "tasks"), Ledger(eval_dir / "ledger.jsonl")
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
@@ -188,7 +194,7 @@ def run_eval(
                     return False
     if plugin_hashes(config) != hashes:
         raise ConfigChanged(str(eval_dir))  # the meta stays incomplete: the results mix two plugin versions
-    _write_atomically(meta_path(eval_dir), json.dumps(_meta(cases, runs, True, config, hashes), indent=1))
+    _write_atomically(meta_path(eval_dir), json.dumps(_meta(cases, runs, True, config, hashes, harness), indent=1))
     return True
 
 

@@ -115,7 +115,8 @@ class ClaudeHarness:
         return payload
 
 
-HARNESSES: dict[str, Harness] = {"claude": ClaudeHarness()}
+DEFAULT_HARNESS = "claude"
+HARNESSES: dict[str, Harness] = {DEFAULT_HARNESS: ClaudeHarness()}
 
 
 def harness_named(name: str) -> Harness:

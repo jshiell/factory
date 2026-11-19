@@ -101,6 +101,16 @@ def test_eval_audit_without_stage_config_keeps_the_built_in_config(client, ctx):
     assert meta["audit_config"] == json.loads(json.dumps(asdict(AUDIT_CONFIG)))
 
 
+def test_eval_audit_records_the_configured_harness_in_the_meta(client, ctx):
+    from dataclasses import replace
+    ctx.settings = replace(ctx.settings, harness="other")
+
+    queued = client.post("/eval-audit", json={"runs": 1, "only": ["case-01"]}).json()
+
+    _wait(client, queued["job"]["id"])
+    assert json.loads((Path(queued["eval_dir"]) / "meta.json").read_text())["harness"] == "other"
+
+
 @pytest.mark.parametrize("value", ["yes", 1, None, []])
 def test_eval_audit_with_a_non_boolean_stage_config_is_422_and_starts_nothing(client, ctx, value):
     response = client.post("/eval-audit", json={"stage_config": value})

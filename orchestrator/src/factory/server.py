@@ -375,7 +375,7 @@ def _build_app(ctx) -> Starlette:
                     ctx.reap(eval_dir)
                     try:
                         complete = run_eval(eval_dir, cases, runs, ctx.eval_runner(ctx.settings, eval_dir), max_usd,
-                                          audit_config)
+                                          audit_config, ctx.settings.harness)
                     except CorpusChanged:
                         raise RuntimeError(f"the eval corpus changed since {eval_dir.name} started; run a fresh eval") from None
                     except ConfigChanged:
