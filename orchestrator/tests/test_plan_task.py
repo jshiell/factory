@@ -215,7 +215,7 @@ def test_a_prompt_too_large_for_one_argv_string_fails_the_task_for_good_without_
     assert ledger.total() == 0
 
 
-QUESTION ={"number": 1, "title": "Scope", "body": "Which module?", "recommended": "calc.py"}
+QUESTION = {"number": 1, "title": "Scope", "body": "Which module?", "recommended": "calc.py"}
 
 
 def questions_stdout(questions=(QUESTION,), cost=0.16):
@@ -242,6 +242,16 @@ def test_a_grilling_task_asks_with_the_grill_schema_and_waits_in_open_questions(
     assert task.state is TaskState.OPEN_QUESTIONS
     assert (task.open_questions, task.grill_rounds, task.plan_error) == ((QUESTION,), 1, None)
     assert store.load("t1") == task
+
+
+def test_guard_a_grill_prompt_too_large_for_argv_fails_the_task_for_good(repo, store, ledger):
+    store.save(Task(id="t1", prompt="", state=TaskState.PROPOSED, goal="add multiply", grill=True))
+    runner = PlanRunner(raises=PromptTooLarge("prompt is 131072 bytes, the limit is 131071"))
+
+    task = plan(store, ledger, runner, Worktrees(repo))
+
+    assert (task.state, task.failure_reason) == (TaskState.FAILED, "prompt_too_large")
+    assert ledger.total() == 0
 
 
 @pytest.mark.parametrize("questions, reason", [
