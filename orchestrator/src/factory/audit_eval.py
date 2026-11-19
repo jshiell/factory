@@ -119,6 +119,14 @@ def load_meta(eval_dir: Path) -> dict:
     return json.loads(meta_path(eval_dir).read_text())
 
 
+# What a meta written before a field existed means; the one place these defaults are written.
+META_DEFAULTS = {"harness": DEFAULT_HARNESS}
+
+
+def with_defaults(meta: dict) -> dict:
+    return {**META_DEFAULTS, **meta}
+
+
 def _as_stored(value: dict) -> dict:
     """The value as it reads back from meta.json (tuples become lists)."""
     return json.loads(json.dumps(value))

@@ -17,6 +17,7 @@ from factory.audit_eval import (
     materialise,
     run_eval,
     run_one,
+    with_defaults,
 )
 from factory.audit_task import AUDIT_CONFIG
 from factory.gate import GateResult
@@ -386,6 +387,14 @@ def test_resuming_with_a_different_harness_is_refused_before_anything_runs(tmp_p
         run_eval(eval_dir, THREE, 1, runner, 5.0, harness="other")
 
     assert runner.order == [] and (eval_dir / "meta.json").read_text() == before
+
+
+def test_with_defaults_fills_a_missing_harness_and_keeps_a_given_one_without_mutating():
+    bare = {"runs": 1}
+
+    assert with_defaults(bare) == {"runs": 1, "harness": "claude"}
+    assert with_defaults({"harness": "other"})["harness"] == "other"
+    assert bare == {"runs": 1}
 
 
 def test_a_meta_without_a_harness_counts_as_claude(tmp_path):
