@@ -27,6 +27,7 @@ from factory.cli.tasks import (
     _new,
     _reject,
     _show,
+    _ui,
 )
 from factory.client import ServerClient, ServerRefused, ServerUnreachable
 from factory.gate import check_gate
@@ -77,6 +78,7 @@ def _parser() -> argparse.ArgumentParser:
     commands.add_parser("clone").add_argument("repository")
     serve = commands.add_parser("serve")
     serve.add_argument("--port", type=int)
+    commands.add_parser("ui", help="Print a one-time link that logs a browser into the web UI")
     commands.add_parser("costs").add_argument("task_id", nargs="?")
     watch = commands.add_parser("watch")
     watch.add_argument("--interval", type=_positive_int, default=60)
@@ -292,7 +294,7 @@ def _eval_export(args, io, ctx) -> int:
 
 _COMMANDS = {
     "new": _new, "list": _list, "show": _show, "advance": _advance,
-    "answer": _answer, "approve": _approve, "reject": _reject, "merge": _merge, "retry": _retry, "recover": _recover, "abandon": _abandon, "rebase": _rebase, "clean": _clean, "migrate": _migrate, "costs": _costs, "eval-audit": _eval_audit, "eval-export": _eval_export, "serve": _serve, "watch": _watch,
+    "answer": _answer, "approve": _approve, "reject": _reject, "merge": _merge, "retry": _retry, "recover": _recover, "abandon": _abandon, "rebase": _rebase, "clean": _clean, "migrate": _migrate, "costs": _costs, "eval-audit": _eval_audit, "eval-export": _eval_export, "serve": _serve, "watch": _watch, "ui": _ui,
     "init": lambda args, io, ctx: init_global_config(io),
     "clone": lambda args, io, ctx: _clone(args.repository, io),
 }

@@ -16,6 +16,11 @@ def _new(args, io, ctx) -> int:
     return 0
 
 
+def _ui(args, io, ctx) -> int:
+    print(ctx.server.post("/ui-login-codes")["url"], file=io.stdout)
+    return 0
+
+
 def _list(args, io, ctx) -> int:
     listing = ctx.server.get("/tasks")
     for task in listing["tasks"]:
