@@ -1,8 +1,10 @@
 """Compare an eval with an earlier one, only where the comparison means something (plan 23)."""
 import json
+from dataclasses import dataclass
 from pathlib import Path
 
 from factory.audit_report import VERDICTS, load_records
+from factory.audit_share import shareable_meta
 
 
 def _meta(eval_dir: Path) -> dict | None:
@@ -24,20 +26,33 @@ def find_previous(evals_root: Path, current: Path, case_ids: list[str]) -> Path 
     return None
 
 
-def _verdict_lists(eval_dir: Path) -> dict[str, list[str]]:
+@dataclass(frozen=True)
+class Run:
+    """One eval as compare sees it, loaded from a directory or from an exported bundle."""
+    name: str
+    meta: dict | None  # shareable form; None for a directory with no meta.json
+    verdicts: dict[str, list[str]]
+    cost: float
+
+
+def _verdict_lists(records: list[dict]) -> dict[str, list[str]]:
     by_case: dict[str, list[tuple[int, str]]] = {}
-    for record in load_records(eval_dir):
+    for record in records:
         by_case.setdefault(record["case"], []).append((record["run"], record["outcome"] if record["outcome"] in VERDICTS else "?"))
     return {case: [outcome for _, outcome in sorted(runs)] for case, runs in by_case.items()}
 
 
-def _cost(eval_dir: Path) -> float:
-    return sum(record["cost_usd"] for record in load_records(eval_dir))
+def load_run(source: Path) -> Run:
+    meta = _meta(source)
+    records = load_records(source)
+    return Run(source.name, shareable_meta(meta) if meta is not None else None, _verdict_lists(records),
+               sum(record["cost_usd"] for record in records))
 
 
 def compare(old: Path, new: Path) -> list[str]:
-    old_meta, new_meta = _meta(old), _meta(new) or {}
-    lines = [f"\ncompared with {old.name}:"]
+    old_run, new_run = load_run(old), load_run(new)
+    old_meta, new_meta = old_run.meta, new_run.meta or {}
+    lines = [f"\ncompared with {old_run.name}:"]
     if old_meta is None:
         lines.append("  no meta.json there: cases compared by id, not by content (the corpus may differ)")
     else:
@@ -47,7 +62,7 @@ def compare(old: Path, new: Path) -> list[str]:
             lines.append("  audit plugins differ")
         if old_meta.get("prompt_hash") != new_meta.get("prompt_hash"):
             lines.append("  audit prompt differs")
-    old_runs, new_runs = _verdict_lists(old), _verdict_lists(new)
+    old_runs, new_runs = old_run.verdicts, new_run.verdicts
     changes, skipped = [], []
     for case_id, now in new_runs.items():
         if case_id not in old_runs:
@@ -59,5 +74,5 @@ def compare(old: Path, new: Path) -> list[str]:
             changes.append(f"  {case_id}: {' '.join(old_runs[case_id])} -> {' '.join(now)}")
     lines += skipped
     lines += ["verdicts changed:", *changes] if changes else ["  no verdict changed"]
-    lines.append(f"  cost ${_cost(old):.2f} -> ${_cost(new):.2f}")
+    lines.append(f"  cost ${old_run.cost:.2f} -> ${new_run.cost:.2f}")
     return lines
