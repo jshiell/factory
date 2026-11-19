@@ -7,9 +7,14 @@ from factory.command import (
     MAX_PROMPT_BYTES,
     PromptTooLarge,
     RunnerConfig,
-    build_command,
     sandbox_prefix,
 )
+from factory.harness import ClaudeHarness
+
+
+def build_command(prompt, config, executable="claude", add_dirs=()):
+    invocation = ClaudeHarness().build(prompt, config, executable, add_dirs)
+    return invocation.argv, invocation.env
 
 
 @pytest.mark.smoke
