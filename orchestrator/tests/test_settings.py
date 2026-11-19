@@ -22,6 +22,7 @@ def repo_dir(tmp_path):
     return repo
 
 
+@pytest.mark.smoke
 def test_defaults_come_from_the_git_toplevel_and_the_harness_home(repo_dir, isolated_home):
     (repo_dir / "sub").mkdir()
 

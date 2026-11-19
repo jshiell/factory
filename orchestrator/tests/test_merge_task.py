@@ -26,6 +26,7 @@ def audited(tmp_path, repo):
     return store, repo, worktree, task, manager
 
 
+@pytest.mark.smoke
 def test_preview_of_an_audited_task_names_the_branch_diffstat_and_findings(audited):
     store, repo, _, _, _ = audited
 

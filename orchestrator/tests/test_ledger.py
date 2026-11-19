@@ -1,6 +1,9 @@
+import pytest
+
 from factory.ledger import Ledger
 
 
+@pytest.mark.smoke
 def test_total_sums_appended_costs(tmp_path):
     ledger = Ledger(tmp_path / "ledger.jsonl")
 

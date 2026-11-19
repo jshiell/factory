@@ -56,6 +56,7 @@ def test_a_request_with_the_token_is_served(client, token):
 
 
 @pytest.mark.parametrize("headers", [{}, {"Authorization": "Bearer wrong"}, {"Authorization": "Basic abc"}, {"Authorization": "Bearer "}])
+@pytest.mark.smoke
 def test_a_missing_or_wrong_token_is_401_on_every_method(client, headers):
     assert client.get("/tasks", headers=headers).status_code == 401
     assert client.post("/tasks", json={"goal": "g"}, headers=headers).status_code == 401

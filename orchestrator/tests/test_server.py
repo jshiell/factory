@@ -34,6 +34,7 @@ def app(client):
     return client.app
 
 
+@pytest.mark.smoke
 def test_post_tasks_creates_a_proposed_task_and_returns_its_id(client, ctx):
     response = client.post("/tasks", json={"goal": "add multiply"})
 

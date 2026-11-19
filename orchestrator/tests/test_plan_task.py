@@ -78,6 +78,7 @@ def test_the_plan_prompt_carries_the_goal_and_never_starts_with_a_dash():
     assert "add multiply" in prompt and not prompt.startswith("-")
 
 
+@pytest.mark.smoke
 def test_the_plan_config_is_read_only_with_a_plan_schema():
     assert PLAN_CONFIG.allowed_tools == ()
     assert PLAN_CONFIG.confine is True

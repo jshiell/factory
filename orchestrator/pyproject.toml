@@ -24,6 +24,10 @@ dev = [
     "ruff>=0.17.5",
 ]
 
+[tool.pytest.ini_options]
+addopts = "--strict-markers"
+markers = ["smoke: a fast subset, one or two tests per core seam; run with `pytest -m smoke`"]
+
 [tool.ruff]
 src = ["src", "tests"]
 

@@ -96,6 +96,7 @@ def factory(project, *args, stdin=subprocess.DEVNULL, served=True):
     return sh("uv", "run", "--project", str(ORCHESTRATOR), "factory", *args, cwd=repo, env=env, stdin=stdin)
 
 
+@pytest.mark.smoke
 def test_help_exits_0_and_names_the_commands(project):
     result = factory(project, "--help")
 
@@ -151,6 +152,7 @@ def test_clone_refuses_an_existing_target_through_the_cli(project):
     assert f"{target} already exists; not overwriting" in result.stderr
 
 
+@pytest.mark.smoke
 def test_new_list_show_work_against_a_fresh_state_directory(project):
     created = factory(project, "new", "add multiply")
     task_id = created.stdout.strip()

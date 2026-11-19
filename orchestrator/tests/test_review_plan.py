@@ -54,6 +54,7 @@ def review(store, ledger, runner, config=REVIEW_CONFIG, cap=10):
     return review_plan("t1", store, ledger, runner, config, cap_usd=cap)
 
 
+@pytest.mark.smoke
 def test_the_review_prompt_has_goal_and_plan_with_the_plan_marked_untrusted():
     prompt = build_review_prompt("add multiply", "1. do x")
 

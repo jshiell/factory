@@ -21,6 +21,7 @@ def store(tmp_path):
     return store
 
 
+@pytest.mark.smoke
 def test_approving_with_the_shown_digest_queues_the_task_with_an_implementation_prompt(store):
     task = approve_plan("t1", store, plan_digest(PLAN), ())
 

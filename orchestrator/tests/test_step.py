@@ -63,6 +63,7 @@ def test_running_state_is_persisted_before_the_runner_is_called(store, ledger):
     assert seen == [TaskState.RUNNING]
 
 
+@pytest.mark.smoke
 def test_success_marks_agent_done_and_records_cost(store, ledger):
     runner = FakeRunner(fixture_stdout("success"))
 

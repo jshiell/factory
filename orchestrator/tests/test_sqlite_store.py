@@ -8,6 +8,7 @@ from factory.store import TaskExists, TaskNotFound
 from factory.task import Task, TaskState
 
 
+@pytest.mark.smoke
 def test_saved_task_with_every_field_set_loads_back_equal(tmp_path):
     store = SqliteTaskStore(tmp_path / "factory.db")
     task = Task(

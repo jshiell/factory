@@ -12,6 +12,7 @@ from factory.command import (
 )
 
 
+@pytest.mark.smoke
 def test_base_argv_has_prompt_json_output_and_model():
     argv, _env = build_command("do it", RunnerConfig(model="sonnet"))
 

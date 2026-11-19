@@ -6,6 +6,7 @@ from factory.gate import ProjectSubdirEscapes, check_gate, commit_all
 from gitutil import git
 
 
+@pytest.mark.smoke
 def test_commit_all_commits_new_and_changed_files_with_the_factory_identity(repo):
     (repo / "a.txt").write_text("changed")
     (repo / "new.txt").write_text("new")

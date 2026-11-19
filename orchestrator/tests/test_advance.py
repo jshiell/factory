@@ -44,11 +44,13 @@ def pipeline(store, log):
     }
 
 
+@pytest.mark.smoke
 def test_the_action_table_maps_states_to_stages():
     assert ACTIONS == {S.PROPOSED: "plan", S.PLANNED: "review", S.QUEUED: "implement",
                        S.AGENT_DONE: "verify", S.VERIFIED: "audit"}
 
 
+@pytest.mark.smoke
 def test_a_proposed_task_runs_plan_then_review_and_stops_at_reviewed_for_a_human(store):
     start(store, S.PROPOSED)
     log = []
@@ -60,6 +62,7 @@ def test_a_proposed_task_runs_plan_then_review_and_stops_at_reviewed_for_a_human
     assert result.task.state is S.REVIEWED and result.stopped is None
 
 
+@pytest.mark.smoke
 def test_a_queued_task_runs_implement_verify_audit_to_audited(store):
     start(store, S.QUEUED)
     log = []

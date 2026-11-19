@@ -7,6 +7,7 @@ def queued_task() -> Task:
     return Task(id="t1", prompt="do it")
 
 
+@pytest.mark.smoke
 def test_start_moves_queued_to_running_and_counts_attempt():
     task = apply(queued_task(), Event.START)
 
@@ -49,6 +50,7 @@ def agent_done_task() -> Task:
     return apply(apply(queued_task(), Event.START), Event.SUCCEEDED)
 
 
+@pytest.mark.smoke
 def test_gate_passed_moves_agent_done_to_verified():
     assert apply(agent_done_task(), Event.GATE_PASSED).state is TaskState.VERIFIED
 
