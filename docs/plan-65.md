@@ -44,3 +44,12 @@ No user-visible string changes. Behaviour change: a gate prefix can now omit a u
 - The gate's policy cwd and launch cwd are separate computations (increment 5); a later change to one can drift from the other with no test failing.
 - Retargeting 19 runner sites plus the gate dict key is mechanical but wide; one wrong keyword shows as a failing test, not silently.
 - Spikes are verified statically only; none is run.
+
+## Deviations (as built)
+- Increment 7 edited `test_runner.py:593` (dropped `sandbox_executable="/no/such/nono"`, assertions untouched) after the stop-and-ask; the user's "Continue" was taken as approval of option A.
+- Increment 6: a perl rewrite split four call sites across lines; reformatted by hand before the commit. No assertion changed.
+- Increment 4's first red failed on the test's own setup (`EchoHarness` has no `sandbox_profile`); fixed the test before going green.
+- Increment 3's test builds the uv path as `state_dir.parent / "uv"` via a monkeypatched `discover_uv_tooling`; `uv` does not need to exist.
+- Increment 7's import line in `runner.py` was wrapped by `ruff --fix` (I001).
+- README: line 217 got three small additions (state dir private, `cwd` named in the policy, `sandbox_executable` only through the named sandbox).
+- Spikes (`confinement_probe`, `git_hardening_probe`, `gate_sandbox_probe`) were checked with `py_compile` only; none was run.
