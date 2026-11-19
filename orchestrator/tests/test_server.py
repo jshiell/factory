@@ -74,6 +74,14 @@ def test_post_tasks_without_a_goal_string_is_422_and_creates_nothing(client, ctx
     assert ctx.store.list().tasks == []
 
 
+def test_post_tasks_with_a_lone_surrogate_in_the_goal_is_422_and_creates_nothing(client, ctx):
+    response = client.post("/tasks", content=b'{"goal": "a\\ud800"}', headers={"content-type": "application/json"})
+
+    assert response.status_code == 422
+    assert response.json()["error"] == "invalid input"
+    assert ctx.store.list().tasks == []
+
+
 def test_post_tasks_with_a_goal_over_the_byte_limit_is_422_even_with_fewer_characters(client, ctx):
     goal = "é" * (MAX_GOAL_BYTES // 2) + "a"
 
