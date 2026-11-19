@@ -10,7 +10,7 @@ from factory.command import RunnerConfig
 from factory.harness import ClaudeHarness, Harness
 from factory.process import STRIPPED_ENV, kill_tree, tail
 from factory.process_registry import Tracker
-from factory.sandbox import NonoSandbox, Sandbox, SandboxPolicy, contains
+from factory.sandbox import NonoSandbox, Sandbox, SandboxPolicy, without_private
 from factory.step import TAIL_CHARS, RunResult
 from factory.task import Task
 
@@ -25,7 +25,7 @@ def _executable_directory(executable: str, path: str | None, private_dirs: tuple
     directory = os.path.dirname(os.path.abspath(found))
     resolved = str(Path(found).resolve().parent)
     candidates = (directory,) if resolved == str(Path(directory).resolve()) else (directory, resolved)
-    return tuple(d for d in candidates if not any(contains(d, private) for private in private_dirs))
+    return without_private(candidates, private_dirs)
 
 
 class SubprocessRunner:
