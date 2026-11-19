@@ -5,7 +5,9 @@
 <link rel="stylesheet" href="/ui/static/ui.css">
 <script src="/ui/static/htmx.min.js"></script>
 <script src="/ui/static/sse.min.js"></script>
+<script src="/ui/static/ui.js"></script>
 <h1>factory</h1>
-<div id="tasks">
+<p id="disconnected" hidden>Disconnected. Run <code>factory ui</code> for a new link.</p>
+<div id="tasks" hx-ext="sse" sse-connect="/ui/events" sse-swap="tasks">
 {% include "_tasks.html" %}
 </div>
