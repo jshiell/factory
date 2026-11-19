@@ -7,6 +7,7 @@ TEMPLATE = '''\
 # Uncomment and edit what you want to change.
 
 # harness = "claude"
+# sandbox = "nono"
 # model = "sonnet"
 # budget_usd = 0.5
 # cap_usd = 5.0

@@ -196,7 +196,8 @@ gate_timeout_s = 120
 runner_timeout_s = 300
 harness = "claude"             # the agent CLI adapter; "claude" is the only one built in (see factory/harness.py)
 claude_executable = "claude"   # the program the harness starts, whatever the harness
-sandbox_executable = "nono"
+sandbox = "nono"               # the confinement mechanism; "nono" is the only one built in (see factory/sandbox.py)
+sandbox_executable = "nono"    # the program the sandbox starts (a default for nono; the setting is not yet neutral)
 allowed_tools = []
 plugins = []                   # plugin directory names under <home>/_shared/plugins
 append_system_prompt = "..."   # optional; appended to every stage's system prompt
@@ -212,6 +213,8 @@ These hints are examples, and none of them has been shown to improve output. A h
 Appended text follows the built-in prompt: built-in, then `append_system_prompt`, then the stage's entry, separated by blank lines. Values must be non-empty strings; an unknown stage name is an error. `eval-audit` ignores both unless run with `--stage-config`, so its runs stay comparable. To compare an audit prompt or plugin, run both evals with `--stage-config`, change only the `audit` plugin list and prompt between them, and restart `serve` in between (settings are read once at startup); `--compare` then prints `AUDIT_CONFIG differs`, which is expected.
 
 The `harness` setting names the agent CLI adapter, nothing to do with the harness home (`~/.harness`, the `home` key). Only `claude` is built in. An unknown name is a settings error. A harness must provide every capability the stages use (JSON-schema output, plugins, a budget, tool rules), or startup refuses it with a settings error and exit code 2. That check runs while the context is built, so every command that reads the repo (`list` and `show` included) fails the same way, not just the ones that start an agent. `eval-audit` records the harness in its meta, refuses to `--resume` a run made with another one, and `--compare` prints `harness differs` when the two runs used different harnesses; a meta without one reads as `claude`.
+
+The `sandbox` setting names the confinement mechanism for agent runs and the gate; only `nono` is built in, and an unknown name is a settings error. `sandbox_executable` still selects the binary. The sandbox is not recorded in eval meta or bundles. What a sandbox grants is what runs today: for an agent run the harness's profile, the working directory (writable only if the profile grants it), the worktree read-only, and read access to the plugin dirs and the agent's directory; for the gate, write access to the project dir and a private uv cache and read access to the worktree, Python and uv. Network is open in both (nono allows it by default and neither prefix passes `--block-net`).
 
 ## Design
 

@@ -6,7 +6,7 @@ SOURCE = Path(__file__).parent.parent / "src" / "factory"
 # Every module that starts a process, and why it is allowed to. A new entry needs a decision: is the new
 # process confined (nono prefix) or one of the factory's own trusted commands?
 ALLOWED = {
-    "runner.py": "agent runs: confined by the nono prefix (tests in test_runner.py)",
+    "runner.py": "agent runs: confined by the configured sandbox's prefix (tests in test_runner.py)",
     "process.py": "the gate's test run (confined by the prefix from gate_sandbox, tests in test_gate.py) and pgrep",
     "worktrees.py": "the factory's own git, with the hardened prefix",
     "gate_sandbox.py": "trusted `uv python find/dir` run by the factory, never agent code",
