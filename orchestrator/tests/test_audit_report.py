@@ -9,6 +9,7 @@ from factory.audit_report import (
     exit_code,
     load_records,
     render,
+    summary,
     wilson,
 )
 
@@ -101,6 +102,18 @@ def test_the_report_text_is_pinned_exactly():
         "cost (real) $0.120; assumed $0.60",
         "Intervals are over cases, not runs: runs of one case are correlated.",
     ]
+
+
+def test_summary_gives_the_report_numbers_as_data():
+    records = [rec(BAD, 1, "fail"), rec(BAD, 2, "pass"), rec(GOOD, 1, "pass"), rec(GOOD, 2, "infra:timeout", assumed=0.6)]
+
+    result = summary(records, [BAD, GOOD])
+
+    assert result["false_pass"] == {"majority": [], "eligible": 1, "wilson": list(wilson(0, 1)), "any_run": [BAD.id]}
+    assert result["false_fail"] == {"majority": [], "eligible": 1, "wilson": list(wilson(0, 1)), "any_run": []}
+    assert result["inconsistent"] == [BAD.id]
+    assert result["infra"] == [[GOOD.id, 2, "infra:timeout"]]
+    assert (result["runs"], result["cost_usd"], result["assumed_usd"]) == (4, pytest.approx(0.12), pytest.approx(0.6))
 
 
 def test_agent_text_in_the_report_has_control_characters_escaped():

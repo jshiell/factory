@@ -57,30 +57,43 @@ def exit_code(records: list[dict], runs: int, complete: bool, cases: list[Case] 
     return 0
 
 
+def summary(records: list[dict], cases: list[Case]) -> dict:
+    verdicts = _verdicts(records)
+    result: dict = {}
+    for key, label, wrong in (("false_pass", "fail", "pass"), ("false_fail", "pass", "fail")):
+        eligible = [c for c in cases if c.label == label and verdicts.get(c.id)]
+        majority = [c.id for c in eligible if verdicts[c.id].count(wrong) * 2 > len(verdicts[c.id])]
+        result[key] = {"majority": majority, "eligible": len(eligible), "wilson": list(wilson(len(majority), len(eligible))),
+                       "any_run": [c.id for c in eligible if wrong in verdicts[c.id]]}
+    result["infra"] = [[r["case"], r["run"], r["outcome"]] for r in records if r["outcome"] not in VERDICTS]
+    result["inconsistent"] = [c.id for c in cases if len(set(verdicts.get(c.id, []))) > 1]
+    result["runs"] = len(records)
+    result["cost_usd"] = sum(r["cost_usd"] for r in records)
+    result["assumed_usd"] = sum(r["assumed_usd"] for r in records)
+    return result
+
+
 def render(records: list[dict], cases: list[Case]) -> list[str]:
     by_case: dict[str, list[dict]] = {}
     for record in records:
         by_case.setdefault(record["case"], []).append(record)
-    verdicts = _verdicts(records)
     lines = ["", "case     label category               verdicts (? is a run with no verdict)   first finding"]
     for case in cases:
         runs = sorted(by_case.get(case.id, []), key=lambda r: r["run"])
         shown = " ".join(r["outcome"] if r["outcome"] in VERDICTS else "?" for r in runs)
         first = next((r["findings"][0] for r in runs if r["outcome"] in VERDICTS and r["findings"]), "")
         lines.append(f"{case.id} {case.label:4} {case.category:22} {shown:26} {escape_control(first)[:70]}")
-    for title, label, wrong in (("false-pass (bad judged pass)", "fail", "pass"), ("false-fail (good judged fail)", "pass", "fail")):
-        eligible = [c for c in cases if c.label == label and verdicts.get(c.id)]
-        majority = [c for c in eligible if verdicts[c.id].count(wrong) * 2 > len(verdicts[c.id])]
-        anywhere = [c.id for c in eligible if wrong in verdicts[c.id]]
-        low, high = wilson(len(majority), len(eligible))
-        lines.append(f"\n{title}: majority wrong {len(majority)}/{len(eligible)} cases (Wilson 95% {low:.0%}-{high:.0%}); "
-                     f"wrong in any run: {anywhere}")
-    infra = [(r["case"], r["run"], r["outcome"]) for r in records if r["outcome"] not in VERDICTS]
-    inconsistent = [c.id for c in cases if len(set(verdicts.get(c.id, []))) > 1]
+    totals = summary(records, cases)
+    for title, key in (("false-pass (bad judged pass)", "false_pass"), ("false-fail (good judged fail)", "false_fail")):
+        part = totals[key]
+        low, high = part["wilson"]
+        lines.append(f"\n{title}: majority wrong {len(part['majority'])}/{part['eligible']} cases (Wilson 95% {low:.0%}-{high:.0%}); "
+                     f"wrong in any run: {part['any_run']}")
+    infra = [tuple(entry) for entry in totals["infra"]]
     lines += [
-        f"\nruns {len(records)}; without a verdict: {infra}",
-        f"inconsistent cases: {inconsistent}",
-        f"cost (real) ${sum(r['cost_usd'] for r in records):.3f}; assumed ${sum(r['assumed_usd'] for r in records):.2f}",
+        f"\nruns {totals['runs']}; without a verdict: {infra}",
+        f"inconsistent cases: {totals['inconsistent']}",
+        f"cost (real) ${totals['cost_usd']:.3f}; assumed ${totals['assumed_usd']:.2f}",
         "Intervals are over cases, not runs: runs of one case are correlated.",
     ]
     return lines
