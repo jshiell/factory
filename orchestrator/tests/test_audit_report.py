@@ -84,6 +84,25 @@ def test_the_report_has_a_table_intervals_infra_counts_and_cost():
     assert "infra:timeout" in text and "cost" in text and "assumed" in text
 
 
+def test_the_report_text_is_pinned_exactly():
+    # characterisation: green on arrival; guards the summary() extraction (plan eval-export, step 1)
+    records = [rec(BAD, 1, "fail", ["\x1b[31mred\x1b[0m"]), rec(BAD, 2, "pass"), rec(GOOD, 1, "pass"),
+               rec(GOOD, 2, "infra:timeout", assumed=0.6)]
+
+    assert render(records, [BAD, GOOD]) == [
+        "",
+        "case     label category               verdicts (? is a run with no verdict)   first finding",
+        f"{BAD.id} fail {BAD.category:22} fail pass                  \\x1b[31mred\\x1b[0m",
+        f"{GOOD.id} pass {GOOD.category:22} pass ?                     ",
+        f"\nfalse-pass (bad judged pass): majority wrong 0/1 cases (Wilson 95% 0%-79%); wrong in any run: ['{BAD.id}']",
+        "\nfalse-fail (good judged fail): majority wrong 0/1 cases (Wilson 95% 0%-79%); wrong in any run: []",
+        f"\nruns 4; without a verdict: [('{GOOD.id}', 2, 'infra:timeout')]",
+        f"inconsistent cases: ['{BAD.id}']",
+        "cost (real) $0.120; assumed $0.60",
+        "Intervals are over cases, not runs: runs of one case are correlated.",
+    ]
+
+
 def test_agent_text_in_the_report_has_control_characters_escaped():
     records = cover(CASES, {})
     records[0]["findings"] = ["\x1b[31mred\x1b[0m and \x07 bell"]
