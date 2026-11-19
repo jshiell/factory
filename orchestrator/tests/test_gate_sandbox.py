@@ -133,6 +133,16 @@ def test_a_uv_directory_that_is_root_or_holds_home_adds_no_read(tmp_path):
     assert read_grants(build(tmp_path, real_uv="/uv"))[-1] == "/uvpy"
 
 
+def test_a_uv_directory_that_holds_a_private_directory_adds_no_read(tmp_path):
+    tmp_path = tmp_path.resolve()
+    state = tmp_path / "uvbin" / "state"
+    state.mkdir(parents=True)
+    uv = tmp_path / "uvbin" / "uv"
+    uv.write_text("")
+
+    assert read_grants(build(tmp_path, real_uv=str(uv), private_dirs=(str(state),)))[-1] == "/uvpy"
+
+
 def test_without_home_a_uv_directory_is_still_granted_unless_it_is_root(tmp_path):
     tmp_path = tmp_path.resolve()
     uv = tmp_path / "uvbin" / "uv"

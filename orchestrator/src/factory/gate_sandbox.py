@@ -27,25 +27,26 @@ def _without_shims(path: str) -> str:
     return os.pathsep.join(d for d in path.split(os.pathsep) if "shims" not in d)
 
 
-def _uv_read_dirs(real_uv: str, home: str) -> tuple[str, ...]:
+def _uv_read_dirs(real_uv: str, private_dirs: tuple[str, ...]) -> tuple[str, ...]:
     """The directory holding uv, which nono needs readable to exec it.
 
-    Empty for a bare or relative name, or for a directory that is `/` or holds home (agent tests must not read it)."""
+    Empty for a bare or relative name, or for a directory that holds a private directory (agent tests must not read it)."""
     if not os.path.isabs(real_uv):
         return ()
-    directory = str(Path(real_uv).resolve().parent)
-    return without_private((directory,), (home,))
+    return without_private((str(Path(real_uv).resolve().parent),), private_dirs)
 
 
 def build_gate_sandbox(
     *, worktree: Path, project_dir: Path, cache_dir: Path, python_prefix: str, uv_python_dir: str, real_uv: str,
     base_env: dict[str, str], test_argv: tuple[str, ...], sandbox_executable: str = "nono", sandbox: Sandbox | None = None,
+    private_dirs: tuple[str, ...] = (),
 ) -> GateSandbox:
     """Own minimal grants for the gate (no claude profile): write the project dir and a private uv cache only.
-    `sandbox` wraps the run (default: nono at `sandbox_executable`; `sandbox` wins if both are given)."""
+    `sandbox` wraps the run (default: nono at `sandbox_executable`; `sandbox` wins if both are given).
+    `private_dirs`: directories uv's directory must not hold; `$HOME` (`/` when unset) is always private."""
     policy = SandboxPolicy(
         worktree, write=(str(project_dir), str(cache_dir)),
-        read=(python_prefix, uv_python_dir, *_uv_read_dirs(real_uv, base_env.get("HOME", "/"))),
+        read=(python_prefix, uv_python_dir, *_uv_read_dirs(real_uv, (*private_dirs, base_env.get("HOME", "/")))),
     )
     prefix = (sandbox or NonoSandbox(sandbox_executable)).wrap(policy)
     argv = (real_uv, *test_argv[1:]) if test_argv and test_argv[0] == "uv" else tuple(test_argv)
