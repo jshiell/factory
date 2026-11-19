@@ -78,6 +78,7 @@ or its step cap. Agent spend is capped (see `cap_usd`) and every call is recorde
 | `migrate` | Copy the old JSON tasks and ledger under `<state_dir>` (for in-repo state, `<repo>/.factory`; point `state_dir` at it) into `factory.db`. Refuses a database that already has rows; never deletes the old files |
 | `serve [--port N]` | Run the local HTTP server (below) |
 | `eval-audit` | Run the auditor over 25 labelled changes (about $2) and compare with the last comparable run. See "Evaluating the auditor" below |
+| `eval-export DIR [--out DIR] [--with-findings]` | Write a shareable `run.json` and `run.md` for an eval directory. Needs no repo or server |
 
 Exit codes: `0` ok, `1` refused or failed (the reason is printed), `2` usage error (`eval-audit` also uses `3` for an incomplete run).
 
@@ -97,9 +98,16 @@ Exit codes: `0` ok, `1` refused or failed (the reason is printed), `2` usage err
 - `--only CASE`: one case.
 - `--max-usd X`: spend cap.
 - `--resume DIR`: continue a run (same `--runs` and cases as the original).
-- `--compare DIR`: compare with a given run.
+- `--compare DIR|run.json`: compare with a given run, or with a bundle written by `eval-export`.
 - `--check-corpus`: run the real gate on every case (needs `uv` and network).
 - `--stage-config`: run the auditor with the audit stage's config (global prompt, `stage_prompts.audit` and the audit plugins); a resume refuses if that config or a plugin file changed.
+
+`factory eval-export DIR [--out DIR] [--with-findings]` turns an eval directory into `run.json` and `run.md` (written into `DIR`, or `--out`, which must exist; earlier copies are replaced). It needs no repo and no server. The Markdown is generated from the JSON and has no date.
+
+- **In the bundle:** the case table with labels and verdicts, hashes, runs, the audit config, false-pass and false-fail counts with Wilson intervals, cost and the exit code.
+- **Left out:** absolute paths (plugins appear by directory name; two with one name are refused), the appended system prompt (only a 16-character sha256 prefix, enough to tell two prompts apart) and, unless `--with-findings`, the auditor's findings.
+- **Findings** are agent text and may quote your code. With `--with-findings` they have control characters escaped and are fenced in the Markdown, but read them before sharing.
+- **Refused** (exit 1) when `meta.json` is missing or the corpus changed since the run, because the labels could no longer be trusted.
 
 ### Server
 
@@ -123,7 +131,7 @@ Reads and quick actions answer at once; `advance`, `abandon`, `recover`, `rebase
 | `GET /jobs`, `GET /jobs/{id}` | job state: `queued`, `running`, `succeeded`, `failed`, `interrupted` |
 
 Errors are `{error, detail}`: 401 token, 403 host or origin, 404 unknown task or job, 409 wrong state or stale preview, 422 bad input.
-Every CLI command except `init`, `clone`, `migrate` and `serve` is a client of this server and needs it running (`no factory server is running` otherwise); it reads the token from `<state_dir>/token`. Each state dir has its own token, so a CLI pointed at a different state dir than the running server is refused with a 401. Long commands wait for their job; Ctrl-C stops waiting and the job carries on. `eval-audit --compare` and `--check-corpus` work locally.
+Every CLI command except `init`, `clone`, `migrate`, `serve` and `eval-export` is a client of this server and needs it running (`no factory server is running` otherwise); it reads the token from `<state_dir>/token`. Each state dir has its own token, so a CLI pointed at a different state dir than the running server is refused with a 401. Long commands wait for their job; Ctrl-C stops waiting and the job carries on. `eval-audit` needs the server too, except `--check-corpus`, which runs locally.
 
 ### Watching issues
 
