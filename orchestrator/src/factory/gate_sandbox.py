@@ -45,7 +45,7 @@ def build_gate_sandbox(
     `sandbox` wraps the run (default: nono at `sandbox_executable`; `sandbox` wins if both are given).
     `private_dirs`: directories uv's directory must not hold; `$HOME` (`/` when unset) is always private."""
     policy = SandboxPolicy(
-        worktree, write=(str(project_dir), str(cache_dir)),
+        worktree, write=(str(project_dir), str(cache_dir)), cwd=project_dir,
         read=(python_prefix, uv_python_dir, *_uv_read_dirs(real_uv, (*private_dirs, base_env.get("HOME", "/")))),
     )
     prefix = (sandbox or NonoSandbox(sandbox_executable)).wrap(policy)

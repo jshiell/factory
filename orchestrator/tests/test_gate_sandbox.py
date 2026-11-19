@@ -48,6 +48,19 @@ def test_a_given_sandbox_wraps_the_gate_with_no_profile_and_the_gates_own_grants
     assert policy.read == ("/py", "/uvpy", "/real")
 
 
+def test_the_gate_policy_names_the_project_dir_as_the_launch_directory(tmp_path):
+    class Recording:
+        def wrap(self, policy):
+            self.policy = policy
+            return ["fake-sandbox", "--"]
+
+    recording = Recording()
+
+    build(tmp_path, sandbox=recording)
+
+    assert recording.policy.cwd == tmp_path / "wt" / "target"
+
+
 def test_the_first_uv_in_the_test_command_becomes_the_real_binary(tmp_path):
     assert build(tmp_path).argv == ("/real/uv", "run", "pytest", "-q")
     assert build(tmp_path, test_argv=("pytest",)).argv == ("pytest",)
