@@ -5,6 +5,7 @@ import re
 from pathlib import Path
 
 from factory.audit_corpus import Case, corpus_hash
+from factory.audit_eval import _write_atomically
 from factory.audit_report import exit_code, load_records, summary
 from factory.textsafe import escape_control
 
@@ -123,3 +124,11 @@ def render_markdown(bundle: dict) -> str:
             lines += ["", f"{_cell(record['case'])} run {record['run']} ({record['outcome']}):"]
             lines += [_fence(finding) for finding in record["findings"]]
     return "\n".join(lines) + "\n"
+
+
+def write_bundle(bundle: dict, directory: Path) -> tuple[Path, Path]:
+    """Write run.json and run.md into an existing directory, replacing earlier ones."""
+    json_path, markdown_path = directory / "run.json", directory / "run.md"
+    _write_atomically(json_path, json.dumps(bundle, indent=1) + "\n")
+    _write_atomically(markdown_path, render_markdown(bundle))
+    return json_path, markdown_path

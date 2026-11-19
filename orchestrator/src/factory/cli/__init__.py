@@ -9,6 +9,7 @@ from factory.audit_compare import compare, find_previous
 from factory.audit_corpus import CASES as EVAL_CASES
 from factory.audit_corpus import PROJECT_SUBDIR
 from factory.audit_eval import check_corpus
+from factory.audit_share import build_bundle, write_bundle
 from factory.cli.admin import _clone, _migrate, _serve, _watch
 from factory.cli.base import IO, Context, _StoppedWaiting
 from factory.cli.base import (
@@ -88,6 +89,10 @@ def _parser() -> argparse.ArgumentParser:
     audit_eval.add_argument("--compare", type=Path)
     audit_eval.add_argument("--check-corpus", action="store_true")
     audit_eval.add_argument("--stage-config", action="store_true")
+    export = commands.add_parser("eval-export")
+    export.add_argument("eval_dir", type=Path)
+    export.add_argument("--out", type=Path)
+    export.add_argument("--with-findings", action="store_true")
     return parser
 
 
@@ -251,9 +256,28 @@ def _eval_audit(args, io, ctx) -> int:
     return job["result"]["exit_code"]
 
 
+def _eval_export(args, io, ctx) -> int:
+    """Runs without a server or a repo: it only reads an eval directory and writes two files."""
+    target = args.out or args.eval_dir
+    if not args.eval_dir.is_dir():
+        print(f"usage error: eval directory not found: {args.eval_dir}", file=io.stderr)
+        return 2
+    if not target.is_dir():
+        print(f"usage error: --out must be an existing directory: {target}", file=io.stderr)
+        return 2
+    try:
+        bundle = build_bundle(args.eval_dir, EVAL_CASES, include_findings=args.with_findings)
+    except ValueError as error:
+        print(f"cannot export: {escape_control(str(error))}", file=io.stderr)
+        return 1
+    for path in write_bundle(bundle, target):
+        print(path, file=io.stdout)
+    return 0
+
+
 _COMMANDS = {
     "new": _new, "list": _list, "show": _show, "advance": _advance,
-    "answer": _answer, "approve": _approve, "reject": _reject, "merge": _merge, "retry": _retry, "recover": _recover, "abandon": _abandon, "rebase": _rebase, "clean": _clean, "migrate": _migrate, "costs": _costs, "eval-audit": _eval_audit, "serve": _serve, "watch": _watch,
+    "answer": _answer, "approve": _approve, "reject": _reject, "merge": _merge, "retry": _retry, "recover": _recover, "abandon": _abandon, "rebase": _rebase, "clean": _clean, "migrate": _migrate, "costs": _costs, "eval-audit": _eval_audit, "eval-export": _eval_export, "serve": _serve, "watch": _watch,
     "init": lambda args, io, ctx: init_global_config(io),
     "clone": lambda args, io, ctx: _clone(args.repository, io),
 }
@@ -285,7 +309,7 @@ def _exit_on_signal(signum, frame):
 
 
 
-_NEEDS_NO_REPO = ("init", "clone")
+_NEEDS_NO_REPO = ("init", "clone", "eval-export")
 
 
 def run() -> None:
