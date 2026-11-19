@@ -377,6 +377,13 @@ def test_the_meta_names_the_harness_that_ran_the_eval(tmp_path):
     assert (load_meta(tmp_path / "a")["harness"], load_meta(tmp_path / "b")["harness"]) == ("claude", "other")
 
 
+def test_the_meta_names_the_sandbox_that_ran_the_eval(tmp_path):
+    run_eval(tmp_path / "a", THREE[:1], 1, VerdictRunner(), 5.0)
+    run_eval(tmp_path / "b", THREE[:1], 1, VerdictRunner(), 5.0, sandbox="other")
+
+    assert (load_meta(tmp_path / "a")["sandbox"], load_meta(tmp_path / "b")["sandbox"]) == ("nono", "other")
+
+
 def test_resuming_with_a_different_harness_is_refused_before_anything_runs(tmp_path):
     eval_dir = tmp_path / "eval"
     run_eval(eval_dir, THREE, 1, VerdictRunner(), 5.0)

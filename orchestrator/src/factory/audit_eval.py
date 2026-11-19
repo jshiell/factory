@@ -154,9 +154,9 @@ def _prompt_hash() -> str:
 
 
 def _meta(cases: list[Case], runs: int, complete: bool, config: RunnerConfig, hashes: dict[str, str],
-          harness: str) -> dict:
+          harness: str, sandbox: str) -> dict:
     return {
-        "harness": harness,
+        "harness": harness, "sandbox": sandbox,
         "corpus_hash": corpus_hash(cases), "case_hashes": {c.id: case_hash(c) for c in cases},
         "cases": [c.id for c in cases], "runs": runs, "complete": complete,
         "audit_config": _as_stored(dataclasses.asdict(config)), "plugin_hashes": hashes, "prompt_hash": _prompt_hash(),
@@ -173,7 +173,7 @@ def valid_result(eval_dir: Path, case_id: str, run: int) -> dict | None:
 
 def run_eval(
     eval_dir: Path, cases: list[Case], runs: int, runner: Runner, cap_usd: float, config: RunnerConfig = AUDIT_CONFIG,
-    harness: str = DEFAULT_HARNESS,
+    harness: str = DEFAULT_HARNESS, sandbox: str = DEFAULT_SANDBOX,
 ) -> bool:
     """Round-robin over runs, resumable. True when every (case, run) has a result."""
     (eval_dir / "tasks").mkdir(parents=True, exist_ok=True)
@@ -188,7 +188,7 @@ def run_eval(
         raise ConfigChanged(str(eval_dir))
     if meta_path(eval_dir).exists() and with_defaults(load_meta(eval_dir))["harness"] != harness:
         raise ConfigChanged(str(eval_dir))
-    _write_atomically(meta_path(eval_dir), json.dumps(_meta(cases, runs, False, config, hashes, harness), indent=1))
+    _write_atomically(meta_path(eval_dir), json.dumps(_meta(cases, runs, False, config, hashes, harness, sandbox), indent=1))
     store, ledger = TaskStore(eval_dir / "tasks"), Ledger(eval_dir / "ledger.jsonl")
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
@@ -203,7 +203,7 @@ def run_eval(
                     return False
     if plugin_hashes(config) != hashes:
         raise ConfigChanged(str(eval_dir))  # the meta stays incomplete: the results mix two plugin versions
-    _write_atomically(meta_path(eval_dir), json.dumps(_meta(cases, runs, True, config, hashes, harness), indent=1))
+    _write_atomically(meta_path(eval_dir), json.dumps(_meta(cases, runs, True, config, hashes, harness, sandbox), indent=1))
     return True
 
 
