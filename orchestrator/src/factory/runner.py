@@ -6,7 +6,8 @@ import time
 from contextlib import nullcontext
 from pathlib import Path
 
-from factory.command import RunnerConfig, build_command, contains, sandbox_prefix
+from factory.command import RunnerConfig, contains, sandbox_prefix
+from factory.harness import ClaudeHarness, Harness
 from factory.process import STRIPPED_ENV, kill_tree, tail
 from factory.process_registry import Tracker
 from factory.step import TAIL_CHARS, RunResult
@@ -27,9 +28,11 @@ def _executable_directory(executable: str, path: str | None, private_dirs: tuple
 
 
 class SubprocessRunner:
-    def __init__(self, executable: str, project_subdir: str, timeout_s: float, sandbox_executable: str = "nono", records=None, private_dirs: tuple[str, ...] = ()):
+    def __init__(self, executable: str, project_subdir: str, timeout_s: float, sandbox_executable: str = "nono", records=None, private_dirs: tuple[str, ...] = (), harness: Harness | None = None):
         """`records`: a records object or a state directory; each agent process is recorded there for the reaper.
-        `private_dirs`: directories the sandbox must never be granted read access to, even indirectly."""
+        `private_dirs`: directories the sandbox must never be granted read access to, even indirectly.
+        `harness`: how the agent CLI is started (default: Claude)."""
+        self._harness = harness or ClaudeHarness()
         self._private_dirs = private_dirs
         self._executable = executable
         self._project_subdir = project_subdir
@@ -40,8 +43,9 @@ class SubprocessRunner:
     def run(self, task: Task, config: RunnerConfig) -> RunResult:
         worktree = str(Path(task.worktree).resolve())
         add_dirs = (worktree,) if config.confine else ()
-        argv, env_overlay = build_command(task.prompt, config, executable=self._executable, add_dirs=add_dirs)
-        child_env = self._child_env(env_overlay)
+        invocation = self._harness.build(task.prompt, config, self._executable, add_dirs)
+        argv = invocation.argv
+        child_env = self._child_env(invocation.env)
         if config.confine:
             private_dirs = (*self._private_dirs, *filter(None, [child_env.get("HOME")]))
             executable_grant = _executable_directory(self._executable, child_env.get("PATH"), private_dirs)

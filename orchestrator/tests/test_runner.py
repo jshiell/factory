@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 
 from factory.command import RunnerConfig
+from factory.harness import Invocation
 from factory.process_registry import load_records
 from factory.runner import SubprocessRunner
 from factory.step import TAIL_CHARS
@@ -509,3 +510,19 @@ def test_each_plugin_dir_is_granted_read_only_to_the_sandbox(tmp_path, task):
     lines = log.read_text().splitlines()
     assert sandbox_reads(log)[1:3] == ["/h/p a", "/h/p b"]
     assert [lines[i + 1] for i, arg in enumerate(lines) if arg == "--plugin-dir"] == ["/h/p a", "/h/p b"]
+
+
+class EchoHarness:
+    """Starts `<executable> <prompt>` with its own env; never parsed."""
+
+    def build(self, prompt, config, executable, add_dirs=()):
+        return Invocation([executable, prompt, *add_dirs], {"HARNESS_MARK": "from-fake"})
+
+
+def test_a_run_launches_the_argv_and_env_the_harness_builds(tmp_path, task):
+    script = fake_claude(tmp_path, 'echo "$1 $HARNESS_MARK"')
+    runner = SubprocessRunner(script, project_subdir="proj", timeout_s=10, harness=EchoHarness())
+
+    result = runner.run(task, CONFIG)
+
+    assert result.stdout.strip() == "do it from-fake"
