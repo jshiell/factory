@@ -1,3 +1,4 @@
+import asyncio
 import hashlib
 import json
 import os
@@ -56,6 +57,7 @@ from factory.store import TaskNotFound, task_to_dict
 from factory.task import InvalidTransition, TaskState
 from factory.waiver import InvalidWaiver, note_lines
 from factory.web.auth import LoginCodes, Sessions, session_cookie_name
+from factory.web.changes import TaskChanges
 from factory.web.routes import ui_routes
 from factory.worktrees import WorktreeManager
 
@@ -142,9 +144,13 @@ def _resumed_eval_dir(evals_root, name) -> Path:
 def _build_app(ctx) -> Starlette:
     jobs = JobStore(ctx.settings.db_path)
     runner = JobRunner(jobs)
+    changes = TaskChanges()
+    if hasattr(ctx.store, "subscribe"):  # the legacy JSON store cannot announce writes; its pages update on reload
+        ctx.store.subscribe(changes.notify)  # once per app, not per lifespan, so repeated lifespans do not stack
 
     @asynccontextmanager
     async def lifespan(app):
+        changes.attach(asyncio.get_running_loop())
         runner.start()
         try:
             yield
@@ -435,6 +441,7 @@ def _build_app(ctx) -> Starlette:
     app.state.login_codes = LoginCodes(ctx.clock)
     app.state.sessions = Sessions()
     app.state.store = ctx.store
+    app.state.changes = changes
     return app
 
 

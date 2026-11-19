@@ -44,10 +44,13 @@ def _tasks_event(store) -> str:
 
 
 async def _events(request: Request) -> StreamingResponse:
-    store = request.app.state.store
+    store, changes = request.app.state.store, request.app.state.changes
 
     async def stream():
-        yield _tasks_event(store)
+        while True:
+            version = changes.version  # before rendering, so a write during the render sends another event
+            yield _tasks_event(store)
+            await changes.wait_past(version)
 
     return StreamingResponse(stream(), media_type="text/event-stream")
 

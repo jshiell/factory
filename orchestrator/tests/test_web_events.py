@@ -30,8 +30,10 @@ def client(ctx):
         yield client
 
 
-def read_events(client, count=1):
-    """The first `count` events (each a list of lines) of /ui/events; fails instead of hanging."""
+def read_events(client, count=1, after_first_event=None):
+    """The first `count` events (each a list of lines) of /ui/events; fails instead of hanging.
+
+    `after_first_event` runs once the first event has arrived, to cause the next one."""
     seen: list = []
 
     def read():
@@ -46,6 +48,8 @@ def read_events(client, count=1):
                 event = []
                 if len(seen) > count:
                     return
+                if after_first_event and len(seen) == 2:
+                    after_first_event()
 
     reader = threading.Thread(target=read, daemon=True)
     reader.start()
@@ -73,6 +77,17 @@ def test_carriage_returns_in_task_text_neither_add_nor_end_an_event(client, ctx)
 
     assert event[0] == "event: tasks"
     assert all(line.startswith("data: ") for line in event[1:])
+
+
+def test_a_store_save_sends_the_new_state_as_the_next_event(client, ctx):
+    ctx.store.save(Task("20260102-030405", "p", state=TaskState.QUEUED, goal="g"))
+
+    _, (first, second) = read_events(client, count=2, after_first_event=lambda: ctx.store.save(
+        Task("20260102-030405", "p", state=TaskState.FAILED, goal="g")))
+
+    assert any("queued" in line for line in first)
+    assert any("failed" in line for line in second)
+    assert not any("failed" in line for line in first)
 
 
 def test_guard_events_needs_the_session_cookie(client):
