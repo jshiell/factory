@@ -12,6 +12,7 @@ from factory.command import RunnerConfig
 from factory.harness import Capability, Invocation
 from factory.process_registry import load_records
 from factory.runner import SubprocessRunner
+from factory.sandbox import NonoSandbox
 from factory.step import TAIL_CHARS
 from factory.task import Task, TaskState
 from slowrecords import WAIT_FOR_RECORD, RecordsWrittenLate
@@ -186,7 +187,7 @@ def test_a_confined_config_runs_claude_through_the_sandbox_wrapper_with_the_work
     log = tmp_path / "wrapper.log"
     claude = fake_claude(tmp_path, 'echo "ran $1"')
     runner = SubprocessRunner(
-        claude, project_subdir="proj", timeout_s=10, sandbox_executable=fake_wrapper(tmp_path, log)
+        claude, project_subdir="proj", timeout_s=10, sandbox=NonoSandbox(fake_wrapper(tmp_path, log))
     )
     worktree = str(Path(task.worktree).resolve())
 
@@ -215,7 +216,7 @@ def test_a_confined_run_grants_the_directory_the_claude_executable_is_found_in(t
     via_link = tmp_path / "install" / "latest" / "fake-claude"
     log = tmp_path / "wrapper.log"
     runner = SubprocessRunner(
-        str(via_link), project_subdir="proj", timeout_s=10, sandbox_executable=fake_wrapper(tmp_path, log)
+        str(via_link), project_subdir="proj", timeout_s=10, sandbox=NonoSandbox(fake_wrapper(tmp_path, log))
     )
 
     runner.run(task, replace(CONFIG, confine=True))
@@ -238,7 +239,7 @@ def test_a_symlinked_claude_file_is_granted_both_its_own_and_its_resolved_direct
     link, release = symlinked_claude(tmp_path)
     log = tmp_path / "wrapper.log"
     runner = SubprocessRunner(
-        str(link), project_subdir="proj", timeout_s=10, sandbox_executable=fake_wrapper(tmp_path, log),
+        str(link), project_subdir="proj", timeout_s=10, sandbox=NonoSandbox(fake_wrapper(tmp_path, log)),
     )
 
     result = runner.run(task, replace(CONFIG, confine=True))
@@ -252,7 +253,7 @@ def test_the_resolved_directory_is_refused_when_it_contains_a_private_directory(
     link, release = symlinked_claude(tmp_path)
     log = tmp_path / "wrapper.log"
     runner = SubprocessRunner(
-        str(link), project_subdir="proj", timeout_s=10, sandbox_executable=fake_wrapper(tmp_path, log),
+        str(link), project_subdir="proj", timeout_s=10, sandbox=NonoSandbox(fake_wrapper(tmp_path, log)),
         private_dirs=(str(release / "state"),),
     )
 
@@ -266,7 +267,7 @@ def test_a_plain_claude_file_is_granted_exactly_one_directory(tmp_path, task):
     fake_claude(tmp_path, "echo ok")
     log = tmp_path / "wrapper.log"
     runner = SubprocessRunner(
-        str(tmp_path / "fake-claude"), project_subdir="proj", timeout_s=10, sandbox_executable=fake_wrapper(tmp_path, log),
+        str(tmp_path / "fake-claude"), project_subdir="proj", timeout_s=10, sandbox=NonoSandbox(fake_wrapper(tmp_path, log)),
     )
 
     runner.run(task, replace(CONFIG, confine=True))
@@ -280,7 +281,7 @@ def test_a_symlink_within_the_same_directory_is_granted_one_directory(tmp_path, 
     (tmp_path / "claude").symlink_to(tmp_path / "fake-claude")
     log = tmp_path / "wrapper.log"
     runner = SubprocessRunner(
-        str(tmp_path / "claude"), project_subdir="proj", timeout_s=10, sandbox_executable=fake_wrapper(tmp_path, log),
+        str(tmp_path / "claude"), project_subdir="proj", timeout_s=10, sandbox=NonoSandbox(fake_wrapper(tmp_path, log)),
     )
 
     runner.run(task, replace(CONFIG, confine=True))
@@ -294,7 +295,7 @@ def test_a_resolved_directory_that_is_home_is_not_granted(tmp_path, task, monkey
     monkeypatch.setenv("HOME", str(release))
     log = tmp_path / "wrapper.log"
     runner = SubprocessRunner(
-        str(link), project_subdir="proj", timeout_s=10, sandbox_executable=fake_wrapper(tmp_path, log),
+        str(link), project_subdir="proj", timeout_s=10, sandbox=NonoSandbox(fake_wrapper(tmp_path, log)),
     )
 
     runner.run(task, replace(CONFIG, confine=True))
@@ -307,7 +308,7 @@ def test_a_refused_unresolved_directory_still_leaves_the_resolved_one_granted(tm
     link, release = symlinked_claude(tmp_path)
     log = tmp_path / "wrapper.log"
     runner = SubprocessRunner(
-        str(link), project_subdir="proj", timeout_s=10, sandbox_executable=fake_wrapper(tmp_path, log),
+        str(link), project_subdir="proj", timeout_s=10, sandbox=NonoSandbox(fake_wrapper(tmp_path, log)),
         private_dirs=(str(tmp_path / "bin" / "state"),),
     )
 
@@ -319,7 +320,7 @@ def test_a_refused_unresolved_directory_still_leaves_the_resolved_one_granted(tm
 def test_a_claude_executable_that_cannot_be_found_adds_no_grant_and_the_run_goes_ahead(tmp_path, task):
     log = tmp_path / "wrapper.log"
     runner = SubprocessRunner(
-        "no-such-claude-anywhere", project_subdir="proj", timeout_s=10, sandbox_executable=fake_wrapper(tmp_path, log)
+        "no-such-claude-anywhere", project_subdir="proj", timeout_s=10, sandbox=NonoSandbox(fake_wrapper(tmp_path, log))
     )
 
     result = runner.run(task, replace(CONFIG, confine=True))
@@ -335,7 +336,7 @@ def test_no_grant_is_made_for_a_directory_that_contains_a_private_directory(tmp_
     log = tmp_path / "wrapper.log"
     runner = SubprocessRunner(
         str(bin_dir / "fake-claude"), project_subdir="proj", timeout_s=10,
-        sandbox_executable=fake_wrapper(tmp_path, log), private_dirs=(str(bin_dir / "state"),),
+        sandbox=NonoSandbox(fake_wrapper(tmp_path, log)), private_dirs=(str(bin_dir / "state"),),
     )
 
     result = runner.run(task, replace(CONFIG, confine=True))
@@ -352,7 +353,7 @@ def test_no_grant_is_made_for_the_home_directory(tmp_path, task, monkeypatch):
     log = tmp_path / "wrapper.log"
     runner = SubprocessRunner(
         str(home / "fake-claude"), project_subdir="proj", timeout_s=10,
-        sandbox_executable=fake_wrapper(tmp_path, log),
+        sandbox=NonoSandbox(fake_wrapper(tmp_path, log)),
     )
 
     result = runner.run(task, replace(CONFIG, confine=True))
@@ -365,7 +366,7 @@ def test_an_unconfined_config_does_not_touch_the_wrapper(tmp_path, task):
     log = tmp_path / "wrapper.log"
     runner = SubprocessRunner(
         fake_claude(tmp_path, "echo direct"), project_subdir="proj", timeout_s=10,
-        sandbox_executable=fake_wrapper(tmp_path, log),
+        sandbox=NonoSandbox(fake_wrapper(tmp_path, log)),
     )
 
     result = runner.run(task, CONFIG)
@@ -378,7 +379,7 @@ def test_a_missing_sandbox_wrapper_raises_and_claude_never_runs_unconfined(tmp_p
     marker = tmp_path / "claude-ran"
     runner = SubprocessRunner(
         fake_claude(tmp_path, f"touch {marker}"), project_subdir="proj", timeout_s=10,
-        sandbox_executable=str(tmp_path / "no-such-nono"),
+        sandbox=NonoSandbox(str(tmp_path / "no-such-nono")),
     )
 
     with pytest.raises(FileNotFoundError):
@@ -394,7 +395,7 @@ def test_a_wrapper_that_fails_before_launching_claude_surfaces_its_exit_code_wit
     failing.chmod(failing.stat().st_mode | stat.S_IEXEC)
     runner = SubprocessRunner(
         fake_claude(tmp_path, f"touch {marker}"), project_subdir="proj", timeout_s=10,
-        sandbox_executable=str(failing),
+        sandbox=NonoSandbox(str(failing)),
     )
 
     result = runner.run(task, replace(CONFIG, confine=True))
@@ -415,7 +416,7 @@ def test_timeout_kills_the_whole_tree_through_a_wrapper_that_stays_as_a_parent(t
     forking.write_text('#!/bin/sh\nwhile [ "$1" != "--" ]; do shift; done\nshift\n"$@"\n')
     forking.chmod(forking.stat().st_mode | stat.S_IEXEC)
     runner = SubprocessRunner(
-        fake_claude(tmp_path, body), project_subdir="proj", timeout_s=1.5, sandbox_executable=str(forking)
+        fake_claude(tmp_path, body), project_subdir="proj", timeout_s=1.5, sandbox=NonoSandbox(str(forking))
     )
 
     result = runner.run(task, replace(CONFIG, confine=True))
@@ -439,7 +440,7 @@ def test_a_wrapper_banner_on_stderr_does_not_reach_the_captured_stdout(tmp_path,
     noisy.chmod(noisy.stat().st_mode | stat.S_IEXEC)
     runner = SubprocessRunner(
         fake_claude(tmp_path, "echo '{\"ok\": true}'"), project_subdir="proj", timeout_s=10,
-        sandbox_executable=str(noisy),
+        sandbox=NonoSandbox(str(noisy)),
     )
 
     result = runner.run(task, replace(CONFIG, confine=True))
@@ -502,7 +503,7 @@ def test_each_plugin_dir_is_granted_read_only_to_the_sandbox(tmp_path, task):
     log = tmp_path / "wrapper.log"
     runner = SubprocessRunner(
         fake_claude(tmp_path, "echo ok"), project_subdir="proj", timeout_s=10,
-        sandbox_executable=fake_wrapper(tmp_path, log),
+        sandbox=NonoSandbox(fake_wrapper(tmp_path, log)),
     )
 
     runner.run(task, replace(CONFIG, confine=True, plugin_dirs=("/h/p a", "/h/p b")))
@@ -549,7 +550,7 @@ def test_a_confined_run_asks_the_sandbox_for_the_profile_the_harness_names(tmp_p
     harness.sandbox_profile = "acme/fake"
     runner = SubprocessRunner(
         fake_claude(tmp_path, "echo ok"), project_subdir="proj", timeout_s=10,
-        sandbox_executable=fake_wrapper(tmp_path, log), harness=harness,
+        sandbox=NonoSandbox(fake_wrapper(tmp_path, log)), harness=harness,
     )
 
     runner.run(task, replace(CONFIG, confine=True))
@@ -564,7 +565,7 @@ def test_a_confined_run_passes_no_profile_when_the_harness_has_none(tmp_path, ta
     harness.sandbox_profile = None
     runner = SubprocessRunner(
         fake_claude(tmp_path, "echo ok"), project_subdir="proj", timeout_s=10,
-        sandbox_executable=fake_wrapper(tmp_path, log), harness=harness,
+        sandbox=NonoSandbox(fake_wrapper(tmp_path, log)), harness=harness,
     )
 
     runner.run(task, replace(CONFIG, confine=True))
