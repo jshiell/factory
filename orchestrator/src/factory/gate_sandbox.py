@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from factory.process import STRIPPED_ENV
-from factory.sandbox import NonoSandbox, Sandbox, SandboxPolicy, contains
+from factory.sandbox import NonoSandbox, Sandbox, SandboxPolicy, without_private
 
 
 @dataclass(frozen=True)
@@ -34,7 +34,7 @@ def _uv_read_dirs(real_uv: str, home: str) -> tuple[str, ...]:
     if not os.path.isabs(real_uv):
         return ()
     directory = str(Path(real_uv).resolve().parent)
-    return () if contains(directory, home) else (directory,)
+    return without_private((directory,), (home,))
 
 
 def build_gate_sandbox(
