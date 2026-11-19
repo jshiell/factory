@@ -38,6 +38,14 @@ Add `spike/forwarders.py` holding the two forwarders and change each spike's imp
 ## Check before step 5
 `command.py` must end with no import of `factory.harness` or `factory.sandbox`: `grep -nE "^\s*(from|import) factory" orchestrator/src/factory/command.py` prints nothing.
 
+## Deviations (as built)
+- Step 5 also reworded README line 39 (`build_command` refusing prompts over 131,071 bytes became `ClaudeHarness.build`); the plan listed only line 294.
+- Step 6 wrapped the `factory.command` import in `harness.py` over several lines, as `ruff` (I001) requires.
+- `spike/forwarders.py` was not linted: the gate runs from `orchestrator/` and does not cover `spike/`.
+- `confinement_probe.py` takes `sandbox_prefix` from `forwarders` on its own import line (it no longer imports it from `factory.command`); `RunnerConfig` stays on `factory.command`.
+- No test assertion changed. Nothing in `src/` outside `harness.py`, `runner.py`, `gate_sandbox.py`, `sandbox.py` and `command.py` changed.
+- The spikes were checked statically only (`py_compile`, import-line grep, importing `forwarders`); none was run, so the manual probes are untested after the move.
+
 ## Risks
 - The seven spike imports (above) are the only callers outside `tests/test_command.py`; a miss shows up only when a spike is run.
 - `check_prompt` is named in AGENTS.md as the shared prompt check for any argv-prompt harness; after step 6 it is importable from `factory.harness` (which holds the harness protocol), and the AGENTS.md line must say so.
