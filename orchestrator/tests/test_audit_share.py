@@ -126,3 +126,17 @@ def test_a_case_that_is_no_longer_in_the_corpus_is_refused(tmp_path):
 
     with pytest.raises(ValueError, match="corpus"):
         build_bundle(directory, CASES[1:])
+
+
+def test_findings_are_included_only_on_request_and_with_control_characters_escaped(tmp_path):
+    directory = write_eval(tmp_path / "e")
+    path = directory / f"{PAIR[0].id}-r1.json"
+    record = json.loads(path.read_text())
+    record["findings"] = ["\x1b[31mred\x1b[0m"]
+    path.write_text(json.dumps(record))
+
+    bundle = build_bundle(directory, CASES, include_findings=True)
+
+    first = bundle["records"][0]
+    assert "\x1b" not in first["findings"][0] and "red" in first["findings"][0]
+    assert all("findings" in r for r in bundle["records"])

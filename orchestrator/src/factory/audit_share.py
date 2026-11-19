@@ -5,6 +5,7 @@ from pathlib import Path
 
 from factory.audit_corpus import Case, corpus_hash
 from factory.audit_report import exit_code, load_records, summary
+from factory.textsafe import escape_control
 
 SCHEMA = 1
 RECORD_KEYS = ("case", "run", "label", "category", "outcome", "cost_usd", "assumed_usd")
@@ -49,7 +50,14 @@ def _meta_of(eval_dir: Path) -> dict:
     return meta
 
 
-def build_bundle(eval_dir: Path, corpus: list[Case]) -> dict:
+def _shared_record(record: dict, include_findings: bool) -> dict:
+    shared = {key: record[key] for key in RECORD_KEYS}
+    if include_findings:
+        shared["findings"] = [escape_control(finding) for finding in record["findings"]]
+    return shared
+
+
+def build_bundle(eval_dir: Path, corpus: list[Case], include_findings: bool = False) -> dict:
     """Everything needed to read or compare a run, with no paths, no prompt text and (unless asked) no findings."""
     meta = _meta_of(eval_dir)
     cases = [case for case in corpus if case.id in meta.get("cases", [])]
@@ -58,7 +66,7 @@ def build_bundle(eval_dir: Path, corpus: list[Case]) -> dict:
     records = load_records(eval_dir)
     return {
         "schema": SCHEMA, "eval": eval_dir.name, "meta": shareable_meta(meta),
-        "records": [{key: record[key] for key in RECORD_KEYS} for record in records],
+        "records": [_shared_record(record, include_findings) for record in records],
         "summary": summary(records, cases),
         "exit_code": exit_code(records, meta["runs"], meta["complete"], cases),
     }
