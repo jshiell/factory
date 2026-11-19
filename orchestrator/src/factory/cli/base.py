@@ -67,9 +67,23 @@ def agent_runner(settings: Settings, project_subdir: str, records) -> Subprocess
 
 def _serve_with_uvicorn(app, host: str, port: int) -> None:
     import uvicorn
-    server = uvicorn.Server(uvicorn.Config(app, host=host, port=port, log_level="warning"))
+    # uvicorn waits for open connections before the lifespan shutdown and never tells them to stop, so the
+    # signal hooks themselves must end the event streams; the lifespan would be too late
+    request_stop = app.state.request_stop
+
+    class StreamEndingServer(uvicorn.Server):
+        def handle_exit(self, sig, frame) -> None:
+            super().handle_exit(sig, frame)
+            request_stop()
+
+    def hang_up(signum, frame) -> None:
+        server.should_exit = True
+        request_stop()
+
+    # the backstop cancels any other request still running 5 s into the shutdown
+    server = StreamEndingServer(uvicorn.Config(app, host=host, port=port, log_level="warning", timeout_graceful_shutdown=5))
     # uvicorn handles SIGINT and SIGTERM itself; a hangup must also shut down cleanly or the job worker's agent outlives us
-    signal.signal(signal.SIGHUP, lambda signum, frame: setattr(server, "should_exit", True))
+    signal.signal(signal.SIGHUP, hang_up)
     server.run()
 
 
