@@ -190,7 +190,7 @@ def run(outside, cleanup_files, summary):
             fn()
             status = "ok"
         except Exception as e:
-            status = f"error {type(e).__name__}: {str(e)[:100]}"
+            status = f"error {type(e).__name__}: {str(e)[:100]} stderr={str(getattr(e, 'stderr', ''))[:300]!r}"
         fired = sorted(p.name for p in can.glob("*"))
         print(f"   {label:58} canaries: {fired or 'none'}", flush=True)
         return {"call": label, "status": status, "canaries": fired}
@@ -291,7 +291,9 @@ def run(outside, cleanup_files, summary):
         calls.append(call("diff --name-status base..HEAD", lambda: run_git(w1, "diff", "--name-status", "--no-renames", base_sha, "HEAD", "--", SUBDIR)))
         calls.append(call("git show HEAD:proj/agent.probe (HARDENED_GIT)",
                           lambda: subprocess.run([*HARDENED_GIT, "show", f"HEAD:{SUBDIR}/agent.probe"], cwd=w1, capture_output=True, stdin=subprocess.DEVNULL)))
-        calls.append(call("CONTROL plain diff base..HEAD (textconv expected)", lambda: run_git(w1, "diff", base_sha, "HEAD", "--", SUBDIR)))
+        # run_git forces GIT_CONFIG_GLOBAL=/dev/null, so the fixture drivers never reach the factory calls above: their
+        # "none" holds by construction. This control uses raw git with the fixture config on the same agent-written files.
+        calls.append(call("CONTROL raw git diff base..HEAD (textconv expected)", lambda: git("diff", base_sha, "HEAD", "--", SUBDIR, cwd=w1)))
         head = git("rev-parse", "HEAD", cwd=w1).stdout.strip()
         calls.append(call("merge --ff-only into main checkout (merge_task call)",
                           lambda: run_git(repo, "-c", "core.hooksPath=/dev/null", "merge", "--ff-only", head)))
