@@ -20,20 +20,23 @@ Add `spike/forwarders.py` holding the two forwarders and change each spike's imp
 - (c) Leave the spikes broken and record it. Cheapest, but `confinement_probe.py` is the regression probe named in plan 63's deviations.
 
 ## Increments (one commit each; guard = covered by existing tests, no red)
-0. Re-grep `build_command`, `sandbox_prefix`, `contains`, `check_prompt`, `SANDBOX_PROFILE` across `src/`, `tests/` and `spike/`; confirm the hit list above. No commit.
-1. Guard (retarget): in `test_command.py`, define a local `build_command(prompt, config, executable="claude", add_dirs=())` that returns `(inv.argv, inv.env)` from `ClaudeHarness().build(...)`, and drop `build_command` from the `factory.command` import. Test bodies and assertions untouched. Guarded by the existing tests themselves.
+0. Re-grep `build_command`, `sandbox_prefix`, `contains`, `check_prompt`, `SANDBOX_PROFILE` across `orchestrator/src`, `orchestrator/tests`, `spike/`, `docs/`, `README.md`, `AGENTS.md`; also `from factory import command`, `import factory.command`, `command\.` attribute access, `patch("factory.command` and `factory.runner.contains` patches, and in-function imports. Confirm the hit list above, and that a `test_gate_sandbox.py` test covers "the uv directory contains home, so no grant" (add a guard test first if none does). No commit.
+1. Guard (retarget): in `test_command.py`, define a local `build_command(prompt, config, executable="claude", add_dirs=())` that returns `(inv.argv, inv.env)` from `ClaudeHarness().build(...)`, and drop `build_command` from the `factory.command` import. Test bodies and assertions untouched. Guarded by the existing tests themselves; run `-m smoke` and the file.
 2. Guard (retarget): `test_sandbox_prefix_grants_the_resolved_worktree_read_only_and_ends_with_double_dash` calls `NonoSandbox("nono").wrap(SandboxPolicy(link, profile=SANDBOX_PROFILE))`. Same assertion.
 3. Guard (retarget): `test_a_profile_less_sandbox_prefix_grants_write_to_the_given_dirs_and_read_to_the_others` calls `NonoSandbox("nono").wrap(SandboxPolicy(tmp_path, write=(...), read=(...)))`. Same assertions. Drop `sandbox_prefix` from the import.
-4. Spike scripts: add `spike/forwarders.py` (the two forwarders, importing `ClaudeHarness` and `NonoSandbox` directly, with `SANDBOX_PROFILE` imported from `factory.command`; step 7 repoints it), change the seven import lines. Verify each script still imports (`python -c "import ..."` from the spike dir, no agent run).
-5. Guard (refactor): delete `build_command`, `sandbox_prefix` and the `sandbox` import from `command.py`. The lazy `harness` import goes with `build_command`. Guarded by the whole suite; `ruff` catches an unused import.
-6. Guard (refactor): move `check_prompt` into `harness.py`, which imports `MAX_PROMPT_BYTES` and `PromptTooLarge` from `command`. Guarded by `test_command.py:72,77,85` (reach it through `ClaudeHarness.build`).
-7. Guard (refactor): move `SANDBOX_PROFILE` into `harness.py`. `test_command.py` (step 2) and `spike/forwarders.py` need it; update those imports to `factory.harness`.
-8. Guard (refactor): move `contains` into `sandbox.py`; `runner.py` and `gate_sandbox.py` import it from there. `sandbox.py` imports nothing from the package, so no cycle. Guarded by `test_runner.py` (the private-directory grant tests around `:250`, `:311`, `:331`) and `test_gate_sandbox.py`.
-9. Docs: AGENTS.md line 10 (`command.check_prompt` becomes `harness.check_prompt`); README architecture diagram label `runner.py / command.py` (line 294) to name `runner.py, harness.py, sandbox.py`.
-10. Verification gate: `uv run ruff check`, the full suite in the background with `-n auto`, the `verify` skill, then `audit-commits`.
+4. Spike scripts: add `spike/forwarders.py` (the two forwarders, importing `ClaudeHarness` and `NonoSandbox` directly, with `SANDBOX_PROFILE` imported from `factory.command`; step 7 repoints it), change the seven import lines.
+   - `forwarders.py` does its own idempotent `sys.path.insert(0, <root>/orchestrator/src)`.
+   - Each spike's new `from forwarders import ...` goes after that spike's own `sys.path` insert, with `# noqa: E402`; split lines that also import `RunnerConfig` (it stays on `factory.command`).
+   - Verify statically, never by importing a spike (they create canary files under `$HOME`, add worktrees, make paid `claude` runs, and `nono_impl_probe.py` rewrites `~/.claude.json` at import): `py_compile` on all seven, grep the import lines, and import only the shim: `uv run --project orchestrator python -c "import sys; sys.path.insert(0,'spike'); import forwarders; forwarders.build_command; forwarders.sandbox_prefix"`.
+5. Guard (refactor): delete `build_command`, `sandbox_prefix` and the `sandbox` import from `command.py`. The lazy `harness` import goes with `build_command`. Guarded by the whole suite; Same commit: README architecture label (line 294) becomes `runner.py, harness.py, sandbox.py, command.py (RunnerConfig)`. Run ruff and the full suite.
+6. Guard (refactor): move `check_prompt` into `harness.py` (add `import os`; import `MAX_PROMPT_BYTES`, `PromptTooLarge`, `RunnerConfig` from `command`); drop `import os` from `command.py`. Same commit: AGENTS.md line 10 becomes `harness.check_prompt`. Guarded by the prompt tests in `test_command.py` (the dash prompt, limit-plus-one bytes and exactly-limit tests, reached through `ClaudeHarness.build`).
+7. Guard (refactor): move `SANDBOX_PROFILE` into `harness.py`. Repoint `test_command.py` (step 2) and `spike/forwarders.py` to `factory.harness`.
+8. Guard (refactor): move `contains` into `sandbox.py`; `runner.py` and `gate_sandbox.py` import it from there; drop `Path` from `command.py`. `sandbox.py` imports nothing from the package, so no cycle. Guarded, by name, by the `test_runner.py` tests on a directory that contains a private directory (resolved, unresolved, no-grant, home) and the `test_gate_sandbox.py` uv-directory tests.
+9. Verification gate: `uv run ruff check` (also run after every step above), the full suite in the background with `-n auto`, the `verify` skill, then `audit-commits`.
+10. Record deviations in this plan, as plan 63 did. Older plan docs that mention the forwarders stay as history.
 
 ## Check before step 5
-`command.py` must end with no import of `factory.harness` or `factory.sandbox`: `grep -n "^from factory\|^import factory\|^    from factory" orchestrator/src/factory/command.py` prints nothing.
+`command.py` must end with no import of `factory.harness` or `factory.sandbox`: `grep -nE "^\s*(from|import) factory" orchestrator/src/factory/command.py` prints nothing.
 
 ## Risks
 - The seven spike imports (above) are the only callers outside `tests/test_command.py`; a miss shows up only when a spike is run.
