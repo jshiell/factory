@@ -1,16 +1,10 @@
 import json
-import os
 from dataclasses import dataclass
 from enum import Enum
 from typing import Protocol
 
 from factory.classify import Outcome, OutcomeKind
-from factory.command import (
-    MAX_PROMPT_BYTES,
-    SANDBOX_PROFILE,
-    PromptTooLarge,
-    RunnerConfig,
-)
+from factory.command import SANDBOX_PROFILE, RunnerConfig, check_prompt
 
 
 class Capability(Enum):
@@ -54,11 +48,7 @@ class ClaudeHarness:
     def build(
         self, prompt: str, config: RunnerConfig, executable: str, add_dirs: tuple[str, ...] = ()
     ) -> Invocation:
-        if prompt.startswith("-"):
-            raise ValueError("prompt must not start with '-'")
-        size = len(os.fsencode(prompt))
-        if size > MAX_PROMPT_BYTES:
-            raise PromptTooLarge(f"prompt is {size} bytes, the limit is {MAX_PROMPT_BYTES}")
+        check_prompt(prompt)
         argv = [executable, "-p", prompt, "--output-format", "json", "--model", config.model]
         argv += ["--setting-sources", ""]
         if config.budget_usd is not None:
