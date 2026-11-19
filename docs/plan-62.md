@@ -41,3 +41,12 @@ Claude-specific knowledge is spread over `command.py` (argv, flags, env), `class
 - `RunnerConfig` stays Claude-flavoured; a neutral rename may be needed later.
 - The capability flags are a guess at what a second harness lacks; revisit when one is added.
 - Old settings files and audit bundles predate the `harness` field and default to claude.
+
+## Deviations (as built)
+- Capabilities are a `Capability` enum (`json_schema`, `plugins`, `budget`, `tool_rules`), not `supports_*` booleans. The plan's per-stage matrix collapsed: with the fixed stage set every stage needs all four, so a harness must provide all of them (`missing_capabilities`). The check is in `agent_runner` (`cli/base.py`), so `eval-audit`, which runs only the audit stage, also demands `plugins`. Fine while Claude is the only harness; split per stage when a second one lacks something.
+- The `Harness` protocol has no `name` (the registry key is the name) and no `default_executable` (the neutral executable key is deferred to the second-harness plan; `claude_executable` still selects the binary).
+- One `agent_runner` helper in `cli/base.py` builds the runner for both `build_context` and `_real_eval_runner`, instead of two constructions.
+- `RunResult.parse` is a defaulted callable field (`compare=False`), so existing fake runners need no change; `classify_run` calls it.
+- The argv prompt checks (leading `-`, `MAX_PROMPT_BYTES`) first moved into `ClaudeHarness.build`, then back into neutral `command.check_prompt` (5b14980), which `build` calls, as the plan said.
+- `shareable_meta` always sets `harness` (default `claude`) instead of adding it to `KEPT`; same effect, still idempotent.
+- Increment 7 README note and a `build_context` wiring test landed after the audit (30558da).
