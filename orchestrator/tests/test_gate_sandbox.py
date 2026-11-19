@@ -25,6 +25,29 @@ def test_the_prefix_has_no_profile_and_grants_write_to_the_project_and_private_c
     assert {"/py", "/uvpy"} <= {b for a, b in pairs if a == "--read"}
 
 
+def test_a_given_sandbox_wraps_the_gate_with_no_profile_and_the_gates_own_grants(tmp_path):
+    class Recording:
+        def __init__(self):
+            self.policies = []
+
+        def wrap(self, policy):
+            self.policies.append(policy)
+            return ["fake-sandbox", "--"]
+
+    recording = Recording()
+    args = {"worktree": tmp_path / "wt", "project_dir": tmp_path / "wt" / "target", "cache_dir": tmp_path / "cache",
+            "python_prefix": "/py", "uv_python_dir": "/uvpy", "real_uv": "/real/uv", "base_env": BASE_ENV,
+            "test_argv": ("uv", "run", "pytest")}
+
+    sandbox = build_gate_sandbox(sandbox=recording, **args)
+
+    (policy,) = recording.policies
+    assert sandbox.prefix == ("fake-sandbox", "--")
+    assert (policy.worktree, policy.profile) == (tmp_path / "wt", None)
+    assert policy.write == (str(tmp_path / "wt" / "target"), str(tmp_path / "cache"))
+    assert policy.read == ("/py", "/uvpy", "/real")
+
+
 def test_the_first_uv_in_the_test_command_becomes_the_real_binary(tmp_path):
     assert build(tmp_path).argv == ("/real/uv", "run", "pytest", "-q")
     assert build(tmp_path, test_argv=("pytest",)).argv == ("pytest",)

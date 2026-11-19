@@ -4,8 +4,9 @@ import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
-from factory.command import contains, sandbox_prefix
+from factory.command import contains
 from factory.process import STRIPPED_ENV
+from factory.sandbox import NonoSandbox, Sandbox, SandboxPolicy
 
 
 @dataclass(frozen=True)
@@ -38,14 +39,16 @@ def _uv_read_dirs(real_uv: str, home: str) -> tuple[str, ...]:
 
 
 def build_gate_sandbox(
-    *, sandbox_executable: str, worktree: Path, project_dir: Path, cache_dir: Path, python_prefix: str,
-    uv_python_dir: str, real_uv: str, base_env: dict[str, str], test_argv: tuple[str, ...],
+    *, worktree: Path, project_dir: Path, cache_dir: Path, python_prefix: str, uv_python_dir: str, real_uv: str,
+    base_env: dict[str, str], test_argv: tuple[str, ...], sandbox_executable: str = "nono", sandbox: Sandbox | None = None,
 ) -> GateSandbox:
-    """Own minimal grants for the gate (no claude profile): write the project dir and a private uv cache only."""
-    prefix = sandbox_prefix(
-        sandbox_executable, worktree, profile=None, allow=(str(project_dir), str(cache_dir)),
+    """Own minimal grants for the gate (no claude profile): write the project dir and a private uv cache only.
+    `sandbox` wraps the run (default: nono at `sandbox_executable`; `sandbox` wins if both are given)."""
+    policy = SandboxPolicy(
+        worktree, write=(str(project_dir), str(cache_dir)),
         read=(python_prefix, uv_python_dir, *_uv_read_dirs(real_uv, base_env.get("HOME", "/"))),
     )
+    prefix = (sandbox or NonoSandbox(sandbox_executable)).wrap(policy)
     argv = (real_uv, *test_argv[1:]) if test_argv and test_argv[0] == "uv" else tuple(test_argv)
     env = {k: v for k, v in base_env.items() if k not in STRIPPED_ENV}
     env.update(PATH=_without_shims(base_env.get("PATH", "")), UV_CACHE_DIR=str(cache_dir), UV_LINK_MODE="copy")
