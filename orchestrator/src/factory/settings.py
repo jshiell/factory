@@ -8,6 +8,7 @@ from pathlib import Path, PurePosixPath
 
 from factory.gate import DEFAULT_PROTECTED_NAMES
 from factory.harness import DEFAULT_HARNESS, HARNESSES
+from factory.sandbox import DEFAULT_SANDBOX, SANDBOXES
 
 
 class SettingsError(Exception):
@@ -26,6 +27,7 @@ class Settings:
     runner_timeout_s: float = 300.0
     claude_executable: str = "claude"
     harness: str = DEFAULT_HARNESS
+    sandbox: str = DEFAULT_SANDBOX
     sandbox_executable: str = "nono"
     model: str = "sonnet"
     budget_usd: float = 0.5
@@ -66,7 +68,7 @@ class Settings:
 
 
 _PATH_KEYS = ("repo", "state_dir", "worktree_root", "home")
-_STRING_KEYS = ("project_subdir", "claude_executable", "sandbox_executable", "model", "main_branch", "harness")
+_STRING_KEYS = ("project_subdir", "claude_executable", "sandbox_executable", "model", "main_branch", "harness", "sandbox")
 _PROMPT_KEYS = ("append_system_prompt",)
 _STAGES = ("plan", "review", "implement", "audit")
 _FLOAT_KEYS = ("cap_usd", "gate_timeout_s", "runner_timeout_s", "budget_usd")
@@ -97,6 +99,8 @@ def load_settings(path: Path | None, cwd: Path) -> Settings:
     _check_project_subdir(settings.project_subdir)
     if settings.harness not in HARNESSES:
         raise SettingsError(f"harness {settings.harness!r} is unknown; known: {', '.join(sorted(HARNESSES))}")
+    if settings.sandbox not in SANDBOXES:
+        raise SettingsError(f"sandbox {settings.sandbox!r} is unknown; known: {', '.join(sorted(SANDBOXES))}")
     return replace(settings, gate_allow_outside=_checked_allow_outside(settings))
 
 

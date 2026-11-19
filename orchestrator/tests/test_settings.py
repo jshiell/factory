@@ -775,3 +775,18 @@ def test_an_unknown_harness_names_the_key_and_the_known_ones(repo_dir):
 
     with pytest.raises(SettingsError, match=r"harness.*gemini.*claude"):
         load_settings(None, cwd=repo_dir)
+
+
+def test_the_sandbox_defaults_to_nono_and_can_be_named_locally_or_globally(repo_dir, global_config):
+    assert load_settings(None, cwd=repo_dir).sandbox == "nono"
+    global_config.write_text('sandbox = "nono"\n')
+    (repo_dir / "factory.toml").write_text('sandbox = "nono"\n')
+
+    assert load_settings(None, cwd=repo_dir).sandbox == "nono"
+
+
+def test_an_unknown_sandbox_names_the_key_and_the_known_ones(repo_dir):
+    (repo_dir / "factory.toml").write_text('sandbox = "bubblewrap"\n')
+
+    with pytest.raises(SettingsError, match=r"^sandbox 'bubblewrap' is unknown; known: nono$"):
+        load_settings(None, cwd=repo_dir)

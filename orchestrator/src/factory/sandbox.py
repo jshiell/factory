@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
@@ -33,3 +34,11 @@ class NonoSandbox:
         for directory in policy.read:
             prefix += ["--read", directory]
         return [*prefix, "--"]
+
+
+DEFAULT_SANDBOX = "nono"
+SANDBOXES: dict[str, Callable[[str], Sandbox]] = {DEFAULT_SANDBOX: NonoSandbox}
+
+
+def sandbox_named(name: str, executable: str) -> Sandbox:
+    return SANDBOXES[name](executable)
