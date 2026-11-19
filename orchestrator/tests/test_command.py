@@ -5,11 +5,10 @@ import pytest
 
 from factory.command import (
     MAX_PROMPT_BYTES,
-    SANDBOX_PROFILE,
     PromptTooLarge,
     RunnerConfig,
 )
-from factory.harness import ClaudeHarness
+from factory.harness import SANDBOX_PROFILE, ClaudeHarness
 from factory.sandbox import NonoSandbox, SandboxPolicy
 
 

@@ -7,10 +7,11 @@ from typing import Protocol
 from factory.classify import Outcome, OutcomeKind
 from factory.command import (
     MAX_PROMPT_BYTES,
-    SANDBOX_PROFILE,
     PromptTooLarge,
     RunnerConfig,
 )
+
+SANDBOX_PROFILE = "nolabs-ai/claude"
 
 
 def check_prompt(prompt: str) -> None:

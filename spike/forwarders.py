@@ -6,8 +6,8 @@ _SRC = str(Path(__file__).resolve().parent.parent / "orchestrator" / "src")
 if _SRC not in sys.path:
     sys.path.insert(0, _SRC)
 
-from factory.command import SANDBOX_PROFILE, RunnerConfig  # noqa: E402
-from factory.harness import ClaudeHarness  # noqa: E402
+from factory.command import RunnerConfig  # noqa: E402
+from factory.harness import SANDBOX_PROFILE, ClaudeHarness  # noqa: E402
 from factory.sandbox import NonoSandbox, SandboxPolicy  # noqa: E402
 
 

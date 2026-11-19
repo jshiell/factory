@@ -1,7 +1,6 @@
 from dataclasses import dataclass
 from pathlib import Path
 
-SANDBOX_PROFILE = "nolabs-ai/claude"
 # Linux caps one argv string at 131072 bytes including the NUL (measured with /usr/bin/true: 131071 runs, 131072 is E2BIG).
 MAX_PROMPT_BYTES = 131_071
 
