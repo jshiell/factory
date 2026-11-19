@@ -526,3 +526,32 @@ def test_a_run_launches_the_argv_and_env_the_harness_builds(tmp_path, task):
     result = runner.run(task, CONFIG)
 
     assert result.stdout.strip() == "do it from-fake"
+
+
+def test_a_confined_run_asks_the_sandbox_for_the_profile_the_harness_names(tmp_path, task):
+    log = tmp_path / "wrapper.log"
+    harness = EchoHarness()
+    harness.sandbox_profile = "acme/fake"
+    runner = SubprocessRunner(
+        fake_claude(tmp_path, "echo ok"), project_subdir="proj", timeout_s=10,
+        sandbox_executable=fake_wrapper(tmp_path, log), harness=harness,
+    )
+
+    runner.run(task, replace(CONFIG, confine=True))
+
+    lines = log.read_text().splitlines()
+    assert lines[lines.index("--profile") + 1] == "acme/fake"
+
+
+def test_a_confined_run_passes_no_profile_when_the_harness_has_none(tmp_path, task):
+    log = tmp_path / "wrapper.log"
+    harness = EchoHarness()
+    harness.sandbox_profile = None
+    runner = SubprocessRunner(
+        fake_claude(tmp_path, "echo ok"), project_subdir="proj", timeout_s=10,
+        sandbox_executable=fake_wrapper(tmp_path, log), harness=harness,
+    )
+
+    runner.run(task, replace(CONFIG, confine=True))
+
+    assert "--profile" not in log.read_text().splitlines()

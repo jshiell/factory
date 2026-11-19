@@ -49,7 +49,11 @@ class SubprocessRunner:
         if config.confine:
             private_dirs = (*self._private_dirs, *filter(None, [child_env.get("HOME")]))
             executable_grant = _executable_directory(self._executable, child_env.get("PATH"), private_dirs)
-            argv = sandbox_prefix(self._sandbox_executable, worktree, read=(*config.plugin_dirs, *executable_grant)) + argv
+            prefix = sandbox_prefix(
+                self._sandbox_executable, worktree, profile=self._harness.sandbox_profile,
+                read=(*config.plugin_dirs, *executable_grant),
+            )
+            argv = prefix + argv
         cwd = Path(task.worktree) / self._project_subdir
         tracker = Tracker(self._records, task.id, task.state.value) if self._records else None
         with tempfile.TemporaryFile("w+") as stdout_file, tempfile.TemporaryFile() as stderr_file:

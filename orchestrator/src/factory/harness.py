@@ -4,7 +4,12 @@ from dataclasses import dataclass
 from typing import Protocol
 
 from factory.classify import Outcome, OutcomeKind
-from factory.command import MAX_PROMPT_BYTES, PromptTooLarge, RunnerConfig
+from factory.command import (
+    MAX_PROMPT_BYTES,
+    SANDBOX_PROFILE,
+    PromptTooLarge,
+    RunnerConfig,
+)
 
 
 @dataclass(frozen=True)
@@ -16,6 +21,8 @@ class Invocation:
 class Harness(Protocol):
     """How one agent CLI is started. The runner owns launching, timeout, sandboxing and records."""
 
+    sandbox_profile: str | None
+
     def build(
         self, prompt: str, config: RunnerConfig, executable: str, add_dirs: tuple[str, ...] = ()
     ) -> Invocation: ...
@@ -24,6 +31,8 @@ class Harness(Protocol):
 
 
 class ClaudeHarness:
+    sandbox_profile = SANDBOX_PROFILE
+
     def build(
         self, prompt: str, config: RunnerConfig, executable: str, add_dirs: tuple[str, ...] = ()
     ) -> Invocation:
