@@ -99,6 +99,64 @@ def test_an_idle_stream_sends_a_keepalive_comment_after_the_interval(client):
     assert second == [": keepalive"]
 
 
+def read_until_end(client, stop_after=None):
+    """Every event of /ui/events until the server ends the stream; fails instead of hanging.
+
+    With `stop_after`, requests a stop once that many events have arrived."""
+    events: list = []
+    ended = threading.Event()
+
+    def read():
+        with client.stream("GET", "/ui/events") as response:
+            event: list[str] = []
+            for line in response.iter_lines():
+                if line:
+                    event.append(line)
+                    continue
+                events.append(event)
+                event = []
+                if len(events) == stop_after:
+                    client.app.state.request_stop()
+        ended.set()
+
+    reader = threading.Thread(target=read, daemon=True)
+    reader.start()
+    reader.join(TIMEOUT)
+    assert ended.is_set(), f"the stream did not end within {TIMEOUT}s; got {events}"
+    return events
+
+
+def test_requesting_a_stop_ends_an_open_stream(client):
+    events = read_until_end(client, stop_after=1)
+
+    assert [event[0] for event in events] == ["event: tasks"]
+
+
+def test_a_stream_opened_after_a_stop_ends_at_once(client):
+    client.app.state.request_stop()
+
+    assert read_until_end(client) == []
+
+
+def test_a_stop_ends_a_stream_that_is_sending_keepalives(client):
+    client.app.state.keepalive_seconds = 0.05
+
+    events = read_until_end(client, stop_after=3)
+
+    assert events[0][0] == "event: tasks"
+    assert events[1:3] == [[": keepalive"], [": keepalive"]]
+    assert all(event == [": keepalive"] for event in events[3:])
+
+
+def test_a_stop_requested_before_a_lifespan_starts_still_ends_its_streams(ctx):
+    app = create_secured_app(ctx, load_or_create_token(ctx.settings.state_dir))
+    app.state.request_stop()
+
+    with TestClient(app, base_url="http://127.0.0.1:8765") as client:
+        client.get("/ui/login", params={"code": app.state.login_codes.issue()})
+        assert read_until_end(client) == []
+
+
 def test_guard_events_needs_the_session_cookie(client):
     client.cookies.clear()
 

@@ -44,19 +44,32 @@ def _tasks_event(store) -> str:
     return f"event: tasks\n{data_lines}\n"
 
 
+async def _first_of(waits, timeout: float):
+    """For each wait (a coroutine), whether it finished within `timeout`; the unfinished ones are cancelled."""
+    tasks = [asyncio.ensure_future(wait) for wait in waits]
+    try:
+        done, _ = await asyncio.wait(tasks, timeout=timeout, return_when=asyncio.FIRST_COMPLETED)
+    finally:  # also when the client goes away and the stream is cancelled mid-wait
+        for task in tasks:
+            task.cancel()
+    return [task in done for task in tasks]
+
+
 async def _events(request: Request) -> StreamingResponse:
-    store, changes = request.app.state.store, request.app.state.changes
+    state = request.app.state
+    store, changes, stopping = state.store, state.changes, state.stopping
 
     async def stream():
-        while True:
+        while not stopping.is_requested():
             version = changes.version  # before rendering, so a write during the render sends another event
             yield _tasks_event(store)
             while True:
-                try:
-                    await asyncio.wait_for(changes.wait_past(version), request.app.state.keepalive_seconds)
+                changed, stopped = await _first_of((changes.wait_past(version), stopping.wait()), state.keepalive_seconds)
+                if stopped:
+                    return
+                if changed:
                     break
-                except TimeoutError:
-                    yield ": keepalive\n\n"
+                yield ": keepalive\n\n"
 
     return StreamingResponse(stream(), media_type="text/event-stream")
 

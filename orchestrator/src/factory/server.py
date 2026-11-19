@@ -59,6 +59,7 @@ from factory.waiver import InvalidWaiver, note_lines
 from factory.web.auth import LoginCodes, Sessions, session_cookie_name
 from factory.web.changes import TaskChanges
 from factory.web.routes import ui_routes
+from factory.web.stopping import StopRequest
 from factory.worktrees import WorktreeManager
 
 
@@ -145,12 +146,14 @@ def _build_app(ctx) -> Starlette:
     jobs = JobStore(ctx.settings.db_path)
     runner = JobRunner(jobs)
     changes = TaskChanges()
+    stopping = StopRequest()
     if hasattr(ctx.store, "subscribe"):  # the legacy JSON store cannot announce writes; its pages update on reload
         ctx.store.subscribe(changes.notify)  # once per app, not per lifespan, so repeated lifespans do not stack
 
     @asynccontextmanager
     async def lifespan(app):
         changes.attach(asyncio.get_running_loop())
+        stopping.attach(asyncio.get_running_loop())
         runner.start()
         try:
             yield
@@ -443,6 +446,8 @@ def _build_app(ctx) -> Starlette:
     app.state.store = ctx.store
     app.state.changes = changes
     app.state.keepalive_seconds = 15
+    app.state.stopping = stopping
+    app.state.request_stop = stopping.request
     return app
 
 
