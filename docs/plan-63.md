@@ -38,3 +38,10 @@ nono knowledge is in `command.sandbox_prefix` (argv: `run -s`, `--profile`, `--a
 - A chroot or container sandbox that cannot express "read only these dirs" forces a contract revisit.
 - `STRIPPED_ENV` and the HOME/private-dir logic stay in the runner and gate.
 - `_check_corpus` (`cli/__init__.py:221`) calls `check_gate` with no prefix, so the corpus gate runs unconfined (trusted corpus). A third gate call site the seam does not cover.
+
+## Deviations (as built)
+- `sandbox_named(name, executable)` takes the two settings values, not `settings`: `settings.py` imports `sandbox` (for `SANDBOXES` and `DEFAULT_SANDBOX`), so a `Settings` parameter in `sandbox.py` would be a cycle.
+- Two wiring tests (agent runner in `test_harness_wiring.py`, gate in `test_stages.py`) instead of one covering both.
+- Increment 0: no hit list was written into this plan; each affected test was checked as the change reached it. The cwd-write spike was not re-run. It was already answered: `docs/spike-findings.md:606` records that the positive control (write to the project dir) passed under the real agent prefix, and line 609 that read-only stages can write the project directory under nono. What stays unmeasured is whether the profile or `--allow-cwd` grants it; the docs say "writable only if the profile grants it".
+- `uv run --project orchestrator python spike/confinement_probe.py` (plain terminal) can be re-run as a regression check that the refactor left the real grants unchanged; it has not been run since.
+- The comment above `ALLOWED` in `test_subprocess_sites.py` still says "nono prefix"; only the values were reworded.
