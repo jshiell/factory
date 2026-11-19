@@ -8,6 +8,8 @@ from pathlib import Path
 
 import pytest
 
+from test_audit_share import write_eval
+
 ORCHESTRATOR = Path(__file__).parent.parent
 
 FAKE_CLAUDE = r'''#!/usr/bin/env python3
@@ -398,3 +400,13 @@ def test_eval_audit_runs_the_real_runner_in_the_corpus_project_and_records_under
     assert list((tmp_path / "state" / "tasks").glob("*.json")) == []
     assert list((eval_dir / "procs").glob("*.json")) == [] and (eval_dir / "case-01-r1.json").is_file()
     assert not (eval_dir / "factory.db").exists()
+
+
+def test_eval_export_needs_no_repo_and_no_server(project):
+    _, env, tmp_path = project
+    directory = write_eval(tmp_path / "evals" / "2026-01-02")
+
+    result = sh("uv", "run", "--project", str(ORCHESTRATOR), "factory", "eval-export", str(directory), cwd=tmp_path, env=env)
+
+    assert result.returncode == 0, result.stderr
+    assert (directory / "run.json").is_file() and (directory / "run.md").is_file()
