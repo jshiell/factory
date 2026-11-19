@@ -35,6 +35,12 @@ Increment 3 cannot go green without editing a passing test. Approve both edits t
 5. Gate: `uv run ruff check` after every increment, the full suite in the background with `-n auto`, the `verify` skill, then `audit-commits`.
 6. Record deviations in this plan.
 
+## Deviations (recorded after implementation)
+- Increment 0 (inventory) was folded into the work: `"nono"` now appears in `src/` only in `sandbox.py` and a commented line in `init_config.py` (the `sandbox` name, not the executable).
+- Increment 3b/3c guards were added as passing tests after 3 (guards, not red), as planned.
+- Increment 4's test is a call-shape test, as labelled; it was red before the green edit.
+- Full suite after increment 4: 2141 passed; ruff clean.
+
 ## Tests touched (CLAUDE.md step 2)
 No user-visible output string changes. Behaviour: the default value of `Settings.sandbox_executable`. Tests pinning it: `test_settings.py:97-107` (one assertion and the test name change, with approval, see above). Tests passing it: `test_stages.py:208,225`, `test_cli_wiring.py:69`; these set a string and are unaffected.
 
