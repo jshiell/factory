@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta
 
-from factory.web.auth import LoginCodes
+from factory.web.auth import LoginCodes, Sessions
 
 
 class FakeClock:
@@ -45,3 +45,12 @@ def test_issuing_prunes_expired_codes():
     clock.now += timedelta(minutes=6)
     codes.issue()
     assert len(codes._expiries) == 1
+
+
+def test_created_session_is_valid():
+    sessions = Sessions()
+    assert sessions.valid(sessions.create()) is True
+
+
+def test_unknown_session_is_invalid():
+    assert Sessions().valid("nope") is False

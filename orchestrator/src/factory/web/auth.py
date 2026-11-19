@@ -21,3 +21,18 @@ class LoginCodes:
     def redeem(self, code: str) -> bool:
         expiry = self._expiries.pop(code, None)
         return expiry is not None and self._clock() < expiry
+
+
+class Sessions:
+    """Browser sessions, held in memory so a restart logs everyone out."""
+
+    def __init__(self):
+        self._ids = set()
+
+    def create(self) -> str:
+        session_id = secrets.token_urlsafe(32)
+        self._ids.add(session_id)
+        return session_id
+
+    def valid(self, session_id: str) -> bool:
+        return session_id in self._ids
