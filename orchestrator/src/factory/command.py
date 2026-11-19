@@ -2,6 +2,8 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
+from factory.sandbox import NonoSandbox, SandboxPolicy
+
 SANDBOX_PROFILE = "nolabs-ai/claude"
 # Linux caps one argv string at 131072 bytes including the NUL (measured with /usr/bin/true: 131071 runs, 131072 is E2BIG).
 MAX_PROMPT_BYTES = 131_071
@@ -52,10 +54,4 @@ def sandbox_prefix(
     allow: tuple[str, ...] = (), read: tuple[str, ...] = (),
 ) -> list[str]:
     """nono prefix; without a profile `--allow-cwd` is read-only, so write access is granted via `allow`."""
-    prefix = [executable, "run", "-s"] + (["--profile", profile] if profile else [])
-    prefix += ["--allow-cwd", "--read", str(Path(worktree).resolve())]
-    for directory in allow:
-        prefix += ["--allow", directory]
-    for directory in read:
-        prefix += ["--read", directory]
-    return [*prefix, "--"]
+    return NonoSandbox(executable).wrap(SandboxPolicy(worktree, write=allow, read=read, profile=profile))
