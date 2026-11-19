@@ -442,6 +442,7 @@ def _build_app(ctx) -> Starlette:
     app.state.sessions = Sessions()
     app.state.store = ctx.store
     app.state.changes = changes
+    app.state.keepalive_seconds = 15
     return app
 
 

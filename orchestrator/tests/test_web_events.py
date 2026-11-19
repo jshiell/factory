@@ -90,6 +90,15 @@ def test_a_store_save_sends_the_new_state_as_the_next_event(client, ctx):
     assert not any("failed" in line for line in first)
 
 
+def test_an_idle_stream_sends_a_keepalive_comment_after_the_interval(client):
+    client.app.state.keepalive_seconds = 0.05
+
+    _, (first, second) = read_events(client, count=2)
+
+    assert first[0] == "event: tasks"
+    assert second == [": keepalive"]
+
+
 def test_guard_events_needs_the_session_cookie(client):
     client.cookies.clear()
 

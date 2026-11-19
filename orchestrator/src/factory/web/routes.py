@@ -1,3 +1,4 @@
+import asyncio
 from pathlib import Path
 
 import jinja2
@@ -50,7 +51,12 @@ async def _events(request: Request) -> StreamingResponse:
         while True:
             version = changes.version  # before rendering, so a write during the render sends another event
             yield _tasks_event(store)
-            await changes.wait_past(version)
+            while True:
+                try:
+                    await asyncio.wait_for(changes.wait_past(version), request.app.state.keepalive_seconds)
+                    break
+                except TimeoutError:
+                    yield ": keepalive\n\n"
 
     return StreamingResponse(stream(), media_type="text/event-stream")
 
