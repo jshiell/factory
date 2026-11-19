@@ -48,14 +48,14 @@ class SubprocessRunner:
         invocation = self._harness.build(task.prompt, config, self._executable, add_dirs)
         argv = invocation.argv
         child_env = self._child_env(invocation.env)
+        cwd = Path(task.worktree) / self._project_subdir
         if config.confine:
             private_dirs = (*self._private_dirs, *filter(None, [child_env.get("HOME")]))
             executable_grant = _executable_directory(self._executable, child_env.get("PATH"), private_dirs)
             policy = SandboxPolicy(
-                worktree, read=(*config.plugin_dirs, *executable_grant), profile=self._harness.sandbox_profile,
+                worktree, read=(*config.plugin_dirs, *executable_grant), profile=self._harness.sandbox_profile, cwd=cwd,
             )
             argv = self._sandbox.wrap(policy) + argv
-        cwd = Path(task.worktree) / self._project_subdir
         tracker = Tracker(self._records, task.id, task.state.value) if self._records else None
         with tempfile.TemporaryFile("w+") as stdout_file, tempfile.TemporaryFile() as stderr_file:
             launched_after = time.time()

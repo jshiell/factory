@@ -7,13 +7,15 @@ from typing import Protocol
 @dataclass(frozen=True)
 class SandboxPolicy:
     """What a confined process is granted, as run today: the worktree read-only, `write` and `read` directories,
-    the working directory (writable, granted by `--allow-cwd` in nono, not by the profile) and open network. `profile` is opaque: nono uses
-    it, another sandbox may ignore it (and then grants too little, never too much)."""
+    the working directory (writable) and open network. `cwd` is the directory the process is launched in: nono ignores
+    it (`--allow-cwd` grants the process cwd, not the profile), another sandbox must make it writable itself.
+    `profile` is opaque: nono uses it, another sandbox may ignore it (and then grants too little, never too much)."""
 
     worktree: str | Path
     write: tuple[str, ...] = ()
     read: tuple[str, ...] = ()
     profile: str | None = None
+    cwd: str | Path | None = None
 
 
 class Sandbox(Protocol):

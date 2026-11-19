@@ -598,3 +598,17 @@ def test_a_confined_run_is_wrapped_by_the_given_sandbox_with_the_policy_the_runn
     assert (policy.worktree, policy.profile, policy.write) == (str(Path(task.worktree).resolve()), "acme/fake", ())
     assert "/plug" in policy.read and str(Path(claude).parent) in policy.read
     assert result.exit_code == 0 and log.exists()
+
+
+def test_a_confined_run_names_its_launch_directory_in_the_policy(tmp_path, task):
+    harness = EchoHarness()
+    harness.sandbox_profile = "acme/fake"
+    sandbox = RecordingSandbox([fake_wrapper(tmp_path, tmp_path / "wrapper.log"), "--"])
+    runner = SubprocessRunner(
+        fake_claude(tmp_path, "echo ok"), project_subdir="proj", timeout_s=10, sandbox=sandbox, harness=harness,
+    )
+
+    runner.run(task, replace(CONFIG, confine=True))
+
+    (policy,) = sandbox.policies
+    assert policy.cwd == Path(task.worktree) / "proj"
