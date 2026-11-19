@@ -7,7 +7,8 @@ import json, os, subprocess, sys, tempfile, time, uuid
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "orchestrator" / "src"))
-from factory.command import RunnerConfig, build_command  # noqa: E402
+from factory.command import RunnerConfig  # noqa: E402
+from forwarders import build_command  # noqa: E402
 
 KEEP = "--keep" in sys.argv
 OUT = Path(__file__).resolve().parent / "nono-probe-out"

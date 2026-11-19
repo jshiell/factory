@@ -22,9 +22,10 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "orchestrator" / "src"))
 from factory.audit_task import AUDIT_CONFIG  # noqa: E402
-from factory.command import RunnerConfig, sandbox_prefix  # noqa: E402
+from factory.command import RunnerConfig  # noqa: E402
 from factory.gate_sandbox import build_gate_sandbox, discover_uv_tooling  # noqa: E402
 from factory.runner import SubprocessRunner, _executable_directory  # noqa: E402
+from forwarders import sandbox_prefix  # noqa: E402
 from factory.task import Task  # noqa: E402
 
 WITH_CLAUDE_DIR = "--claude-dir" in sys.argv

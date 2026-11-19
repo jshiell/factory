@@ -3,7 +3,8 @@ Probes: iso (isolation+tools+project CLAUDE.md), repeat (repeated --allowedTools
 dashdash (-- before prompt), badmodel (error subtype). Saves stdout, stderr, exit code."""
 import json, os, subprocess, sys, time
 from pathlib import Path
-from factory.command import RunnerConfig, build_command
+from factory.command import RunnerConfig
+from forwarders import build_command
 
 REPO = Path(__file__).resolve().parent.parent
 TOOLS = ("Read", "Write", "Edit", "Bash(git add *)", "Bash(git commit *)", "Bash(git status*)", "Bash(git log *)")

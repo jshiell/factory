@@ -9,7 +9,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "orchestrator" / "src"))
-from factory.command import RunnerConfig, build_command  # noqa: E402
+from factory.command import RunnerConfig  # noqa: E402
+from forwarders import build_command  # noqa: E402
 
 PAID = "--paid" in sys.argv
 OUT = ROOT / "spike" / "nono-impl-out"

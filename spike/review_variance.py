@@ -12,7 +12,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 OUT = Path(__file__).resolve().parent / "review-variance-out"
 sys.path.insert(0, str(ROOT / "orchestrator" / "src"))
-from factory.command import build_command, sandbox_prefix  # noqa: E402
+from forwarders import build_command, sandbox_prefix  # noqa: E402
 from factory.review_notes import capped_findings, is_required  # noqa: E402
 from factory.review_plan import REVIEW_CONFIG, build_review_prompt  # noqa: E402
 from factory.runner import STRIPPED_ENV  # noqa: E402

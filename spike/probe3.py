@@ -2,7 +2,8 @@
 Probes: appendprompt, maxturns, noprompts, pgroup, apikey. Saves stdout, stderr, exit code."""
 import json, os, subprocess, sys, time
 from pathlib import Path
-from factory.command import RunnerConfig, build_command
+from factory.command import RunnerConfig
+from forwarders import build_command
 
 REPO = Path(__file__).resolve().parent.parent
 
