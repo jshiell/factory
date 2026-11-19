@@ -402,6 +402,10 @@ def _build_app(ctx) -> Starlette:
     async def show_job(request: Request) -> JSONResponse:
         return JSONResponse(_job_json(jobs.get(request.path_params["job_id"])))
 
+    async def ui_login_code(request: Request) -> JSONResponse:
+        code = request.app.state.login_codes.issue()
+        return JSONResponse({"url": f"http://{request.headers['host']}/ui/login?code={code}"})
+
     app = Starlette(
         lifespan=lifespan,
         routes=[Route("/eval-audit", eval_audit, methods=["POST"]),
@@ -419,6 +423,7 @@ def _build_app(ctx) -> Starlette:
                 Route("/tasks/{task_id}/recover", recover, methods=["POST"]),
                 Route("/tasks/{task_id}/abandon", abandon, methods=["POST"]),
                 Route("/tasks/{task_id}/advance", advance_task, methods=["POST"]),
+                Route("/ui-login-codes", ui_login_code, methods=["POST"]),
                 Route("/jobs", list_jobs, methods=["GET"]), Route("/jobs/{job_id}", show_job, methods=["GET"]),
                 Route("/costs", costs, methods=["GET"]), Route("/tasks", create_task, methods=["POST"]), Route("/tasks", list_tasks, methods=["GET"]),
                 Route("/tasks/{task_id}", show_task, methods=["GET"]), *ui_routes()],

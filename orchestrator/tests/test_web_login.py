@@ -21,8 +21,12 @@ def ctx(tmp_path):
 
 
 @pytest.fixture
-def client(ctx):
-    token = load_or_create_token(ctx.settings.state_dir)
+def token(ctx):
+    return load_or_create_token(ctx.settings.state_dir)
+
+
+@pytest.fixture
+def client(ctx, token):
     with TestClient(create_secured_app(ctx, token), base_url="http://127.0.0.1:8765") as client:
         yield client
 
@@ -85,3 +89,16 @@ def test_the_slashless_ui_redirects_to_the_canonical_page(client):
 
     assert response.status_code == 308
     assert response.headers["location"] == "/ui/"
+
+
+def test_the_code_endpoint_returns_a_login_url_for_the_requests_host_that_logs_in(client, token):
+    response = client.post("/ui-login-codes", headers={"Authorization": f"Bearer {token}", "Host": "localhost:8765"})
+
+    url = response.json()["url"]
+    assert response.status_code == 200
+    assert url.startswith("http://localhost:8765/ui/login?code=")
+    assert client.get(url.removeprefix("http://localhost:8765")).status_code == 200
+
+
+def test_guard_the_code_endpoint_needs_the_bearer_token(client):
+    assert client.post("/ui-login-codes").status_code == 401
