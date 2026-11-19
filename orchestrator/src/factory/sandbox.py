@@ -49,8 +49,9 @@ def without_private(directories: Iterable[str], private_dirs: Iterable[str]) -> 
 
 
 DEFAULT_SANDBOX = "nono"
-SANDBOXES: dict[str, Callable[[str], Sandbox]] = {DEFAULT_SANDBOX: NonoSandbox}
+SANDBOXES: dict[str, Callable[[str | None], Sandbox]] = {DEFAULT_SANDBOX: NonoSandbox}
 
 
-def sandbox_named(name: str, executable: str) -> Sandbox:
+def sandbox_named(name: str, executable: str | None = None) -> Sandbox:
+    """`executable` is the `sandbox_executable` setting; `None` (unset) means the sandbox's own default."""
     return SANDBOXES[name](executable)

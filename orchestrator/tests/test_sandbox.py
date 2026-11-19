@@ -1,4 +1,4 @@
-from factory.sandbox import NonoSandbox, SandboxPolicy, without_private
+from factory.sandbox import NonoSandbox, SandboxPolicy, sandbox_named, without_private
 
 
 def test_a_directory_that_holds_a_private_one_is_dropped_and_others_are_kept(tmp_path):
@@ -41,6 +41,11 @@ def test_relative_and_symlinked_inputs_are_compared_resolved(tmp_path, monkeypat
 
 def test_nono_sandbox_without_an_executable_runs_nono():
     assert NonoSandbox().wrap(SandboxPolicy("/wt"))[0] == "nono"
+
+
+def test_sandbox_named_without_an_executable_uses_the_sandboxes_own_default():
+    assert sandbox_named("nono").wrap(SandboxPolicy("/wt"))[0] == "nono"
+    assert sandbox_named("nono", "/x/nono").wrap(SandboxPolicy("/wt"))[0] == "/x/nono"
 
 
 def test_nono_sandbox_keeps_a_given_executable_even_an_empty_one():
