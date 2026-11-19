@@ -1,5 +1,7 @@
 import json
+import logging
 import sqlite3
+from collections.abc import Callable
 from pathlib import Path
 
 from factory.ids import require_safe_id
@@ -19,6 +21,18 @@ class SqliteTaskStore:
         self._db_path = db_path
         with transaction(self._db_path) as conn:
             conn.execute("CREATE TABLE IF NOT EXISTS tasks (id TEXT PRIMARY KEY, state TEXT NOT NULL, data TEXT NOT NULL)")
+        self._listeners: list[Callable[[], None]] = []
+
+    def subscribe(self, listener: Callable[[], None]) -> None:
+        """Call listener after every committed save or create."""
+        self._listeners.append(listener)
+
+    def _notify(self) -> None:
+        for listener in self._listeners:
+            try:
+                listener()
+            except Exception:  # a committed write must not fail because a listener did
+                logging.getLogger(__name__).warning("a task store listener failed", exc_info=True)
 
     def save(self, task: Task) -> None:
         require_safe_id(task.id)
@@ -27,6 +41,7 @@ class SqliteTaskStore:
                 "INSERT OR REPLACE INTO tasks (id, state, data) VALUES (?, ?, ?)",
                 (task.id, task.state.value, json.dumps(task_to_dict(task))),
             )
+        self._notify()
 
     def create(self, task: Task) -> None:
         """Save a new task, never overwriting an existing one."""
@@ -39,6 +54,7 @@ class SqliteTaskStore:
                 )
         except sqlite3.IntegrityError:
             raise TaskExists(task.id) from None
+        self._notify()
 
     def list(self) -> Listing:
         with transaction(self._db_path) as conn:
