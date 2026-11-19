@@ -25,6 +25,7 @@ from factory.audit_task import AUDIT_CONFIG  # noqa: E402
 from factory.command import RunnerConfig  # noqa: E402
 from factory.gate_sandbox import build_gate_sandbox, discover_uv_tooling  # noqa: E402
 from factory.runner import SubprocessRunner, _executable_directory  # noqa: E402
+from factory.sandbox import NonoSandbox  # noqa: E402
 from forwarders import sandbox_prefix  # noqa: E402
 from factory.task import Task  # noqa: E402
 
@@ -226,7 +227,7 @@ for name, config in (("agent (implement-like config)", IMPLEMENT), ("agent (AUDI
 tooling = discover_uv_tooling(PROJECT)
 cache_dir = BASE / "gate-cache"
 cache_dir.mkdir()
-gate = build_gate_sandbox(sandbox_executable="nono", worktree=WT, project_dir=PROJECT, cache_dir=cache_dir,
+gate = build_gate_sandbox(sandbox=NonoSandbox("nono"), worktree=WT, project_dir=PROJECT, cache_dir=cache_dir,
                           python_prefix=tooling.python_prefix, uv_python_dir=tooling.uv_python_dir, real_uv=tooling.real_uv,
                           base_env=dict(os.environ), test_argv=("uv", "run", "pytest", "-q"))
 (PROJECT / "gate-reader.py").write_text(READER)

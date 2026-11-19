@@ -10,6 +10,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "orchestrator" / "src"))
 from factory.gate import check_gate, commit_all  # noqa: E402
 from factory.gate_sandbox import GateSandbox, build_gate_sandbox, discover_uv_tooling  # noqa: E402
+from factory.sandbox import NonoSandbox  # noqa: E402
 from factory.worktree_clean import clean_worktree  # noqa: E402
 
 OUT = Path(__file__).resolve().parent / "gate-sandbox-probe-out"
@@ -70,7 +71,7 @@ def fixture(name: str) -> tuple[Path, Path, Path]:
 
 def sandbox(repo: Path, project: Path, cache: Path) -> GateSandbox:
     sb = build_gate_sandbox(
-        sandbox_executable="nono", worktree=repo, project_dir=project, cache_dir=cache,
+        sandbox=NonoSandbox("nono"), worktree=repo, project_dir=project, cache_dir=cache,
         python_prefix=TOOLING.python_prefix, uv_python_dir=TOOLING.uv_python_dir, real_uv=TOOLING.real_uv,
         base_env=dict(os.environ), test_argv=TEST_ARGV,
     )

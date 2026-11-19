@@ -46,6 +46,7 @@ from factory.command import RunnerConfig  # noqa: E402
 from factory.gate import commit_all  # noqa: E402
 from factory.gate_sandbox import build_gate_sandbox, discover_uv_tooling  # noqa: E402
 from factory.runner import SubprocessRunner  # noqa: E402
+from factory.sandbox import NonoSandbox  # noqa: E402
 from factory.task import Task  # noqa: E402
 from factory.worktrees import HARDENED_GIT, run_git  # noqa: E402
 
@@ -232,7 +233,7 @@ def run(outside, cleanup_files, summary):
     tooling = discover_uv_tooling(wa / SUBDIR)
     cache_dir = BASE / "gate-cache"
     cache_dir.mkdir()
-    gate = build_gate_sandbox(sandbox_executable="nono", worktree=wa, project_dir=wa / SUBDIR, cache_dir=cache_dir,
+    gate = build_gate_sandbox(sandbox=NonoSandbox("nono"), worktree=wa, project_dir=wa / SUBDIR, cache_dir=cache_dir,
                               python_prefix=tooling.python_prefix, uv_python_dir=tooling.uv_python_dir, real_uv=tooling.real_uv,
                               base_env=dict(os.environ), test_argv=("uv", "run", "pytest", "-q"))
     (wa / SUBDIR / "gate-writer.py").write_text(WRITER)
