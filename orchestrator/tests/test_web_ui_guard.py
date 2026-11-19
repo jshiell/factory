@@ -87,3 +87,54 @@ def test_login_needs_no_session_but_still_refuses_a_foreign_origin_and_site(clie
     assert client.get("/ui/login", params={"code": code}, headers={"Origin": "http://evil.example"}).status_code == 403
     assert client.get("/ui/login", params={"code": code}, headers={"Sec-Fetch-Site": "cross-site"}).status_code == 403
     assert client.get("/ui/login", params={"code": code}).status_code == 200
+
+
+UI_SECURITY_HEADERS = {
+    "content-security-policy": "default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self'; "
+                                "frame-ancestors 'none'; base-uri 'none'; form-action 'self'",
+    "referrer-policy": "no-referrer",
+    "cache-control": "no-store",
+    "x-content-type-options": "nosniff",
+    "cross-origin-resource-policy": "same-origin",
+}
+
+
+def assert_ui_security_headers(response):
+    for name, value in UI_SECURITY_HEADERS.items():
+        assert response.headers.get_list(name) == [value], name
+
+
+def test_the_ui_page_carries_the_security_headers(signed_in):
+    assert_ui_security_headers(signed_in.get("/ui/"))
+
+
+def test_the_401_page_carries_the_security_headers(client):
+    response = client.get("/ui/")
+
+    assert response.status_code == 401
+    assert_ui_security_headers(response)
+
+
+def test_the_403_page_carries_the_security_headers(signed_in):
+    response = signed_in.get("/ui/", headers={"Origin": "http://evil.example"})
+
+    assert response.status_code == 403
+    assert_ui_security_headers(response)
+
+
+def test_the_host_refusal_on_the_ui_carries_the_security_headers(signed_in):
+    assert_ui_security_headers(signed_in.get("/ui/", headers={"Host": "evil.example"}))
+
+
+def test_the_slashless_redirect_carries_the_security_headers(signed_in):
+    response = signed_in.get("/ui", follow_redirects=False)
+
+    assert response.status_code == 308
+    assert_ui_security_headers(response)
+
+
+def test_api_responses_do_not_get_the_ui_headers(client, token):
+    response = client.get("/tasks", headers={"Authorization": f"Bearer {token}"})
+
+    assert "content-security-policy" not in response.headers
+    assert "cache-control" not in response.headers

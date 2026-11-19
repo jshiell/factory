@@ -489,6 +489,26 @@ def _ui_refusal(headers, path, sessions: Sessions):
     return None
 
 
+_UI_SECURITY_HEADERS = {
+    "content-security-policy": "default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self'; "
+                                "frame-ancestors 'none'; base-uri 'none'; form-action 'self'",
+    "referrer-policy": "no-referrer",
+    "cache-control": "no-store",
+    "x-content-type-options": "nosniff",
+    "cross-origin-resource-policy": "same-origin",
+}
+
+
+def _with_ui_security_headers(send):
+    """A `send` that sets the UI's security headers on the response, replacing any the app chose."""
+    async def send_with_headers(message):
+        if message["type"] == "http.response.start":
+            kept = [(name, value) for name, value in message["headers"] if name.decode("latin-1").lower() not in _UI_SECURITY_HEADERS]
+            message = {**message, "headers": kept + [(name.encode(), value.encode()) for name, value in _UI_SECURITY_HEADERS.items()]}
+        await send(message)
+    return send_with_headers
+
+
 def _is_ui_path(path: str) -> bool:
     return path == "/ui" or path.startswith("/ui/")
 
@@ -510,6 +530,8 @@ class _Guard:
             await self._app(scope, receive, send)
             return
         headers = {name.decode("latin-1").lower(): value.decode("latin-1") for name, value in scope["headers"]}
+        if _is_ui_path(scope["path"]):
+            send = _with_ui_security_headers(send)
         refusal = self._refusal(headers, scope["path"])
         if refusal:
             await refusal(scope, receive, send)
