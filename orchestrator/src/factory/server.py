@@ -7,6 +7,7 @@ import stat
 import subprocess
 from contextlib import asynccontextmanager, contextmanager
 from dataclasses import asdict
+from http.cookies import SimpleCookie
 from pathlib import Path
 
 from starlette.applications import Starlette
@@ -54,6 +55,7 @@ from factory.stages import stage_config
 from factory.store import TaskNotFound, task_to_dict
 from factory.task import InvalidTransition, TaskState
 from factory.waiver import InvalidWaiver, note_lines
+from factory.web.auth import LoginCodes, Sessions, session_cookie_name
 from factory.web.routes import ui_routes
 from factory.worktrees import WorktreeManager
 
@@ -425,6 +427,8 @@ def _build_app(ctx) -> Starlette:
                            service.NotReviewed: _not_reviewed},
     )
     app.state.runner = runner
+    app.state.login_codes = LoginCodes(ctx.clock)
+    app.state.sessions = Sessions()
     return app
 
 
@@ -456,13 +460,18 @@ def _host_name(host: str) -> str:
     return host.partition(":")[0]
 
 
+_NOT_SIGNED_IN = HTMLResponse("<!doctype html><title>factory</title><p>not signed in; run <code>factory ui</code></p>",
+                              status_code=401)
+
+
 def _is_ui_path(path: str) -> bool:
     return path == "/ui" or path.startswith("/ui/")
 
 
-def _ui_refusal(headers, path):
-    return HTMLResponse("<!doctype html><title>factory</title><p>not signed in; run <code>factory ui</code></p>",
-                        status_code=401)
+def _has_valid_session(headers, sessions: Sessions) -> bool:
+    cookies = SimpleCookie(headers.get("cookie", ""))
+    morsel = cookies.get(session_cookie_name(headers.get("host", "")))
+    return morsel is not None and sessions.valid(morsel.value)
 
 
 class _Guard:
@@ -486,7 +495,7 @@ class _Guard:
         if _host_name(headers.get("host", "")) not in _LOOPBACK_HOSTS:
             return JSONResponse({"error": "forbidden", "detail": "host must be loopback"}, status_code=403)
         if _is_ui_path(path):
-            return _ui_refusal(headers, path)
+            return None if path == "/ui/login" or _has_valid_session(headers, self._app.state.sessions) else _NOT_SIGNED_IN
         if "origin" in headers:
             return JSONResponse({"error": "forbidden", "detail": "browser requests are not accepted"}, status_code=403)
         scheme, _, presented = headers.get("authorization", "").partition(" ")

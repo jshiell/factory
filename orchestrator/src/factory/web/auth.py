@@ -4,6 +4,12 @@ from datetime import timedelta
 CODE_LIFETIME = timedelta(minutes=5)
 
 
+def session_cookie_name(host: str) -> str:
+    """Named for the Host's port, so servers on different loopback ports do not overwrite each other's cookie."""
+    _, _, port = host.rpartition(":")
+    return f"factory_session_{port if port.isdigit() else 80}"
+
+
 class LoginCodes:
     """Single-use login codes that expire; held in memory."""
 
