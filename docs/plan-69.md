@@ -147,3 +147,15 @@ Every test below is unaffected, so no passing test changes:
 - **Re-rendering cost.** Each SSE client re-renders the table on every change. That is fine at today's scale.
 - **The 5 s backstop also cuts off other in-flight requests at shutdown.** Today's handlers only queue jobs or return quickly; `merge_preview` and `clean_preview` run git.
 - **Vendored htmx runs with page privileges.** It is pinned by version and sha256 and updated by hand.
+
+## Deviations (recorded after implementation)
+- Stopping uses a `StopRequest` wrapper (`web/stopping.py`, `app.state.request_stop`) instead of a bare `asyncio.Event`.
+- `TaskChanges.attach` makes a fresh event.
+- The store subscription happens once per app, behind a `hasattr` guard, because the legacy JSON store has no `subscribe`.
+- The `TaskChanges` wiring landed in increment 16, not 14.
+- The increment 6 commit's placeholder refused all of `/ui` until increment 7.
+- The cookie port falls back to 80 when `Host` has no port.
+- The task page's goal falls back to `task.prompt` when there is no goal yet.
+- The manual browser check (increment 22) was not run: no browser is installed. The `Origin` and `Sec-Fetch-Site` headers that browsers send are still unmeasured, as are the banner behaviour and the SIGTERM/SIGHUP check with a real tab open.
+- Increment 19 hit the iterator-GC pitfall (see `docs/spike-findings.md`).
+- Checked: the Design says login answers 200 with a link, which is what was built.

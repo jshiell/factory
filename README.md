@@ -12,7 +12,7 @@ only things that need a person are the two decisions that matter: *is this the r
 
 | Path | What it is |
 |---|---|
-| `orchestrator/` | The factory: a Python 3.14 package, CLI `factory`; the standard library plus `httpx2`, `starlette` and `uvicorn` for the server; ~2000 tests |
+| `orchestrator/` | The factory: a Python 3.14 package, CLI `factory`; the standard library plus `httpx2`, `jinja2`, `starlette` and `uvicorn` for the server; ~2000 tests |
 | `target/` | A tiny Python project (`calc`) the agents work on. Replace it with any `uv` + `pytest` project |
 | `docs/` | One `plan-N.md` per increment (decisions, cycles, reviewer findings) and `spike-findings.md` (what was measured, known gaps) |
 | `spike/` | Throwaway probes and end-to-end scripts. Not production code; several make real API calls or need a terminal |
@@ -37,7 +37,7 @@ Linux was re-measured on 2026-11-18 (nono 0.81.0, kernel 7.0.0-43). macOS was me
 | Gate network and build hooks | Plans 55 and 56: network works; a `setup.py` entry point and a hatch hook run | Plan 9: a cold gate run needs network (observed, not probed). Build hooks not measured |
 | Orphan reaping | Plan O7: SQLite records, real `ps`. A `setsid` grandchild whose parent had already exited survives | Older code: plan 21, file records, end-to-end 15 of 15 (`ps` start time read with `LC_ALL=C TZ=UTC0`). Plan 21 also lists `killpg` after a reaped leader as unverified on macOS. The SQLite records have not been run on macOS |
 | Prompt size in `argv` | Measured 2026-11-18: a single argument of 131072 bytes or more fails with `E2BIG`; 131071 runs. Prompts are one argument, so `ClaudeHarness.build` refuses a prompt over 131,071 bytes (`prompt_too_large`, no charge), and the audit shrinks its diff limit to the room the task prompt leaves | Total `ARG_MAX` is 1048576 (plan 3), the figure the diff limit was based on. No per-argument cap measured |
-| Server signals (`factory serve`) | Never measured | Plan 35 C0: SIGTERM and SIGINT run shutdown; uvicorn ignores SIGHUP, so `serve` installs its own handler |
+| Server signals (`factory serve`) | Plan 69: SIGTERM and SIGHUP stop `serve` with an SSE stream open (`test_serve_stopping`) | Plan 35 C0: SIGTERM and SIGINT run shutdown; uvicorn ignores SIGHUP, so `serve` installs its own handler |
 | Case-insensitive filesystem | Not applicable | Plan 20: `UV.toml` and `.Python-Version` are honoured by `uv`; protected names match case-insensitively. Plan 50: `gate_allow_outside` does not handle it |
 
 ## Using it
@@ -77,6 +77,7 @@ or its step cap. Agent spend is capped (see `cap_usd`) and every call is recorde
 | `watch [--interval N] [--once] [--allow-public]` | Turn the GitHub issues of a cloned repo into tasks, with approvals taken from reactions. See "Watching issues" below |
 | `migrate` | Copy the old JSON tasks and ledger under `<state_dir>` (for in-repo state, `<repo>/.factory`; point `state_dir` at it) into `factory.db`. Refuses a database that already has rows; never deletes the old files |
 | `serve [--port N]` | Run the local HTTP server (below) |
+| `ui` | Print a one-time login link for the web UI (see "Web UI" below) |
 | `eval-audit` | Run the auditor over 25 labelled changes (about $2) and compare with the last comparable run. See "Evaluating the auditor" below |
 | `eval-export DIR [--out DIR] [--with-findings]` | Write a shareable `run.json` and `run.md` for an eval directory. Needs no repo or server |
 
@@ -113,7 +114,7 @@ Exit codes: `0` ok, `1` refused or failed (the reason is printed), `2` usage err
 
 `factory serve [--port N]` (default `server_port`, 8765) listens on `127.0.0.1` only and holds the state-dir lock for as long as it runs. It can spend money and merge code, so every request needs `Authorization: Bearer <token>`, where the
 token is the file `<state_dir>/token` (created with mode 0600 on first start; a more permissive file is refused). A
-non-loopback `Host` or any `Origin` header is refused with 403, which keeps other web pages and DNS rebinding out.
+non-loopback `Host` or any `Origin` header is refused with 403 (outside `/ui`, which has its own rules; see "Web UI"), which keeps other web pages and DNS rebinding out.
 Stopping it with SIGINT, SIGTERM or SIGHUP shuts it down; jobs it left unfinished are marked `interrupted` at the next start. When an agent cannot be launched at all (a `runner_error` failure), the exception text is logged as a warning on the server's stderr, with the task id and stage; the task itself only records `runner_error`. A prompt too large to pass (`prompt_too_large`) is logged the same way, with its size and the limit. When an agent's result cannot be parsed (`<stage>_unparseable`), the same stderr gets a warning with the task id, stage, exit code, and the last 2000 characters of the agent's stdout and stderr (escaped, on one line); eval runs are included. That log can contain anything the agent saw or printed, so treat it as sensitive as the worktree.
 
 Reads and quick actions answer at once; `advance`, `abandon`, `recover`, `rebase`, `merge`, `clean` and `eval-audit` return
@@ -131,6 +132,18 @@ Reads and quick actions answer at once; `advance`, `abandon`, `recover`, `rebase
 | `GET /jobs`, `GET /jobs/{id}` | job state: `queued`, `running`, `succeeded`, `failed`, `interrupted` |
 
 Errors are `{error, detail}`: 401 token, 403 host or origin, 404 unknown task or job, 409 wrong state or stale preview, 422 bad input.
+
+#### Web UI
+
+The server also serves a read-only browser page under `/ui`. It is always on and uses the same port.
+
+- `factory ui` prints a login link that works once, within 5 minutes. Opening it shows a page with a link to the UI and sets an HttpOnly, SameSite=Strict cookie `factory_session_<port>`, scoped to `/ui`. A link-preview tool can use up the code; run `factory ui` again.
+- The page at `/ui/` lists tasks newest first, marks the ones waiting on you, and updates live over server-sent events (`/ui/events`).
+- Sessions live in memory, so restarting `serve` logs the browser out: the page shows a "Disconnected" banner; run `factory ui` again.
+- Under `/ui` the `Host` must be loopback, an `Origin` must be absent or the server's own, and `Sec-Fetch-Site` must be `same-origin` or `none`. Every UI response carries a strict Content-Security-Policy and `Cache-Control: no-store`. The JSON API stays Bearer-only: a cookie does not open it, and Bearer does not open `/ui`.
+- Static files under `/ui/static` need no cookie. The vendored htmx 2.0.11 and htmx-ext-sse 2.2.4 are in `orchestrator/src/factory/web/static` (versions and checksums in `VENDORED.md`).
+- Risk: cookies ignore ports, so another server on loopback that your browser visits receives the cookie. HttpOnly keeps page scripts from reading it. This is accepted for a single-user machine.
+- Read-only for now; actions come later.
 Every CLI command except `init`, `clone`, `migrate`, `serve` and `eval-export` is a client of this server and needs it running (`no factory server is running` otherwise); it reads the token from `<state_dir>/token`. Each state dir has its own token, so a CLI pointed at a different state dir than the running server is refused with a 401. Long commands wait for their job; Ctrl-C stops waiting and the job carries on. `eval-audit` needs the server too, except `--check-corpus`, which runs locally.
 
 ### Watching issues
@@ -385,7 +398,7 @@ flowchart TB
 ### Why this shape
 
 - *A SQLite file and a state machine* so everything is inspectable and a crashed run is recoverable by hand.
-- *Few dependencies* in the orchestrator (`httpx2`, `starlette`, `uvicorn`, only for the server and its client), to keep the trusted core small.
+- *Few dependencies* in the orchestrator (`httpx2`, `jinja2`, `starlette`, `uvicorn`, only for the server and its client), to keep the trusted core small.
 - *One git worktree and branch (`factory/<id>`) per task* so agents never touch each other or the main checkout, and a rejected
   task is just a directory to delete (`clean`).
 - *Every stage is a function of the task file* (`task_id → Task`), which makes each stage testable with fakes and `advance` a loop.
