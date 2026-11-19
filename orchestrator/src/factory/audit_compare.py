@@ -42,7 +42,24 @@ def _verdict_lists(records: list[dict]) -> dict[str, list[str]]:
     return {case: [outcome for _, outcome in sorted(runs)] for case, runs in by_case.items()}
 
 
+def _bundle_run(path: Path) -> Run:
+    try:
+        bundle = json.loads(path.read_text())
+        if bundle["schema"] != 1:
+            raise ValueError(f"{path.name} has schema {bundle['schema']}, expected 1")
+        meta = shareable_meta(bundle["meta"])
+        records = bundle["records"]
+        return Run(str(bundle["eval"]), meta, _verdict_lists(records), sum(record["cost_usd"] for record in records))
+    except (OSError, KeyError, TypeError, AttributeError) as error:
+        raise ValueError(f"{path.name} is not an exported eval bundle ({type(error).__name__})") from None
+    except json.JSONDecodeError:
+        raise ValueError(f"{path.name} is not an exported eval bundle (invalid JSON)") from None
+
+
 def load_run(source: Path) -> Run:
+    """An eval directory, or a run.json written by eval-export. Raises ValueError for anything else."""
+    if source.is_file():
+        return _bundle_run(source)
     meta = _meta(source)
     records = load_records(source)
     return Run(source.name, shareable_meta(meta) if meta is not None else None, _verdict_lists(records),

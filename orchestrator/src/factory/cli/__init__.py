@@ -5,7 +5,7 @@ from pathlib import Path
 
 import httpx2
 
-from factory.audit_compare import compare, find_previous
+from factory.audit_compare import compare, find_previous, load_run
 from factory.audit_corpus import CASES as EVAL_CASES
 from factory.audit_corpus import PROJECT_SUBDIR
 from factory.audit_eval import check_corpus
@@ -196,8 +196,13 @@ def _eval_usage_error(args, evals_root: Path) -> str | None:
         return "--max-usd must be positive"
     if args.resume and not (args.resume.resolve().parent == evals_root.resolve() and (args.resume / "meta.json").is_file()):
         return f"--resume must be an earlier eval directory under {evals_root}"
-    if args.compare and not args.compare.is_dir():
-        return "--compare must be an existing directory"
+    if args.compare:
+        if not args.compare.exists():
+            return "--compare must be an eval directory or an exported run.json"
+        try:
+            load_run(args.compare)
+        except ValueError as error:
+            return f"--compare: {error}"
     return None
 
 

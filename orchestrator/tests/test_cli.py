@@ -1103,6 +1103,34 @@ def test_the_next_eval_is_compared_with_the_last_complete_full_one(ctx, evals):
     assert f"compared with {FIRST_EVAL}" in out and "case-01: pass -> fail" in out and code == 1
 
 
+def test_compare_accepts_an_exported_bundle_and_sees_no_config_difference(ctx, evals, tmp_path):
+    from factory.audit_corpus import CASES
+    from factory.audit_share import build_bundle, write_bundle
+    evals(LabelRunner())
+    run(ctx, "eval-audit", "--runs", "1")
+    (first,) = eval_dirs(ctx)
+    (tmp_path / "share").mkdir()
+    bundle_path, _ = write_bundle(build_bundle(first, CASES), tmp_path / "share")
+    evals(LabelRunner(wrong={"case-01"}))
+
+    code, out, _ = run(ctx, "eval-audit", "--runs", "1", "--compare", str(bundle_path))
+
+    assert f"compared with {first.name}" in out and "case-01: pass -> fail" in out
+    assert "differs" not in out and code == 1
+
+
+@pytest.mark.parametrize("content", ["not json", '{"schema": 2}', '{"schema": 1}', "[]"])
+def test_a_compare_file_that_is_not_a_bundle_is_a_usage_error_and_nothing_runs(ctx, evals, tmp_path, content):
+    runner = LabelRunner()
+    evals(runner)
+    bad = tmp_path / "run.json"
+    bad.write_text(content)
+
+    code, _, err = run(ctx, "eval-audit", "--compare", str(bad))
+
+    assert code == 2 and "--compare" in err and runner.seen == [] and eval_dirs(ctx) == []
+
+
 
 def test_check_corpus_runs_the_gate_on_every_case_runs_no_agents_and_exits_zero_when_all_pass(ctx, evals, monkeypatch):
     from factory.gate import GateResult
