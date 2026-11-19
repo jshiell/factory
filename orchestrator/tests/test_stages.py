@@ -233,6 +233,22 @@ def test_the_verify_stage_wraps_the_gate_in_the_configured_sandbox(setup, monkey
     assert seen["sandbox"](saved).prefix == ("fake:fake-exe", "--")
 
 
+def test_the_verify_stage_hands_an_unset_sandbox_executable_to_the_sandbox_as_none(setup, monkeypatch):
+    store, runner, settings, deps, repo, base = setup
+    asked = []
+    monkeypatch.setitem(SANDBOXES, "fake", lambda executable: asked.append(executable) or type("Fake", (), {"wrap": lambda self, policy: ["fake", "--"]})())
+    settings = replace(settings, sandbox="fake")
+    saved = Task(id="t1", prompt="p", worktree=str(repo), base_sha=base)
+    seen = {}
+    monkeypatch.setattr("factory.stages.verify_task", lambda *a, **k: seen.update(k))
+    monkeypatch.setattr("factory.stages.discover_uv_tooling", lambda project_dir: UvTooling("/real/uv", "/py", "/uvpy"))
+
+    build_stages(settings, deps)["verify"]("t1")
+    seen["sandbox"](saved)
+
+    assert asked == [None]
+
+
 def test_the_verify_stage_treats_the_state_dir_as_private_when_granting_uv(setup, monkeypatch):
     store, runner, settings, deps, repo, base = setup
     policies = []
