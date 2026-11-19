@@ -6,6 +6,7 @@ TEMPLATE = '''\
 # Per-repo paths (repo, state_dir, worktree_root) are not allowed here.
 # Uncomment and edit what you want to change.
 
+# harness = "claude"
 # model = "sonnet"
 # budget_usd = 0.5
 # cap_usd = 5.0
