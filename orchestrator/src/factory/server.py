@@ -434,6 +434,7 @@ def _build_app(ctx) -> Starlette:
     app.state.runner = runner
     app.state.login_codes = LoginCodes(ctx.clock)
     app.state.sessions = Sessions()
+    app.state.store = ctx.store
     return app
 
 

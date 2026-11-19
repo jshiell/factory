@@ -1,15 +1,41 @@
 from pathlib import Path
 
+import jinja2
 from starlette.requests import Request
 from starlette.responses import HTMLResponse, RedirectResponse
 from starlette.routing import Mount, Route
 from starlette.staticfiles import StaticFiles
 
+from factory import service
+from factory.task import TaskState
 from factory.web.auth import session_cookie_name
+
+_TEMPLATES = jinja2.Environment(loader=jinja2.FileSystemLoader(Path(__file__).parent / "templates"), autoescape=True)
+_GOAL_LIMIT = 120
+_HUMAN_GATE_STATES = {TaskState.OPEN_QUESTIONS, TaskState.REVIEWED, TaskState.AUDITED}
+
+
+def _truncated(text: str) -> str:
+    return text if len(text) <= _GOAL_LIMIT else text[:_GOAL_LIMIT] + "…"
+
+
+def _task_row(task) -> dict:
+    return {"id": task.id, "state": task.state.value, "needs_you": task.state in _HUMAN_GATE_STATES,
+            "goal": _truncated(task.goal if task.goal is not None else task.prompt), "failure_reason": task.failure_reason}
+
+
+def _tasks_context(store) -> dict:
+    listing = service.list_tasks(store)
+    return {"tasks": [_task_row(task) for task in sorted(listing.tasks, key=lambda task: task.id, reverse=True)],
+            "skipped": listing.skipped}
+
+
+def render_tasks(store) -> str:
+    return _TEMPLATES.get_template("_tasks.html").render(_tasks_context(store))
 
 
 async def _ui_page(request: Request) -> HTMLResponse:
-    return HTMLResponse("<!doctype html><title>factory</title><p>factory</p>")
+    return HTMLResponse(_TEMPLATES.get_template("page.html").render(_tasks_context(request.app.state.store)))
 
 
 async def _ui_without_slash(request: Request) -> RedirectResponse:

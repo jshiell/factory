@@ -1,0 +1,5 @@
+body { font-family: system-ui, sans-serif; margin: 1.5rem; }
+table { border-collapse: collapse; width: 100%; }
+th, td { text-align: left; padding: 0.3rem 0.6rem; border-bottom: 1px solid #ddd; }
+tr.needs-you { background: #fff3cd; }
+.skipped { color: #666; }
