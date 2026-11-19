@@ -132,6 +132,7 @@ Reads and quick actions answer at once; `advance`, `abandon`, `recover`, `rebase
 | `GET /jobs`, `GET /jobs/{id}` | job state: `queued`, `running`, `succeeded`, `failed`, `interrupted` |
 
 Errors are `{error, detail}`: 401 token, 403 host or origin, 404 unknown task or job, 409 wrong state or stale preview, 422 bad input.
+Every CLI command except `init`, `clone`, `migrate`, `serve` and `eval-export` is a client of this server and needs it running (`no factory server is running` otherwise); it reads the token from `<state_dir>/token`. Each state dir has its own token, so a CLI pointed at a different state dir than the running server is refused with a 401. Long commands wait for their job; Ctrl-C stops waiting and the job carries on. `eval-audit` needs the server too, except `--check-corpus`, which runs locally.
 
 #### Web UI
 
@@ -139,12 +140,12 @@ The server also serves a read-only browser page under `/ui`. It is always on and
 
 - `factory ui` prints a login link that works once, within 5 minutes. Opening it shows a page with a link to the UI and sets an HttpOnly, SameSite=Strict cookie `factory_session_<port>`, scoped to `/ui`. A link-preview tool can use up the code; run `factory ui` again.
 - The page at `/ui/` lists tasks newest first, marks the ones waiting on you, and updates live over server-sent events (`/ui/events`).
-- Sessions live in memory, so restarting `serve` logs the browser out: the page shows a "Disconnected" banner; run `factory ui` again.
+- Sessions live in memory, so restarting `serve` logs the browser out: the page should show a "Disconnected" banner (see the last bullet); run `factory ui` again.
 - Under `/ui` the `Host` must be loopback, an `Origin` must be absent or the server's own, and `Sec-Fetch-Site` must be `same-origin` or `none`. Every UI response carries a strict Content-Security-Policy and `Cache-Control: no-store`. The JSON API stays Bearer-only: a cookie does not open it, and Bearer does not open `/ui`.
 - Static files under `/ui/static` need no cookie. The vendored htmx 2.0.11 and htmx-ext-sse 2.2.4 are in `orchestrator/src/factory/web/static` (versions and checksums in `VENDORED.md`).
 - Risk: cookies ignore ports, so another server on loopback that your browser visits receives the cookie. HttpOnly keeps page scripts from reading it. This is accepted for a single-user machine.
 - Read-only for now; actions come later.
-Every CLI command except `init`, `clone`, `migrate`, `serve` and `eval-export` is a client of this server and needs it running (`no factory server is running` otherwise); it reads the token from `<state_dir>/token`. Each state dir has its own token, so a CLI pointed at a different state dir than the running server is refused with a 401. Long commands wait for their job; Ctrl-C stops waiting and the job carries on. `eval-audit` needs the server too, except `--check-corpus`, which runs locally.
+- Not yet checked in a real browser (none was available for plan 69): the banner, and which `Origin` and `Sec-Fetch-Site` headers browsers send. The guard rules and the stream are covered by tests.
 
 ### Watching issues
 
