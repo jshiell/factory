@@ -1,4 +1,4 @@
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
@@ -38,6 +38,12 @@ class NonoSandbox:
 
 def contains(directory: str, inner: str) -> bool:
     return Path(inner).resolve().is_relative_to(Path(directory).resolve())
+
+
+def without_private(directories: Iterable[str], private_dirs: Iterable[str]) -> tuple[str, ...]:
+    """The `directories` that do not contain any private directory (granting one would expose it)."""
+    private = tuple(private_dirs)
+    return tuple(d for d in directories if not any(contains(d, p) for p in private))
 
 
 DEFAULT_SANDBOX = "nono"
