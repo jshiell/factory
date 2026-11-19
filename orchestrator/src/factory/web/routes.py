@@ -39,7 +39,7 @@ async def _ui_page(request: Request) -> HTMLResponse:
 
 
 def _tasks_event(store) -> str:
-    data_lines = "".join(f"data: {line}\n" for line in render_tasks(store).split("\n"))
+    data_lines = "".join(f"data: {line}\n" for line in render_tasks(store).splitlines())
     return f"event: tasks\n{data_lines}\n"
 
 

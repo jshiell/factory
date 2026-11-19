@@ -66,6 +66,15 @@ def test_events_answers_an_event_stream_whose_first_event_is_the_task_table(clie
     assert any("first goal" in line for line in event[1:])
 
 
+def test_carriage_returns_in_task_text_neither_add_nor_end_an_event(client, ctx):
+    ctx.store.save(Task("20260102-030405", "p", state=TaskState.QUEUED, goal="one\rtwo\r\nthree"))
+
+    _, (event, *_) = read_events(client)
+
+    assert event[0] == "event: tasks"
+    assert all(line.startswith("data: ") for line in event[1:])
+
+
 def test_guard_events_needs_the_session_cookie(client):
     client.cookies.clear()
 
