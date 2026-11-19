@@ -18,8 +18,8 @@ Follows plan 65 (built, audited). Reviewed; findings folded in. Deferred from pl
 - `stages.py:76` and `cli/base.py:63` pass `settings.sandbox_executable` unchanged (it may now be `None`).
 - `SubprocessRunner` default becomes `sandbox_named(DEFAULT_SANDBOX)`; no literal `"nono"` left outside `NonoSandbox`.
 
-## Approval needed before implementation (not yet given)
-Increment 3 cannot go green without editing a passing test. Approve both edits to `test_settings.py`, or stop:
+## Approval for the `test_settings.py` edits (given 2026-11-19)
+Increment 3 cannot go green without editing a passing test. Both edits to `test_settings.py` were approved:
 - `:98`: `== "nono"` becomes `is None`.
 - Rename `test_sandbox_executable_defaults_to_nono_and_can_be_set` to `test_sandbox_executable_defaults_to_unset_and_can_be_set` (the old name would be false). The rest of the test (setting `"/opt/fake-nono"`) is untouched.
 
