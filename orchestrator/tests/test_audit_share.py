@@ -177,6 +177,10 @@ def test_the_markdown_names_the_harness(tmp_path):
     assert "harness claude" in render_markdown(bundle_of(tmp_path))
 
 
+def test_the_markdown_names_the_sandbox(tmp_path):
+    assert "sandbox nono" in render_markdown(bundle_of(tmp_path))
+
+
 def test_the_markdown_is_deterministic_and_leaks_nothing(tmp_path):
     bundle = bundle_of(tmp_path)
 

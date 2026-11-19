@@ -100,7 +100,7 @@ def render_markdown(bundle: dict) -> str:
     lines = [
         f"# Auditor eval {bundle['eval']}", "",
         f"- corpus {meta['corpus_hash']}, audit prompt {meta['prompt_hash']}, model {meta['audit_config'].get('model')}, "
-        f"harness {meta['harness']}",
+        f"harness {meta['harness']}, sandbox {with_defaults(meta)['sandbox']}",
         f"- {meta['runs']} runs per case, {'complete' if meta['complete'] else 'incomplete'}, exit code {bundle['exit_code']}",
         "", "| case | label | category | verdicts (? is a run with no verdict) |", "| --- | --- | --- | --- |",
     ]
