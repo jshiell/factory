@@ -2,7 +2,7 @@ from pathlib import Path
 
 import jinja2
 from starlette.requests import Request
-from starlette.responses import HTMLResponse, RedirectResponse
+from starlette.responses import HTMLResponse, RedirectResponse, StreamingResponse
 from starlette.routing import Mount, Route
 from starlette.staticfiles import StaticFiles
 
@@ -38,6 +38,20 @@ async def _ui_page(request: Request) -> HTMLResponse:
     return HTMLResponse(_TEMPLATES.get_template("page.html").render(_tasks_context(request.app.state.store)))
 
 
+def _tasks_event(store) -> str:
+    data_lines = "".join(f"data: {line}\n" for line in render_tasks(store).split("\n"))
+    return f"event: tasks\n{data_lines}\n"
+
+
+async def _events(request: Request) -> StreamingResponse:
+    store = request.app.state.store
+
+    async def stream():
+        yield _tasks_event(store)
+
+    return StreamingResponse(stream(), media_type="text/event-stream")
+
+
 async def _ui_without_slash(request: Request) -> RedirectResponse:
     return RedirectResponse("/ui/", status_code=308)
 
@@ -58,4 +72,4 @@ STATIC_DIR = Path(__file__).parent / "static"
 
 def ui_routes() -> list[Route | Mount]:
     return [Route("/ui", _ui_without_slash, methods=["GET"]), Route("/ui/", _ui_page, methods=["GET"]),
-            Route("/ui/login", _login, methods=["GET"]), Mount("/ui/static", StaticFiles(directory=STATIC_DIR))]
+            Route("/ui/events", _events, methods=["GET"]), Route("/ui/login", _login, methods=["GET"]), Mount("/ui/static", StaticFiles(directory=STATIC_DIR))]
