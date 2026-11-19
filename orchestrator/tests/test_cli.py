@@ -1119,6 +1119,22 @@ def test_compare_accepts_an_exported_bundle_and_sees_no_config_difference(ctx, e
     assert "differs" not in out and code == 1
 
 
+def test_an_earlier_eval_that_cannot_be_compared_is_reported_without_losing_the_result(ctx, evals):
+    import json
+    evals(LabelRunner())
+    run(ctx, "eval-audit", "--runs", "1")
+    (first,) = eval_dirs(ctx)
+    meta = json.loads((first / "meta.json").read_text())
+    meta["audit_config"]["plugin_dirs"] = ["/a/same", "/b/same"]
+    (first / "meta.json").write_text(json.dumps(meta))
+    ctx.clock = lambda: datetime(2026, 1, 3, 3, 4, 5)
+    evals(LabelRunner(wrong={"case-01"}))
+
+    code, out, _ = run(ctx, "eval-audit", "--runs", "1")
+
+    assert code == 1 and "cannot compare" in out and "same" in out
+
+
 @pytest.mark.parametrize("content", ["not json", '{"schema": 2}', '{"schema": 1}', "[]"])
 def test_a_compare_file_that_is_not_a_bundle_is_a_usage_error_and_nothing_runs(ctx, evals, tmp_path, content):
     runner = LabelRunner()

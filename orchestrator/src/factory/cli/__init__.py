@@ -256,7 +256,11 @@ def _eval_audit(args, io, ctx) -> int:
     for line in job["result"]["report"]:
         print(line, file=io.stdout)
     previous = args.compare or find_previous(evals_root, eval_dir, [c.id for c in EVAL_CASES])
-    for line in compare(previous, eval_dir) if previous else ["\nno earlier complete run to compare with"]:
+    try:
+        lines = compare(previous, eval_dir) if previous else ["\nno earlier complete run to compare with"]
+    except ValueError as error:
+        lines = [f"\ncannot compare with {previous.name}: {escape_control(str(error))}"]
+    for line in lines:
         print(line, file=io.stdout)
     return job["result"]["exit_code"]
 
