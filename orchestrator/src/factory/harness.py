@@ -1,6 +1,7 @@
 import json
 import os
 from dataclasses import dataclass
+from enum import Enum
 from typing import Protocol
 
 from factory.classify import Outcome, OutcomeKind
@@ -10,6 +11,21 @@ from factory.command import (
     PromptTooLarge,
     RunnerConfig,
 )
+
+
+class Capability(Enum):
+    """What the stages rely on a harness to honour. Every stage needs all of them today: the plan, review and
+    audit stages need `json_schema`; the plan stage (grilling is chosen per task) needs `plugins`; every stage
+    has a budget; the implementer's shell ban and the read-only stages are tool rules."""
+
+    JSON_SCHEMA = "json_schema"
+    PLUGINS = "plugins"
+    BUDGET = "budget"
+    TOOL_RULES = "tool_rules"
+
+
+def missing_capabilities(harness: Harness) -> list[Capability]:
+    return [capability for capability in Capability if capability not in harness.capabilities]
 
 
 @dataclass(frozen=True)
@@ -22,6 +38,7 @@ class Harness(Protocol):
     """How one agent CLI is started. The runner owns launching, timeout, sandboxing and records."""
 
     sandbox_profile: str | None
+    capabilities: frozenset[Capability]
 
     def build(
         self, prompt: str, config: RunnerConfig, executable: str, add_dirs: tuple[str, ...] = ()
@@ -32,6 +49,7 @@ class Harness(Protocol):
 
 class ClaudeHarness:
     sandbox_profile = SANDBOX_PROFILE
+    capabilities = frozenset(Capability)
 
     def build(
         self, prompt: str, config: RunnerConfig, executable: str, add_dirs: tuple[str, ...] = ()

@@ -8,7 +8,7 @@ from pathlib import Path
 from factory.audit_corpus import PROJECT_SUBDIR
 from factory.client import ServerClient
 from factory.github import GitHub, origin_slug
-from factory.harness import harness_named
+from factory.harness import harness_named, missing_capabilities
 from factory.ids import require_safe_id
 from factory.ledger import Ledger
 from factory.process import group_alive, kill_tree
@@ -18,7 +18,7 @@ from factory.process_registry import (
     reap_orphans,
 )
 from factory.runner import SubprocessRunner
-from factory.settings import Settings
+from factory.settings import Settings, SettingsError
 from factory.sqlite_ledger import SqliteLedger
 from factory.sqlite_process_records import SqliteProcessRecords
 from factory.sqlite_store import SqliteTaskStore
@@ -53,10 +53,14 @@ def _real_eval_runner(settings: Settings, eval_dir: Path) -> SubprocessRunner:
 
 
 def agent_runner(settings: Settings, project_subdir: str, records) -> SubprocessRunner:
+    harness = harness_named(settings.harness)
+    if missing := missing_capabilities(harness):
+        names = ", ".join(capability.value for capability in missing)
+        raise SettingsError(f"harness {settings.harness!r} lacks what every stage needs: {names}")
     return SubprocessRunner(
         settings.claude_executable, project_subdir, settings.runner_timeout_s,
         sandbox_executable=settings.sandbox_executable, records=records, private_dirs=(str(settings.state_dir),),
-        harness=harness_named(settings.harness),
+        harness=harness,
     )
 
 

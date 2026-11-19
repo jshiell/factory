@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 
 from factory.command import RunnerConfig
-from factory.harness import Invocation
+from factory.harness import Capability, Invocation
 from factory.process_registry import load_records
 from factory.runner import SubprocessRunner
 from factory.step import TAIL_CHARS
@@ -514,6 +514,8 @@ def test_each_plugin_dir_is_granted_read_only_to_the_sandbox(tmp_path, task):
 
 class EchoHarness:
     """Starts `<executable> <prompt>` with its own env; never parsed."""
+
+    capabilities = frozenset(Capability)
 
     def build(self, prompt, config, executable, add_dirs=()):
         return Invocation([executable, prompt, *add_dirs], {"HARNESS_MARK": "from-fake"})
