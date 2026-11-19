@@ -7,6 +7,7 @@ from dataclasses import dataclass, field, replace
 from pathlib import Path, PurePosixPath
 
 from factory.gate import DEFAULT_PROTECTED_NAMES
+from factory.harness import HARNESSES
 
 
 class SettingsError(Exception):
@@ -24,6 +25,7 @@ class Settings:
     gate_timeout_s: float = 120.0
     runner_timeout_s: float = 300.0
     claude_executable: str = "claude"
+    harness: str = "claude"
     sandbox_executable: str = "nono"
     model: str = "sonnet"
     budget_usd: float = 0.5
@@ -64,7 +66,7 @@ class Settings:
 
 
 _PATH_KEYS = ("repo", "state_dir", "worktree_root", "home")
-_STRING_KEYS = ("project_subdir", "claude_executable", "sandbox_executable", "model", "main_branch")
+_STRING_KEYS = ("project_subdir", "claude_executable", "sandbox_executable", "model", "main_branch", "harness")
 _PROMPT_KEYS = ("append_system_prompt",)
 _STAGES = ("plan", "review", "implement", "audit")
 _FLOAT_KEYS = ("cap_usd", "gate_timeout_s", "runner_timeout_s", "budget_usd")
@@ -93,6 +95,8 @@ def load_settings(path: Path | None, cwd: Path) -> Settings:
         Settings(repo, state_dir, worktree_root), plugin_dirs=plugin_dirs, stage_plugin_dirs=stage_plugin_dirs, **typed
     )
     _check_project_subdir(settings.project_subdir)
+    if settings.harness not in HARNESSES:
+        raise SettingsError(f"harness {settings.harness!r} is unknown; known: {', '.join(sorted(HARNESSES))}")
     return replace(settings, gate_allow_outside=_checked_allow_outside(settings))
 
 

@@ -95,3 +95,10 @@ class ClaudeHarness:
         if not isinstance(payload, dict) or payload.get("type") != "result":
             return None
         return payload
+
+
+HARNESSES: dict[str, Harness] = {"claude": ClaudeHarness()}
+
+
+def harness_named(name: str) -> Harness:
+    return HARNESSES[name]

@@ -11,7 +11,7 @@ from factory.audit_corpus import PROJECT_SUBDIR
 from factory.audit_eval import check_corpus
 from factory.audit_share import build_bundle, write_bundle
 from factory.cli.admin import _clone, _migrate, _serve, _watch
-from factory.cli.base import IO, Context, _StoppedWaiting
+from factory.cli.base import IO, Context, _StoppedWaiting, agent_runner
 from factory.cli.base import (
     _reap_with_the_real_process_table as _reap_with_the_real_process_table,
 )
@@ -31,7 +31,6 @@ from factory.client import ServerClient, ServerRefused, ServerUnreachable
 from factory.gate import check_gate
 from factory.ids import InvalidTaskId
 from factory.init_config import init_global_config
-from factory.runner import SubprocessRunner
 from factory.settings import Settings, SettingsError, load_settings
 from factory.sqlite_ledger import SqliteLedger
 from factory.sqlite_process_records import SqliteProcessRecords
@@ -302,11 +301,7 @@ def _server_client(settings: Settings) -> ServerClient:
 def build_context(settings: Settings) -> Context:
     settings.state_dir.mkdir(parents=True, exist_ok=True)
     store, ledger = SqliteTaskStore(settings.db_path), SqliteLedger(settings.db_path)
-    runner = SubprocessRunner(
-        settings.claude_executable, settings.project_subdir, settings.runner_timeout_s,
-        sandbox_executable=settings.sandbox_executable, records=SqliteProcessRecords(settings.db_path),
-        private_dirs=(str(settings.state_dir),),
-    )
+    runner = agent_runner(settings, settings.project_subdir, records=SqliteProcessRecords(settings.db_path))
     worktrees = WorktreeManager(settings.repo, settings.worktree_root)
     stages = build_stages(settings, Deps(store, ledger, runner, worktrees))
     return Context(settings, store, ledger, stages, server=_server_client(settings))

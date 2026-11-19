@@ -760,3 +760,18 @@ def test_watch_retry_is_off_by_default_and_comes_from_the_config(repo_dir):
     (repo_dir / "factory.toml").write_text("watch_retry = true\n")
 
     assert load_settings(None, cwd=repo_dir).watch_retry is True
+
+
+def test_the_harness_defaults_to_claude_and_can_be_named_locally_or_globally(repo_dir, global_config):
+    assert load_settings(None, cwd=repo_dir).harness == "claude"
+    global_config.write_text('harness = "claude"\n')
+    (repo_dir / "factory.toml").write_text('harness = "claude"\n')
+
+    assert load_settings(None, cwd=repo_dir).harness == "claude"
+
+
+def test_an_unknown_harness_names_the_key_and_the_known_ones(repo_dir):
+    (repo_dir / "factory.toml").write_text('harness = "gemini"\n')
+
+    with pytest.raises(SettingsError, match=r"harness.*gemini.*claude"):
+        load_settings(None, cwd=repo_dir)

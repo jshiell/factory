@@ -8,6 +8,7 @@ from pathlib import Path
 from factory.audit_corpus import PROJECT_SUBDIR
 from factory.client import ServerClient
 from factory.github import GitHub, origin_slug
+from factory.harness import harness_named
 from factory.ids import require_safe_id
 from factory.ledger import Ledger
 from factory.process import group_alive, kill_tree
@@ -48,9 +49,14 @@ def _reap_with_the_real_process_table(records) -> ReapResult:
 
 def _real_eval_runner(settings: Settings, eval_dir: Path) -> SubprocessRunner:
     """The eval records its agents under its own directory, never the real `procs/`: only the lock-holder may reap."""
+    return agent_runner(settings, PROJECT_SUBDIR, records=eval_dir)
+
+
+def agent_runner(settings: Settings, project_subdir: str, records) -> SubprocessRunner:
     return SubprocessRunner(
-        settings.claude_executable, PROJECT_SUBDIR, settings.runner_timeout_s,
-        sandbox_executable=settings.sandbox_executable, records=eval_dir, private_dirs=(str(settings.state_dir),),
+        settings.claude_executable, project_subdir, settings.runner_timeout_s,
+        sandbox_executable=settings.sandbox_executable, records=records, private_dirs=(str(settings.state_dir),),
+        harness=harness_named(settings.harness),
     )
 
 
