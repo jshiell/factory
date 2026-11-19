@@ -83,7 +83,10 @@ class SubprocessRunner:
                 else:
                     kill_tree(process.pid)  # whatever the agent left running in its session
             stdout_file.seek(0)
-            return RunResult(stdout_file.read(), process.returncode, timed_out, tail(stderr_file, TAIL_CHARS))
+            return RunResult(
+                stdout_file.read(), process.returncode, timed_out, tail(stderr_file, TAIL_CHARS),
+                parse=self._harness.parse,
+            )
 
     @staticmethod
     def _child_env(overlay: dict[str, str]) -> dict[str, str]:

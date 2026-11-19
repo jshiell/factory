@@ -1,5 +1,6 @@
 import logging
-from dataclasses import dataclass, replace
+from collections.abc import Callable
+from dataclasses import dataclass, field, replace
 from typing import Protocol
 
 from factory.classify import Outcome, OutcomeKind, classify
@@ -28,6 +29,7 @@ class RunResult:
     exit_code: int
     timed_out: bool = False
     stderr: str = ""
+    parse: Callable[[str, int], Outcome] = field(default=classify, repr=False, compare=False)
 
 
 class Runner(Protocol):
@@ -37,7 +39,7 @@ class Runner(Protocol):
 def classify_run(result: RunResult, task_id: str, stage: str) -> Outcome:
     """Classify a finished run; an unparseable one is logged with the tails of its output.
     `%r` keeps agent output from forging log lines."""
-    outcome = classify(result.stdout, result.exit_code)
+    outcome = result.parse(result.stdout, result.exit_code)
     if outcome.kind is OutcomeKind.UNPARSEABLE:
         logging.getLogger("factory").warning(
             "agent result for task %s, stage %s is unparseable: exit code %s, stdout tail %r, stderr tail %r",

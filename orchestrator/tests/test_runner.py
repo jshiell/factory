@@ -518,6 +518,9 @@ class EchoHarness:
     def build(self, prompt, config, executable, add_dirs=()):
         return Invocation([executable, prompt, *add_dirs], {"HARNESS_MARK": "from-fake"})
 
+    def parse(self, stdout, exit_code):
+        raise AssertionError("not parsed in these tests")
+
 
 def test_a_run_launches_the_argv_and_env_the_harness_builds(tmp_path, task):
     script = fake_claude(tmp_path, 'echo "$1 $HARNESS_MARK"')
@@ -526,6 +529,16 @@ def test_a_run_launches_the_argv_and_env_the_harness_builds(tmp_path, task):
     result = runner.run(task, CONFIG)
 
     assert result.stdout.strip() == "do it from-fake"
+
+
+def test_a_result_carries_the_parser_of_the_harness_that_started_the_run(tmp_path, task):
+    harness = EchoHarness()
+    harness.parse = lambda stdout, exit_code: ("parsed by the fake", stdout.strip(), exit_code)
+    runner = SubprocessRunner(fake_claude(tmp_path, "echo hi"), project_subdir="proj", timeout_s=10, harness=harness)
+
+    result = runner.run(task, CONFIG)
+
+    assert result.parse(result.stdout, result.exit_code) == ("parsed by the fake", "hi", 0)
 
 
 def test_a_confined_run_asks_the_sandbox_for_the_profile_the_harness_names(tmp_path, task):

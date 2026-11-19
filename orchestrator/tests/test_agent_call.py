@@ -2,7 +2,8 @@ import logging
 
 import pytest
 
-from factory.agent_call import Infra, call_agent
+from factory.agent_call import Completed, Infra, call_agent
+from factory.classify import Outcome, OutcomeKind
 from factory.command import PromptTooLarge, RunnerConfig
 from factory.ledger import Ledger
 from factory.step import TAIL_CHARS, RunResult
@@ -29,6 +30,18 @@ def run_logged(tmp_path, caplog, result, stage="plan"):
     with caplog.at_level(logging.WARNING, logger="factory"):
         call_agent(Task(id="t1", prompt="p"), "prompt", FixedRunner(result), CONFIG, ledger, stage)
     return caplog.records
+
+
+def test_a_result_is_classified_by_the_parser_it_carries(tmp_path):
+    def parse(stdout, exit_code):
+        return Outcome(OutcomeKind.SUCCESS, exit_code, cost_usd=0.25, result=stdout.upper())
+
+    completed = call_agent(
+        Task(id="t1", prompt="p"), "prompt", FixedRunner(RunResult("done", 0, parse=parse)), CONFIG,
+        Ledger(tmp_path / "ledger.jsonl"), "plan",
+    )
+
+    assert completed == Completed(Outcome(OutcomeKind.SUCCESS, 0, cost_usd=0.25, result="DONE"))
 
 
 def test_an_unparseable_result_logs_the_exit_code_and_both_output_tails(tmp_path, caplog):
