@@ -38,6 +38,11 @@ Option A2. Implementation not yet approved.
 - Assumption to state: old evals read as `nono` only if every earlier eval ran under nono. Check against plans 63 and 66 before relying on it.
 - The server's `ConfigChanged` message ("auditor config or its plugin files differ") would be slightly misleading for a sandbox mismatch, as it already is for a harness mismatch.
 
+## Deviations (recorded after implementation)
+- Increment 0 was done inline, no commit: exactly three readers of the meta's `harness` in `src/`, as planned.
+- Increment 3's red test patches `factory.audit_compare.load_run` with raw-meta `Run` objects. Both real loaders normalise through `shareable_meta`, so that is the only way to hand `compare` a raw meta. It was red before the change (false "harness differs").
+- Commits: `80691e6`, `525d5e6`, `206e7c4`. Full suite 2144 passed; ruff clean. `audit-commits`: no drift.
+
 ## Out of scope
 Remaining candidate 2 items: the `$HOME` private-set difference (`runner.py:59` vs `gate_sandbox.py:49`) and the duplicated `sandbox_named(...)` at `stages.py:76` and `cli/base.py:63`.
 
