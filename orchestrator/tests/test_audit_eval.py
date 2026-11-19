@@ -396,6 +396,32 @@ def test_resuming_with_a_different_harness_is_refused_before_anything_runs(tmp_p
     assert runner.order == [] and (eval_dir / "meta.json").read_text() == before
 
 
+def test_resuming_with_a_different_sandbox_is_refused_before_anything_runs(tmp_path):
+    eval_dir = tmp_path / "eval"
+    run_eval(eval_dir, THREE, 1, VerdictRunner(), 5.0)
+    before = (eval_dir / "meta.json").read_text()
+    runner = VerdictRunner()
+
+    with pytest.raises(ConfigChanged):
+        run_eval(eval_dir, THREE, 1, runner, 5.0, sandbox="other")
+
+    assert runner.order == [] and (eval_dir / "meta.json").read_text() == before
+
+
+def test_a_meta_without_a_sandbox_counts_as_nono(tmp_path):
+    eval_dir = tmp_path / "eval"
+    run_eval(eval_dir, THREE, 1, VerdictRunner(), 5.0)
+    meta = load_meta(eval_dir)
+    del meta["sandbox"]
+    (eval_dir / "meta.json").write_text(json.dumps(meta))
+    (eval_dir / "case-03-r1.json").unlink()
+    runner = VerdictRunner()
+
+    run_eval(eval_dir, THREE, 1, runner, 5.0)
+
+    assert runner.order == ["a1-case-03"]
+
+
 def test_with_defaults_fills_a_missing_harness_and_keeps_a_given_one_without_mutating():
     bare = {"runs": 1}
 
