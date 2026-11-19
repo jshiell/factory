@@ -3,6 +3,7 @@ import os
 from dataclasses import dataclass
 from typing import Protocol
 
+from factory.classify import Outcome, OutcomeKind
 from factory.command import MAX_PROMPT_BYTES, PromptTooLarge, RunnerConfig
 
 
@@ -18,6 +19,8 @@ class Harness(Protocol):
     def build(
         self, prompt: str, config: RunnerConfig, executable: str, add_dirs: tuple[str, ...] = ()
     ) -> Invocation: ...
+
+    def parse(self, stdout: str, exit_code: int) -> Outcome: ...
 
 
 class ClaudeHarness:
@@ -50,3 +53,36 @@ class ClaudeHarness:
         for directory in config.plugin_dirs:
             argv += ["--plugin-dir", directory]
         return Invocation(argv, {"CLAUDE_CODE_DISABLE_CLAUDE_MDS": "1"})
+
+    def parse(self, stdout: str, exit_code: int) -> Outcome:
+        payload = self._parse_result(stdout)
+        if payload is None:
+            return Outcome(OutcomeKind.UNPARSEABLE, exit_code)
+        if payload.get("subtype") == "error_max_budget_usd":
+            kind = OutcomeKind.BUDGET_EXHAUSTED
+        elif payload.get("is_error") or payload.get("subtype") != "success":
+            kind = OutcomeKind.ERROR
+        elif payload.get("permission_denials"):
+            kind = OutcomeKind.SUCCESS_WITH_DENIALS
+        else:
+            kind = OutcomeKind.SUCCESS
+        return Outcome(
+            kind,
+            exit_code,
+            cost_usd=payload.get("total_cost_usd", 0.0),
+            subtype=payload.get("subtype"),
+            errors=tuple(payload.get("errors", ())),
+            denials=tuple(payload.get("permission_denials", ())),
+            structured_output=payload.get("structured_output"),
+            result=payload.get("result"),
+        )
+
+    @staticmethod
+    def _parse_result(stdout: str) -> dict | None:
+        try:
+            payload = json.loads(stdout)
+        except json.JSONDecodeError:
+            return None
+        if not isinstance(payload, dict) or payload.get("type") != "result":
+            return None
+        return payload
