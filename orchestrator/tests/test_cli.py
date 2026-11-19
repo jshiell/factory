@@ -1150,21 +1150,46 @@ def test_a_compare_file_that_is_not_a_bundle_is_a_usage_error_and_nothing_runs(c
 
 def test_check_corpus_runs_the_gate_on_every_case_runs_no_agents_and_exits_zero_when_all_pass(ctx, evals, monkeypatch):
     from factory.gate import GateResult
+    from factory.gate_sandbox import UvTooling
     runner = LabelRunner()
     evals(runner)
     calls = []
+    monkeypatch.setattr("factory.stages.discover_uv_tooling", lambda project_dir: UvTooling("/real/uv", "/py", "/uvpy"))
     monkeypatch.setattr(cli, "check_gate", lambda worktree, base_sha, subdir, argv, timeout, **kw: (calls.append((subdir, argv, timeout)), GateResult(True))[1])
 
     code, out, _ = run(ctx, "eval-audit", "--check-corpus")
 
     assert code == 0 and len(calls) == 25 and runner.seen == [] and eval_dirs(ctx) == []
-    assert calls[0] == ("target", list(ctx.settings.test_argv), ctx.settings.gate_timeout_s)
+    assert calls[0] == ("target", ["/real/uv", *ctx.settings.test_argv[1:]], ctx.settings.gate_timeout_s)
     assert "case-01 pass minimal" in out and "25 cases, none blocked" in out
+
+
+def test_check_corpus_runs_each_case_through_the_configured_gate_sandbox(ctx, evals, monkeypatch):
+    from factory.audit_corpus import PROJECT_SUBDIR
+    from factory.gate import GateResult
+    from factory.gate_sandbox import UvTooling
+    from factory.sandbox import SANDBOXES
+    evals(LabelRunner())
+    policies = []
+    monkeypatch.setitem(SANDBOXES, "fake", lambda executable: type("Fake", (), {"wrap": lambda self, policy: policies.append(policy) or ["fake", "--"]})())
+    ctx.settings = replace(ctx.settings, sandbox="fake", project_subdir="elsewhere")
+    monkeypatch.setattr("factory.stages.discover_uv_tooling", lambda project_dir: UvTooling("/real/uv", "/py", "/uvpy"))
+    calls = []
+    monkeypatch.setattr(cli, "check_gate", lambda worktree, base_sha, subdir, argv, timeout, **kw: (calls.append((argv, kw)), GateResult(True))[1])
+
+    code, _, _ = run(ctx, "eval-audit", "--check-corpus")
+
+    assert code == 0 and len(calls) == 25
+    argv, kw = calls[0]
+    assert kw["test_prefix"] == ("fake", "--") and argv[0] == "/real/uv" and kw["env"]["UV_LINK_MODE"] == "copy"
+    assert policies[0].cwd.name == PROJECT_SUBDIR
 
 
 def test_check_corpus_names_a_blocked_case_with_its_reason_and_escaped_output_and_exits_one(ctx, evals, monkeypatch):
     from factory.gate import GateResult
+    from factory.gate_sandbox import UvTooling
     evals(LabelRunner())
+    monkeypatch.setattr("factory.stages.discover_uv_tooling", lambda project_dir: UvTooling("/real/uv", "/py", "/uvpy"))
 
     def gate(worktree, base_sha, subdir, argv, timeout, **kw):
         if worktree.name.endswith("case-02"):

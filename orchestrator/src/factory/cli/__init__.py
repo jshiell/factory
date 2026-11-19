@@ -1,6 +1,7 @@
 import argparse
 import signal
 import sys
+from dataclasses import replace
 from pathlib import Path
 
 import httpx2
@@ -35,8 +36,9 @@ from factory.settings import Settings, SettingsError, load_settings
 from factory.sqlite_ledger import SqliteLedger
 from factory.sqlite_process_records import SqliteProcessRecords
 from factory.sqlite_store import SqliteTaskStore
-from factory.stages import Deps, build_stages
+from factory.stages import Deps, build_stages, gate_sandbox_for
 from factory.store import TaskNotFound
+from factory.task import Task
 from factory.textsafe import escape_control  # re-exported
 from factory.worktrees import WorktreeManager
 
@@ -216,10 +218,15 @@ def _new_eval_dir(evals_root: Path, clock) -> Path:
 
 # _check_corpus and _eval_audit stay here: tests patch factory.cli.check_gate, which only works while they read it from this namespace.
 def _check_corpus(io, ctx) -> int:
-    """Needs uv (and usually network): the gate's real test run over every case, no agents."""
+    """Needs uv (and usually network): the gate's real test run over every case, no agents, in the configured gate sandbox."""
     settings = ctx.settings
-    gate = lambda worktree, base_sha: check_gate(  # noqa: E731
-        worktree, base_sha, PROJECT_SUBDIR, list(settings.test_argv), settings.gate_timeout_s)
+    make_sandbox = gate_sandbox_for(replace(settings, project_subdir=PROJECT_SUBDIR))
+
+    def gate(worktree, base_sha):
+        confined = make_sandbox(Task(id=worktree.name, prompt="", worktree=str(worktree), base_sha=base_sha))
+        return check_gate(
+            worktree, base_sha, PROJECT_SUBDIR, list(confined.argv), settings.gate_timeout_s,
+            env=confined.env, test_prefix=confined.prefix)
     blocked = []
     for case, result in check_corpus(EVAL_CASES, gate):
         status = "ok" if result.passed else f"BLOCKED {result.reason}"
