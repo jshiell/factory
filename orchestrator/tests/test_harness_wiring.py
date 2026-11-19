@@ -53,6 +53,16 @@ def test_the_agent_runner_wraps_a_confined_run_in_the_configured_sandbox(tmp_pat
     assert [policy.worktree for policy in policies] == [str(worktree.resolve())]
 
 
+def test_the_agent_runner_hands_an_unset_sandbox_executable_to_the_sandbox_as_none(tmp_path, monkeypatch):
+    asked = []
+    monkeypatch.setitem(SANDBOXES, "fake", lambda executable: asked.append(executable) or type("Fake", (), {"wrap": lambda self, policy: []})())
+    settings = Settings(tmp_path / "repo", tmp_path / "state", tmp_path / "wts", sandbox="fake")
+
+    agent_runner(settings, PROJECT_SUBDIR, records=None)
+
+    assert asked == [None]
+
+
 def test_the_context_builds_its_agent_runner_with_the_configured_harness(tmp_path, monkeypatch):
     import factory.cli as cli
     harness = EchoHarness()
