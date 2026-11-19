@@ -5,11 +5,13 @@ import pytest
 
 from factory.command import (
     MAX_PROMPT_BYTES,
+    SANDBOX_PROFILE,
     PromptTooLarge,
     RunnerConfig,
     sandbox_prefix,
 )
 from factory.harness import ClaudeHarness
+from factory.sandbox import NonoSandbox, SandboxPolicy
 
 
 def build_command(prompt, config, executable="claude", add_dirs=()):
@@ -115,7 +117,7 @@ def test_sandbox_prefix_grants_the_resolved_worktree_read_only_and_ends_with_dou
     link = tmp_path / "link"
     link.symlink_to(real)
 
-    prefix = sandbox_prefix("nono", link)
+    prefix = NonoSandbox("nono").wrap(SandboxPolicy(link, profile=SANDBOX_PROFILE))
 
     assert prefix == [
         "nono", "run", "-s", "--profile", "nolabs-ai/claude", "--allow-cwd", "--read", str(real.resolve()), "--",
