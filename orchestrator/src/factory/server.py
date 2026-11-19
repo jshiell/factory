@@ -11,7 +11,7 @@ from pathlib import Path
 
 from starlette.applications import Starlette
 from starlette.requests import Request
-from starlette.responses import JSONResponse
+from starlette.responses import HTMLResponse, JSONResponse
 from starlette.routing import Route
 
 from factory import service
@@ -54,6 +54,7 @@ from factory.stages import stage_config
 from factory.store import TaskNotFound, task_to_dict
 from factory.task import InvalidTransition, TaskState
 from factory.waiver import InvalidWaiver, note_lines
+from factory.web.routes import ui_routes
 from factory.worktrees import WorktreeManager
 
 
@@ -418,7 +419,7 @@ def _build_app(ctx) -> Starlette:
                 Route("/tasks/{task_id}/advance", advance_task, methods=["POST"]),
                 Route("/jobs", list_jobs, methods=["GET"]), Route("/jobs/{job_id}", show_job, methods=["GET"]),
                 Route("/costs", costs, methods=["GET"]), Route("/tasks", create_task, methods=["POST"]), Route("/tasks", list_tasks, methods=["GET"]),
-                Route("/tasks/{task_id}", show_task, methods=["GET"])],
+                Route("/tasks/{task_id}", show_task, methods=["GET"]), *ui_routes()],
         exception_handlers={ApiError: _error_response, TaskNotFound: _unknown_task, InvalidTaskId: _unknown_task,
                            JobNotFound: _unknown_job,
                            service.NotReviewed: _not_reviewed},
@@ -455,6 +456,15 @@ def _host_name(host: str) -> str:
     return host.partition(":")[0]
 
 
+def _is_ui_path(path: str) -> bool:
+    return path == "/ui" or path.startswith("/ui/")
+
+
+def _ui_refusal(headers, path):
+    return HTMLResponse("<!doctype html><title>factory</title><p>not signed in; run <code>factory ui</code></p>",
+                        status_code=401)
+
+
 class _Guard:
     """Pure ASGI gate: loopback Host (DNS rebinding), no Origin (browsers), then the bearer token."""
 
@@ -466,15 +476,17 @@ class _Guard:
             await self._app(scope, receive, send)
             return
         headers = {name.decode("latin-1").lower(): value.decode("latin-1") for name, value in scope["headers"]}
-        refusal = self._refusal(headers)
+        refusal = self._refusal(headers, scope["path"])
         if refusal:
             await refusal(scope, receive, send)
             return
         await self._app(scope, receive, send)
 
-    def _refusal(self, headers):
+    def _refusal(self, headers, path):
         if _host_name(headers.get("host", "")) not in _LOOPBACK_HOSTS:
             return JSONResponse({"error": "forbidden", "detail": "host must be loopback"}, status_code=403)
+        if _is_ui_path(path):
+            return _ui_refusal(headers, path)
         if "origin" in headers:
             return JSONResponse({"error": "forbidden", "detail": "browser requests are not accepted"}, status_code=403)
         scheme, _, presented = headers.get("authorization", "").partition(" ")
