@@ -478,7 +478,7 @@ def _is_same_origin_request(headers) -> bool:
 
 
 def _needs_session(path: str) -> bool:
-    return path != "/ui/login"
+    return path != "/ui/login" and not path.startswith("/ui/static/")
 
 
 def _ui_refusal(headers, path, sessions: Sessions):

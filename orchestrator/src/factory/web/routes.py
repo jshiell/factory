@@ -1,6 +1,9 @@
+from pathlib import Path
+
 from starlette.requests import Request
 from starlette.responses import HTMLResponse, RedirectResponse
-from starlette.routing import Route
+from starlette.routing import Mount, Route
+from starlette.staticfiles import StaticFiles
 
 from factory.web.auth import session_cookie_name
 
@@ -24,6 +27,9 @@ async def _login(request: Request) -> HTMLResponse:
     return response
 
 
-def ui_routes() -> list[Route]:
+STATIC_DIR = Path(__file__).parent / "static"
+
+
+def ui_routes() -> list[Route | Mount]:
     return [Route("/ui", _ui_without_slash, methods=["GET"]), Route("/ui/", _ui_page, methods=["GET"]),
-            Route("/ui/login", _login, methods=["GET"])]
+            Route("/ui/login", _login, methods=["GET"]), Mount("/ui/static", StaticFiles(directory=STATIC_DIR))]
