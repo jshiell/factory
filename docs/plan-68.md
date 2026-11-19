@@ -40,6 +40,13 @@ Reference tests by name; line numbers drift.
 8. Docs, by line (verify before editing): README 217 sentence "The sandbox is not recorded in eval meta or bundles." is replaced; the line 215 harness paragraph gets the equivalent sentence (the meta records the sandbox name, `--resume` refuses a different one, `--compare` prints `sandbox differs`, a missing one reads as `nono`; only the name, not version, profile or executable); README 108 ("In the bundle: …") names harness and sandbox. Record deviations in this plan.
 9. Gate, no commit: `cd orchestrator && uv run ruff check`, then `uv run pytest -q -n auto` in the background, `verify`, then `audit-commits`.
 
+## Deviations (recorded after implementation)
+- Increment 0 inline, no commit: one real `run_eval` caller (`server.py`), no README-reading tests, `settings.py:102` validates the sandbox name only on load (so `replace(settings, sandbox="other")` is not validated).
+- 7b skipped: `test_harness_wiring.py` already pins `agent_runner`'s use of `settings.sandbox`, and `_real_eval_runner` calls `agent_runner` directly.
+- 7c's red test is `test_resuming_under_a_different_sandbox_fails_the_job_and_names_the_sandbox`; no existing test pinned the old message.
+- README: the bundle line was 107, not 108.
+- A heredoc script for the first test edit was denied by the sandbox (known issue); the Edit tool was used instead.
+
 ## Tests touched (CLAUDE.md step 2)
 User-visible strings: the markdown header line (a suffix) and the compare output (one new line, only on a difference). Pinning tests: `test_audit_share.py` markdown test (substring `harness claude`, unaffected), `test_audit_compare.py` harness-differs test (asserts on `harness differs` only, unaffected), `test_cli_eval_export.py` (startswith and substring checks, unaffected). One assertion edit, approved above. Increment 7c, if done, touches the job message; the server tests check only fragments.
 
