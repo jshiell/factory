@@ -185,7 +185,7 @@ def run_eval(
     hashes = plugin_hashes(config)
     if meta_path(eval_dir).exists() and load_meta(eval_dir).get("plugin_hashes", {}) != hashes:
         raise ConfigChanged(str(eval_dir))
-    if meta_path(eval_dir).exists() and load_meta(eval_dir).get("harness", DEFAULT_HARNESS) != harness:
+    if meta_path(eval_dir).exists() and with_defaults(load_meta(eval_dir))["harness"] != harness:
         raise ConfigChanged(str(eval_dir))
     _write_atomically(meta_path(eval_dir), json.dumps(_meta(cases, runs, False, config, hashes, harness), indent=1))
     store, ledger = TaskStore(eval_dir / "tasks"), Ledger(eval_dir / "ledger.jsonl")
