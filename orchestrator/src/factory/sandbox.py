@@ -24,8 +24,8 @@ class Sandbox(Protocol):
 
 
 class NonoSandbox:
-    def __init__(self, executable: str):
-        self._executable = executable
+    def __init__(self, executable: str | None = None):
+        self._executable = "nono" if executable is None else executable
 
     def wrap(self, policy: SandboxPolicy) -> list[str]:
         """Without a profile `--allow-cwd` is read-only, so write access is granted via `--allow`."""
