@@ -11,6 +11,7 @@ from factory.ledger import Ledger
 from factory.plan_task import PLAN_CONFIG, plan_task
 from factory.review_plan import REVIEW_CONFIG, review_plan
 from factory.run_task import run_task
+from factory.sandbox import sandbox_named
 from factory.settings import Settings
 from factory.sqlite_process_records import SqliteProcessRecords
 from factory.step import Runner
@@ -72,7 +73,7 @@ def gate_sandbox_for(settings: Settings) -> Callable[[Task], GateSandbox]:
         cache_dir.mkdir(parents=True, exist_ok=True)
         tooling = discover_uv_tooling(project_dir)
         return build_gate_sandbox(
-            sandbox_executable=settings.sandbox_executable, worktree=worktree, project_dir=project_dir,
+            sandbox=sandbox_named(settings.sandbox, settings.sandbox_executable), worktree=worktree, project_dir=project_dir,
             cache_dir=cache_dir, python_prefix=tooling.python_prefix, uv_python_dir=tooling.uv_python_dir,
             real_uv=tooling.real_uv, base_env=dict(os.environ), test_argv=settings.test_argv,
         )

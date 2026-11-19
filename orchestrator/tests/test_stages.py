@@ -10,6 +10,7 @@ from factory.ledger import Ledger
 from factory.plan_task import PLAN_CONFIG
 from factory.process_registry import Record
 from factory.review_plan import REVIEW_CONFIG
+from factory.sandbox import SANDBOXES
 from factory.settings import Settings
 from factory.sqlite_process_records import SqliteProcessRecords
 from factory.stages import (
@@ -216,6 +217,20 @@ def test_the_verify_stage_builds_the_gate_sandbox_from_the_settings_and_the_task
     assert sandbox.prefix[0] == "fake-nono" and sandbox.argv[0] == "pytest"
     assert str(settings.state_dir / "gate-cache" / "t1") in sandbox.prefix
     assert (settings.state_dir / "gate-cache" / "t1").is_dir()
+
+
+def test_the_verify_stage_wraps_the_gate_in_the_configured_sandbox(setup, monkeypatch):
+    store, runner, settings, deps, repo, base = setup
+    monkeypatch.setitem(SANDBOXES, "fake", lambda executable: type("Fake", (), {"wrap": lambda self, policy: [f"fake:{executable}", "--"]})())
+    settings = replace(settings, sandbox="fake", sandbox_executable="fake-exe")
+    saved = Task(id="t1", prompt="p", worktree=str(repo), base_sha=base)
+    seen = {}
+    monkeypatch.setattr("factory.stages.verify_task", lambda *a, **k: seen.update(k))
+    monkeypatch.setattr("factory.stages.discover_uv_tooling", lambda project_dir: UvTooling("/real/uv", "/py", "/uvpy"))
+
+    build_stages(settings, deps)["verify"]("t1")
+
+    assert seen["sandbox"](saved).prefix == ("fake:fake-exe", "--")
 
 
 def test_stage_names_are_exactly_the_pipeline(setup):

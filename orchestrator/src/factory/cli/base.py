@@ -18,6 +18,7 @@ from factory.process_registry import (
     reap_orphans,
 )
 from factory.runner import SubprocessRunner
+from factory.sandbox import sandbox_named
 from factory.settings import Settings, SettingsError
 from factory.sqlite_ledger import SqliteLedger
 from factory.sqlite_process_records import SqliteProcessRecords
@@ -59,8 +60,8 @@ def agent_runner(settings: Settings, project_subdir: str, records) -> Subprocess
         raise SettingsError(f"harness {settings.harness!r} lacks what every stage needs: {names}")
     return SubprocessRunner(
         settings.claude_executable, project_subdir, settings.runner_timeout_s,
-        sandbox_executable=settings.sandbox_executable, records=records, private_dirs=(str(settings.state_dir),),
-        harness=harness,
+        sandbox=sandbox_named(settings.sandbox, settings.sandbox_executable), records=records,
+        private_dirs=(str(settings.state_dir),), harness=harness,
     )
 
 

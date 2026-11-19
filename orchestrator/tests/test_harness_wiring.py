@@ -4,6 +4,7 @@ from factory.audit_corpus import PROJECT_SUBDIR
 from factory.cli.base import _real_eval_runner, agent_runner
 from factory.command import RunnerConfig
 from factory.harness import HARNESSES, Capability
+from factory.sandbox import SANDBOXES
 from factory.settings import Settings, SettingsError
 from factory.task import Task
 from test_runner import EchoHarness, fake_claude
@@ -32,6 +33,24 @@ def test_the_eval_runner_starts_the_agent_the_way_the_configured_harness_does(tm
     )
 
     assert result.stdout.strip() == "do it from-fake"
+
+
+def test_the_agent_runner_wraps_a_confined_run_in_the_configured_sandbox(tmp_path, monkeypatch):
+    policies = []
+    sandbox = type("Fake", (), {"wrap": lambda self, policy: policies.append(policy) or []})()
+    monkeypatch.setitem(SANDBOXES, "fake", lambda executable: sandbox)
+    worktree = tmp_path / "wt"
+    (worktree / PROJECT_SUBDIR).mkdir(parents=True)
+    settings = Settings(
+        tmp_path / "repo", tmp_path / "state", tmp_path / "wts", sandbox="fake",
+        claude_executable=fake_claude(tmp_path, "echo ok"),
+    )
+
+    agent_runner(settings, PROJECT_SUBDIR, records=None).run(
+        Task(id="t1", prompt="do it", worktree=str(worktree)), RunnerConfig(model="sonnet", confine=True)
+    )
+
+    assert [policy.worktree for policy in policies] == [str(worktree.resolve())]
 
 
 def test_the_context_builds_its_agent_runner_with_the_configured_harness(tmp_path, monkeypatch):
