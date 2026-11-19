@@ -1,10 +1,25 @@
 import json
+import os
 from dataclasses import dataclass
 from enum import Enum
 from typing import Protocol
 
 from factory.classify import Outcome, OutcomeKind
-from factory.command import SANDBOX_PROFILE, RunnerConfig, check_prompt
+from factory.command import (
+    MAX_PROMPT_BYTES,
+    SANDBOX_PROFILE,
+    PromptTooLarge,
+    RunnerConfig,
+)
+
+
+def check_prompt(prompt: str) -> None:
+    """What any harness that passes the prompt as one argv string must refuse."""
+    if prompt.startswith("-"):
+        raise ValueError("prompt must not start with '-'")
+    size = len(os.fsencode(prompt))
+    if size > MAX_PROMPT_BYTES:
+        raise PromptTooLarge(f"prompt is {size} bytes, the limit is {MAX_PROMPT_BYTES}")
 
 
 class Capability(Enum):

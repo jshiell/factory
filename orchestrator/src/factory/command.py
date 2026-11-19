@@ -1,4 +1,3 @@
-import os
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -9,15 +8,6 @@ MAX_PROMPT_BYTES = 131_071
 
 class PromptTooLarge(ValueError):
     """The prompt cannot be passed as one argv string."""
-
-
-def check_prompt(prompt: str) -> None:
-    """What any harness that passes the prompt as one argv string must refuse."""
-    if prompt.startswith("-"):
-        raise ValueError("prompt must not start with '-'")
-    size = len(os.fsencode(prompt))
-    if size > MAX_PROMPT_BYTES:
-        raise PromptTooLarge(f"prompt is {size} bytes, the limit is {MAX_PROMPT_BYTES}")
 
 
 @dataclass(frozen=True)
