@@ -6,10 +6,11 @@ import time
 from contextlib import nullcontext
 from pathlib import Path
 
-from factory.command import RunnerConfig, contains, sandbox_prefix
+from factory.command import RunnerConfig, contains
 from factory.harness import ClaudeHarness, Harness
 from factory.process import STRIPPED_ENV, kill_tree, tail
 from factory.process_registry import Tracker
+from factory.sandbox import NonoSandbox, Sandbox, SandboxPolicy
 from factory.step import TAIL_CHARS, RunResult
 from factory.task import Task
 
@@ -28,16 +29,17 @@ def _executable_directory(executable: str, path: str | None, private_dirs: tuple
 
 
 class SubprocessRunner:
-    def __init__(self, executable: str, project_subdir: str, timeout_s: float, sandbox_executable: str = "nono", records=None, private_dirs: tuple[str, ...] = (), harness: Harness | None = None):
+    def __init__(self, executable: str, project_subdir: str, timeout_s: float, sandbox_executable: str = "nono", records=None, private_dirs: tuple[str, ...] = (), harness: Harness | None = None, sandbox: Sandbox | None = None):
         """`records`: a records object or a state directory; each agent process is recorded there for the reaper.
         `private_dirs`: directories the sandbox must never be granted read access to, even indirectly.
-        `harness`: how the agent CLI is started (default: Claude)."""
+        `harness`: how the agent CLI is started (default: Claude).
+        `sandbox`: how a confined run is wrapped (default: nono at `sandbox_executable`; `sandbox` wins if both are given)."""
         self._harness = harness or ClaudeHarness()
+        self._sandbox = sandbox or NonoSandbox(sandbox_executable)
         self._private_dirs = private_dirs
         self._executable = executable
         self._project_subdir = project_subdir
         self._timeout_s = timeout_s
-        self._sandbox_executable = sandbox_executable
         self._records = records
 
     def run(self, task: Task, config: RunnerConfig) -> RunResult:
@@ -49,11 +51,10 @@ class SubprocessRunner:
         if config.confine:
             private_dirs = (*self._private_dirs, *filter(None, [child_env.get("HOME")]))
             executable_grant = _executable_directory(self._executable, child_env.get("PATH"), private_dirs)
-            prefix = sandbox_prefix(
-                self._sandbox_executable, worktree, profile=self._harness.sandbox_profile,
-                read=(*config.plugin_dirs, *executable_grant),
+            policy = SandboxPolicy(
+                worktree, read=(*config.plugin_dirs, *executable_grant), profile=self._harness.sandbox_profile,
             )
-            argv = prefix + argv
+            argv = self._sandbox.wrap(policy) + argv
         cwd = Path(task.worktree) / self._project_subdir
         tracker = Tracker(self._records, task.id, task.state.value) if self._records else None
         with tempfile.TemporaryFile("w+") as stdout_file, tempfile.TemporaryFile() as stderr_file:

@@ -570,3 +570,31 @@ def test_a_confined_run_passes_no_profile_when_the_harness_has_none(tmp_path, ta
     runner.run(task, replace(CONFIG, confine=True))
 
     assert "--profile" not in log.read_text().splitlines()
+
+
+class RecordingSandbox:
+    def __init__(self, prefix: list[str]):
+        self.prefix = prefix
+        self.policies = []
+
+    def wrap(self, policy):
+        self.policies.append(policy)
+        return self.prefix
+
+
+def test_a_confined_run_is_wrapped_by_the_given_sandbox_with_the_policy_the_runner_derives(tmp_path, task):
+    log = tmp_path / "wrapper.log"
+    claude = fake_claude(tmp_path, "echo ok")
+    harness = EchoHarness()
+    harness.sandbox_profile = "acme/fake"
+    sandbox = RecordingSandbox([fake_wrapper(tmp_path, log), "--"])
+    runner = SubprocessRunner(
+        claude, project_subdir="proj", timeout_s=10, sandbox=sandbox, sandbox_executable="/no/such/nono", harness=harness,
+    )
+
+    result = runner.run(task, replace(CONFIG, confine=True, plugin_dirs=("/plug",)))
+
+    (policy,) = sandbox.policies
+    assert (policy.worktree, policy.profile, policy.write) == (str(Path(task.worktree).resolve()), "acme/fake", ())
+    assert "/plug" in policy.read and str(Path(claude).parent) in policy.read
+    assert result.exit_code == 0 and log.exists()
