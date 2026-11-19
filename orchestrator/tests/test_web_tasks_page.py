@@ -10,6 +10,7 @@ from factory.sqlite_db import transaction
 from factory.sqlite_ledger import SqliteLedger
 from factory.sqlite_store import SqliteTaskStore
 from factory.task import Task, TaskState
+from factory.web.routes import render_tasks
 
 
 @pytest.fixture
@@ -88,3 +89,14 @@ def test_the_page_links_the_static_assets_and_carries_the_htmx_config(client):
     assert ('<meta name="htmx-config" content=\'{"includeIndicatorStyles": false, "allowEval": false, '
             '"allowScriptTags": false, "historyCacheSize": 0}\'>') in page
     assert "style=" not in page
+
+
+SCRIPT = "<script>alert(1)</script>"
+
+
+def test_guard_markup_in_the_goal_and_failure_reason_is_escaped_in_page_and_fragment(client, ctx):
+    add(ctx, "20260102-030405", TaskState.FAILED, goal=SCRIPT, failure_reason=SCRIPT)
+
+    for html in (client.get("/ui/").text, render_tasks(ctx.store)):
+        assert SCRIPT not in html
+        assert html.count("&lt;script&gt;alert(1)&lt;/script&gt;") == 2
