@@ -8,7 +8,6 @@ from factory.command import (
     SANDBOX_PROFILE,
     PromptTooLarge,
     RunnerConfig,
-    sandbox_prefix,
 )
 from factory.harness import ClaudeHarness
 from factory.sandbox import NonoSandbox, SandboxPolicy
@@ -139,7 +138,9 @@ def test_each_add_dir_is_passed_as_its_own_argument():
 
 
 def test_a_profile_less_sandbox_prefix_grants_write_to_the_given_dirs_and_read_to_the_others(tmp_path):
-    prefix = sandbox_prefix("nono", tmp_path, profile=None, allow=("/p/target", "/p/cache"), read=("/py", "/uvpy"))
+    prefix = NonoSandbox("nono").wrap(
+        SandboxPolicy(tmp_path, write=("/p/target", "/p/cache"), read=("/py", "/uvpy"))
+    )
 
     assert "--profile" not in prefix
     assert prefix[:5] == ["nono", "run", "-s", "--allow-cwd", "--read"]
