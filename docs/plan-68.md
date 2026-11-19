@@ -47,6 +47,9 @@ Reference tests by name; line numbers drift.
 - README: the bundle line was 107, not 108.
 - A heredoc script for the first test edit was denied by the sandbox (known issue); the Edit tool was used instead.
 
+## Out of scope
+Architecture review candidate 3 (a watch phase machine) is closed (user, 2026-11-19): not worth doing. The `IssueThread`, `Progress` and `Options` extractions and the per-concern handler modules already covered the real friction. What remains is `_handle_issue`'s ordered if-chain in `watch/__init__.py`, which relies on fall-through (`APPROVED` and `AWAITING_ANSWERS` continue into `_advance`), so a (phase, task state) table would be a risky rewrite for readability alone. Also not done: a named `TERMINAL` phase set in `state.py` for the hand-listed active phases at the top of `_handle_issue`. Do not re-suggest either.
+
 ## Tests touched (CLAUDE.md step 2)
 User-visible strings: the markdown header line (a suffix) and the compare output (one new line, only on a difference). Pinning tests: `test_audit_share.py` markdown test (substring `harness claude`, unaffected), `test_audit_compare.py` harness-differs test (asserts on `harness differs` only, unaffected), `test_cli_eval_export.py` (startswith and substring checks, unaffected). One assertion edit, approved above. Increment 7c, if done, touches the job message; the server tests check only fragments.
 
