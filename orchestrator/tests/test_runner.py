@@ -12,7 +12,7 @@ from factory.command import RunnerConfig
 from factory.harness import Capability, Invocation
 from factory.process_registry import load_records
 from factory.runner import SubprocessRunner
-from factory.sandbox import NonoSandbox
+from factory.sandbox import SANDBOXES, NonoSandbox
 from factory.step import TAIL_CHARS
 from factory.task import Task, TaskState
 from slowrecords import WAIT_FOR_RECORD, RecordsWrittenLate
@@ -40,6 +40,16 @@ def test_runs_in_the_project_subdir_of_the_worktree_and_returns_stdout(tmp_path,
 
     assert Path(result.stdout.strip()).resolve() == (tmp_path / "wt" / "proj").resolve()
     assert result.exit_code == 0
+
+
+def test_a_default_runner_asks_the_default_sandbox_for_an_unset_executable(tmp_path, monkeypatch):
+    """Call-shape test: pins that no literal executable name lives outside the sandbox itself."""
+    asked = []
+    monkeypatch.setitem(SANDBOXES, "nono", lambda executable: asked.append(executable) or NonoSandbox(executable))
+
+    SubprocessRunner(fake_claude(tmp_path, "echo ok"), project_subdir="proj", timeout_s=10)
+
+    assert asked == [None]
 
 
 def test_env_overlay_is_merged_over_the_parent_environment(tmp_path, task, monkeypatch):

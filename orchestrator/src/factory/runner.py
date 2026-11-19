@@ -39,9 +39,9 @@ class SubprocessRunner:
         """`records`: a records object or a state directory; each agent process is recorded there for the reaper.
         `private_dirs`: directories the sandbox must never be granted read access to, even indirectly.
         `harness`: how the agent CLI is started (default: Claude).
-        `sandbox`: how a confined run is wrapped (default: the default sandbox, `sandbox_named(DEFAULT_SANDBOX, "nono")`)."""
+        `sandbox`: how a confined run is wrapped (default: the default sandbox, `sandbox_named(DEFAULT_SANDBOX)`, with the sandbox's own executable)."""
         self._harness = harness or ClaudeHarness()
-        self._sandbox = sandbox or sandbox_named(DEFAULT_SANDBOX, "nono")
+        self._sandbox = sandbox or sandbox_named(DEFAULT_SANDBOX)
         self._private_dirs = private_dirs
         self._executable = executable
         self._project_subdir = project_subdir
