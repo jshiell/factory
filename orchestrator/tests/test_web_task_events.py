@@ -1,6 +1,10 @@
 import threading
+from urllib.parse import unquote
 
-from webhelpers import add
+import pytest
+
+from factory.sqlite_db import transaction
+from webhelpers import add, assert_ui_security_headers
 
 pytest_plugins = ["webfixtures"]
 
@@ -34,6 +38,44 @@ def read_events(client, path, count=1, after_first_event=None):
     reader.join(TIMEOUT)
     assert not reader.is_alive(), f"no {count} event(s) within {TIMEOUT}s; got {seen}"
     return seen[0], seen[1:]
+
+
+def fetch_whole(client, path):
+    """The full response at `path`, read off the test thread so a stream that never ends fails instead of hanging."""
+    got: list = []
+
+    def read():
+        with client.stream("GET", path) as response:
+            response.read()
+            got.append(response)
+
+    reader = threading.Thread(target=read, daemon=True)
+    reader.start()
+    reader.join(TIMEOUT)
+    assert got, f"{path} gave no complete response within {TIMEOUT}s"
+    return got[0]
+
+
+@pytest.fixture
+def broken(ctx):
+    with transaction(ctx.settings.db_path) as conn:
+        conn.execute("INSERT INTO tasks (id, state, data) VALUES ('broken-one', 'queued', 'not json')")
+
+
+@pytest.mark.parametrize("task_id, status, text", [
+    ("nothing-here", 404, "does not exist"), ("a.b", 404, "does not exist"), ("a%20b", 404, "does not exist"),
+    ("%3Cscript%3E", 404, "does not exist"), ("broken-one", 500, "unreadable")])
+def test_the_task_stream_refuses_a_missing_invalid_or_unreadable_id_with_an_html_page(client, broken, task_id, status, text):
+    response = fetch_whole(client, f"/ui/tasks/{task_id}/events")
+
+    assert response.status_code == status
+    assert response.headers["content-type"].startswith("text/html")
+    assert text in response.text
+    assert 'href="/ui/"' in response.text
+    assert "Traceback" not in response.text and "not json" not in response.text
+    for echoed in (task_id, unquote(task_id), "&lt;script"):
+        assert echoed not in response.text
+    assert_ui_security_headers(response)
 
 
 def test_the_task_stream_first_event_is_the_task_fragment(client, ctx):

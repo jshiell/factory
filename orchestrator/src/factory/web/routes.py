@@ -55,14 +55,19 @@ def _task_detail(task) -> dict:
             "lists": [(label, [_safe(item) for item in items]) for label, items in lists if items]}
 
 
-async def _task_page(request: Request) -> HTMLResponse:
+def _load_task(request: Request):
+    """The requested task, or the HTML page refusing it (missing, invalid or unreadable id), which never shows the id."""
     try:
-        task = request.app.state.store.load(request.path_params["task_id"])
+        return request.app.state.store.load(request.path_params["task_id"]), None
     except (TaskNotFound, InvalidTaskId):
-        return HTMLResponse(_TEMPLATES.get_template("task_missing.html").render(), status_code=404)
+        return None, HTMLResponse(_TEMPLATES.get_template("task_missing.html").render(), status_code=404)
     except (ValueError, KeyError, TypeError):  # the same errors `list` skips a row for
-        return HTMLResponse(_TEMPLATES.get_template("task_unreadable.html").render(), status_code=500)
-    return HTMLResponse(_TEMPLATES.get_template("task.html").render(task=_task_detail(task)))
+        return None, HTMLResponse(_TEMPLATES.get_template("task_unreadable.html").render(), status_code=500)
+
+
+async def _task_page(request: Request) -> HTMLResponse:
+    task, refusal = _load_task(request)
+    return refusal or HTMLResponse(_TEMPLATES.get_template("task.html").render(task=_task_detail(task)))
 
 
 def _render_task(task) -> str:
@@ -119,7 +124,10 @@ async def _events(request: Request) -> StreamingResponse:
     return _stream(request, lambda: _event("tasks", render_tasks(store)))
 
 
-async def _task_events(request: Request) -> StreamingResponse:
+async def _task_events(request: Request) -> StreamingResponse | HTMLResponse:
+    _, refusal = _load_task(request)  # before the stream exists, so a refusal still has its real status
+    if refusal:
+        return refusal
     store, task_id = request.app.state.store, request.path_params["task_id"]
     return _stream(request, lambda: _event("task", _render_task(store.load(task_id))))
 
