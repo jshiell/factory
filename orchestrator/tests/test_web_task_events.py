@@ -41,6 +41,33 @@ def read_events(client, path, count=1, after_first_event=None):
     return seen[0], seen[1:]
 
 
+def read_until_end(client, path, stop_after=None):
+    """Every event of the stream at `path` until the server ends it; fails instead of hanging.
+
+    With `stop_after`, requests a stop once that many events have arrived."""
+    events: list = []
+    ended = threading.Event()
+
+    def read():
+        with client.stream("GET", path) as response:
+            event: list[str] = []
+            for line in response.iter_lines():
+                if line:
+                    event.append(line)
+                    continue
+                events.append(event)
+                event = []
+                if len(events) == stop_after:
+                    client.app.state.request_stop()
+        ended.set()
+
+    reader = threading.Thread(target=read, daemon=True)
+    reader.start()
+    reader.join(TIMEOUT)
+    assert ended.is_set(), f"the stream did not end within {TIMEOUT}s; got {events}"
+    return events
+
+
 def fetch_whole(client, path):
     """The full response at `path`, read off the test thread so a stream that never ends fails instead of hanging."""
     got: list = []
@@ -192,3 +219,18 @@ def test_a_row_corrupted_mid_stream_sends_the_unreadable_fragment_and_keeps_the_
     assert any("That task is unreadable." in line for line in unreadable)
     assert not any(text in line for line in unreadable for text in ("not json", "Traceback", "20260102-030405"))
     assert rest[-1] == [": keepalive"]
+
+
+def test_requesting_a_stop_ends_an_open_task_stream(client, ctx):
+    add(ctx)
+
+    events = read_until_end(client, EVENTS, stop_after=1)
+
+    assert [event[0] for event in events] == ["event: task"]
+
+
+def test_a_task_stream_opened_after_a_stop_ends_at_once(client, ctx):
+    add(ctx)
+    client.app.state.request_stop()
+
+    assert read_until_end(client, EVENTS) == []
