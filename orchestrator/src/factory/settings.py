@@ -36,6 +36,7 @@ class Settings:
     fix_rounds: int = 2
     server_port: int = 8765
     server_host: str = "127.0.0.1"
+    server_allowed_hosts: tuple[str, ...] = ()
     grill: bool = True
     grill_max_rounds: int = 3
     append_system_prompt: str | None = None
@@ -74,7 +75,7 @@ _STRING_KEYS = ("project_subdir", "claude_executable", "sandbox_executable", "mo
 _PROMPT_KEYS = ("append_system_prompt",)
 _STAGES = ("plan", "review", "implement", "audit")
 _FLOAT_KEYS = ("cap_usd", "gate_timeout_s", "runner_timeout_s", "budget_usd")
-_STRING_LIST_KEYS = ("test_argv", "allowed_tools", "plugins", "watch_approvers", "gate_allow_outside")
+_STRING_LIST_KEYS = ("test_argv", "allowed_tools", "plugins", "watch_approvers", "gate_allow_outside", "server_allowed_hosts")
 _INT_KEYS = ("max_turns", "fix_rounds", "server_port", "grill_max_rounds")
 _BOOL_KEYS = ("grill", "watch_merge", "watch_retry", "gate_allow_dependency_changes")
 GITHUB_LOGIN = re.compile(r"(?!.{40})[A-Za-z0-9]+(-[A-Za-z0-9]+)*")
