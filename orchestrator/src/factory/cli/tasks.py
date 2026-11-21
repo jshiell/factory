@@ -1,4 +1,5 @@
 from types import SimpleNamespace
+from urllib.parse import urlsplit, urlunsplit
 
 from factory.cli.base import _ask_with_waiver, _run_job, _task_path
 from factory.client import ServerRefused
@@ -17,8 +18,19 @@ def _new(args, io, ctx) -> int:
 
 
 def _ui(args, io, ctx) -> int:
-    print(ctx.server.post("/ui-login-codes")["url"], file=io.stdout)
+    from factory.server import _LOOPBACK_HOSTS
+    if args.host is not None and args.host not in _LOOPBACK_HOSTS | set(ctx.settings.server_allowed_hosts):
+        print(f"usage error: --host {args.host} is not loopback or in server_allowed_hosts", file=io.stderr)
+        return 2
+    url = ctx.server.post("/ui-login-codes")["url"]
+    print(url if args.host is None else _with_host(url, args.host), file=io.stdout)
     return 0
+
+
+def _with_host(url: str, host: str) -> str:
+    parts = urlsplit(url)
+    netloc = host if parts.port is None else f"{host}:{parts.port}"
+    return urlunsplit(parts._replace(netloc=netloc))
 
 
 def _list(args, io, ctx) -> int:
