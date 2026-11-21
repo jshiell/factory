@@ -4,6 +4,9 @@
 {% if task.state == "reviewed" %}
 <p><a href="/ui/tasks/{{ task.id | urlencode }}/reject">reject this plan</a></p>
 {% endif %}
+{% if task.state == "open_questions" %}
+<p><a href="/ui/tasks/{{ task.id | urlencode }}/answer">answer these questions</a></p>
+{% endif %}
 {% if task.failure_reason %}
 <p>failure: {{ task.failure_reason }}</p>
 {% endif %}
