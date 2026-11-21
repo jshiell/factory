@@ -47,7 +47,7 @@ def _task_detail(task) -> dict:
              ("review error", task.review_error), ("audit error", task.audit_error))
     lists = (("risks", task.plan_risks), ("review findings", task.review_findings),
              ("audit findings", task.audit_findings), ("waived findings", task.waived_findings))
-    questions = [{"number": question["number"], "title": _safe(question["title"]), "recommended": _safe(question["recommended"])}
+    questions = [{"number": _safe(question["number"]), "title": _safe(question["title"]), "recommended": _safe(question["recommended"])}
                  for question in task.open_questions]
     return {"id": task.id, "state": task.state.value, "needs_you": task.state in _HUMAN_GATE_STATES,
             "facts": [(label, _safe(value)) for label, value in facts if value],

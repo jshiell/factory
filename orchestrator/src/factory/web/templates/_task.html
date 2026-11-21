@@ -9,10 +9,10 @@
 {% endfor %}
 {% if task.open_questions %}
 <h3>open questions (round {{ task.grill_rounds }})</h3>
-<ol>
-  {% for question in task.open_questions %}<li value="{{ question.number }}">{{ question.number }}. {{ question.title }} (recommended: {{ question.recommended }})</li>
+<ul>
+  {% for question in task.open_questions %}<li>{{ question.number }}. {{ question.title }} (recommended: {{ question.recommended }})</li>
   {% endfor %}
-</ol>
+</ul>
 {% endif %}
 {% if task.plan %}
 <h3>plan</h3>
