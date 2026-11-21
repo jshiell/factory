@@ -250,6 +250,14 @@ async def _approve_page(request: Request) -> HTMLResponse:
     return HTMLResponse(_TEMPLATES.get_template("approve.html").render(task=_approve_page_detail(task)))
 
 
+async def _approve(request: Request) -> RedirectResponse:
+    task, _ = _load_task(request)
+    form = await _read_form(request)
+    service.approve(request.app.state.store, task.id, _single(form, "plan_digest"), task.review_findings,
+                    waived=())
+    return RedirectResponse(f"/ui/tasks/{quote(task.id, safe='')}", status_code=303)
+
+
 def _render_task(task) -> str:
     return _TEMPLATES.get_template("_task.html").render(task=_task_detail(task))
 
@@ -365,5 +373,6 @@ def ui_routes() -> list[Route | Mount]:
             Route("/ui/tasks/{task_id}/answer", _answer_page, methods=["GET"]),
             Route("/ui/tasks/{task_id}/answer", _answer, methods=["POST"]),
             Route("/ui/tasks/{task_id}/approve", _approve_page, methods=["GET"]),
+            Route("/ui/tasks/{task_id}/approve", _approve, methods=["POST"]),
             Route("/ui/tasks/{task_id}/events", _task_events, methods=["GET"]),
             Route("/ui/login", _login, methods=["GET"]), Mount("/ui/static", StaticFiles(directory=STATIC_DIR))]
