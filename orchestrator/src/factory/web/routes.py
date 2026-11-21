@@ -65,6 +65,10 @@ async def _task_page(request: Request) -> HTMLResponse:
     return HTMLResponse(_TEMPLATES.get_template("task.html").render(task=_task_detail(task)))
 
 
+def _render_task(task) -> str:
+    return _TEMPLATES.get_template("_task.html").render(task=_task_detail(task))
+
+
 def render_tasks(store) -> str:
     return _TEMPLATES.get_template("_tasks.html").render(_tasks_context(store))
 
@@ -73,9 +77,10 @@ async def _ui_page(request: Request) -> HTMLResponse:
     return HTMLResponse(_TEMPLATES.get_template("page.html").render(_tasks_context(request.app.state.store)))
 
 
-def _tasks_event(store) -> str:
-    data_lines = "".join(f"data: {line}\n" for line in render_tasks(store).splitlines())
-    return f"event: tasks\n{data_lines}\n"
+def _event(name: str, fragment: str) -> str:
+    """One SSE event; splitting on every line break keeps a CR in the text from ending a line or the event."""
+    data_lines = "".join(f"data: {line}\n" for line in fragment.splitlines())
+    return f"event: {name}\n{data_lines}\n"
 
 
 async def _first_of(waits, timeout: float):
@@ -89,14 +94,15 @@ async def _first_of(waits, timeout: float):
     return [task in done for task in tasks]
 
 
-async def _events(request: Request) -> StreamingResponse:
+def _stream(request: Request, render) -> StreamingResponse:
+    """Send `render()` (an SSE event) now and after every store change, with keepalives between, until a stop."""
     state = request.app.state
-    store, changes, stopping = state.store, state.changes, state.stopping
+    changes, stopping = state.changes, state.stopping
 
     async def stream():
         while not stopping.is_requested():
             version = changes.version  # before rendering, so a write during the render sends another event
-            yield _tasks_event(store)
+            yield render()
             while True:
                 changed, stopped = await _first_of((changes.wait_past(version), stopping.wait()), state.keepalive_seconds)
                 if stopped:
@@ -106,6 +112,16 @@ async def _events(request: Request) -> StreamingResponse:
                 yield ": keepalive\n\n"
 
     return StreamingResponse(stream(), media_type="text/event-stream")
+
+
+async def _events(request: Request) -> StreamingResponse:
+    store = request.app.state.store
+    return _stream(request, lambda: _event("tasks", render_tasks(store)))
+
+
+async def _task_events(request: Request) -> StreamingResponse:
+    store, task_id = request.app.state.store, request.path_params["task_id"]
+    return _stream(request, lambda: _event("task", _render_task(store.load(task_id))))
 
 
 async def _ui_without_slash(request: Request) -> RedirectResponse:
@@ -129,4 +145,5 @@ STATIC_DIR = Path(__file__).parent / "static"
 def ui_routes() -> list[Route | Mount]:
     return [Route("/ui", _ui_without_slash, methods=["GET"]), Route("/ui/", _ui_page, methods=["GET"]),
             Route("/ui/events", _events, methods=["GET"]), Route("/ui/tasks/{task_id}", _task_page, methods=["GET"]),
+            Route("/ui/tasks/{task_id}/events", _task_events, methods=["GET"]),
             Route("/ui/login", _login, methods=["GET"]), Mount("/ui/static", StaticFiles(directory=STATIC_DIR))]
