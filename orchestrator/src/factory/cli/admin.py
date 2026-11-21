@@ -41,6 +41,25 @@ def _copy_old_files(io, ctx, cleared_any: bool) -> int:
     return 0
 
 
+_PLAIN_HTTP = ("the connection is plain HTTP, so the token, login code and session cookie can be read on the way: "
+               "use a VPN or SSH tunnel")
+
+
+def _bind_warning(host: str, port: int, allowed_hosts) -> str | None:
+    """One stderr line for a start that is reachable beyond loopback, or None; never two, so none contradicts another."""
+    names = ", ".join(allowed_hosts)  # validated in settings to [a-z0-9.-], so safe to print
+    if allowed_hosts and host == "127.0.0.1":
+        return (f"warning: bound to 127.0.0.1 port {port}, accepting only loopback and the Host names {names} "
+                f"(for a tunnel that keeps the Host); {_PLAIN_HTTP}")
+    if allowed_hosts:
+        return (f"warning: bound to {host}, so port {port} is reachable from the network and accepts the Host names "
+                f"{names} besides loopback; {_PLAIN_HTTP}")
+    if host != "127.0.0.1":
+        return (f"warning: bound to {host}, so port {port} is reachable from the network; "
+                "requests whose Host is not loopback are still refused (403)")
+    return None
+
+
 def _serve(args, io, ctx) -> int:
     from factory.server import (
         StartRefused,
@@ -57,12 +76,9 @@ def _serve(args, io, ctx) -> int:
             _print_reaped(reaped.killed, reaped.discarded, io)
             print(f"serving on http://127.0.0.1:{port}; token in {ctx.settings.state_dir / 'token'}", file=io.stdout)
             io.stdout.flush()
-            if host != "127.0.0.1":
-                print(
-                    f"warning: bound to {host}, so port {port} is reachable from the network; "
-                    "requests whose Host is not loopback are still refused (403)",
-                    file=io.stderr,
-                )
+            warning = _bind_warning(host, port, ctx.settings.server_allowed_hosts)
+            if warning:
+                print(warning, file=io.stderr)
             ctx.serve(create_secured_app(ctx, token), host, port)
     except (StartRefused, TokenFileUnsafe) as refused:
         print(escape_control(str(refused)), file=io.stderr)
