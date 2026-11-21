@@ -4,6 +4,7 @@ from urllib.parse import unquote
 import pytest
 
 from factory.sqlite_db import transaction
+from factory.task import TaskState
 from webhelpers import add, assert_ui_security_headers
 
 pytest_plugins = ["webfixtures"]
@@ -121,3 +122,13 @@ def test_the_task_stream_first_event_is_the_task_fragment(client, ctx):
     assert all(line.startswith("data: ") for line in event[1:])
     assert any("first goal" in line for line in event[1:])
     assert "data: step two</pre>" in event
+
+
+def test_this_tasks_save_sends_the_new_state_as_the_next_event(client, ctx):
+    add(ctx, state=TaskState.QUEUED)
+
+    _, (first, second) = read_events(client, EVENTS, count=2, after_first_event=lambda: add(ctx, state=TaskState.FAILED))
+
+    assert any("state: queued" in line for line in first)
+    assert second[0] == "event: task"
+    assert any("state: failed" in line for line in second)
