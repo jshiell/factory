@@ -4,7 +4,7 @@ import json
 from factory.sqlite_db import transaction
 from factory.store import task_to_dict
 from factory.task import Task
-from factory.web.routes import render_tasks
+from factory.web.routes import _event, render_tasks
 from webhelpers import add
 
 pytest_plugins = ["webfixtures"]
@@ -57,3 +57,7 @@ def test_a_task_id_with_control_characters_is_shown_escaped(client, ctx):
     for html in (client.get("/ui/").text, render_tasks(ctx.store)):
         assert "\x07" not in html
         assert "a\\x07b" in html
+
+
+def test_guard_event_splits_a_lone_carriage_return_into_data_lines():
+    assert _event("tasks", "a\rb") == "event: tasks\ndata: a\ndata: b\n\n"
