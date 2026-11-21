@@ -26,6 +26,23 @@ htmx.createEventSource = (url) => {
   return source;
 };
 
+// htmx.process skips an element whose attributes hash as before, so a new
+// epoch makes it drop its internal data and let the extension connect again.
+// That path fires no htmx:beforeCleanupElement, hence pause() closing the old
+// source itself.
+function resume() {
+  if (!paused) return;
+  paused = false;
+  const stream = document.querySelector("[sse-connect]");
+  if (!stream) return;
+  const epoch = Number(stream.getAttribute("data-sse-epoch") || 0) + 1;
+  stream.setAttribute("data-sse-epoch", String(epoch));
+  htmx.process(stream);
+}
+
 document.addEventListener("visibilitychange", () => {
-  if (document.hidden) pause();
+  if (document.hidden) pause(); else resume();
+});
+window.addEventListener("pageshow", (event) => {
+  if (event.persisted) resume();
 });

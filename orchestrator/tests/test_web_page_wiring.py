@@ -55,6 +55,13 @@ def test_ui_js_closes_streams_when_the_tab_is_hidden(client):
         assert hook in script
 
 
+def test_ui_js_reopens_the_stream_when_the_tab_is_shown_again(client):
+    script = client.get("/ui/static/ui.js").text
+
+    for hook in ("htmx.process", "data-sse-epoch"):
+        assert hook in script
+
+
 def test_ui_js_loads_after_the_banner_so_the_body_exists_when_it_runs(client):
     page = client.get("/ui/").text
 
