@@ -48,3 +48,9 @@ Escaping in the JSON API, the CLI (`_describe` already escapes), the detail page
 - The visible goal can exceed 120 characters when it holds escapes (D2). Accepted; the limit is a layout aid, not a security control.
 - **Unverified, follow-up:** a goal holding a lone surrogate (category Cs, for example `"\ud800"` sent through the JSON API) is not escaped by `escape_control`, and UTF-8 encoding of the response could fail and break the whole list page. Not run. Affects the detail page too.
 - Wider rows for goals that are mostly escapes; layout stays unchecked until the manual browser check that plans 69 and 70 already owe.
+
+## Deviations
+- Increment 2: the "no `None` shown" sub-assertion sits in the red test (it passes before and after), not as a separate guard.
+- Increment 6: asserts the exact event text (`event: tasks`, `data: a`, `data: b`), stricter than "two data lines"; the optional list-stream assertion was not added.
+- Increment 7: the README sentence is appended to the existing "page at `/ui/`" bullet, not a new bullet.
+- Recorded as planned, no change: the CR test's coverage of `splitlines()` is now carried by increment 6; the lone-surrogate risk stays a follow-up (not run).
