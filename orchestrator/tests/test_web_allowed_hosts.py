@@ -47,3 +47,7 @@ def test_guard_a_read_with_the_cookie_and_no_fetch_metadata_is_served(signed_in)
 
     assert response.status_code == 200
     assert not any(name.startswith("sec-fetch-") for name in response.request.headers)
+
+
+def test_ui_responses_send_referrer_policy_same_origin_so_a_plain_http_form_post_names_its_origin(signed_in):
+    assert signed_in.get("/ui/").headers.get_list("referrer-policy") == ["same-origin"]

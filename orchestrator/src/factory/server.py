@@ -493,8 +493,9 @@ def _is_same_origin_request(method: str, headers) -> bool:
     own_origin = "http://" + headers["host"]
     # A read without Origin is a plain navigation; a write must name its origin (CSRF), so a missing one is refused.
     origin = headers.get("origin", own_origin if method in _READ_METHODS else None)
-    # Every /ui page sends `Referrer-Policy: no-referrer`, so its own form POST carries `Origin: null`; accept that
-    # only when Fetch Metadata vouches for it. Reads keep refusing `null`. No Fetch Metadata fails closed.
+    # /ui pages send `Referrer-Policy: same-origin`, so their own form POST names its real Origin, which plain HTTP to a
+    # non-loopback host needs (browsers send no Fetch Metadata there). A form POST may still carry `Origin: null`
+    # (older pages, other browsers); accept that only when Fetch Metadata vouches for it. Reads keep refusing `null`. No Fetch Metadata fails closed.
     if origin == "null" and method not in _READ_METHODS:
         return headers.get("sec-fetch-site") == "same-origin"
     return origin == own_origin and headers.get("sec-fetch-site", "same-origin") in {"same-origin", "none"}
@@ -515,7 +516,7 @@ def _ui_refusal(method: str, headers, path, sessions: Sessions):
 _UI_SECURITY_HEADERS = {
     "content-security-policy": "default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self'; "
                                 "frame-ancestors 'none'; base-uri 'none'; form-action 'self'",
-    "referrer-policy": "no-referrer",
+    "referrer-policy": "same-origin",
     "cache-control": "no-store",
     "x-content-type-options": "nosniff",
     "cross-origin-resource-policy": "same-origin",

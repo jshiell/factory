@@ -92,7 +92,7 @@ def test_login_needs_no_session_but_still_refuses_a_foreign_origin_and_site(clie
 UI_SECURITY_HEADERS = {
     "content-security-policy": "default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self'; "
                                 "frame-ancestors 'none'; base-uri 'none'; form-action 'self'",
-    "referrer-policy": "no-referrer",
+    "referrer-policy": "same-origin",
     "cache-control": "no-store",
     "x-content-type-options": "nosniff",
     "cross-origin-resource-policy": "same-origin",
