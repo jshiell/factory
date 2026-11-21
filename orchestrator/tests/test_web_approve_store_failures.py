@@ -34,6 +34,7 @@ class _FailsOnSecondLoad:
 @pytest.mark.parametrize("error, status, shown", [
     (TaskNotFound(TASK_ID), 404, "does not exist"),
     (ValueError(f"{TASK_ID} broken"), 409, "plan changed"),  # service.approve turns a ValueError into PlanChanged (plan 76 D6 a)
+    (KeyError("broken"), 500, "is unreadable"),  # the other errors `load` lets escape for a bad row
 ])
 def test_a_task_lost_after_the_first_load_gives_the_404_or_plan_changed_page_and_saves_nothing(client, ctx, error, status, shown):
     add(ctx, TASK_ID, TaskState.REVIEWED, goal="fix the widget", plan=PLAN, plan_digest=plan_digest(PLAN))
