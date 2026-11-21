@@ -34,9 +34,13 @@ def _tasks_context(store) -> dict:
 
 
 def _task_detail(task) -> dict:
-    lists = (("risks", task.plan_risks), ("review findings", task.review_findings),
+    facts = (("retry of", task.retry_of), ("fix rounds", task.fix_rounds_used), ("attempts", task.attempts),
+             ("denials", len(task.denials)), ("worktree", task.worktree),
+             ("branch", f"factory/{task.id}" if task.worktree else None), ("plan error", task.plan_error),
+             ("review error", task.review_error), ("audit error", task.audit_error))
+    lists = (("risks", task.plan_risks),("review findings", task.review_findings),
              ("audit findings", task.audit_findings), ("waived findings", task.waived_findings))
-    return {"id": task.id, "state": task.state.value,
+    return {"id": task.id, "state": task.state.value, "facts": [(label, value) for label, value in facts if value],
             "goal": task.goal if task.goal is not None else task.prompt, "failure_reason": task.failure_reason, "plan": task.plan,
             "open_questions": task.open_questions, "grill_rounds": task.grill_rounds,
             "lists": [(label, items) for label, items in lists if items]}

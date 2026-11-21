@@ -4,6 +4,9 @@
 {% if task.failure_reason %}
 <p>failure: {{ task.failure_reason }}</p>
 {% endif %}
+{% for label, value in task.facts %}
+<p>{{ label }}: {{ value }}</p>
+{% endfor %}
 {% if task.open_questions %}
 <h3>open questions (round {{ task.grill_rounds }})</h3>
 <ol>

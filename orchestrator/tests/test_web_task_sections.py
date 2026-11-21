@@ -41,6 +41,25 @@ def test_open_questions_show_the_round_titles_and_recommended_answers(client, ct
         assert shown in page
 
 
+@pytest.mark.parametrize("fields, shown", [
+    ({"retry_of": "20260101-000000"}, ["retry of: 20260101-000000"]),
+    ({"fix_rounds_used": 2}, ["fix rounds: 2"]),
+    ({"attempts": 3}, ["attempts: 3"]),
+    ({"denials": ({"tool": "a"}, {"tool": "b"})}, ["denials: 2"]),
+    ({"worktree": "/work/tree"}, ["worktree: /work/tree", "branch: factory/20260102-030405"]),
+    ({"plan_error": "p broke"}, ["plan error: p broke"]),
+    ({"review_error": "r broke"}, ["review error: r broke"]),
+    ({"audit_error": "a broke"}, ["audit error: a broke"]),
+])
+def test_a_scalar_field_appears_when_set(client, ctx, fields, shown):
+    add(ctx, **fields)
+
+    page = client.get("/ui/tasks/20260102-030405").text
+
+    for text in shown:
+        assert text in page
+
+
 @pytest.mark.parametrize("label", ABSENT_FOR_A_BARE_TASK)
 def test_guard_an_optional_section_is_absent_for_a_bare_task(client, ctx, label):
     add(ctx)
