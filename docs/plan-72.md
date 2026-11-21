@@ -48,6 +48,13 @@ One failing test (or one parametrized behaviour), the minimal change, one commit
 12. **Docs.** README Web UI subsection: the Reject link and confirm page, the Origin rule for writes and why (`no-referrer` makes `Origin: null`), the cost of a rejection (D4), the known limits (D7; the session cookie also goes to any localhost port, since cookies ignore ports, so a hostile local server could replay it); a deviations section here.
 13. **Gate.** `cd orchestrator && uv run ruff check`, then `uv run pytest -q -n auto`; run the `verify` skill; run `audit-commits` against this plan. Rerun the race test and the new route tests 10 times with a shell loop. Merge of plans 69-72 waits for the manual browser check of the POST, the 303 and the confirm page with a real `Origin` (D8).
 
+## Deviations
+- Increment 5 passed without a code change (increment 3 already reused `_load_task`); committed as a Guard, not red.
+- Increment 8: the four id cases (missing, invalid, unreadable on POST) were already green through `_load_task`; only the store-wrapper cases (`TaskNotFound`, `ValueError` after the first load) were red. `_missing_page` and `_unreadable_page` were extracted so both paths share the pages.
+- Increment 10: `HEAD` on the reject path is not 405. Starlette serves HEAD from the GET route, so it gets the confirm page's headers with an empty body (200) and changes nothing. The test asserts that instead; HEAD never reaches the POST handler.
+- Increments 3 and 4 live in `tests/test_web_reject_page.py`, 5 and 8 in `tests/test_web_reject_ids.py`.
+- From increments 1-2 (no change made): the guard builds its header dict from the last copy of a repeated `Origin` or `Sec-Fetch-Site` (pre-existing; non-browser clients can already skip Origin checks); a lower-case method counts as a write (fails closed); a browser without Fetch Metadata gets 403 on the form POST (fails closed, D3).
+
 ## Out of scope
 Approve (digest, findings, waivers), answering questions, merge, abandon, retry; a per-session form token; a compare-and-swap in the store; changing `Referrer-Policy`; recording that a rejection came from the UI; session idle expiry; `X-Frame-Options` (`frame-ancestors 'none'` already covers modern browsers); any change to the JSON API.
 
