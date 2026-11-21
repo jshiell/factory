@@ -50,13 +50,14 @@ def _serve(args, io, ctx) -> int:
         load_or_create_token,
     )
     port = args.port if args.port is not None else ctx.settings.server_port
+    host = ctx.settings.server_host
     try:
         token = load_or_create_token(ctx.settings.state_dir)
         with claim_state_dir(ctx) as reaped:
             _print_reaped(reaped.killed, reaped.discarded, io)
             print(f"serving on http://127.0.0.1:{port}; token in {ctx.settings.state_dir / 'token'}", file=io.stdout)
             io.stdout.flush()
-            ctx.serve(create_secured_app(ctx, token), "127.0.0.1", port)
+            ctx.serve(create_secured_app(ctx, token), host, port)
     except (StartRefused, TokenFileUnsafe) as refused:
         print(escape_control(str(refused)), file=io.stderr)
         return 1
