@@ -2,7 +2,7 @@ import unicodedata
 
 
 def escape_control(text: str) -> str:
-    """Make agent-written text safe to show: escape control and invisible format characters."""
+    """Make agent-written text safe to show: escape control characters, invisible format characters and lone surrogates."""
     out = []
     for char in text:
         if char not in "\n\t" and unicodedata.category(char) in ("Cc", "Cf", "Cs"):
