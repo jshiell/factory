@@ -142,3 +142,15 @@ def test_another_tasks_save_sends_no_event_and_the_next_frame_is_a_keepalive(cli
 
     assert first[0] == "event: task"
     assert second == [": keepalive"]
+
+
+def test_a_clean_style_save_without_a_worktree_drops_the_worktree_section(client, ctx):
+    add(ctx, state=TaskState.FAILED, worktree="/wt/20260102-030405")
+
+    _, (first, second) = read_events(client, EVENTS, count=2,
+                                     after_first_event=lambda: add(ctx, state=TaskState.FAILED, worktree=None))
+
+    assert "data: <p>worktree: /wt/20260102-030405</p>" in first
+    assert "data: <p>branch: factory/20260102-030405</p>" in first
+    assert second[0] == "event: task"
+    assert not any("worktree" in line or "branch" in line for line in second)
