@@ -48,7 +48,7 @@ def _task_detail(task) -> dict:
              ("audit findings", task.audit_findings), ("waived findings", task.waived_findings))
     questions = [{"number": question["number"], "title": _safe(question["title"]), "recommended": _safe(question["recommended"])}
                  for question in task.open_questions]
-    return {"id": task.id, "state": task.state.value,
+    return {"id": task.id, "state": task.state.value, "needs_you": task.state in _HUMAN_GATE_STATES,
             "facts": [(label, _safe(value)) for label, value in facts if value],
             "goal": _safe(task.goal if task.goal is not None else task.prompt), "failure_reason": _safe(task.failure_reason),
             "plan": _safe(task.plan), "open_questions": questions, "grill_rounds": task.grill_rounds,
