@@ -76,3 +76,18 @@ Surrogates or control characters in task ids (the detail page renders `task.id` 
 - D4 changes the wire bytes of every non-ASCII API response (JSON-equivalent). A client that compares raw bytes would see a difference; none is known.
 - Windows side by side that are all visible still each hold a stream; the cap can still bite there.
 - If the reopen mechanism fails in a browser, the fallback is `location.reload()`: simple and resyncing, but it loses scroll position.
+
+## Deviations
+Recorded after increment 9. Increment 11 (manual check) is **pending**; its results go here.
+- Increment 5: `GET /tasks` did not return 500 for a surrogate goal, because the list view omits the goal; the list case is tested with a surrogate in `failure_reason` instead. `GET /tasks/{id}` returning 500 was confirmed red.
+- Increment 6 passed on its first run, so it is a guard, but its test uses the file-based `TaskStore`, not the API client path (`factory show` through the server). The client decode of a `\ud800` escape is not covered end to end.
+- Increments 2 and 3 share one test file.
+- Increment 4 found no tests asserting raw non-ASCII response text (beyond `test_server.py:87,99`, which do not assert the body bytes).
+- Increment 9: no user-facing doc says the API sends raw UTF-8, so no note on the ASCII escaping was added to the README.
+- Increment 8's pin names the literal `data-sse-epoch` (`setAttribute`), not the `dataset.sseEpoch` spelling.
+- htmx reading (vendored `htmx.min.js` 2.0.11, `sse.min.js` 2.2.4), all confirmed by reading the minified source:
+  - `htmx.process` (`Bt`) hashes each element's non-empty attribute names and values (`Le`) and compares with `initHash` (`Ft`); on a change it clears the internal data except `firstInitCompleted` (`De`, which fires no `htmx:beforeCleanupElement`; only `y` does) and runs `Mt`, which fires `htmx:afterProcessNode`. The extension answers that with a fresh connect and re-attaches the element's `sse-swap` listener. Unchanged descendants hash the same and are skipped.
+  - The extension calls the global `htmx.createEventSource(url)` at each connect, including its retries (`setTimeout` after an `error` with `readyState` CLOSED). Only `onerror` schedules a retry; neither the extension's nor `ui.js`'s `close()` does.
+  - Not in the plan: `htmx.defineExtension` runs the extension's `init` synchronously, so `htmx.createEventSource` is already set when `ui.js` runs (`base.html` loads htmx, then sse, then `ui.js` at the end of the body), and htmx processes the body on `DOMContentLoaded`, after `ui.js`. This settles the "init order" item under Unverified by reading; the fallback stays.
+  - Not in the plan: a retry timer scheduled before the tab was hidden still fires. While hidden, the wrapper closes its source at once (and that ends the retry chain, as a closed source raises no error). After a reopen, it replaces the epoch's source, which the wrapper closes, so there is still one live source.
+- A throwaway jsdom run (real vendored htmx and sse, fake `EventSource`, not committed) passed 24 checks: one source on a visible load; close on hide with the banner left hidden; one new source on return with the swap working and one `sse-swap` listener; 10 rapid hide/show cycles leave one live source; `pageshow` reopens only when persisted and paused; a background load closes its source and opens on show; a retry while hidden is closed at once; the fallback uses `withCredentials`. It cannot show that a real `close()` fires no `error` event, the connection cap, or bfcache behaviour; those stay with increment 11.
