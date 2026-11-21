@@ -1,6 +1,7 @@
 import pytest
 
 from factory.task import TaskState
+from factory.textsafe import escape_control
 from webhelpers import add
 
 pytest_plugins = ["webfixtures"]
@@ -78,6 +79,22 @@ def test_guard_markup_in_a_free_text_field_is_escaped(client, ctx, field):
 
     assert MARKUP not in page
     assert ESCAPED_MARKUP in page
+
+
+CONTROL = "red\x1b[31m and \u202ebidi\u200b"
+CONTROL_FIELDS = {**{field: CONTROL if isinstance(value, str) else (CONTROL,) for field, value in FREE_TEXT_FIELDS.items()},
+                  "open_questions": ({"number": 1, "title": CONTROL, "recommended": CONTROL},)}
+
+
+@pytest.mark.parametrize("field", [*CONTROL_FIELDS, "prompt"])
+def test_control_and_bidi_characters_in_a_free_text_field_are_escaped(client, ctx, field):
+    fields = {"goal": None, "prompt": CONTROL} if field == "prompt" else {field: CONTROL_FIELDS[field]}
+    add(ctx, **fields)
+
+    page = client.get("/ui/tasks/20260102-030405").text
+
+    assert not any(char in page for char in "\x1b\u202e\u200b")
+    assert escape_control(CONTROL) in page
 
 
 @pytest.mark.parametrize("label", ABSENT_FOR_A_BARE_TASK)

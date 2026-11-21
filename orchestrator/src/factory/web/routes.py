@@ -11,6 +11,7 @@ from factory import service
 from factory.ids import InvalidTaskId
 from factory.store import TaskNotFound
 from factory.task import TaskState
+from factory.textsafe import escape_control
 from factory.web.auth import session_cookie_name
 
 _TEMPLATES = jinja2.Environment(loader=jinja2.FileSystemLoader(Path(__file__).parent / "templates"), autoescape=True)
@@ -33,17 +34,25 @@ def _tasks_context(store) -> dict:
             "skipped": listing.skipped}
 
 
+def _safe(value):
+    """Agent-written text is shown with control and invisible format characters escaped; other values pass through."""
+    return escape_control(value) if isinstance(value, str) else value
+
+
 def _task_detail(task) -> dict:
     facts = (("retry of", task.retry_of), ("fix rounds", task.fix_rounds_used), ("attempts", task.attempts),
              ("denials", len(task.denials)), ("worktree", task.worktree),
              ("branch", f"factory/{task.id}" if task.worktree else None), ("plan error", task.plan_error),
              ("review error", task.review_error), ("audit error", task.audit_error))
-    lists = (("risks", task.plan_risks),("review findings", task.review_findings),
+    lists = (("risks", task.plan_risks), ("review findings", task.review_findings),
              ("audit findings", task.audit_findings), ("waived findings", task.waived_findings))
-    return {"id": task.id, "state": task.state.value, "facts": [(label, value) for label, value in facts if value],
-            "goal": task.goal if task.goal is not None else task.prompt, "failure_reason": task.failure_reason, "plan": task.plan,
-            "open_questions": task.open_questions, "grill_rounds": task.grill_rounds,
-            "lists": [(label, items) for label, items in lists if items]}
+    questions = [{"number": question["number"], "title": _safe(question["title"]), "recommended": _safe(question["recommended"])}
+                 for question in task.open_questions]
+    return {"id": task.id, "state": task.state.value,
+            "facts": [(label, _safe(value)) for label, value in facts if value],
+            "goal": _safe(task.goal if task.goal is not None else task.prompt), "failure_reason": _safe(task.failure_reason),
+            "plan": _safe(task.plan), "open_questions": questions, "grill_rounds": task.grill_rounds,
+            "lists": [(label, [_safe(item) for item in items]) for label, items in lists if items]}
 
 
 async def _task_page(request: Request) -> HTMLResponse:
