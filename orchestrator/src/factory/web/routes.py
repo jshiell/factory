@@ -71,6 +71,11 @@ async def _task_page(request: Request) -> HTMLResponse:
     return refusal or HTMLResponse(_TEMPLATES.get_template("task.html").render(task=_task_detail(task)))
 
 
+async def _reject_page(request: Request) -> HTMLResponse:
+    task, refusal = _load_task(request)
+    return refusal or HTMLResponse(_TEMPLATES.get_template("reject.html").render(task=_task_detail(task)))
+
+
 def _render_task(task) -> str:
     return _TEMPLATES.get_template("_task.html").render(task=_task_detail(task))
 
@@ -181,5 +186,6 @@ STATIC_DIR = Path(__file__).parent / "static"
 def ui_routes() -> list[Route | Mount]:
     return [Route("/ui", _ui_without_slash, methods=["GET"]), Route("/ui/", _ui_page, methods=["GET"]),
             Route("/ui/events", _events, methods=["GET"]), Route("/ui/tasks/{task_id}", _task_page, methods=["GET"]),
+            Route("/ui/tasks/{task_id}/reject", _reject_page, methods=["GET"]),
             Route("/ui/tasks/{task_id}/events", _task_events, methods=["GET"]),
             Route("/ui/login", _login, methods=["GET"]), Mount("/ui/static", StaticFiles(directory=STATIC_DIR))]
