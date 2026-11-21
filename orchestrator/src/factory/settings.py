@@ -70,6 +70,8 @@ class Settings:
 
 
 BIND_HOSTS = ("127.0.0.1", "0.0.0.0")
+_ALWAYS_ALLOWED_HOSTS = ("127.0.0.1", "localhost", "0.0.0.0")
+_HOST_NAME = re.compile(r"[a-z0-9-]+(\.[a-z0-9-]+)*")
 _PATH_KEYS = ("repo", "state_dir", "worktree_root", "home")
 _STRING_KEYS = ("project_subdir", "claude_executable", "sandbox_executable", "model", "main_branch", "harness", "sandbox", "server_host")
 _PROMPT_KEYS = ("append_system_prompt",)
@@ -106,7 +108,23 @@ def load_settings(path: Path | None, cwd: Path) -> Settings:
         raise SettingsError(f"sandbox {settings.sandbox!r} is unknown; known: {', '.join(sorted(SANDBOXES))}")
     if settings.server_host not in BIND_HOSTS:
         raise SettingsError(f"server_host {settings.server_host!r} is unknown; known: {', '.join(BIND_HOSTS)}")
+    _check_allowed_hosts(settings.server_allowed_hosts)
     return replace(settings, gate_allow_outside=_checked_allow_outside(settings))
+
+
+def _check_allowed_hosts(hosts: tuple[str, ...]) -> None:
+    for position, host in enumerate(hosts):
+        problem = _allowed_host_problem(host) or ("is a duplicate" if host in hosts[:position] else None)
+        if problem:
+            raise SettingsError(f"server_allowed_hosts {host!r} is invalid: {problem}")
+
+
+def _allowed_host_problem(host: str) -> str | None:
+    if host in _ALWAYS_ALLOWED_HOSTS:
+        return "this name is already accepted or can never be a Host"
+    if not _HOST_NAME.fullmatch(host):
+        return "use lowercase letters, digits and hyphens separated by dots, or an IPv4 address (no port, scheme, wildcard, trailing dot or IPv6)"
+    return None
 
 
 def _global_layer(path: Path) -> dict:

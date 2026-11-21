@@ -1,8 +1,10 @@
+import json
+import re
 import subprocess
 
 import pytest
 
-from factory.settings import load_settings
+from factory.settings import SettingsError, load_settings
 
 
 @pytest.fixture(autouse=True)
@@ -34,3 +36,17 @@ def test_server_allowed_hosts_defaults_to_empty_and_comes_from_the_repo_config(r
     (repo_dir / "factory.toml").write_text('server_allowed_hosts = ["nas.lan", "192.168.1.5"]\n')
 
     assert load_settings(None, cwd=repo_dir).server_allowed_hosts == ("nas.lan", "192.168.1.5")
+
+
+@pytest.mark.parametrize(
+    "entries",
+    [
+        [""], ["*"], ["a b"], ["h:80"], ["http://h"], ["Example.com"], ["::1"], ["[::1]"], ["nas.lan."],
+        ["0.0.0.0"], ["127.0.0.1"], ["localhost"], ["nas.lan", "nas.lan"],
+    ],
+)
+def test_invalid_server_allowed_hosts_entries_are_refused(repo_dir, entries):
+    (repo_dir / "factory.toml").write_text(f"server_allowed_hosts = {json.dumps(entries)}\n")
+
+    with pytest.raises(SettingsError, match=f"server_allowed_hosts {re.escape(repr(entries[-1]))} is invalid: ."):
+        load_settings(None, cwd=repo_dir)
