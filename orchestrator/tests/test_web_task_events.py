@@ -173,3 +173,22 @@ def test_a_write_landing_during_the_first_render_still_sends_the_new_state(clien
 
     assert any("state: queued" in line for line in first)
     assert any("state: failed" in line for line in second)
+
+
+def test_a_row_corrupted_mid_stream_sends_the_unreadable_fragment_and_keeps_the_stream_open(client, ctx):
+    add(ctx)
+    client.app.state.keepalive_seconds = 0.2
+
+    def corrupt_then_wake():
+        with transaction(ctx.settings.db_path) as conn:
+            conn.execute("UPDATE tasks SET data = 'not json' WHERE id = '20260102-030405'")
+        add(ctx, "20260102-999999")  # any save wakes the stream; the raw UPDATE does not
+
+    _, (first, *rest) = read_events(client, EVENTS, count=4, after_first_event=corrupt_then_wake)
+
+    unreadable, *_ = [frame for frame in rest if frame != [": keepalive"]]
+    assert first[0] == "event: task"
+    assert unreadable[0] == "event: task"
+    assert any("That task is unreadable." in line for line in unreadable)
+    assert not any(text in line for line in unreadable for text in ("not json", "Traceback", "20260102-030405"))
+    assert rest[-1] == [": keepalive"]

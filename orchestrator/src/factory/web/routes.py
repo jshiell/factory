@@ -17,6 +17,7 @@ from factory.web.auth import session_cookie_name
 _TEMPLATES = jinja2.Environment(loader=jinja2.FileSystemLoader(Path(__file__).parent / "templates"), autoescape=True)
 _GOAL_LIMIT = 120
 _HUMAN_GATE_STATES = {TaskState.OPEN_QUESTIONS, TaskState.REVIEWED, TaskState.AUDITED}
+_UNREADABLE = (ValueError, KeyError, TypeError)  # what `load` lets escape for a bad row; `list` skips a row for the same
 
 
 def _truncated(text: str) -> str:
@@ -61,7 +62,7 @@ def _load_task(request: Request):
         return request.app.state.store.load(request.path_params["task_id"]), None
     except (TaskNotFound, InvalidTaskId):
         return None, HTMLResponse(_TEMPLATES.get_template("task_missing.html").render(), status_code=404)
-    except (ValueError, KeyError, TypeError):  # the same errors `list` skips a row for
+    except _UNREADABLE:
         return None, HTMLResponse(_TEMPLATES.get_template("task_unreadable.html").render(), status_code=500)
 
 
@@ -132,7 +133,15 @@ async def _task_events(request: Request) -> StreamingResponse | HTMLResponse:
     if refusal:
         return refusal
     store, task_id = request.app.state.store, request.path_params["task_id"]
-    return _stream(request, _unless_unchanged(lambda: _event("task", _render_task(store.load(task_id)))))
+    return _stream(request, _unless_unchanged(lambda: _event("task", _task_fragment(store, task_id))))
+
+
+def _task_fragment(store, task_id: str) -> str:
+    """The task fragment, or the unreadable notice when a later write left the row unreadable; never the raw row."""
+    try:
+        return _render_task(store.load(task_id))
+    except _UNREADABLE:
+        return _TEMPLATES.get_template("_task_unreadable.html").render()
 
 
 def _unless_unchanged(render):
