@@ -11,7 +11,7 @@ from starlette.staticfiles import StaticFiles
 from factory import approve_plan, service
 from factory.ids import InvalidTaskId
 from factory.store import TaskNotFound
-from factory.task import TaskState
+from factory.task import InvalidTransition, TaskState
 from factory.textsafe import escape_control
 from factory.web.auth import session_cookie_name
 
@@ -89,7 +89,10 @@ async def _reject(request: Request) -> RedirectResponse | HTMLResponse:
     task, refusal = _load_task(request)
     if refusal:
         return refusal
-    approve_plan.reject_plan(task.id, request.app.state.store)
+    try:
+        approve_plan.reject_plan(task.id, request.app.state.store)
+    except InvalidTransition:
+        return _not_reviewed_page()
     return RedirectResponse(f"/ui/tasks/{quote(task.id, safe='')}", status_code=303)
 
 
