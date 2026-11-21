@@ -36,6 +36,13 @@ def test_server_host_defaults_to_loopback_and_comes_from_the_repo_config(repo_di
     assert load_settings(None, cwd=repo_dir).server_host == "0.0.0.0"
 
 
+def test_server_host_must_be_a_string(repo_dir):
+    (repo_dir / "factory.toml").write_text("server_host = 3\n")
+
+    with pytest.raises(SettingsError, match="wrong type for setting: server_host"):
+        load_settings(None, cwd=repo_dir)
+
+
 @pytest.mark.parametrize("value", ["localhost", "192.168.1.5", "", "::"])
 def test_server_host_other_than_the_two_bind_addresses_is_refused(repo_dir, value):
     (repo_dir / "factory.toml").write_text(f'server_host = "{value}"\n')
