@@ -54,6 +54,20 @@ def test_a_wide_bind_warns_on_stderr_before_it_starts_listening(ctx):
     assert out.getvalue().splitlines() == [f"serving on http://127.0.0.1:9001; token in {ctx.settings.state_dir / 'token'}"]
 
 
+def test_a_loopback_bind_writes_nothing_to_stderr(ctx):
+    code, _, err = serve(ctx)
+
+    assert code == 0 and err == ""
+
+
+def test_a_refused_wide_bind_does_not_warn(ctx):
+    from factory.lock import state_lock
+    with state_lock(ctx.settings.state_dir):
+        code, _, err = serve(ctx, "--host", "0.0.0.0")
+
+    assert code == 1 and "another factory run holds the lock" in err and "warning" not in err
+
+
 def test_the_host_flag_refuses_any_other_value_and_serves_nothing(ctx):
     code, out, err = serve(ctx, "--host", "example.com")
 
