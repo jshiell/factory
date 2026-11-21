@@ -59,6 +59,7 @@ One failing test (or one parametrized behaviour), the minimal change, one commit
 - Increment 8: the warning is printed after the `serving on` line, still inside the lock and before `ctx.serve`. The test asserts it is on stderr before `ctx.serve` is called; "after the lock" is covered by increment 9.
 - Increment 10 reads `ServerClient._http.base_url`, a private attribute, as there is no public accessor.
 - README line numbers in this plan were from another branch. On this one: the command table, the Server paragraph (`:114`), the per-repo prose list (`:168`) and the `server_port` example line (`:178`). A paragraph on the wide bind was added to the Server section; there is no Web UI section here.
+- Audit follow-up: this branch has no `/ui` (plans 69-72 are not merged here), so D8's `test_web_ui_guard.py:80` reference and the plan's `server.py:565` line number (it is `:476` here) do not apply on this branch, and the README no longer says the `Host` rule covers `/ui`. The rule covers `/ui` once the web UI branches merge.
 - New tests live in `tests/test_settings_server_host.py` and `tests/test_cli_serve_host.py`; no existing test was edited.
 
 ## Out of scope
