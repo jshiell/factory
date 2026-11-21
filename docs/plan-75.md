@@ -78,7 +78,8 @@ Surrogates or control characters in task ids (the detail page renders `task.id` 
 - If the reopen mechanism fails in a browser, the fallback is `location.reload()`: simple and resyncing, but it loses scroll position.
 
 ## Deviations
-Recorded after increment 9. Increment 11 (manual check) is **pending**; its results go here.
+Recorded after increment 9. Increment 11 (manual check) is done; see the first bullet below.
+- Manual check, 2026-11-21 (user; browser and version not recorded; the answers were short): 10 tabs mixing list and detail pages loaded fine; DevTools showed one stream per visible tab; a background-opened tab held no stream until shown; rapid switching showed no apparent duplicates; a hidden tab showed current state on return; stopping `serve` while a tab was hidden showed the banner on return; list, detail, Back and forward worked. The bfcache and `pageshow` path was not singled out, and whether the banner stayed hidden across a deliberate close was only implied by "looks correct". The connection-cap hang from plan 70 was not reproduced with more than 6 tabs, which is the point of this plan.
 - Increment 5: `GET /tasks` did not return 500 for a surrogate goal, because the list view omits the goal; the list case is tested with a surrogate in `failure_reason` instead. `GET /tasks/{id}` returning 500 was confirmed red.
 - Increment 6 passed on its first run, so it is a guard, but its test uses the file-based `TaskStore`, not the API client path (`factory show` through the server). The client decode of a `\ud800` escape is not covered end to end.
 - Increments 2 and 3 share one test file.
