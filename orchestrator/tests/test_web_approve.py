@@ -9,7 +9,7 @@ pytest_plugins = ["webfixtures"]
 
 TASK_ID = "20260102-030405"
 PLAN = "1. add the thing\n2. test it"
-FINDINGS = tuple(f"Recommend (required): note {i}" for i in range(MAX_ITEMS + 2)) + ("Recommend (optional): rename it",)
+FINDINGS = (*(f"Recommend (required): note {i}" for i in range(MAX_ITEMS + 2)), "Recommend (optional): rename it")
 
 
 def _reviewed(ctx, **fields):

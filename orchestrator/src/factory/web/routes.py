@@ -258,7 +258,11 @@ def _shown_digest(form: dict[str, list[str]]) -> str:
 
 
 async def _approve(request: Request) -> RedirectResponse | HTMLResponse:
-    task, _ = _load_task(request)
+    task, refusal = _load_task(request)
+    if refusal:
+        return refusal
+    if task.state is not TaskState.REVIEWED:  # before the body, so a wrong-state task posted a bad form gets the 409
+        return _not_reviewed_wrong_state_page()
     try:
         form = await _read_form(request)
         shown_digest = _shown_digest(form)
