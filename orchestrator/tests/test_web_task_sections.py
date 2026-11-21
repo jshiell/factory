@@ -60,6 +60,26 @@ def test_a_scalar_field_appears_when_set(client, ctx, fields, shown):
         assert text in page
 
 
+MARKUP = "<script>alert(1)</script>"
+ESCAPED_MARKUP = "&lt;script&gt;alert(1)&lt;/script&gt;"
+FREE_TEXT_FIELDS = {
+    "goal": MARKUP, "failure_reason": MARKUP, "plan": MARKUP, "plan_risks": (MARKUP,), "review_findings": (MARKUP,),
+    "audit_findings": (MARKUP,), "waived_findings": (MARKUP,), "retry_of": MARKUP, "worktree": MARKUP,
+    "plan_error": MARKUP, "review_error": MARKUP, "audit_error": MARKUP,
+    "open_questions": ({"number": 1, "title": MARKUP, "recommended": MARKUP},),
+}
+
+
+@pytest.mark.parametrize("field", FREE_TEXT_FIELDS)
+def test_guard_markup_in_a_free_text_field_is_escaped(client, ctx, field):
+    add(ctx, **{field: FREE_TEXT_FIELDS[field]})
+
+    page = client.get("/ui/tasks/20260102-030405").text
+
+    assert MARKUP not in page
+    assert ESCAPED_MARKUP in page
+
+
 @pytest.mark.parametrize("label", ABSENT_FOR_A_BARE_TASK)
 def test_guard_an_optional_section_is_absent_for_a_bare_task(client, ctx, label):
     add(ctx)
