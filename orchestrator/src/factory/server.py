@@ -486,17 +486,22 @@ _NOT_SIGNED_IN = HTMLResponse("<!doctype html><title>factory</title><p>not signe
 _FORBIDDEN_PAGE = HTMLResponse("<!doctype html><title>factory</title><p>forbidden: not a same-origin request</p>", status_code=403)
 
 
-def _is_same_origin_request(headers) -> bool:
-    return (headers.get("origin", "http://" + headers["host"]) == "http://" + headers["host"]
-            and headers.get("sec-fetch-site", "same-origin") in {"same-origin", "none"})
+_READ_METHODS = {"GET", "HEAD"}
+
+
+def _is_same_origin_request(method: str, headers) -> bool:
+    own_origin = "http://" + headers["host"]
+    # A read without Origin is a plain navigation; a write must name its origin (CSRF), so a missing one is refused.
+    origin = headers.get("origin", own_origin if method in _READ_METHODS else None)
+    return origin == own_origin and headers.get("sec-fetch-site", "same-origin") in {"same-origin", "none"}
 
 
 def _needs_session(path: str) -> bool:
     return path != "/ui/login" and not path.startswith("/ui/static/")
 
 
-def _ui_refusal(headers, path, sessions: Sessions):
-    if not _is_same_origin_request(headers):
+def _ui_refusal(method: str, headers, path, sessions: Sessions):
+    if not _is_same_origin_request(method, headers):
         return _FORBIDDEN_PAGE
     if _needs_session(path) and not _has_valid_session(headers, sessions):
         return _NOT_SIGNED_IN
@@ -546,17 +551,17 @@ class _Guard:
         headers = {name.decode("latin-1").lower(): value.decode("latin-1") for name, value in scope["headers"]}
         if _is_ui_path(scope["path"]):
             send = _with_ui_security_headers(send)
-        refusal = self._refusal(headers, scope["path"])
+        refusal = self._refusal(scope["method"], headers, scope["path"])
         if refusal:
             await refusal(scope, receive, send)
             return
         await self._app(scope, receive, send)
 
-    def _refusal(self, headers, path):
+    def _refusal(self, method, headers, path):
         if _host_name(headers.get("host", "")) not in _LOOPBACK_HOSTS:
             return JSONResponse({"error": "forbidden", "detail": "host must be loopback"}, status_code=403)
         if _is_ui_path(path):
-            return _ui_refusal(headers, path, self._app.state.sessions)
+            return _ui_refusal(method, headers, path, self._app.state.sessions)
         if "origin" in headers:
             return JSONResponse({"error": "forbidden", "detail": "browser requests are not accepted"}, status_code=403)
         scheme, _, presented = headers.get("authorization", "").partition(" ")
