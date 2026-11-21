@@ -43,6 +43,8 @@ async def _task_page(request: Request) -> HTMLResponse:
         task = request.app.state.store.load(request.path_params["task_id"])
     except (TaskNotFound, InvalidTaskId):
         return HTMLResponse(_TEMPLATES.get_template("task_missing.html").render(), status_code=404)
+    except (ValueError, KeyError, TypeError):  # the same errors `list` skips a row for
+        return HTMLResponse(_TEMPLATES.get_template("task_unreadable.html").render(), status_code=500)
     return HTMLResponse(_TEMPLATES.get_template("task.html").render(task=_task_detail(task)))
 
 

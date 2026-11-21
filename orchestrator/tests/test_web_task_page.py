@@ -2,6 +2,7 @@ from urllib.parse import unquote
 
 import pytest
 
+from factory.sqlite_db import transaction
 from factory.task import TaskState
 from webhelpers import add, assert_ui_security_headers
 
@@ -29,6 +30,20 @@ def test_a_missing_or_invalid_id_gives_a_404_in_the_layout_without_the_id(client
     assert '<a href="/ui/">' in response.text
     for echoed in (task_id, unquote(task_id), "<script>"):
         assert echoed not in response.text
+
+
+def test_an_unreadable_task_gives_an_html_unreadable_page_without_traceback_id_or_raw_data(client, ctx):
+    with transaction(ctx.settings.db_path) as conn:
+        conn.execute("INSERT INTO tasks (id, state, data) VALUES ('broken-one', 'queued', 'not json')")
+
+    response = client.get("/ui/tasks/broken-one")
+
+    assert response.status_code == 500
+    assert response.headers["content-type"].startswith("text/html")
+    assert "unreadable" in response.text
+    assert '<a href="/ui/">' in response.text
+    for leaked in ("Traceback", "not json", "broken-one", "JSONDecodeError"):
+        assert leaked not in response.text
 
 
 @pytest.mark.parametrize("task_id", ["a%2fb", "..%2fsecret", "a%2Fb"])
