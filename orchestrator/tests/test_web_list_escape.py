@@ -23,3 +23,12 @@ def test_a_failure_reason_with_control_characters_is_shown_escaped_and_a_missing
         assert "‮" not in html
         assert "gate\\x07failed\\u202e" in html
         assert "None" not in html
+
+
+def test_guard_a_goal_is_truncated_before_it_is_escaped(client, ctx):
+    add(ctx, goal="\x07" * 121)
+
+    page = client.get("/ui/").text
+
+    assert "\\x07" * 120 + "…" in page
+    assert "\\x07" * 121 not in page
