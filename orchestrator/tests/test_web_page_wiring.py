@@ -48,6 +48,13 @@ def test_ui_js_is_served_without_a_session_and_with_the_security_headers(client)
         assert hook in response.text
 
 
+def test_ui_js_closes_streams_when_the_tab_is_hidden(client):
+    script = client.get("/ui/static/ui.js").text
+
+    for hook in ("createEventSource", "visibilitychange"):
+        assert hook in script
+
+
 def test_ui_js_loads_after_the_banner_so_the_body_exists_when_it_runs(client):
     page = client.get("/ui/").text
 
