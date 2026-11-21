@@ -38,6 +38,22 @@ def test_serve_binds_the_configured_host_and_still_prints_the_loopback_url(ctx):
     assert out == f"serving on http://127.0.0.1:8765; token in {ctx.settings.state_dir / 'token'}\n"
 
 
+def test_a_wide_bind_warns_on_stderr_before_it_starts_listening(ctx):
+    out, err = io.StringIO(), io.StringIO()
+    heard_before_listening = []
+    ctx.serve = lambda app, host, port: heard_before_listening.append(err.getvalue())
+
+    main(["serve", "--host", "0.0.0.0", "--port", "9001"], IO(io.StringIO(), out, err), ctx)
+
+    warning = (
+        "warning: bound to 0.0.0.0, so port 9001 is reachable from the network; "
+        "requests whose Host is not loopback are still refused (403)\n"
+    )
+    assert err.getvalue() == warning
+    assert heard_before_listening == [warning]
+    assert out.getvalue().splitlines() == [f"serving on http://127.0.0.1:9001; token in {ctx.settings.state_dir / 'token'}"]
+
+
 def test_the_host_flag_refuses_any_other_value_and_serves_nothing(ctx):
     code, out, err = serve(ctx, "--host", "example.com")
 

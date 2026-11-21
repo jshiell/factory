@@ -57,6 +57,12 @@ def _serve(args, io, ctx) -> int:
             _print_reaped(reaped.killed, reaped.discarded, io)
             print(f"serving on http://127.0.0.1:{port}; token in {ctx.settings.state_dir / 'token'}", file=io.stdout)
             io.stdout.flush()
+            if host != "127.0.0.1":
+                print(
+                    f"warning: bound to {host}, so port {port} is reachable from the network; "
+                    "requests whose Host is not loopback are still refused (403)",
+                    file=io.stderr,
+                )
             ctx.serve(create_secured_app(ctx, token), host, port)
     except (StartRefused, TokenFileUnsafe) as refused:
         print(escape_control(str(refused)), file=io.stderr)
