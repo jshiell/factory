@@ -1,6 +1,7 @@
 import asyncio
+from contextlib import aclosing
 from pathlib import Path
-from urllib.parse import parse_qsl, quote
+from urllib.parse import parse_qs, quote
 
 import jinja2
 from starlette.requests import Request
@@ -137,23 +138,83 @@ async def _answer_page(request: Request) -> HTMLResponse:
     return HTMLResponse(_TEMPLATES.get_template("answer.html").render(task=_answer_page_detail(task)))
 
 
-async def _read_form(request: Request) -> dict[str, str]:
-    return dict(parse_qsl((await request.body()).decode(), keep_blank_values=True))
+# Above 3 x MAX_ANSWER_BYTES, as percent-encoding triples each non-ASCII byte, so the answer-size 422 stays reachable.
+_FORM_CAP_BYTES = 64 * 1024
+_MAX_FORM_FIELDS = 32  # a round and at most 10 answers, with room to spare
+_FORM_TYPE = "application/x-www-form-urlencoded"
 
 
-def _answer_text(task, form: dict[str, str]) -> str:
+class _BadForm(Exception):
+    """The posted form is not one the UI's own pages send."""
+
+
+def _bad_form_page() -> HTMLResponse:
+    return HTMLResponse(_TEMPLATES.get_template("form_rejected.html").render(), status_code=422)
+
+
+async def _read_capped_body(request: Request) -> bytes:
+    """The body, refused as soon as it passes the cap: Content-Length is not trusted and the rest is never read."""
+    chunks, size = [], 0
+    async with aclosing(request.stream()) as stream:
+        async for chunk in stream:
+            size += len(chunk)
+            if size > _FORM_CAP_BYTES:
+                raise _BadForm
+            chunks.append(chunk)
+    return b"".join(chunks)
+
+
+async def _read_form(request: Request) -> dict[str, list[str]]:
+    """The urlencoded form, every value of every field; anything a browser would not send from the UI's pages is a _BadForm."""
+    if request.headers.get("content-type", "").split(";", 1)[0].strip().lower() != _FORM_TYPE:
+        raise _BadForm
+    body = await _read_capped_body(request)
+    try:  # UnicodeDecodeError and parse_qs's too-many-fields error are both ValueErrors
+        return parse_qs(body.decode("ascii"), keep_blank_values=True, encoding="utf-8", errors="replace",
+                        max_num_fields=_MAX_FORM_FIELDS)
+    except ValueError:
+        raise _BadForm from None
+
+
+def _single(form: dict[str, list[str]], name: str) -> str | None:
+    """The field's one value, None when absent; a repeated field is ambiguous, so it is refused."""
+    values = form.get(name)
+    if values is not None and len(values) != 1:
+        raise _BadForm
+    return values[0] if values else None
+
+
+def _round(form: dict[str, list[str]]) -> int:
+    value = _single(form, "round")
+    # isdigit alone admits superscript and fullwidth digits; int() alone admits ' 2', '+2' and '0_2', and refuses past 4300 digits with a ValueError.
+    if value is None or not (value.isascii() and value.isdigit()):
+        raise _BadForm
+    try:
+        return int(value)
+    except ValueError:
+        raise _BadForm from None
+
+
+def _answer_text(task, form: dict[str, list[str]]) -> str:
     """One `N. text` line per stored question, in order; a blank or missing field takes the default."""
     lines = []
     for index, question in enumerate(task.open_questions):
-        typed = " ".join(form.get(f"q{index}", "").split())
+        typed = " ".join((_single(form, f"q{index}") or "").split())
         lines.append(f"{question['number']}. {typed or _default_answer(question)}")
     return "\n".join(lines)
 
 
-async def _answer(request: Request) -> RedirectResponse:
-    task, _ = _load_task(request)
-    form = await _read_form(request)
-    answer_questions.answer_questions(task.id, request.app.state.store, int(form["round"]), _answer_text(task, form))
+async def _answer(request: Request) -> RedirectResponse | HTMLResponse:
+    task, refusal = _load_task(request)
+    if refusal:
+        return refusal
+    if task.state is not TaskState.OPEN_QUESTIONS:  # before the body, so a wrong-state task posted a bad form gets the 409
+        return _no_open_questions_page()
+    try:
+        form = await _read_form(request)
+        answer_questions.answer_questions(task.id, request.app.state.store, _round(form), _answer_text(task, form))
+    except (_BadForm, answer_questions.AnswerRejected):  # AnswerRejected is a ValueError: keep it ahead of any _UNREADABLE
+        return _bad_form_page()
     return RedirectResponse(f"/ui/tasks/{quote(task.id, safe='')}", status_code=303)
 
 
