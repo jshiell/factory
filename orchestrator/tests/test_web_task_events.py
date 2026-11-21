@@ -154,3 +154,22 @@ def test_a_clean_style_save_without_a_worktree_drops_the_worktree_section(client
     assert "data: <p>branch: factory/20260102-030405</p>" in first
     assert second[0] == "event: task"
     assert not any("worktree" in line or "branch" in line for line in second)
+
+
+def test_a_write_landing_during_the_first_render_still_sends_the_new_state(client, ctx, monkeypatch):
+    add(ctx, state=TaskState.QUEUED)
+    load, loads = ctx.store.load, []
+
+    def load_then_write(task_id):
+        task = load(task_id)
+        loads.append(task_id)
+        if len(loads) == 2:  # the first render, after the route's own check: write once the old row is read
+            add(ctx, state=TaskState.FAILED)
+        return task
+
+    monkeypatch.setattr(ctx.store, "load", load_then_write)
+
+    _, (first, second) = read_events(client, EVENTS, count=2)
+
+    assert any("state: queued" in line for line in first)
+    assert any("state: failed" in line for line in second)
