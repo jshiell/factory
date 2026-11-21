@@ -62,7 +62,8 @@ One failing test, minimal change, one commit each. "Guard" = earlier code alread
 14. **Gate.** `cd orchestrator && uv run ruff check`, `uv run pytest -q -n auto`; run `verify`; run `audit-commits` against this plan.
 
 ## Deviations
-Recorded after increment 13; increment 12 (manual check) has not been run, so every browser-dependent claim in D6, D7 and the README stays unverified.
+Recorded after increment 13.
+- Increment 12 (manual check) was run by the user from a second machine over plain HTTP, against a throwaway sample repo (`server_host = "0.0.0.0"`, one allowed IPv4). Reported: rejecting a plan worked; the request headers looked as expected (real `Origin`, no `Sec-Fetch-*`); a different Host got 403. That confirms D6 for the one browser used. Not reported, so still unverified: the session cookie being set, the live list, `Secure` cookies being refused over plain HTTP, `/ui` assets (CORP) on a non-secure origin, and the login `?code=` referrer behaviour. Browser and version were not recorded.
 - Increments 3, 6, 7, 9 and the second commit of 10 passed on their first run, so they are guards, as planned.
 - Increment 2: the reason texts are the implementer's wording, and the host-name regex also accepts things like `1.2.3` (stricter than a name, looser than IPv4).
 - `_Guard` takes `allowed_hosts` as a required argument.
@@ -84,4 +85,4 @@ TLS and the `Secure` flag; HTTPS-terminating proxies and `X-Forwarded-*`; IPv6 h
 - Remote reads lose the Fetch Metadata refusals (a missing `Sec-Fetch-Site` counts as same-origin). Any other service on the same host name (any port) is same-site and receives the `Path=/ui` cookie on its own `/ui` paths. Writes keep the exact-Origin rule.
 - `Referrer-Policy: same-origin` still sends the full URL (with a login `?code=`) as a referrer to same-origin requests only; the code is single-use and short-lived (plan 69/72 behaviour, not re-verified here).
 - A repo config can leave the list on; the warning shows at every start.
-- Browser behaviours are unverified until increment 12.
+- Browser behaviours beyond the single manual check (see Deviations) are unverified.
