@@ -10,10 +10,13 @@ from starlette.routing import Mount, Route
 from starlette.staticfiles import StaticFiles
 
 from factory import answer_questions, approve_plan, service
+from factory.digest import plan_digest
 from factory.ids import InvalidTaskId
+from factory.review_notes import capped_findings, dropped_required_warning
 from factory.store import TaskNotFound
 from factory.task import InvalidTransition, TaskState
 from factory.textsafe import escape_control
+from factory.waiver import note_lines
 from factory.web.auth import session_cookie_name
 
 _TEMPLATES = jinja2.Environment(loader=jinja2.FileSystemLoader(Path(__file__).parent / "templates"), autoescape=True)
@@ -226,6 +229,27 @@ async def _answer(request: Request) -> RedirectResponse | HTMLResponse:
     return RedirectResponse(f"/ui/tasks/{quote(task.id, safe='')}", status_code=303)
 
 
+def _approve_page_detail(task) -> dict:
+    """What the CLI preview shows: the capped findings with required notes numbered, and the dropped-required warning."""
+    lines, _ = note_lines(capped_findings(task.review_findings))
+    return {"id": task.id, "goal": _safe(task.goal if task.goal is not None else task.prompt), "plan": _safe(task.plan),
+            "risks": [_safe(risk) for risk in task.plan_risks], "findings": _safe("\n".join(lines)),
+            "warning": _safe(dropped_required_warning(task.review_findings)), "plan_digest": plan_digest(task.plan)}
+
+
+def _not_reviewed_wrong_state_page() -> HTMLResponse:
+    return _wrong_state_page("That task is not waiting for a plan review, so its plan cannot be approved.")
+
+
+async def _approve_page(request: Request) -> HTMLResponse:
+    task, refusal = _load_task(request)
+    if refusal:
+        return refusal
+    if task.state is not TaskState.REVIEWED:
+        return _not_reviewed_wrong_state_page()
+    return HTMLResponse(_TEMPLATES.get_template("approve.html").render(task=_approve_page_detail(task)))
+
+
 def _render_task(task) -> str:
     return _TEMPLATES.get_template("_task.html").render(task=_task_detail(task))
 
@@ -340,5 +364,6 @@ def ui_routes() -> list[Route | Mount]:
             Route("/ui/tasks/{task_id}/reject", _reject, methods=["POST"]),
             Route("/ui/tasks/{task_id}/answer", _answer_page, methods=["GET"]),
             Route("/ui/tasks/{task_id}/answer", _answer, methods=["POST"]),
+            Route("/ui/tasks/{task_id}/approve", _approve_page, methods=["GET"]),
             Route("/ui/tasks/{task_id}/events", _task_events, methods=["GET"]),
             Route("/ui/login", _login, methods=["GET"]), Mount("/ui/static", StaticFiles(directory=STATIC_DIR))]
