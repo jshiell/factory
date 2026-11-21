@@ -10,6 +10,7 @@ from contextlib import asynccontextmanager, contextmanager
 from dataclasses import asdict
 from http.cookies import SimpleCookie
 from pathlib import Path
+from typing import Any
 
 from starlette.applications import Starlette
 from starlette.requests import Request
@@ -63,17 +64,24 @@ from factory.web.stopping import StopRequest
 from factory.worktrees import WorktreeManager
 
 
+class AsciiJSONResponse(JSONResponse):
+    """JSON with every non-ASCII character escaped, so a lone surrogate in stored text cannot break UTF-8 encoding."""
+
+    def render(self, content: Any) -> bytes:
+        return json.dumps(content, ensure_ascii=True, allow_nan=False, indent=None, separators=(",", ":")).encode("utf-8")
+
+
 class ApiError(Exception):
     def __init__(self, status: int, error: str, detail: str):
         self.status, self.error, self.detail = status, error, detail
 
 
-def _error_response(request: Request, error: ApiError) -> JSONResponse:
-    return JSONResponse({"error": error.error, "detail": error.detail}, status_code=error.status)
+def _error_response(request: Request, error: ApiError) -> AsciiJSONResponse:
+    return AsciiJSONResponse({"error": error.error, "detail": error.detail}, status_code=error.status)
 
 
-def _unknown_task(request: Request, error: Exception) -> JSONResponse:
-    return JSONResponse({"error": "unknown task", "detail": str(error)}, status_code=404)
+def _unknown_task(request: Request, error: Exception) -> AsciiJSONResponse:
+    return AsciiJSONResponse({"error": "unknown task", "detail": str(error)}, status_code=404)
 
 
 async def _json_object(request: Request) -> dict:
@@ -93,8 +101,8 @@ def _string_list(body: dict, key: str) -> tuple[str, ...]:
     return tuple(value)
 
 
-def _not_reviewed(request: Request, error: Exception) -> JSONResponse:
-    return JSONResponse({"error": "wrong state", "detail": str(error)}, status_code=409)
+def _not_reviewed(request: Request, error: Exception) -> AsciiJSONResponse:
+    return AsciiJSONResponse({"error": "wrong state", "detail": str(error)}, status_code=409)
 
 
 def _required_string(body: dict, key: str) -> str:
@@ -108,8 +116,8 @@ def _job_json(job: Job) -> dict:
     return asdict(job)
 
 
-def _unknown_job(request: Request, error: Exception) -> JSONResponse:
-    return JSONResponse({"error": "unknown job", "detail": str(error)}, status_code=404)
+def _unknown_job(request: Request, error: Exception) -> AsciiJSONResponse:
+    return AsciiJSONResponse({"error": "unknown job", "detail": str(error)}, status_code=404)
 
 
 def _advance_result_json(result) -> dict:
@@ -160,7 +168,7 @@ def _build_app(ctx) -> Starlette:
         finally:
             runner.stop()
 
-    async def create_task(request: Request) -> JSONResponse:
+    async def create_task(request: Request) -> AsciiJSONResponse:
         body = await _json_object(request)
         goal = _required_string(body, "goal")
         try:
@@ -173,58 +181,58 @@ def _build_app(ctx) -> Starlette:
         if not isinstance(grill, bool):
             raise ApiError(422, "invalid input", "grill must be true or false")
         task = service.create_task(ctx.store, ctx.clock, goal, grill)
-        return JSONResponse({"id": task.id}, status_code=201)
+        return AsciiJSONResponse({"id": task.id}, status_code=201)
 
-    async def list_tasks(request: Request) -> JSONResponse:
+    async def list_tasks(request: Request) -> AsciiJSONResponse:
         listing = service.list_tasks(ctx.store)
         tasks = [{"id": t.id, "state": t.state.value, "failure_reason": t.failure_reason} for t in listing.tasks]
-        return JSONResponse({"tasks": tasks, "skipped": listing.skipped})
+        return AsciiJSONResponse({"tasks": tasks, "skipped": listing.skipped})
 
-    async def show_task(request: Request) -> JSONResponse:
-        return JSONResponse(task_to_dict(service.get_task(ctx.store, request.path_params["task_id"])))
+    async def show_task(request: Request) -> AsciiJSONResponse:
+        return AsciiJSONResponse(task_to_dict(service.get_task(ctx.store, request.path_params["task_id"])))
 
-    async def costs(request: Request) -> JSONResponse:
+    async def costs(request: Request) -> AsciiJSONResponse:
         report = service.cost_report(ctx.store, ctx.ledger, request.query_params.get("task_id"))
-        return JSONResponse(report._asdict())
+        return AsciiJSONResponse(report._asdict())
 
-    async def advance_task(request: Request) -> JSONResponse:
+    async def advance_task(request: Request) -> AsciiJSONResponse:
         task_id = request.path_params["task_id"]
         service.get_task(ctx.store, task_id)
         job = runner.submit("advance", task_id, lambda: _advance_result_json(advance(task_id, ctx.store, ctx.stages)))
-        return JSONResponse({"job": _job_json(job)}, status_code=202)
+        return AsciiJSONResponse({"job": _job_json(job)}, status_code=202)
 
-    def enqueue(request: Request, kind: str, refused, run_for, to_json=_task_result_json) -> JSONResponse:
+    def enqueue(request: Request, kind: str, refused, run_for, to_json=_task_result_json) -> AsciiJSONResponse:
         """Queue `kind` for the path's task (404 now if unknown); the domain's refusal ends the job as failed."""
         task_id = request.path_params["task_id"]
         service.get_task(ctx.store, task_id)
         run = _refusal_as(kind, refused, lambda: to_json(run_for(task_id)))
-        return JSONResponse({"job": _job_json(runner.submit(kind, task_id, run))}, status_code=202)
+        return AsciiJSONResponse({"job": _job_json(runner.submit(kind, task_id, run))}, status_code=202)
 
-    async def abandon(request: Request) -> JSONResponse:
+    async def abandon(request: Request) -> AsciiJSONResponse:
         return enqueue(request, "abandon", AbandonRefused, lambda task_id: abandon_task(task_id, ctx.store))
 
-    async def recover(request: Request) -> JSONResponse:
+    async def recover(request: Request) -> AsciiJSONResponse:
         return enqueue(request, "recover", RecoverRefused, lambda task_id: recover_task(
             task_id, ctx.store, ctx.ledger, ctx.settings.budget_usd))
 
-    async def rebase(request: Request) -> JSONResponse:
+    async def rebase(request: Request) -> AsciiJSONResponse:
         return enqueue(
             request, "rebase", (RebaseRefused, InvalidTransition, subprocess.CalledProcessError),
             lambda task_id: rebase_task(task_id, ctx.store, ctx.settings.repo, ctx.settings.main_branch),
             lambda rebased: {**_task_result_json(rebased.task), "old_audited_sha": rebased.old_audited_sha})
 
-    async def approval_preview(request: Request) -> JSONResponse:
+    async def approval_preview(request: Request) -> AsciiJSONResponse:
         task = service.get_task(ctx.store, request.path_params["task_id"])
         if task.state is not TaskState.REVIEWED:
             raise service.NotReviewed(task)
         shown = capped_findings(task.review_findings)
-        return JSONResponse({
+        return AsciiJSONResponse({
             "goal": task.goal, "plan": task.plan, "risks": list(task.plan_risks), "review_findings": list(shown),
             "required": note_lines(shown)[1], "plan_digest": plan_digest(task.plan),
             "warning": dropped_required_warning(task.review_findings),
         })
 
-    async def approve(request: Request) -> JSONResponse:
+    async def approve(request: Request) -> AsciiJSONResponse:
         task = service.get_task(ctx.store, request.path_params["task_id"])
         body = await _json_object(request)
         shown_digest = _required_string(body, "plan_digest")
@@ -236,15 +244,15 @@ def _build_app(ctx) -> Starlette:
             raise ApiError(422, "invalid waiver", str(error)) from None
         except service.PlanChanged as error:
             raise ApiError(409, "plan changed", str(error)) from None
-        return JSONResponse({"id": approved.id, "state": approved.state.value})
+        return AsciiJSONResponse({"id": approved.id, "state": approved.state.value})
 
-    async def questions(request: Request) -> JSONResponse:
+    async def questions(request: Request) -> AsciiJSONResponse:
         task = service.get_task(ctx.store, request.path_params["task_id"])
         if task.state is not TaskState.OPEN_QUESTIONS:
             raise ApiError(409, "wrong state", f"{task.id} is {task.state.value}, not open_questions")
-        return JSONResponse({"round": task.grill_rounds, "questions": list(task.open_questions)})
+        return AsciiJSONResponse({"round": task.grill_rounds, "questions": list(task.open_questions)})
 
-    async def answer(request: Request) -> JSONResponse:
+    async def answer(request: Request) -> AsciiJSONResponse:
         task = service.get_task(ctx.store, request.path_params["task_id"])
         body = await _json_object(request)
         round_number = body.get("round")
@@ -259,23 +267,23 @@ def _build_app(ctx) -> Starlette:
             raise ApiError(409, "wrong state", str(error)) from None
         except RoundChanged as error:
             raise ApiError(409, "round changed", str(error)) from None
-        return JSONResponse({"id": answered.id, "state": answered.state.value})
+        return AsciiJSONResponse({"id": answered.id, "state": answered.state.value})
 
-    async def reject(request: Request) -> JSONResponse:
+    async def reject(request: Request) -> AsciiJSONResponse:
         task = service.reject_plan(ctx.store, request.path_params["task_id"])
-        return JSONResponse({"id": task.id, "state": ctx.store.load(task.id).state.value})
+        return AsciiJSONResponse({"id": task.id, "state": ctx.store.load(task.id).state.value})
 
-    async def merge_preview_view(request: Request) -> JSONResponse:
+    async def merge_preview_view(request: Request) -> AsciiJSONResponse:
         task_id = request.path_params["task_id"]
         service.get_task(ctx.store, task_id)
         try:
             preview = merge_preview(task_id, ctx.store, ctx.settings.repo, ctx.settings.main_branch)
         except (MergeRefused, InvalidTransition, subprocess.CalledProcessError) as error:
             raise ApiError(409, "merge refused", str(error)) from None
-        return JSONResponse({"branch": preview.branch, "audited_sha": preview.task.audited_sha,
+        return AsciiJSONResponse({"branch": preview.branch, "audited_sha": preview.task.audited_sha,
                              "diffstat": preview.diffstat, "findings": list(preview.findings)})
 
-    async def merge(request: Request) -> JSONResponse:
+    async def merge(request: Request) -> AsciiJSONResponse:
         task = service.get_task(ctx.store, request.path_params["task_id"])
         shown_sha = _required_string(await _json_object(request), "audited_sha")
         if shown_sha != task.audited_sha:
@@ -296,10 +304,10 @@ def _build_app(ctx) -> Starlette:
             raise ApiError(409, "retry refused", str(error)) from None
         return task
 
-    async def retry_preview(request: Request) -> JSONResponse:
+    async def retry_preview(request: Request) -> AsciiJSONResponse:
         task = keepable_task(request.path_params["task_id"])
         shown = capped_findings(task.review_findings)
-        return JSONResponse({
+        return AsciiJSONResponse({
             "state": task.state.value, "goal": task.goal, "plan": task.plan, "risks": list(task.plan_risks),
             "review_findings": list(shown), "required": note_lines(shown)[1], "plan_digest": plan_digest(task.plan),
             "waived_findings": list(task.waived_findings), "audit_gaps": list(gaps_to_carry(task)),
@@ -307,7 +315,7 @@ def _build_app(ctx) -> Starlette:
             "warning": dropped_required_warning(task.review_findings),
         })
 
-    async def retry(request: Request) -> JSONResponse:
+    async def retry(request: Request) -> AsciiJSONResponse:
         task_id = request.path_params["task_id"]
         service.get_task(ctx.store, task_id)
         body = await _json_object(request) if await request.body() else {}
@@ -325,7 +333,7 @@ def _build_app(ctx) -> Starlette:
             raise ApiError(422, "invalid waiver", str(error)) from None
         except RetryRefused as error:
             raise ApiError(409, "retry refused", str(error)) from None
-        return JSONResponse({"id": new.id}, status_code=201)
+        return AsciiJSONResponse({"id": new.id}, status_code=201)
 
     def clean_scan():
         settings = ctx.settings
@@ -341,10 +349,10 @@ def _build_app(ctx) -> Starlette:
         view["token"] = hashlib.sha256(json.dumps(view, sort_keys=True).encode()).hexdigest()
         return view
 
-    async def clean_preview(request: Request) -> JSONResponse:
-        return JSONResponse(clean_view(*clean_scan()))
+    async def clean_preview(request: Request) -> AsciiJSONResponse:
+        return AsciiJSONResponse(clean_view(*clean_scan()))
 
-    async def clean(request: Request) -> JSONResponse:
+    async def clean(request: Request) -> AsciiJSONResponse:
         shown_token = _required_string(await _json_object(request), "token")
         if clean_view(*clean_scan())["token"] != shown_token:
             raise ApiError(409, "clean refused", "what would be cleaned changed since the preview")
@@ -359,9 +367,9 @@ def _build_app(ctx) -> Starlette:
             outcomes += remove_orphan_caches(ctx.store, settings.gate_cache_dir, scan.orphans)
             return {"outcomes": [{"task_id": o.task_id, "done": o.done, "problems": o.problems} for o in outcomes]}
 
-        return JSONResponse({"job": _job_json(runner.submit("clean", None, clean_now))}, status_code=202)
+        return AsciiJSONResponse({"job": _job_json(runner.submit("clean", None, clean_now))}, status_code=202)
 
-    async def eval_audit(request: Request) -> JSONResponse:
+    async def eval_audit(request: Request) -> AsciiJSONResponse:
         body = await _json_object(request)
         runs, max_usd, only = body.get("runs", 3), body.get("max_usd", 6.0), body.get("only")
         if isinstance(runs, bool) or not isinstance(runs, int) or runs <= 0:
@@ -403,17 +411,17 @@ def _build_app(ctx) -> Starlette:
                     "report": render(records, cases)}
 
         job = runner.submit("eval-audit", None, eval_now)
-        return JSONResponse({"job": _job_json(job), "eval_dir": str(eval_dir)}, status_code=202)
+        return AsciiJSONResponse({"job": _job_json(job), "eval_dir": str(eval_dir)}, status_code=202)
 
-    async def list_jobs(request: Request) -> JSONResponse:
-        return JSONResponse({"jobs": [_job_json(job) for job in jobs.list()]})
+    async def list_jobs(request: Request) -> AsciiJSONResponse:
+        return AsciiJSONResponse({"jobs": [_job_json(job) for job in jobs.list()]})
 
-    async def show_job(request: Request) -> JSONResponse:
-        return JSONResponse(_job_json(jobs.get(request.path_params["job_id"])))
+    async def show_job(request: Request) -> AsciiJSONResponse:
+        return AsciiJSONResponse(_job_json(jobs.get(request.path_params["job_id"])))
 
-    async def ui_login_code(request: Request) -> JSONResponse:
+    async def ui_login_code(request: Request) -> AsciiJSONResponse:
         code = request.app.state.login_codes.issue()
-        return JSONResponse({"url": f"http://{request.headers['host']}/ui/login?code={code}"})
+        return AsciiJSONResponse({"url": f"http://{request.headers['host']}/ui/login?code={code}"})
 
     app = Starlette(
         lifespan=lifespan,
@@ -566,15 +574,15 @@ class _Guard:
 
     def _refusal(self, method, headers, path):
         if _host_name(headers.get("host", "")) not in self._accepted_hosts:
-            return JSONResponse({"error": "forbidden", "detail": "host must be loopback or in server_allowed_hosts"},
+            return AsciiJSONResponse({"error": "forbidden", "detail": "host must be loopback or in server_allowed_hosts"},
                                 status_code=403)
         if _is_ui_path(path):
             return _ui_refusal(method, headers, path, self._app.state.sessions)
         if "origin" in headers:
-            return JSONResponse({"error": "forbidden", "detail": "browser requests are not accepted"}, status_code=403)
+            return AsciiJSONResponse({"error": "forbidden", "detail": "browser requests are not accepted"}, status_code=403)
         scheme, _, presented = headers.get("authorization", "").partition(" ")
         if scheme != "Bearer" or not presented or not secrets.compare_digest(presented.encode(), self._token.encode()):
-            return JSONResponse({"error": "unauthorized", "detail": "bearer token required"}, status_code=401,
+            return AsciiJSONResponse({"error": "unauthorized", "detail": "bearer token required"}, status_code=401,
                                 headers={"WWW-Authenticate": "Bearer"})
         return None
 
