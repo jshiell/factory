@@ -50,7 +50,7 @@ def _serve(args, io, ctx) -> int:
         load_or_create_token,
     )
     port = args.port if args.port is not None else ctx.settings.server_port
-    host = ctx.settings.server_host
+    host = args.host or ctx.settings.server_host
     try:
         token = load_or_create_token(ctx.settings.state_dir)
         with claim_state_dir(ctx) as reaped:

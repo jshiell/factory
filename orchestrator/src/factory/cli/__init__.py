@@ -33,7 +33,7 @@ from factory.client import ServerClient, ServerRefused, ServerUnreachable
 from factory.gate import check_gate
 from factory.ids import InvalidTaskId
 from factory.init_config import init_global_config
-from factory.settings import Settings, SettingsError, load_settings
+from factory.settings import BIND_HOSTS, Settings, SettingsError, load_settings
 from factory.sqlite_ledger import SqliteLedger
 from factory.sqlite_process_records import SqliteProcessRecords
 from factory.sqlite_store import SqliteTaskStore
@@ -78,6 +78,7 @@ def _parser() -> argparse.ArgumentParser:
     commands.add_parser("clone").add_argument("repository")
     serve = commands.add_parser("serve")
     serve.add_argument("--port", type=int)
+    serve.add_argument("--host", choices=BIND_HOSTS)
     commands.add_parser("ui", help="Print a one-time link that logs a browser into the web UI")
     commands.add_parser("costs").add_argument("task_id", nargs="?")
     watch = commands.add_parser("watch")
