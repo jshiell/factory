@@ -132,3 +132,13 @@ def test_this_tasks_save_sends_the_new_state_as_the_next_event(client, ctx):
     assert any("state: queued" in line for line in first)
     assert second[0] == "event: task"
     assert any("state: failed" in line for line in second)
+
+
+def test_another_tasks_save_sends_no_event_and_the_next_frame_is_a_keepalive(client, ctx):
+    add(ctx)
+    client.app.state.keepalive_seconds = 0.2
+
+    _, (first, second) = read_events(client, EVENTS, count=2, after_first_event=lambda: add(ctx, "20260102-999999"))
+
+    assert first[0] == "event: task"
+    assert second == [": keepalive"]

@@ -100,14 +100,17 @@ async def _first_of(waits, timeout: float):
 
 
 def _stream(request: Request, render) -> StreamingResponse:
-    """Send `render()` (an SSE event) now and after every store change, with keepalives between, until a stop."""
+    """Send `render()` (an SSE event, or None for nothing new) now and after every store change, with keepalives
+    between, until a stop."""
     state = request.app.state
     changes, stopping = state.changes, state.stopping
 
     async def stream():
         while not stopping.is_requested():
             version = changes.version  # before rendering, so a write during the render sends another event
-            yield render()
+            event = render()
+            if event is not None:
+                yield event
             while True:
                 changed, stopped = await _first_of((changes.wait_past(version), stopping.wait()), state.keepalive_seconds)
                 if stopped:
@@ -129,7 +132,23 @@ async def _task_events(request: Request) -> StreamingResponse | HTMLResponse:
     if refusal:
         return refusal
     store, task_id = request.app.state.store, request.path_params["task_id"]
-    return _stream(request, lambda: _event("task", _render_task(store.load(task_id))))
+    return _stream(request, _unless_unchanged(lambda: _event("task", _render_task(store.load(task_id)))))
+
+
+def _unless_unchanged(render):
+    """`render`, but None when it gives what it gave last time: any store write wakes the stream, and resending
+    an unchanged fragment would reset the reader's selection and scroll."""
+    last = None
+
+    def render_if_changed():
+        nonlocal last
+        event = render()
+        if event == last:
+            return None
+        last = event
+        return event
+
+    return render_if_changed
 
 
 async def _ui_without_slash(request: Request) -> RedirectResponse:
