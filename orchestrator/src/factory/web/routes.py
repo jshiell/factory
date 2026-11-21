@@ -217,6 +217,8 @@ async def _answer(request: Request) -> RedirectResponse | HTMLResponse:
         return _bad_form_page()
     except answer_questions.RoundChanged:
         return _wrong_state_page("The questions changed since you opened this page. Open the task again to see the new ones.")
+    except InvalidTransition:  # the task left open_questions between the load above and the one inside answer_questions
+        return _no_open_questions_page()
     except (TaskNotFound, InvalidTaskId):  # the task went between the load above and the one inside answer_questions
         return _missing_page()
     except _UNREADABLE:
