@@ -71,9 +71,17 @@ async def _task_page(request: Request) -> HTMLResponse:
     return refusal or HTMLResponse(_TEMPLATES.get_template("task.html").render(task=_task_detail(task)))
 
 
+def _not_reviewed_page() -> HTMLResponse:
+    return HTMLResponse(_TEMPLATES.get_template("task_not_reviewed.html").render(), status_code=409)
+
+
 async def _reject_page(request: Request) -> HTMLResponse:
     task, refusal = _load_task(request)
-    return refusal or HTMLResponse(_TEMPLATES.get_template("reject.html").render(task=_task_detail(task)))
+    if refusal:
+        return refusal
+    if task.state is not TaskState.REVIEWED:
+        return _not_reviewed_page()
+    return HTMLResponse(_TEMPLATES.get_template("reject.html").render(task=_task_detail(task)))
 
 
 def _render_task(task) -> str:
