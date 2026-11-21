@@ -4,6 +4,10 @@
 {% if task.failure_reason %}
 <p>failure: {{ task.failure_reason }}</p>
 {% endif %}
+{% if task.plan %}
+<h3>plan</h3>
+<pre>{{ task.plan }}</pre>
+{% endif %}
 {% for label, items in task.lists %}
 <h3>{{ label }}</h3>
 <ul>

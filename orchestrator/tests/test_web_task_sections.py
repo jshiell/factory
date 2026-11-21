@@ -20,6 +20,14 @@ def test_a_list_section_appears_with_its_items(client, ctx, label, field):
     assert "<li>first item</li>" in page and "<li>second item</li>" in page
 
 
+def test_the_plan_appears_in_a_pre_block(client, ctx):
+    add(ctx, plan="step one\n  step two")
+
+    page = client.get("/ui/tasks/20260102-030405").text
+
+    assert "<pre>step one\n  step two</pre>" in page
+
+
 @pytest.mark.parametrize("label", ABSENT_FOR_A_BARE_TASK)
 def test_guard_an_optional_section_is_absent_for_a_bare_task(client, ctx, label):
     add(ctx)
