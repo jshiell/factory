@@ -217,6 +217,10 @@ async def _answer(request: Request) -> RedirectResponse | HTMLResponse:
         return _bad_form_page()
     except answer_questions.RoundChanged:
         return _wrong_state_page("The questions changed since you opened this page. Open the task again to see the new ones.")
+    except (TaskNotFound, InvalidTaskId):  # the task went between the load above and the one inside answer_questions
+        return _missing_page()
+    except _UNREADABLE:
+        return _unreadable_page()
     return RedirectResponse(f"/ui/tasks/{quote(task.id, safe='')}", status_code=303)
 
 
