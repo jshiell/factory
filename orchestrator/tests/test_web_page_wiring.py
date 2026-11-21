@@ -46,3 +46,9 @@ def test_ui_js_is_served_without_a_session_and_with_the_security_headers(client)
     assert response.headers["cache-control"] == "no-store"
     for hook in ("htmx:sseError", "htmx:sseOpen", "disconnected"):
         assert hook in response.text
+
+
+def test_ui_js_loads_after_the_banner_so_the_body_exists_when_it_runs(client):
+    page = client.get("/ui/").text
+
+    assert page.index('<script src="/ui/static/ui.js">') > page.index('id="disconnected"')
