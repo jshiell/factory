@@ -78,7 +78,7 @@ Actions (answer, approve, reject, merge, retry, advance), a spend section (D2), 
 - Anything the plan marks unverified above is untested until the manual browser check.
 
 ## Deviations (recorded after implementation)
-- Manual check, 2026-11-21 (user; browser and version not recorded): the detail page worked from a second machine. **The connection-cap risk is real:** with 7 or more tabs open on the list or detail page, loading another page hung (the exact tab mix was not recorded). Not fixed; needs a decision. Still unchecked: live update of an open page when a task changes from the CLI, and reconnect after a corrupted row.
+- Manual check, 2026-11-21 (user; browser and version not recorded): the detail page worked from a second machine. **The connection-cap risk is real:** with 7 or more tabs open on the list or detail page, loading another page hung (the exact tab mix was not recorded). Not fixed; needs a decision. A plan approved from the CLI showed as queued on the open page immediately (which page, list or detail, was not recorded). Still unchecked: reconnect after a corrupted row.
 - Probe against a real uvicorn server (temp state, not a browser): `/ui/tasks/2026%2f0102`, `..%2fstate` and `a%252fb` all return 404, the same as `TestClient`, so the percent-decoding premise in Verified holds.
 - (a) Commit 6e (`ac94f5a`, scalar fields) was amended once before moving on.
 - (b) The unreadable page returns status 500; the plan was silent (`e16b8e4`).

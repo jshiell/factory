@@ -157,6 +157,6 @@ Every test below is unaffected, so no passing test changes:
 - The cookie port falls back to 80 when `Host` has no port.
 - The task page's goal falls back to `task.prompt` when there is no goal yet.
 - The manual browser check (increment 22) was not run at implementation time: no browser was installed.
-- Manual browser check, 2026-11-21 (user, loopback and from a second machine; browser and version not recorded). Layout and banner were fine. Page requests on loopback carried `Sec-Fetch-Site: same-origin`; over plain HTTP to a non-loopback name no `Sec-Fetch-*` headers were sent. Still unchecked: SIGTERM/SIGHUP with a real tab open, and an open page updating when a task changes from the CLI.
+- Manual browser check, 2026-11-21 (user, loopback and from a second machine; browser and version not recorded). Layout and banner were fine. Page requests on loopback carried `Sec-Fetch-Site: same-origin`; over plain HTTP to a non-loopback name no `Sec-Fetch-*` headers were sent. A task approved from the CLI showed as queued on the open page immediately. With a tab open, SIGTERM and SIGHUP each made `serve` exit at once (well inside the 5 s backstop) and release the lock (a new `serve` started cleanly); the tab then showed "disconnected. run factory ui for a new link".
 - Increment 19 hit the iterator-GC pitfall (see `docs/spike-findings.md`).
 - Checked: the Design says login answers 200 with a link, which is what was built.
