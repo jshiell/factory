@@ -3,7 +3,7 @@ from urllib.parse import unquote
 import pytest
 
 from factory.task import TaskState
-from webhelpers import add
+from webhelpers import add, assert_ui_security_headers
 
 pytest_plugins = ["webfixtures"]
 
@@ -29,3 +29,12 @@ def test_a_missing_or_invalid_id_gives_a_404_in_the_layout_without_the_id(client
     assert '<a href="/ui/">' in response.text
     for echoed in (task_id, unquote(task_id), "<script>"):
         assert echoed not in response.text
+
+
+@pytest.mark.parametrize("task_id", ["a%2fb", "..%2fsecret", "a%2Fb"])
+def test_guard_an_encoded_slash_id_gives_a_404_without_the_id_and_with_the_security_headers(client, task_id):
+    response = client.get(f"/ui/tasks/{task_id}")
+
+    assert response.status_code == 404
+    assert "secret" not in response.text and "a/b" not in response.text and "%2" not in response.text
+    assert_ui_security_headers(response)
