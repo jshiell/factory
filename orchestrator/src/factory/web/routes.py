@@ -250,11 +250,21 @@ async def _approve_page(request: Request) -> HTMLResponse:
     return HTMLResponse(_TEMPLATES.get_template("approve.html").render(task=_approve_page_detail(task)))
 
 
-async def _approve(request: Request) -> RedirectResponse:
+def _shown_digest(form: dict[str, list[str]]) -> str:
+    value = _single(form, "plan_digest")
+    if not value:
+        raise _BadForm
+    return value
+
+
+async def _approve(request: Request) -> RedirectResponse | HTMLResponse:
     task, _ = _load_task(request)
-    form = await _read_form(request)
-    service.approve(request.app.state.store, task.id, _single(form, "plan_digest"), task.review_findings,
-                    waived=())
+    try:
+        form = await _read_form(request)
+        shown_digest = _shown_digest(form)
+    except _BadForm:
+        return _bad_form_page()
+    service.approve(request.app.state.store, task.id, shown_digest, task.review_findings, waived=())
     return RedirectResponse(f"/ui/tasks/{quote(task.id, safe='')}", status_code=303)
 
 
