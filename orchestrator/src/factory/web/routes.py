@@ -1,6 +1,6 @@
 import asyncio
 from pathlib import Path
-from urllib.parse import quote
+from urllib.parse import parse_qsl, quote
 
 import jinja2
 from starlette.requests import Request
@@ -8,7 +8,7 @@ from starlette.responses import HTMLResponse, RedirectResponse, StreamingRespons
 from starlette.routing import Mount, Route
 from starlette.staticfiles import StaticFiles
 
-from factory import approve_plan, service
+from factory import answer_questions, approve_plan, service
 from factory.ids import InvalidTaskId
 from factory.store import TaskNotFound
 from factory.task import InvalidTransition, TaskState
@@ -137,6 +137,22 @@ async def _answer_page(request: Request) -> HTMLResponse:
     return HTMLResponse(_TEMPLATES.get_template("answer.html").render(task=_answer_page_detail(task)))
 
 
+async def _read_form(request: Request) -> dict[str, str]:
+    return dict(parse_qsl((await request.body()).decode(), keep_blank_values=True))
+
+
+def _answer_text(task, form: dict[str, str]) -> str:
+    """One `N. text` line per stored question, in order."""
+    return "\n".join(f"{question['number']}. {form[f'q{index}']}" for index, question in enumerate(task.open_questions))
+
+
+async def _answer(request: Request) -> RedirectResponse:
+    task, _ = _load_task(request)
+    form = await _read_form(request)
+    answer_questions.answer_questions(task.id, request.app.state.store, int(form["round"]), _answer_text(task, form))
+    return RedirectResponse(f"/ui/tasks/{quote(task.id, safe='')}", status_code=303)
+
+
 def _render_task(task) -> str:
     return _TEMPLATES.get_template("_task.html").render(task=_task_detail(task))
 
@@ -250,5 +266,6 @@ def ui_routes() -> list[Route | Mount]:
             Route("/ui/tasks/{task_id}/reject", _reject_page, methods=["GET"]),
             Route("/ui/tasks/{task_id}/reject", _reject, methods=["POST"]),
             Route("/ui/tasks/{task_id}/answer", _answer_page, methods=["GET"]),
+            Route("/ui/tasks/{task_id}/answer", _answer, methods=["POST"]),
             Route("/ui/tasks/{task_id}/events", _task_events, methods=["GET"]),
             Route("/ui/login", _login, methods=["GET"]), Mount("/ui/static", StaticFiles(directory=STATIC_DIR))]
