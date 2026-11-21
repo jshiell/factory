@@ -156,6 +156,7 @@ Every test below is unaffected, so no passing test changes:
 - The increment 6 commit's placeholder refused all of `/ui` until increment 7.
 - The cookie port falls back to 80 when `Host` has no port.
 - The task page's goal falls back to `task.prompt` when there is no goal yet.
-- The manual browser check (increment 22) was not run: no browser is installed. The `Origin` and `Sec-Fetch-Site` headers that browsers send are still unmeasured, as are the banner behaviour and the SIGTERM/SIGHUP check with a real tab open.
+- The manual browser check (increment 22) was not run at implementation time: no browser was installed.
+- Manual browser check, 2026-11-21 (user, loopback and from a second machine; browser and version not recorded). Layout and banner were fine. Page requests on loopback carried `Sec-Fetch-Site: same-origin`; over plain HTTP to a non-loopback name no `Sec-Fetch-*` headers were sent. Still unchecked: SIGTERM/SIGHUP with a real tab open, and an open page updating when a task changes from the CLI.
 - Increment 19 hit the iterator-GC pitfall (see `docs/spike-findings.md`).
 - Checked: the Design says login answers 200 with a link, which is what was built.
