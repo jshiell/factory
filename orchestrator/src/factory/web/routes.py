@@ -1,5 +1,6 @@
 import asyncio
 from pathlib import Path
+from urllib.parse import quote
 
 import jinja2
 from starlette.requests import Request
@@ -7,7 +8,7 @@ from starlette.responses import HTMLResponse, RedirectResponse, StreamingRespons
 from starlette.routing import Mount, Route
 from starlette.staticfiles import StaticFiles
 
-from factory import service
+from factory import approve_plan, service
 from factory.ids import InvalidTaskId
 from factory.store import TaskNotFound
 from factory.task import TaskState
@@ -82,6 +83,14 @@ async def _reject_page(request: Request) -> HTMLResponse:
     if task.state is not TaskState.REVIEWED:
         return _not_reviewed_page()
     return HTMLResponse(_TEMPLATES.get_template("reject.html").render(task=_task_detail(task)))
+
+
+async def _reject(request: Request) -> RedirectResponse | HTMLResponse:
+    task, refusal = _load_task(request)
+    if refusal:
+        return refusal
+    approve_plan.reject_plan(task.id, request.app.state.store)
+    return RedirectResponse(f"/ui/tasks/{quote(task.id, safe='')}", status_code=303)
 
 
 def _render_task(task) -> str:
@@ -195,5 +204,6 @@ def ui_routes() -> list[Route | Mount]:
     return [Route("/ui", _ui_without_slash, methods=["GET"]), Route("/ui/", _ui_page, methods=["GET"]),
             Route("/ui/events", _events, methods=["GET"]), Route("/ui/tasks/{task_id}", _task_page, methods=["GET"]),
             Route("/ui/tasks/{task_id}/reject", _reject_page, methods=["GET"]),
+            Route("/ui/tasks/{task_id}/reject", _reject, methods=["POST"]),
             Route("/ui/tasks/{task_id}/events", _task_events, methods=["GET"]),
             Route("/ui/login", _login, methods=["GET"]), Mount("/ui/static", StaticFiles(directory=STATIC_DIR))]
