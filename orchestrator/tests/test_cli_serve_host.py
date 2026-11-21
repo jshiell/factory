@@ -54,6 +54,15 @@ def test_a_wide_bind_warns_on_stderr_before_it_starts_listening(ctx):
     assert out.getvalue().splitlines() == [f"serving on http://127.0.0.1:9001; token in {ctx.settings.state_dir / 'token'}"]
 
 
+def test_the_cli_client_still_connects_to_loopback_whatever_the_bind(ctx):
+    from factory.cli import _server_client
+    settings = replace(ctx.settings, server_host="0.0.0.0", server_port=9001)
+
+    client = _server_client(settings)
+
+    assert str(client._http.base_url).rstrip("/") == "http://127.0.0.1:9001"
+
+
 def test_a_loopback_bind_writes_nothing_to_stderr(ctx):
     code, _, err = serve(ctx)
 
