@@ -56,3 +56,11 @@ def test_guard_without_a_list_a_lan_name_is_403(tmp_path):
     with TestClient(create_secured_app(ctx, token)) as client:
         assert client.get("/tasks", headers={**auth(token), "Host": "127.0.0.1:8765"}).status_code == 200
         assert client.get("/tasks", headers={**auth(token), "Host": "nas.lan:8765"}).status_code == 403
+
+
+@pytest.mark.parametrize("origin", ["http://nas.lan:8765", "http://nas.lan", "null"])
+def test_guard_any_origin_on_the_api_is_403_on_a_listed_host(client, token, origin):
+    headers = {**auth(token), "Host": "nas.lan:8765", "Origin": origin}
+
+    assert client.get("/tasks", headers=headers).status_code == 403
+    assert client.post("/tasks", json={"goal": "g"}, headers=headers).status_code == 403
