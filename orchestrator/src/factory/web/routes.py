@@ -142,8 +142,12 @@ async def _read_form(request: Request) -> dict[str, str]:
 
 
 def _answer_text(task, form: dict[str, str]) -> str:
-    """One `N. text` line per stored question, in order."""
-    return "\n".join(f"{question['number']}. {form[f'q{index}']}" for index, question in enumerate(task.open_questions))
+    """One `N. text` line per stored question, in order; a blank or missing field takes the default."""
+    lines = []
+    for index, question in enumerate(task.open_questions):
+        typed = " ".join(form.get(f"q{index}", "").split())
+        lines.append(f"{question['number']}. {typed or _default_answer(question)}")
+    return "\n".join(lines)
 
 
 async def _answer(request: Request) -> RedirectResponse:
