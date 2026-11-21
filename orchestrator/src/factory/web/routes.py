@@ -8,6 +8,8 @@ from starlette.routing import Mount, Route
 from starlette.staticfiles import StaticFiles
 
 from factory import service
+from factory.ids import InvalidTaskId
+from factory.store import TaskNotFound
 from factory.task import TaskState
 from factory.web.auth import session_cookie_name
 
@@ -37,7 +39,10 @@ def _task_detail(task) -> dict:
 
 
 async def _task_page(request: Request) -> HTMLResponse:
-    task = request.app.state.store.load(request.path_params["task_id"])
+    try:
+        task = request.app.state.store.load(request.path_params["task_id"])
+    except (TaskNotFound, InvalidTaskId):
+        return HTMLResponse(_TEMPLATES.get_template("task_missing.html").render(), status_code=404)
     return HTMLResponse(_TEMPLATES.get_template("task.html").render(task=_task_detail(task)))
 
 
