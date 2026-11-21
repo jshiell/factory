@@ -38,6 +38,15 @@ def test_serve_binds_the_configured_host_and_still_prints_the_loopback_url(ctx):
     assert out == f"serving on http://127.0.0.1:8765; token in {ctx.settings.state_dir / 'token'}\n"
 
 
+def test_the_host_flag_refuses_any_other_value_and_serves_nothing(ctx):
+    code, out, err = serve(ctx, "--host", "example.com")
+
+    assert code == 2
+    assert ctx.served == []
+    assert out == ""
+    assert "--host" in err and "127.0.0.1" in err and "0.0.0.0" in err
+
+
 @pytest.mark.parametrize("configured, flag", [("127.0.0.1", "0.0.0.0"), ("0.0.0.0", "127.0.0.1")])
 def test_the_host_flag_overrides_the_configured_host(ctx, configured, flag):
     ctx.settings = replace(ctx.settings, server_host=configured)
