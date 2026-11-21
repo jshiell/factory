@@ -493,6 +493,10 @@ def _is_same_origin_request(method: str, headers) -> bool:
     own_origin = "http://" + headers["host"]
     # A read without Origin is a plain navigation; a write must name its origin (CSRF), so a missing one is refused.
     origin = headers.get("origin", own_origin if method in _READ_METHODS else None)
+    # Every /ui page sends `Referrer-Policy: no-referrer`, so its own form POST carries `Origin: null`; accept that
+    # only when Fetch Metadata vouches for it. Reads keep refusing `null`. No Fetch Metadata fails closed.
+    if origin == "null" and method not in _READ_METHODS:
+        return headers.get("sec-fetch-site") == "same-origin"
     return origin == own_origin and headers.get("sec-fetch-site", "same-origin") in {"same-origin", "none"}
 
 
