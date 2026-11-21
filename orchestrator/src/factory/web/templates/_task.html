@@ -1,0 +1,6 @@
+<h2>{{ task.id }}</h2>
+<p>state: {{ task.state }}</p>
+<p>goal: {{ task.goal }}</p>
+{% if task.failure_reason %}
+<p>failure: {{ task.failure_reason }}</p>
+{% endif %}

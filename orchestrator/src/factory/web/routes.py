@@ -31,6 +31,16 @@ def _tasks_context(store) -> dict:
             "skipped": listing.skipped}
 
 
+def _task_detail(task) -> dict:
+    return {"id": task.id, "state": task.state.value,
+            "goal": task.goal if task.goal is not None else task.prompt, "failure_reason": task.failure_reason}
+
+
+async def _task_page(request: Request) -> HTMLResponse:
+    task = request.app.state.store.load(request.path_params["task_id"])
+    return HTMLResponse(_TEMPLATES.get_template("task.html").render(task=_task_detail(task)))
+
+
 def render_tasks(store) -> str:
     return _TEMPLATES.get_template("_tasks.html").render(_tasks_context(store))
 
@@ -94,4 +104,5 @@ STATIC_DIR = Path(__file__).parent / "static"
 
 def ui_routes() -> list[Route | Mount]:
     return [Route("/ui", _ui_without_slash, methods=["GET"]), Route("/ui/", _ui_page, methods=["GET"]),
-            Route("/ui/events", _events, methods=["GET"]), Route("/ui/login", _login, methods=["GET"]), Mount("/ui/static", StaticFiles(directory=STATIC_DIR))]
+            Route("/ui/events", _events, methods=["GET"]), Route("/ui/tasks/{task_id}", _task_page, methods=["GET"]),
+            Route("/ui/login", _login, methods=["GET"]), Mount("/ui/static", StaticFiles(directory=STATIC_DIR))]
