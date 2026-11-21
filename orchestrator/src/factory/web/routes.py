@@ -215,6 +215,8 @@ async def _answer(request: Request) -> RedirectResponse | HTMLResponse:
         answer_questions.answer_questions(task.id, request.app.state.store, _round(form), _answer_text(task, form))
     except (_BadForm, answer_questions.AnswerRejected):  # AnswerRejected is a ValueError: keep it ahead of any _UNREADABLE
         return _bad_form_page()
+    except answer_questions.RoundChanged:
+        return _wrong_state_page("The questions changed since you opened this page. Open the task again to see the new ones.")
     return RedirectResponse(f"/ui/tasks/{quote(task.id, safe='')}", status_code=303)
 
 
