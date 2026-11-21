@@ -76,3 +76,13 @@ Actions (answer, approve, reject, merge, retry, advance), a spend section (D2), 
 - Every store write wakes every open task stream. Dedupe stops the sends, but each wake still re-renders one row; **unmeasured** with many tabs.
 - Two long-lived streams per open list and detail tab. Browsers cap connections per host (HTTP/1.1, commonly six; unverified), so many open tabs could starve page loads. Plan 69 had one stream per tab.
 - Anything the plan marks unverified above is untested until the manual browser check.
+
+## Deviations (recorded after implementation)
+- (a) Commit 6e (`ac94f5a`, scalar fields) was amended once before moving on.
+- (b) The unreadable page returns status 500; the plan was silent (`e16b8e4`).
+- (c) A row corrupted mid-stream sends the "That task is unreadable." fragment as a `task` event and keeps the stream open; the plan was silent. Chosen because browser reconnect behaviour is unverified (`a14076f`).
+- (d) The stream's `render` may return None to mean "nothing new" (`14feee3`).
+- (e) The test helpers live in `tests/webfixtures.py` and `tests/webhelpers.py` (`8220ad8`).
+- (f) Increment 9's stream headers and 401 check was deferred to `55dc735`, because the stream route did not exist until increment 11 (`4c4d3ac` covered the page routes).
+- (g) The 0.2s keepalive test (`14feee3`) is a weaker regression check than the others: it depends on a short real interval.
+- (h) A SQLite error during a re-render is not caught on either stream (out of scope).

@@ -140,12 +140,13 @@ The server also serves a read-only browser page under `/ui`. It is always on and
 
 - `factory ui` prints a login link that works once, within 5 minutes. Opening it shows a page with a link to the UI and sets an HttpOnly, SameSite=Strict cookie `factory_session_<port>`, scoped to `/ui`. A link-preview tool can use up the code; run `factory ui` again.
 - The page at `/ui/` lists tasks newest first, marks the ones waiting on you, and updates live over server-sent events (`/ui/events`).
+- Each id in the list links to a per-task page at `/ui/tasks/{id}`. It shows what `factory show` shows (state, goal or prompt, failure reason, plan, open questions, risks and review, audit and waived findings, attempts, denial count, worktree and branch, errors) and marks a task waiting on you. It has no actions and no spend (see the costs view). It updates live over its own stream (`/ui/tasks/{id}/events`), and sends an update only when that task's rendering changed, so another task's progress does not touch it. An unknown or malformed id gives a 404 page that does not echo the id. A task whose stored row cannot be read gives an "unreadable" page (status 500) with no traceback, raw data or id.
 - Sessions live in memory, so restarting `serve` logs the browser out: the page should show a "Disconnected" banner (see the last bullet); run `factory ui` again.
 - Under `/ui` the `Host` must be loopback, an `Origin` must be absent or the server's own, and `Sec-Fetch-Site` must be `same-origin` or `none`. Every UI response carries a strict Content-Security-Policy and `Cache-Control: no-store`. The JSON API stays Bearer-only: a cookie does not open it, and Bearer does not open `/ui`.
 - Static files under `/ui/static` need no cookie. The vendored htmx 2.0.11 and htmx-ext-sse 2.2.4 are in `orchestrator/src/factory/web/static` (versions and checksums in `VENDORED.md`).
 - Risk: cookies ignore ports, so another server on loopback that your browser visits receives the cookie. HttpOnly keeps page scripts from reading it. This is accepted for a single-user machine.
 - Read-only for now; actions come later.
-- Not yet checked in a real browser (none was available for plan 69): the banner, and which `Origin` and `Sec-Fetch-Site` headers browsers send. The guard rules and the stream are covered by tests.
+- Not yet checked in a real browser (none was available for plans 69 and 70): the banner, the task page's layout and live update, and which `Origin` and `Sec-Fetch-Site` headers browsers send. The guard rules and the stream are covered by tests.
 
 ### Watching issues
 
