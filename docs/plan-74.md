@@ -61,6 +61,19 @@ One failing test, minimal change, one commit each. "Guard" = earlier code alread
 13. **Docs.** README: the setting and its entry rules, the flag, the guard rule, the plain-HTTP risk, advice to prefer IPv4 literals (names are only as safe as their DNS; mDNS/`.lan` names can be spoofed on the LAN), the unsupported HTTPS-terminating proxy and different-port tunnels, the `Referrer-Policy` change, and the plan-73 sentence "still refused". A Deviations section here.
 14. **Gate.** `cd orchestrator && uv run ruff check`, `uv run pytest -q -n auto`; run `verify`; run `audit-commits` against this plan.
 
+## Deviations
+Recorded after increment 13; increment 12 (manual check) has not been run, so every browser-dependent claim in D6, D7 and the README stays unverified.
+- Increments 3, 6, 7, 9 and the second commit of 10 passed on their first run, so they are guards, as planned.
+- Increment 2: the reason texts are the implementer's wording, and the host-name regex also accepts things like `1.2.3` (stricter than a name, looser than IPv4).
+- `_Guard` takes `allowed_hosts` as a required argument.
+- The 403 detail now reads `host must be loopback or in server_allowed_hosts`.
+- The start-up warning is built by `_bind_warning` in `cli/admin.py`, with two variants when the list is set (`0.0.0.0` and `127.0.0.1`) besides the plan-73 line.
+- The `Referrer-Policy` is set in `_UI_SECURITY_HEADERS` in `server.py`. The docstring at `tests/test_web_post_origin.py:41` still says `no-referrer`; left alone, it is not a pin.
+- Known issues found by the implementer and not fixed in this plan:
+  - Duplicate `Host` headers: the guard keeps the last, Starlette's `request.headers['host']` the first, so the checked host can differ from the host in the login link and cookie name. Low impact; not verified whether uvicorn rejects it.
+  - Text after the port (`nas.lan:x:y`) passes `_host_name`.
+- The co-author trailers on commits 5-10 were corrected from Opus to Sonnet by a signed rebase.
+
 ## Out of scope
 TLS and the `Secure` flag; HTTPS-terminating proxies and `X-Forwarded-*`; IPv6 hosts; wildcards/CIDR; specific LAN bind addresses; deriving the CLI client's address; per-host sessions; rate limiting of login codes; a server-side `--host` check.
 
