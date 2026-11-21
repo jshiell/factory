@@ -35,6 +35,7 @@ class Settings:
     max_turns: int = 30
     fix_rounds: int = 2
     server_port: int = 8765
+    server_host: str = "127.0.0.1"
     grill: bool = True
     grill_max_rounds: int = 3
     append_system_prompt: str | None = None
@@ -68,7 +69,7 @@ class Settings:
 
 
 _PATH_KEYS = ("repo", "state_dir", "worktree_root", "home")
-_STRING_KEYS = ("project_subdir", "claude_executable", "sandbox_executable", "model", "main_branch", "harness", "sandbox")
+_STRING_KEYS = ("project_subdir", "claude_executable", "sandbox_executable", "model", "main_branch", "harness", "sandbox", "server_host")
 _PROMPT_KEYS = ("append_system_prompt",)
 _STAGES = ("plan", "review", "implement", "audit")
 _FLOAT_KEYS = ("cap_usd", "gate_timeout_s", "runner_timeout_s", "budget_usd")
