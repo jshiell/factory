@@ -32,7 +32,7 @@ def _task_row(task) -> dict:
 def _tasks_context(store) -> dict:
     listing = service.list_tasks(store)
     return {"tasks": [_task_row(task) for task in sorted(listing.tasks, key=lambda task: task.id, reverse=True)],
-            "skipped": listing.skipped}
+            "skipped": [_safe(name) for name in listing.skipped]}
 
 
 def _safe(value):

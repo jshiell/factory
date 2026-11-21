@@ -1,4 +1,5 @@
 """The list page shows agent-written text with control and bidi format characters escaped."""
+from factory.sqlite_db import transaction
 from factory.web.routes import render_tasks
 from webhelpers import add
 
@@ -32,3 +33,12 @@ def test_guard_a_goal_is_truncated_before_it_is_escaped(client, ctx):
 
     assert "\\x07" * 120 + "…" in page
     assert "\\x07" * 121 not in page
+
+
+def test_a_skipped_name_with_control_characters_is_shown_escaped(client, ctx):
+    with transaction(ctx.settings.db_path) as conn:
+        conn.execute("INSERT INTO tasks (id, state, data) VALUES ('broken\x07one', 'queued', 'not json')")
+
+    for html in (client.get("/ui/").text, render_tasks(ctx.store)):
+        assert "\x07" not in html
+        assert "broken\\x07one" in html
