@@ -78,6 +78,38 @@ def test_the_task_stream_refuses_a_missing_invalid_or_unreadable_id_with_an_html
     assert_ui_security_headers(response)
 
 
+def stream_headers(client, path):
+    """The status and headers of the stream at `path`, taken without waiting for it to end."""
+    got: list = []
+
+    def read():
+        with client.stream("GET", path) as response:
+            got.append(response)
+
+    reader = threading.Thread(target=read, daemon=True)
+    reader.start()
+    reader.join(TIMEOUT)
+    assert got, f"{path} gave no response within {TIMEOUT}s"
+    return got[0]
+
+
+def test_guard_the_task_stream_carries_the_security_headers(client, ctx):
+    add(ctx)
+
+    response = stream_headers(client, EVENTS)
+
+    assert response.status_code == 200
+    assert_ui_security_headers(response)
+
+
+def test_guard_the_task_stream_without_a_session_is_401(client, ctx):
+    add(ctx)
+    client.cookies.clear()
+
+    assert fetch_whole(client, EVENTS).status_code == 401
+    assert fetch_whole(client, "/ui/tasks/nothing-here/events").status_code == 401
+
+
 def test_the_task_stream_first_event_is_the_task_fragment(client, ctx):
     add(ctx, goal="first goal", plan="step one\nstep two")
 
