@@ -2,6 +2,7 @@
 <p>state: {{ task.state }}{% if task.needs_you %} <strong>needs you</strong>{% endif %}</p>
 <p>goal: {{ task.goal }}</p>
 {% if task.state == "reviewed" %}
+<p><a href="/ui/tasks/{{ task.id | urlencode }}/approve">approve this plan</a></p>
 <p><a href="/ui/tasks/{{ task.id | urlencode }}/reject">reject this plan</a></p>
 {% endif %}
 {% if task.state == "open_questions" %}
