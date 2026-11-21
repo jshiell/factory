@@ -38,6 +38,7 @@ def _task_detail(task) -> dict:
              ("audit findings", task.audit_findings), ("waived findings", task.waived_findings))
     return {"id": task.id, "state": task.state.value,
             "goal": task.goal if task.goal is not None else task.prompt, "failure_reason": task.failure_reason, "plan": task.plan,
+            "open_questions": task.open_questions, "grill_rounds": task.grill_rounds,
             "lists": [(label, items) for label, items in lists if items]}
 
 

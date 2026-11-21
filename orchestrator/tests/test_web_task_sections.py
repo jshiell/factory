@@ -1,5 +1,6 @@
 import pytest
 
+from factory.task import TaskState
 from webhelpers import add
 
 pytest_plugins = ["webfixtures"]
@@ -26,6 +27,18 @@ def test_the_plan_appears_in_a_pre_block(client, ctx):
     page = client.get("/ui/tasks/20260102-030405").text
 
     assert "<pre>step one\n  step two</pre>" in page
+
+
+def test_open_questions_show_the_round_titles_and_recommended_answers(client, ctx):
+    questions = ({"number": 1, "title": "which database", "recommended": "sqlite"},
+                 {"number": 2, "title": "which port", "recommended": "8765"})
+    add(ctx, state=TaskState.OPEN_QUESTIONS, grill_rounds=2, open_questions=questions)
+
+    page = client.get("/ui/tasks/20260102-030405").text
+
+    assert "open questions (round 2)" in page
+    for shown in ("1. which database", "recommended: sqlite", "2. which port", "recommended: 8765"):
+        assert shown in page
 
 
 @pytest.mark.parametrize("label", ABSENT_FOR_A_BARE_TASK)
