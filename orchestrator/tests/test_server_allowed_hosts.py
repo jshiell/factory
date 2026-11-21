@@ -42,3 +42,17 @@ def auth(token):
 @pytest.mark.parametrize("host", ["nas.lan:8765", "nas.lan", "192.168.1.5:8765"])
 def test_a_listed_host_is_served_with_the_token(client, token, host):
     assert client.get("/tasks", headers={**auth(token), "Host": host}).status_code == 200
+
+
+@pytest.mark.parametrize("host", ["evil.example", "NAS.lan", "nas.lan.", "nas.lan.:8765", "0.0.0.0", "nas.lan.evil.example",
+                                  "evil.nas.lan", "nas.lan@evil.example", "[nas.lan]", "192.168.1.50", ""])
+def test_guard_an_unlisted_or_unnormalised_host_is_still_403(client, token, host):
+    assert client.get("/tasks", headers={**auth(token), "Host": host}).status_code == 403
+
+
+def test_guard_without_a_list_a_lan_name_is_403(tmp_path):
+    ctx = make_ctx(tmp_path, ())
+    token = load_or_create_token(ctx.settings.state_dir)
+    with TestClient(create_secured_app(ctx, token)) as client:
+        assert client.get("/tasks", headers={**auth(token), "Host": "127.0.0.1:8765"}).status_code == 200
+        assert client.get("/tasks", headers={**auth(token), "Host": "nas.lan:8765"}).status_code == 403
