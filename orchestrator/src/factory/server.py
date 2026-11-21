@@ -543,10 +543,12 @@ def _has_valid_session(headers, sessions: Sessions) -> bool:
 
 
 class _Guard:
-    """Pure ASGI gate: loopback Host (DNS rebinding), no Origin (browsers), then the bearer token."""
+    """Pure ASGI gate: a loopback or allowed Host (DNS rebinding), no Origin (browsers), then the bearer token."""
 
-    def __init__(self, app, token: str):
+    def __init__(self, app, token: str, allowed_hosts):
         self._app, self._token = app, token
+        # Compared exactly: an upper-case or trailing-dot Host is not normalised, so it fails closed.
+        self._accepted_hosts = frozenset(_LOOPBACK_HOSTS) | frozenset(allowed_hosts)
 
     async def __call__(self, scope, receive, send):
         if scope["type"] != "http":
@@ -562,8 +564,9 @@ class _Guard:
         await self._app(scope, receive, send)
 
     def _refusal(self, method, headers, path):
-        if _host_name(headers.get("host", "")) not in _LOOPBACK_HOSTS:
-            return JSONResponse({"error": "forbidden", "detail": "host must be loopback"}, status_code=403)
+        if _host_name(headers.get("host", "")) not in self._accepted_hosts:
+            return JSONResponse({"error": "forbidden", "detail": "host must be loopback or in server_allowed_hosts"},
+                                status_code=403)
         if _is_ui_path(path):
             return _ui_refusal(method, headers, path, self._app.state.sessions)
         if "origin" in headers:
@@ -576,9 +579,9 @@ class _Guard:
 
 
 def create_secured_app(ctx, token: str):
-    """The app `factory serve` runs: every request needs the token, a loopback Host and no Origin."""
+    """The app `factory serve` runs: every request needs the token, a loopback or allowed Host and no Origin."""
     app = _build_app(ctx)
-    guarded = _Guard(app, token)
+    guarded = _Guard(app, token, ctx.settings.server_allowed_hosts)
     guarded.state = app.state
     return guarded
 
