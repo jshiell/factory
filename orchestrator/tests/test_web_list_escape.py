@@ -1,5 +1,9 @@
 """The list page shows agent-written text with control and bidi format characters escaped."""
+import json
+
 from factory.sqlite_db import transaction
+from factory.store import task_to_dict
+from factory.task import Task
 from factory.web.routes import render_tasks
 from webhelpers import add
 
@@ -42,3 +46,14 @@ def test_a_skipped_name_with_control_characters_is_shown_escaped(client, ctx):
     for html in (client.get("/ui/").text, render_tasks(ctx.store)):
         assert "\x07" not in html
         assert "broken\\x07one" in html
+
+
+def test_a_task_id_with_control_characters_is_shown_escaped(client, ctx):
+    task = Task("a\x07b", "prompt", goal="g")
+    with transaction(ctx.settings.db_path) as conn:
+        conn.execute("INSERT INTO tasks (id, state, data) VALUES ('safe-column-id', 'queued', ?)",
+                     (json.dumps(task_to_dict(task)),))
+
+    for html in (client.get("/ui/").text, render_tasks(ctx.store)):
+        assert "\x07" not in html
+        assert "a\\x07b" in html

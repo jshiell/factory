@@ -25,7 +25,7 @@ def _truncated(text: str) -> str:
 
 
 def _task_row(task) -> dict:
-    return {"id": task.id, "state": task.state.value, "needs_you": task.state in _HUMAN_GATE_STATES,
+    return {"id": _safe(task.id), "state": task.state.value, "needs_you": task.state in _HUMAN_GATE_STATES,
             "goal": _safe(_truncated(task.goal if task.goal is not None else task.prompt)), "failure_reason": _safe(task.failure_reason)}
 
 
