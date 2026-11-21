@@ -147,6 +147,15 @@ def test_show_escapes_control_characters_in_agent_text(ctx):
     assert "\x1b" not in out and "\\x1b[8mhidden" in out
 
 
+def test_guard_show_escapes_a_lone_surrogate_in_agent_text(ctx):
+    put(ctx, S.REVIEWED, goal="bad\ud800goal")
+
+    code, out, _ = run(ctx, "show", "t1")
+
+    assert code == 0
+    assert "\ud800" not in out and "bad\\ud800goal" in out
+
+
 # --- advance ------------------------------------------------------------------
 
 def moving(ctx, to, **fields):
