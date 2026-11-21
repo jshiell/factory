@@ -270,6 +270,8 @@ async def _approve(request: Request) -> RedirectResponse | HTMLResponse:
         return _bad_form_page()
     try:
         service.approve(request.app.state.store, task.id, shown_digest, task.review_findings, waived=())
+    except service.NotReviewed:  # the task left reviewed between the load above and the one inside service.approve
+        return _not_reviewed_wrong_state_page()
     except service.PlanChanged:
         return _wrong_state_page("The plan changed since you opened this page. Open the task again to review the new plan.")
     except (TaskNotFound, InvalidTaskId):  # the task went between the load above and the one inside service.approve
