@@ -52,6 +52,15 @@ One failing test (or one parametrized behaviour), the minimal change, one commit
 11. **Docs.** README: `serve [--port N] [--host H]`; `:115` ("loopback by default"); `:186` add `server_host` to the per-repo list; `:196` the example line; a note that a wide bind does not enable remote use and why. A deviations section here.
 12. **Gate.** `cd orchestrator && uv run ruff check`, then `uv run pytest -q -n auto`; run the `verify` skill; run `audit-commits` against this plan.
 
+## Deviations
+- Increments 3, 7, 9 and 10 passed on first run, as planned guards; each is committed as `Guard: ...`. Increments 1, 2, 4, 5, 6 and 8 were seen red for the expected reason first (missing attribute, DID NOT RAISE, host not passed, unknown flag, no warning on stderr).
+- Increment 9 is one commit holding two guards (the loopback bind is quiet; a refused start with `0.0.0.0` does not warn).
+- Increment 2's message reads `server_host '<value>' is unknown; known: 127.0.0.1, 0.0.0.0`, the format of the `harness` and `sandbox` checks.
+- Increment 8: the warning is printed after the `serving on` line, still inside the lock and before `ctx.serve`. The test asserts it is on stderr before `ctx.serve` is called; "after the lock" is covered by increment 9.
+- Increment 10 reads `ServerClient._http.base_url`, a private attribute, as there is no public accessor.
+- README line numbers in this plan were from another branch. On this one: the command table, the Server paragraph (`:114`), the per-repo prose list (`:168`) and the `server_port` example line (`:178`). A paragraph on the wide bind was added to the Server section; there is no Web UI section here.
+- New tests live in `tests/test_settings_server_host.py` and `tests/test_cli_serve_host.py`; no existing test was edited.
+
 ## Out of scope
 Remote access (an allowed-host setting, relaxing the guard, TLS, the cookie's `Secure` flag, the writes' Origin rule behind a non-loopback host); IPv6; hostnames and specific interface addresses; an env var; changing what `factory ui` prints; any change to the guard; a real-socket test of the `0.0.0.0` bind.
 
