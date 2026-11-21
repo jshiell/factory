@@ -120,9 +120,21 @@ def _answer_page_detail(task) -> dict:
             "grill_rounds": task.grill_rounds, "open_questions": questions}
 
 
+def _wrong_state_page(message: str) -> HTMLResponse:
+    return HTMLResponse(_TEMPLATES.get_template("task_wrong_state.html").render(message=message), status_code=409)
+
+
+def _no_open_questions_page() -> HTMLResponse:
+    return _wrong_state_page("That task has no open questions to answer.")
+
+
 async def _answer_page(request: Request) -> HTMLResponse:
     task, refusal = _load_task(request)
-    return refusal or HTMLResponse(_TEMPLATES.get_template("answer.html").render(task=_answer_page_detail(task)))
+    if refusal:
+        return refusal
+    if task.state is not TaskState.OPEN_QUESTIONS:
+        return _no_open_questions_page()
+    return HTMLResponse(_TEMPLATES.get_template("answer.html").render(task=_answer_page_detail(task)))
 
 
 def _render_task(task) -> str:
