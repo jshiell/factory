@@ -2,7 +2,7 @@ import subprocess
 
 import pytest
 
-from factory.settings import load_settings
+from factory.settings import SettingsError, load_settings
 
 
 @pytest.fixture(autouse=True)
@@ -34,3 +34,11 @@ def test_server_host_defaults_to_loopback_and_comes_from_the_repo_config(repo_di
     (repo_dir / "factory.toml").write_text('server_host = "0.0.0.0"\n')
 
     assert load_settings(None, cwd=repo_dir).server_host == "0.0.0.0"
+
+
+@pytest.mark.parametrize("value", ["localhost", "192.168.1.5", "", "::"])
+def test_server_host_other_than_the_two_bind_addresses_is_refused(repo_dir, value):
+    (repo_dir / "factory.toml").write_text(f'server_host = "{value}"\n')
+
+    with pytest.raises(SettingsError, match=r"server_host.*127\.0\.0\.1.*0\.0\.0\.0"):
+        load_settings(None, cwd=repo_dir)

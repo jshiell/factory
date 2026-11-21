@@ -68,6 +68,7 @@ class Settings:
         return self.state_dir / "tasks"
 
 
+BIND_HOSTS = ("127.0.0.1", "0.0.0.0")
 _PATH_KEYS = ("repo", "state_dir", "worktree_root", "home")
 _STRING_KEYS = ("project_subdir", "claude_executable", "sandbox_executable", "model", "main_branch", "harness", "sandbox", "server_host")
 _PROMPT_KEYS = ("append_system_prompt",)
@@ -102,6 +103,8 @@ def load_settings(path: Path | None, cwd: Path) -> Settings:
         raise SettingsError(f"harness {settings.harness!r} is unknown; known: {', '.join(sorted(HARNESSES))}")
     if settings.sandbox not in SANDBOXES:
         raise SettingsError(f"sandbox {settings.sandbox!r} is unknown; known: {', '.join(sorted(SANDBOXES))}")
+    if settings.server_host not in BIND_HOSTS:
+        raise SettingsError(f"server_host {settings.server_host!r} is unknown; known: {', '.join(BIND_HOSTS)}")
     return replace(settings, gate_allow_outside=_checked_allow_outside(settings))
 
 
