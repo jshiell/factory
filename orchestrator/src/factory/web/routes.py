@@ -34,8 +34,11 @@ def _tasks_context(store) -> dict:
 
 
 def _task_detail(task) -> dict:
+    lists = (("risks", task.plan_risks), ("review findings", task.review_findings),
+             ("audit findings", task.audit_findings), ("waived findings", task.waived_findings))
     return {"id": task.id, "state": task.state.value,
-            "goal": task.goal if task.goal is not None else task.prompt, "failure_reason": task.failure_reason}
+            "goal": task.goal if task.goal is not None else task.prompt, "failure_reason": task.failure_reason,
+            "lists": [(label, items) for label, items in lists if items]}
 
 
 async def _task_page(request: Request) -> HTMLResponse:
