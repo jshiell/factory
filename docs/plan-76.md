@@ -94,6 +94,10 @@ Waivers and reinstating (CLI-only, as the watcher); merge, abandon, retry, rebas
 - Increment 8 has four tests, not one: the parametrized 422 test, two guards (content-type parameters and case; a body of exactly the cap), and a direct ASGI test that the reader stops at the cap (the test client sends the whole body at once).
 - Increment 8 also added the POST's load-refusal and wrong-state checks (needed for the check order); increments 10 and 11 then covered them.
 - Increment 22b (not planned): a `KeyError` from an unreadable row escaped `service.approve` into the JSON handler, so the approve POST also catches `_UNREADABLE` and shows the 500 page.
+- Increment 12 was red, not a guard: `InvalidTransition` from the race otherwise reached the JSON handler.
+- Commit 043215b also added the approve POST's 404 and 500 id tests and a ruff-driven reformat of a test literal.
+- Increment 0 settled no Unverified item in writing; D6's "to confirm" stands and the audit found no write path that skips `apply`.
+- "Waiving is CLI-only" in D5 means the page offers none; the JSON `waive` field also exists (`server.py:239`).
 - Increment 23 was red, not a guard: `NotReviewed` otherwise reached the JSON handler, which echoes the id.
 - The stale-round and plan-changed pages reuse `task_wrong_state.html` with their own messages; no new templates beyond `answer.html`, `approve.html`, `task_wrong_state.html` and `form_rejected.html`.
 - A recommended answer containing CR/LF is stored with a literal `\x0d` (D13: `escape_control` escapes `\r` before the whitespace split). The prompt then escapes it a second time. Typed answers are whitespace-collapsed only, like the CLI, since the planner prompt already escapes the log.
