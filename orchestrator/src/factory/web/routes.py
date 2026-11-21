@@ -57,14 +57,22 @@ def _task_detail(task) -> dict:
             "lists": [(label, [_safe(item) for item in items]) for label, items in lists if items]}
 
 
+def _missing_page() -> HTMLResponse:
+    return HTMLResponse(_TEMPLATES.get_template("task_missing.html").render(), status_code=404)
+
+
+def _unreadable_page() -> HTMLResponse:
+    return HTMLResponse(_TEMPLATES.get_template("task_unreadable.html").render(), status_code=500)
+
+
 def _load_task(request: Request):
     """The requested task, or the HTML page refusing it (missing, invalid or unreadable id), which never shows the id."""
     try:
         return request.app.state.store.load(request.path_params["task_id"]), None
     except (TaskNotFound, InvalidTaskId):
-        return None, HTMLResponse(_TEMPLATES.get_template("task_missing.html").render(), status_code=404)
+        return None, _missing_page()
     except _UNREADABLE:
-        return None, HTMLResponse(_TEMPLATES.get_template("task_unreadable.html").render(), status_code=500)
+        return None, _unreadable_page()
 
 
 async def _task_page(request: Request) -> HTMLResponse:
@@ -93,6 +101,10 @@ async def _reject(request: Request) -> RedirectResponse | HTMLResponse:
         approve_plan.reject_plan(task.id, request.app.state.store)
     except InvalidTransition:
         return _not_reviewed_page()
+    except (TaskNotFound, InvalidTaskId):  # the task went between the load above and the one inside reject_plan
+        return _missing_page()
+    except _UNREADABLE:
+        return _unreadable_page()
     return RedirectResponse(f"/ui/tasks/{quote(task.id, safe='')}", status_code=303)
 
 
