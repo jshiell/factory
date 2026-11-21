@@ -108,6 +108,23 @@ async def _reject(request: Request) -> RedirectResponse | HTMLResponse:
     return RedirectResponse(f"/ui/tasks/{quote(task.id, safe='')}", status_code=303)
 
 
+def _default_answer(question) -> str:
+    """The recommended answer as one line: the prefilled value and what a blank answer means."""
+    return " ".join(escape_control(question["recommended"]).split())
+
+
+def _answer_page_detail(task) -> dict:
+    questions = [{"number": _safe(question["number"]), "title": _safe(question["title"]), "body": _safe(question.get("body", "")),
+                  "default": _default_answer(question)} for question in task.open_questions]
+    return {"id": task.id, "goal": _safe(task.goal if task.goal is not None else task.prompt),
+            "grill_rounds": task.grill_rounds, "open_questions": questions}
+
+
+async def _answer_page(request: Request) -> HTMLResponse:
+    task, refusal = _load_task(request)
+    return refusal or HTMLResponse(_TEMPLATES.get_template("answer.html").render(task=_answer_page_detail(task)))
+
+
 def _render_task(task) -> str:
     return _TEMPLATES.get_template("_task.html").render(task=_task_detail(task))
 
@@ -220,5 +237,6 @@ def ui_routes() -> list[Route | Mount]:
             Route("/ui/events", _events, methods=["GET"]), Route("/ui/tasks/{task_id}", _task_page, methods=["GET"]),
             Route("/ui/tasks/{task_id}/reject", _reject_page, methods=["GET"]),
             Route("/ui/tasks/{task_id}/reject", _reject, methods=["POST"]),
+            Route("/ui/tasks/{task_id}/answer", _answer_page, methods=["GET"]),
             Route("/ui/tasks/{task_id}/events", _task_events, methods=["GET"]),
             Route("/ui/login", _login, methods=["GET"]), Mount("/ui/static", StaticFiles(directory=STATIC_DIR))]
