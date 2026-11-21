@@ -1,5 +1,6 @@
 """A lone surrogate in a stored goal is shown escaped, and no page breaks on it."""
-from factory.web.routes import render_tasks
+from factory.task import TaskState
+from factory.web.routes import _task_fragment, render_tasks
 from webhelpers import add
 
 pytest_plugins = ["webfixtures"]
@@ -22,3 +23,22 @@ def test_guard_the_list_page_and_fragment_show_a_surrogate_goal_escaped(client, 
     assert response.status_code == 200
     _assert_escaped(response.text)
     _assert_escaped(render_tasks(ctx.store))
+
+
+def test_guard_the_detail_page_and_fragment_show_a_surrogate_goal_escaped(client, ctx):
+    add(ctx, TASK_ID, goal=GOAL)
+
+    response = client.get(f"/ui/tasks/{TASK_ID}")
+
+    assert response.status_code == 200
+    _assert_escaped(response.text)
+    _assert_escaped(_task_fragment(ctx.store, TASK_ID))
+
+
+def test_guard_the_reject_page_shows_a_surrogate_goal_escaped(client, ctx):
+    add(ctx, TASK_ID, TaskState.REVIEWED, goal=GOAL)
+
+    response = client.get(f"/ui/tasks/{TASK_ID}/reject")
+
+    assert response.status_code == 200
+    _assert_escaped(response.text)
