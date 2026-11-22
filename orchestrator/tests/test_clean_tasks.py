@@ -4,7 +4,12 @@ import subprocess
 
 import pytest
 
-from factory.clean_tasks import clean_candidates, clean_tasks, remove_orphan_caches
+from factory.clean_tasks import (
+    _git_refusal_reason,
+    clean_candidates,
+    clean_tasks,
+    remove_orphan_caches,
+)
 from factory.gate_cache import orphan_caches
 from factory.store import TaskStore
 from factory.task import Task, TaskState
@@ -569,6 +574,23 @@ def test_a_merged_branch_still_registered_to_a_worktree_is_kept_without_a_path(e
     problems = run_clean(env)[0].problems
 
     assert problems == ["branch factory/merged kept: it is checked out in a worktree"]
+
+
+@pytest.mark.parametrize("line, withheld", [
+    ("error: cannot delete branch 'refs/heads/factory/t1'", False),
+    ("error: bad ref a/b and ../x", False),
+    ("error: Unable to create '/r/.git/x.lock'", True),
+    ("error: could not lock [/r/.git/x]", True),
+    ("error: cannot lock ref: /r/.git/x", True),
+    ("/r/.git/x.lock: File exists", True),
+])
+def test_guard_only_an_absolute_path_makes_the_refusal_reason_withheld(line, withheld):
+    error = subprocess.CalledProcessError(1, ["git"], stderr=line + "\nsecond line\n")
+
+    reason = _git_refusal_reason(Task(id="t1", prompt=""), error)
+
+    assert (reason == "details in the server log") is withheld
+    assert withheld or reason == line
 
 
 def test_a_refusal_for_an_unmerged_branch_quotes_git(env):
