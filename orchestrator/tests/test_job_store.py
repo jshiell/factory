@@ -48,6 +48,23 @@ def test_latest_for_task_returns_the_newest_job_of_that_task(jobs):
     assert jobs.latest_for_task("t1") == newest
 
 
+def test_unfinished_for_task_returns_the_queued_or_running_job_only(jobs):
+    done = jobs.create("advance", "t1")
+    jobs.mark_succeeded(done.id, {})
+    failed = jobs.create("advance", "t1")
+    jobs.mark_failed(failed.id, "x")
+    assert jobs.unfinished_for_task("t1") is None
+
+    running = jobs.create("abandon", "t1")
+    jobs.mark_running(running.id)
+    assert jobs.unfinished_for_task("t1").id == running.id
+
+    jobs.mark_succeeded(running.id, {})
+    queued = jobs.create("recover", "t1")
+    assert jobs.unfinished_for_task("t1").id == queued.id
+    assert jobs.unfinished_for_task("t2") is None
+
+
 def test_latest_for_task_is_none_when_the_task_has_no_jobs(jobs):
     jobs.create("advance", "t2")
 

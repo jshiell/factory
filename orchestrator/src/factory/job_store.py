@@ -55,6 +55,15 @@ class JobStore:
             ).fetchone()
         return self._job(*row) if row else None
 
+    def unfinished_for_task(self, task_id: str) -> Job | None:
+        with transaction(self._db_path) as conn:
+            row = conn.execute(
+                "SELECT id, kind, task_id, state, result, error FROM jobs "
+                "WHERE task_id = ? AND state IN ('queued', 'running') ORDER BY seq DESC LIMIT 1",
+                (task_id,),
+            ).fetchone()
+        return self._job(*row) if row else None
+
     def mark_running(self, job_id: str) -> None:
         self._update(job_id, "running")
 
