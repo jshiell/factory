@@ -51,4 +51,14 @@ Stage and runner saves; a version column; merge, retry, rebase and recover actio
 - `BEGIN IMMEDIATE` inside the existing `transaction()` context manager: confirm no implicit BEGIN conflicts (increment 1 test covers it).
 
 ## Deviations
-Recorded after implementation.
+Implemented 2026-11-22.
+
+- **Increment 0.** Only the isolation probe was run (throwaway script): a read inside `transaction()` leaves `in_transaction` false and a second connection commits a write meanwhile, so the loser's `INSERT OR REPLACE` overwrote it (confirms the missing `BEGIN IMMEDIATE`). The two-human-submit and worker-thread probes were not run separately: handlers never yield between load and save (read, not probed), and the worker-thread race is covered by `update` being atomic (increment 4) plus the `UpdateOnly` tests.
+- **Order.** Increment 6 (file store `update`) came before 7 because the domain tests (`test_approve_plan.py` and others) use the file `TaskStore`.
+- **Increment 4 was a guard, not red.** `update` already held the lock from increment 1. Mutation-checked: with `BEGIN IMMEDIATE` removed the test fails; with it, 10 of 10 reruns pass. The thread test is event-gated.
+- **Guards (green on arrival):** increments 2, 3, 5, the file-store-independent abandon-refused case, and the JSON reject 409 (`test_server_reject_race.py`).
+- **Test edits (D6 exception).** Six web test wrappers got an `update` passthrough, one commit, no assertion changed. A new `tests/updateonly.py` store refuses `save`, so each action's red test proves it goes through `update`.
+- **Abandon race test.** Replaced by the `UpdateOnly` test: with `abandon_task` calling only `update`, no load/save window remains, and `update` atomicity is proven in increment 4.
+- **`service.reject_plan`** keeps its pre-check load (the existing web tests count loads) and now maps `InvalidTransition` to `NotReviewed`.
+- **Not added:** the Risks-section test that the callbacks do not touch the store; each callback takes only the task and has no store reference.
+- **UI.** No new UI test: the existing `test_web_*_race.py` tests cover the 409 page through the passthrough wrappers.
