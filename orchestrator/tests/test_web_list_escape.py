@@ -1,8 +1,6 @@
 """The list page shows agent-written text with control and bidi format characters escaped."""
-import json
-
 from factory.sqlite_db import transaction
-from factory.store import task_to_dict
+from factory.store import Listing
 from factory.task import Task
 from factory.web.routes import _event, render_tasks
 from webhelpers import add
@@ -48,11 +46,10 @@ def test_a_skipped_name_with_control_characters_is_shown_escaped(client, ctx):
         assert "broken\\x07one" in html
 
 
-def test_a_task_id_with_control_characters_is_shown_escaped(client, ctx):
+def test_a_task_id_with_control_characters_is_shown_escaped(client, ctx, monkeypatch):
+    # The store refuses such a row (plan 79); a double stands in for it, so the page's own escaping stays pinned.
     task = Task("a\x07b", "prompt", goal="g")
-    with transaction(ctx.settings.db_path) as conn:
-        conn.execute("INSERT INTO tasks (id, state, data) VALUES ('safe-column-id', 'queued', ?)",
-                     (json.dumps(task_to_dict(task)),))
+    monkeypatch.setattr(ctx.store, "list", lambda: Listing([task], []))
 
     for html in (client.get("/ui/").text, render_tasks(ctx.store)):
         assert "\x07" not in html
