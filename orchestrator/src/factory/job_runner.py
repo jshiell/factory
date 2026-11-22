@@ -7,6 +7,7 @@ from factory.job_store import Job, JobStore
 from factory.textsafe import log_failure
 
 JOB_FAILED_SENTENCE = "Git or the system failed while running this job. The server log has the details."
+JOB_ERROR_SENTENCE = "The job failed unexpectedly. The server log has the details."
 
 
 class JobRunner:
@@ -44,8 +45,11 @@ class JobRunner:
                     self._jobs.mark_failed(job_id, JOB_FAILED_SENTENCE)
                 else:
                     self._jobs.mark_succeeded(job_id, result)
-            except Exception as error:  # a failed job (or a failed result write) must not stop the worker
+            except RuntimeError as error:  # the refusal channel: its message is written for the user
                 self._jobs.mark_failed(job_id, str(error))
+            except Exception as error:  # a failed job (or a failed result write) must not stop the worker
+                log_failure(f"job {job_id}", error)
+                self._jobs.mark_failed(job_id, JOB_ERROR_SENTENCE)
             finally:
                 self._queue.task_done()
         self._queue.task_done()

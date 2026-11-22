@@ -211,7 +211,7 @@ def test_resuming_after_a_plugin_file_changed_fails_the_job_naming_the_plugins(c
     assert job["state"] == "failed" and "plugin" in job["error"].lower() and FIRST_EVAL in job["error"]
 
 
-def test_an_eval_whose_plugin_directory_holds_a_symlink_fails_the_job_naming_the_symlink(client, ctx, tmp_path):
+def test_an_eval_whose_plugin_directory_holds_a_symlink_fails_the_job_without_naming_the_path(client, ctx, tmp_path):
     from dataclasses import replace
     plugin = tmp_path / "plugin"
     plugin.mkdir()
@@ -221,7 +221,8 @@ def test_an_eval_whose_plugin_directory_holds_a_symlink_fails_the_job_naming_the
     queued = client.post("/eval-audit", json={"runs": 1, "only": ["case-01"], "stage_config": True}).json()
 
     job = _wait(client, queued["job"]["id"])
-    assert job["state"] == "failed" and "symlink" in job["error"] and str(plugin / "link") in job["error"]
+    assert (job["state"], job["error"]) == ("failed", "The job failed unexpectedly. The server log has the details.")
+    assert str(tmp_path) not in json.dumps(job)
 
 
 def test_resuming_through_a_symlink_is_422_and_runs_nothing(client, ctx, tmp_path):

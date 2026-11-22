@@ -92,3 +92,20 @@ def test_a_git_or_system_failure_is_failed_with_a_fixed_sentence_and_logged_esca
     assert jobs.get(good.id).state == "succeeded"
     log_lines = capsys.readouterr().err.strip().splitlines()
     assert len(log_lines) == 1 and logged in log_lines[0]  # a newline in git's stderr cannot forge a second line
+
+
+JOB_ERROR_SENTENCE = "The job failed unexpectedly. The server log has the details."
+
+
+def test_an_unexpected_exception_is_failed_with_a_fixed_sentence_and_logged(runner, jobs, capsys):
+    def fail():
+        raise ValueError("plugin /secret/path contains a symlink")
+
+    bad = runner.submit("eval", None, fail)
+    good = runner.submit("advance", "t2", lambda: {"ok": True})
+    runner.wait_idle()
+
+    assert (jobs.get(bad.id).state, jobs.get(bad.id).error) == ("failed", JOB_ERROR_SENTENCE)
+    assert jobs.get(good.id).state == "succeeded"
+    log_lines = capsys.readouterr().err.strip().splitlines()
+    assert len(log_lines) == 1 and "ValueError" in log_lines[0] and "/secret/path" in log_lines[0]
