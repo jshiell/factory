@@ -1,5 +1,4 @@
 """Task actions shared by the JSON API and the web UI: queue a job, create a task, retry one."""
-import subprocess
 
 from factory import service
 from factory.abandon_task import AbandonRefused, abandon_task
@@ -81,7 +80,7 @@ class WebActions:
     def enqueue_rebase(self, task_id: str):
         ctx = self._ctx
         return self._enqueue(
-            "rebase", task_id, (RebaseRefused, InvalidTransition, subprocess.CalledProcessError),
+            "rebase", task_id, (RebaseRefused, InvalidTransition),
             lambda id_: self._rebase(id_, ctx.store, ctx.settings.repo, ctx.settings.main_branch),
             lambda rebased: {**_task_result_json(rebased.task), "old_audited_sha": rebased.old_audited_sha})
 

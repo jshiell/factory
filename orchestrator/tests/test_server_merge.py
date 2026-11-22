@@ -196,6 +196,17 @@ def test_a_git_failure_in_a_merge_job_stores_the_fixed_sentence_not_the_command(
     assert (job["state"], job["error"]) == ("failed", JOB_FAILED_SENTENCE)
 
 
+def test_a_git_failure_in_a_rebase_job_stores_the_fixed_sentence_not_the_command(client, audited, monkeypatch):
+    def fail(*args, **kwargs):
+        raise subprocess.CalledProcessError(128, ["git", "rebase", "secret-ref"])
+
+    monkeypatch.setattr("factory.server.rebase_task", fail)
+
+    job = _wait(client, client.post("/tasks/t1/rebase").json()["job"]["id"])
+
+    assert (job["state"], job["error"]) == ("failed", JOB_FAILED_SENTENCE)
+
+
 @pytest.fixture
 def failed(ctx, repo):
     worktree, base = WorktreeManager(repo, ctx.settings.worktree_root).create("f1")
