@@ -1,3 +1,4 @@
+from dataclasses import replace
 from datetime import datetime
 
 import pytest
@@ -7,6 +8,7 @@ from factory.settings import Settings
 from factory.sqlite_db import transaction
 from factory.sqlite_ledger import SqliteLedger
 from factory.sqlite_store import SqliteTaskStore
+from factory.task import Task, TaskState
 from serving import served
 
 UNREADABLE_BODY = {"error": "task unreadable", "detail": "task record is unreadable"}
@@ -62,3 +64,16 @@ LOADING_ROUTES = [
 def test_every_route_that_loads_a_task_answers_the_fixed_500_for_an_unreadable_one(
         client, broken_id, capsys, method, path):
     _assert_unreadable_and_logged_once(client.request(method, path.format(id=broken_id)), capsys)
+
+
+class _BrokenLedger:
+    def entries(self):
+        raise KeyError("cost_usd")
+
+
+def test_a_failure_after_the_task_loaded_is_not_reported_as_an_unreadable_task(ctx):
+    ctx.store.save(Task(id="fine", prompt="", state=TaskState.PROPOSED))
+    broken = replace(ctx, ledger=_BrokenLedger())
+
+    with served(broken) as client, pytest.raises(KeyError, match="cost_usd"):
+        client.get("/costs?task_id=fine")
