@@ -1,4 +1,5 @@
 import threading
+import time
 
 import pytest
 
@@ -52,3 +53,19 @@ def test_jobs_run_one_at_a_time_in_submission_order(runner, jobs):
 
     assert order == ["a", "b"]
     assert (jobs.get(first.id).state, jobs.get(second.id).state) == ("succeeded", "succeeded")
+
+
+def test_a_job_error_with_a_lone_surrogate_is_still_recorded_and_the_worker_survives(runner, jobs):
+    def boom():
+        raise RuntimeError("bad \ud800 text")
+
+    bad = runner.submit("advance", "t1", boom)
+    good = runner.submit("advance", "t2", lambda: {"ok": True})
+
+    deadline = time.monotonic() + 5  # no wait_idle: a dead worker would block it forever
+    while jobs.get(good.id).state != "succeeded" and time.monotonic() < deadline:
+        time.sleep(0.01)
+
+    assert jobs.get(bad.id).state == "failed"
+    assert "bad" in jobs.get(bad.id).error
+    assert jobs.get(good.id).state == "succeeded"

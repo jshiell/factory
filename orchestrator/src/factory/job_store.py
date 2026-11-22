@@ -76,7 +76,8 @@ class JobStore:
         self._update(job_id, "succeeded", result=json.dumps(result))
 
     def mark_failed(self, job_id: str, error: str) -> None:
-        self._update(job_id, "failed", error=error)
+        encodable = error.encode("utf-8", "backslashreplace").decode("utf-8")  # a lone surrogate would fail the SQLite write
+        self._update(job_id, "failed", error=encodable)
 
     def interrupt_unfinished(self) -> None:
         with transaction(self._db_path) as conn:
