@@ -70,7 +70,24 @@ class SqliteTaskStore:
     def load(self, task_id: str) -> Task:
         require_safe_id(task_id)
         with transaction(self._db_path) as conn:
-            row = conn.execute("SELECT data FROM tasks WHERE id = ?", (task_id,)).fetchone()
+            return self._read(conn, task_id)
+
+    def update(self, task_id: str, change: Callable[[Task], Task]) -> Task:
+        """Load, apply `change` and save under one write lock, so no write can land in between."""
+        require_safe_id(task_id)
+        with transaction(self._db_path) as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            updated = change(self._read(conn, task_id))
+            conn.execute(
+                "INSERT OR REPLACE INTO tasks (id, state, data) VALUES (?, ?, ?)",
+                (updated.id, updated.state.value, json.dumps(task_to_dict(updated))),
+            )
+        self._notify()
+        return updated
+
+    @staticmethod
+    def _read(conn: sqlite3.Connection, task_id: str) -> Task:
+        row = conn.execute("SELECT data FROM tasks WHERE id = ?", (task_id,)).fetchone()
         if row is None:
             raise TaskNotFound(task_id)
         return task_from_dict(json.loads(row[0]))
