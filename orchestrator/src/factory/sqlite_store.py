@@ -98,4 +98,4 @@ class SqliteTaskStore:
         row = conn.execute("SELECT data FROM tasks WHERE id = ?", (task_id,)).fetchone()
         if row is None:
             raise TaskNotFound(task_id)
-        return task_from_dict(json.loads(row[0]))
+        return _task_stored_under(task_id, row[0])
