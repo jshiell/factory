@@ -307,6 +307,26 @@ def test_a_removal_failure_is_reported_as_partial_and_the_other_tasks_are_still_
     assert any("partially removed" in p for p in problems) and not other.exists()
 
 
+def test_a_partial_cache_removal_withholds_the_path_and_logs_it(env, tmp_path, capsys):
+    _, _, _, _, add = env
+    add("a-failed", S.FAILED)
+    stuck = make_cache(tmp_path, "a-failed")
+    (stuck / "sub").mkdir()
+    (stuck / "sub" / "g").write_text("g")
+    (stuck / "sub").chmod(0o500)
+    try:
+        outcomes = run_clean_with_caches(env, tmp_path)
+    finally:
+        (stuck / "sub").chmod(0o700)
+
+    problems = [p for o in outcomes for p in o.problems]
+    assert problems == ["cache a-failed partially removed (details in the server log)"]
+    log_lines = capsys.readouterr().err.strip().splitlines()
+    assert len(log_lines) == 1
+    assert "clean a-failed cache removal failed" in log_lines[0]
+    assert str(tmp_path) in log_lines[0] and "Permission denied" in log_lines[0]
+
+
 def test_a_task_that_is_no_longer_terminal_keeps_its_cache(env, tmp_path):
     store, repo, manager, root, add = env
     add("failed", S.FAILED)
