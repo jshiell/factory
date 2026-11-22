@@ -63,3 +63,12 @@ def test_migrate_reports_unreadable_task_files_and_leaves_them(ctx):
     assert code == 0
     assert out == "migrated 1 tasks, 1 ledger entries\nskipped: broken.json\n"
     assert (ctx.settings.tasks_dir / "broken.json").exists()
+
+
+def test_migrate_shows_skipped_names_with_control_characters_escaped(ctx):
+    seed_old_files(ctx.settings)
+    (ctx.settings.tasks_dir / "bad\x07name.json").write_text("{not json")
+
+    _, out, _ = run(ctx, "migrate")
+
+    assert "skipped: bad\\x07name.json" in out and "\x07" not in out
