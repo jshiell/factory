@@ -171,7 +171,7 @@ The server also serves a browser page under `/ui`. From it you can create tasks,
   - Retry (`/ui/tasks/{id}/retry`) is synchronous and redirects to the new task. When the plan can be kept the page says so, and that advancing the new task spends money. Waive and reinstate stay in the terminal.
   - Costs (`/ui/costs`), jobs (`/ui/jobs`, the latest 50) and clean (`/ui/clean`: a preview, then one button bound to the preview's token; if what would be cleaned changed the POST is a 409 page).
   - These pages carry the same session, `Host` and `Origin` rules as the other writes.
-  - Known limits: the wrong-state check is in the web layer only, so the JSON API still answers 202 and fails the job. A task whose worktree directory is missing can give a 500 (a known gap, not yet handled).
+  - Known limits: the wrong-state check is in the web layer only, so the JSON API still answers 202 and fails the job. The JSON merge and clean previews still answer 500 when git cannot check the repository or a task's worktree directory is missing; the web merge and clean pages show a 409 page instead.
 - Not yet checked in a real browser (none was available for plans 69 and 70, plan 74's remote sign-in is unchecked until its manual check, and plan 75's manual check is pending): the banner, the task page's layout and live update, the reject button, which `Origin` and `Sec-Fetch-Site` headers browsers send, and streaming only in visible tabs (closing on hide, reopening on return and after Back or Forward). The guard rules and the stream are covered by tests; the visible-tab script is not run by any test.
 
 ### Watching issues
