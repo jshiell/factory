@@ -79,6 +79,20 @@ def test_two_updates_on_one_task_from_separate_stores_leave_exactly_one_winner(t
     assert outcomes == {"first": "won", "second": "lost"}
 
 
+def test_subscribers_are_told_once_per_successful_update_and_not_after_a_failure(tmp_path):
+    # guard (green on arrival)
+    store = SqliteTaskStore(tmp_path / "factory.db")
+    store.save(Task(id="t1", prompt="", state=TaskState.QUEUED, goal="g"))
+    calls = []
+    store.subscribe(lambda: calls.append(1))
+
+    store.update("t1", lambda task: replace(task, goal="a"))
+    with pytest.raises(InvalidTransition):
+        store.update("t1", lambda task: apply(task, Event.APPROVED))
+
+    assert calls == [1]
+
+
 def test_update_of_an_unsafe_id_raises_invalid_task_id(tmp_path):
     # guard (green on arrival)
     store = SqliteTaskStore(tmp_path / "factory.db")
