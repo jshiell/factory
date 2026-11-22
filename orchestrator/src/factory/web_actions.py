@@ -102,7 +102,7 @@ class WebActions:
             return self._merge(id_, ctx.store, ctx.settings.repo, worktrees, shown_sha=shown_sha,
                               main_branch=ctx.settings.main_branch)
 
-        return self._enqueue("merge", task_id, (MergeRefused, InvalidTransition, subprocess.CalledProcessError), merge_now)
+        return self._enqueue("merge", task_id, (MergeRefused, InvalidTransition), merge_now)
 
     def create(self, goal: str, grill) -> str:
         """Create a task and return its id; raises `InvalidInput` for a goal or grill flag no task can carry."""

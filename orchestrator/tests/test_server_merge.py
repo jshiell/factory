@@ -182,6 +182,20 @@ def test_a_rebase_on_another_branch_than_main_branch_ends_the_job_failed_and_cha
     assert ctx.store.load("t1") == audited
 
 
+JOB_FAILED_SENTENCE = "Git or the system failed while running this job. The server log has the details."
+
+
+def test_a_git_failure_in_a_merge_job_stores_the_fixed_sentence_not_the_command(client, audited, monkeypatch):
+    def fail(*args, **kwargs):
+        raise subprocess.CalledProcessError(128, ["git", "merge", "secret-ref"])
+
+    monkeypatch.setattr("factory.server.merge_task", fail)
+
+    job = _wait(client, client.post("/tasks/t1/merge", json={"audited_sha": audited.audited_sha}).json()["job"]["id"])
+
+    assert (job["state"], job["error"]) == ("failed", JOB_FAILED_SENTENCE)
+
+
 @pytest.fixture
 def failed(ctx, repo):
     worktree, base = WorktreeManager(repo, ctx.settings.worktree_root).create("f1")
