@@ -18,8 +18,6 @@ from starlette.responses import HTMLResponse, JSONResponse
 from starlette.routing import Route
 
 from factory import service
-from factory.abandon_task import AbandonRefused, abandon_task
-from factory.advance import advance
 from factory.answer_questions import AnswerRejected, RoundChanged, answer_questions
 from factory.audit_corpus import CASES as EVAL_CASES
 from factory.audit_eval import (
@@ -43,12 +41,10 @@ from factory.job_store import Job, JobNotFound, JobStore
 from factory.lock import AlreadyRunning, state_lock
 from factory.merge_task import MergeRefused, merge_preview, merge_task
 from factory.process_registry import ReapUncertain, leftover_file_records
-from factory.rebase_task import RebaseRefused, rebase_task
-from factory.recover_task import RecoverRefused, recover_task
+from factory.rebase_task import rebase_task
 from factory.retry_task import (
     RetryRefused,
     require_keepable_plan,
-    retry_task,
     retry_with_plan,
 )
 from factory.review_notes import capped_findings, dropped_required_warning
@@ -61,6 +57,7 @@ from factory.web.auth import LoginCodes, Sessions, session_cookie_name
 from factory.web.changes import TaskChanges
 from factory.web.routes import ui_routes
 from factory.web.stopping import StopRequest
+from factory.web_actions import InvalidInput, ShownCommitChanged, WebActions
 from factory.worktrees import WorktreeManager
 
 
@@ -120,26 +117,6 @@ def _unknown_job(request: Request, error: Exception) -> AsciiJSONResponse:
     return AsciiJSONResponse({"error": "unknown job", "detail": str(error)}, status_code=404)
 
 
-def _advance_result_json(result) -> dict:
-    task = result.task
-    return {"steps": [{"stage": step.stage, "state": step.state.value} for step in result.steps],
-            "state": task.state.value, "failure_reason": task.failure_reason, "stopped": result.stopped}
-
-
-def _task_result_json(task) -> dict:
-    return {"state": task.state.value, "failure_reason": task.failure_reason}
-
-
-def _refusal_as(prefix: str, refused: type[Exception] | tuple[type[Exception], ...], run):
-    """Run `run`, turning the domain's refusal into the CLI's `<prefix> refused: <reason>` message."""
-    def wrapped():
-        try:
-            return run()
-        except refused as error:
-            raise RuntimeError(f"{prefix} refused: {error}") from None
-    return wrapped
-
-
 _SAFE_EVAL_NAME = re.compile(r"[A-Za-z0-9_-]+")
 
 
@@ -153,6 +130,10 @@ def _resumed_eval_dir(evals_root, name) -> Path:
 def _build_app(ctx) -> Starlette:
     jobs = JobStore(ctx.settings.db_path)
     runner = JobRunner(jobs)
+    actions = WebActions(  # looked up at call time: this module is where these are wired
+        ctx, runner, merge=lambda *args, **kwargs: merge_task(*args, **kwargs),
+        rebase=lambda *args, **kwargs: rebase_task(*args, **kwargs),
+        retry_with_plan=lambda *args, **kwargs: retry_with_plan(*args, **kwargs))
     changes = TaskChanges()
     stopping = StopRequest()
     if hasattr(ctx.store, "subscribe"):  # the legacy JSON store cannot announce writes; its pages update on reload
@@ -172,16 +153,10 @@ def _build_app(ctx) -> Starlette:
         body = await _json_object(request)
         goal = _required_string(body, "goal")
         try:
-            goal_bytes = goal.encode()
-        except UnicodeEncodeError:  # JSON admits lone surrogates, which no argv string can carry
-            raise ApiError(422, "invalid input", "goal must be valid text") from None
-        if len(goal_bytes) > service.MAX_GOAL_BYTES:
-            raise ApiError(422, "invalid input", f"goal must be at most {service.MAX_GOAL_BYTES} bytes")
-        grill = body.get("grill", ctx.settings.grill)
-        if not isinstance(grill, bool):
-            raise ApiError(422, "invalid input", "grill must be true or false")
-        task = service.create_task(ctx.store, ctx.clock, goal, grill)
-        return AsciiJSONResponse({"id": task.id}, status_code=201)
+            task_id = actions.create(goal, body.get("grill", ctx.settings.grill))
+        except InvalidInput as error:
+            raise ApiError(422, "invalid input", str(error)) from None
+        return AsciiJSONResponse({"id": task_id}, status_code=201)
 
     async def list_tasks(request: Request) -> AsciiJSONResponse:
         listing = service.list_tasks(ctx.store)
@@ -195,31 +170,20 @@ def _build_app(ctx) -> Starlette:
         report = service.cost_report(ctx.store, ctx.ledger, request.query_params.get("task_id"))
         return AsciiJSONResponse(report._asdict())
 
-    async def advance_task(request: Request) -> AsciiJSONResponse:
-        task_id = request.path_params["task_id"]
-        service.get_task(ctx.store, task_id)
-        job = runner.submit("advance", task_id, lambda: _advance_result_json(advance(task_id, ctx.store, ctx.stages)))
+    def queued(job) -> AsciiJSONResponse:
         return AsciiJSONResponse({"job": _job_json(job)}, status_code=202)
 
-    def enqueue(request: Request, kind: str, refused, run_for, to_json=_task_result_json) -> AsciiJSONResponse:
-        """Queue `kind` for the path's task (404 now if unknown); the domain's refusal ends the job as failed."""
-        task_id = request.path_params["task_id"]
-        service.get_task(ctx.store, task_id)
-        run = _refusal_as(kind, refused, lambda: to_json(run_for(task_id)))
-        return AsciiJSONResponse({"job": _job_json(runner.submit(kind, task_id, run))}, status_code=202)
+    async def advance_task(request: Request) -> AsciiJSONResponse:
+        return queued(actions.enqueue_advance(request.path_params["task_id"]))
 
     async def abandon(request: Request) -> AsciiJSONResponse:
-        return enqueue(request, "abandon", AbandonRefused, lambda task_id: abandon_task(task_id, ctx.store))
+        return queued(actions.enqueue_abandon(request.path_params["task_id"]))
 
     async def recover(request: Request) -> AsciiJSONResponse:
-        return enqueue(request, "recover", RecoverRefused, lambda task_id: recover_task(
-            task_id, ctx.store, ctx.ledger, ctx.settings.budget_usd))
+        return queued(actions.enqueue_recover(request.path_params["task_id"]))
 
     async def rebase(request: Request) -> AsciiJSONResponse:
-        return enqueue(
-            request, "rebase", (RebaseRefused, InvalidTransition, subprocess.CalledProcessError),
-            lambda task_id: rebase_task(task_id, ctx.store, ctx.settings.repo, ctx.settings.main_branch),
-            lambda rebased: {**_task_result_json(rebased.task), "old_audited_sha": rebased.old_audited_sha})
+        return queued(actions.enqueue_rebase(request.path_params["task_id"]))
 
     async def approval_preview(request: Request) -> AsciiJSONResponse:
         task = service.get_task(ctx.store, request.path_params["task_id"])
@@ -284,17 +248,13 @@ def _build_app(ctx) -> Starlette:
                              "diffstat": preview.diffstat, "findings": list(preview.findings)})
 
     async def merge(request: Request) -> AsciiJSONResponse:
-        task = service.get_task(ctx.store, request.path_params["task_id"])
+        task_id = request.path_params["task_id"]
+        service.get_task(ctx.store, task_id)
         shown_sha = _required_string(await _json_object(request), "audited_sha")
-        if shown_sha != task.audited_sha:
-            raise ApiError(409, "merge refused", "the commit shown is not the audited commit")
-        repo = ctx.settings.repo
-
-        def merge_now(task_id):
-            worktrees = WorktreeManager(repo, ctx.settings.worktree_root)
-            return merge_task(task_id, ctx.store, repo, worktrees, shown_sha=shown_sha, main_branch=ctx.settings.main_branch)
-
-        return enqueue(request, "merge", (MergeRefused, InvalidTransition, subprocess.CalledProcessError), merge_now)
+        try:
+            return queued(actions.enqueue_merge(task_id, shown_sha))
+        except ShownCommitChanged as error:
+            raise ApiError(409, "merge refused", str(error)) from None
 
     def keepable_task(task_id: str):
         task = service.get_task(ctx.store, task_id)
@@ -321,19 +281,15 @@ def _build_app(ctx) -> Starlette:
         body = await _json_object(request) if await request.body() else {}
         try:
             if body.get("keep_plan"):
-                task = ctx.store.load(task_id)
-                optional = {"waived": _string_list(body, "waive"), "shown_audit_gaps": gaps_to_carry(task),
-                            "reinstated": _string_list(body, "reinstate")}
-                new = retry_with_plan(
-                    task_id, ctx.store, ctx.clock, _required_string(body, "plan_digest"), shown_findings=task.review_findings,
-                    **{name: value for name, value in optional.items() if value})
+                waive, reinstate = _string_list(body, "waive"), _string_list(body, "reinstate")
+                new_id = actions.retry(task_id, _required_string(body, "plan_digest"), waive, reinstate)
             else:
-                new = retry_task(task_id, ctx.store, ctx.clock)
+                new_id = actions.retry(task_id)
         except InvalidWaiver as error:
             raise ApiError(422, "invalid waiver", str(error)) from None
         except RetryRefused as error:
             raise ApiError(409, "retry refused", str(error)) from None
-        return AsciiJSONResponse({"id": new.id}, status_code=201)
+        return AsciiJSONResponse({"id": new_id}, status_code=201)
 
     def clean_scan():
         settings = ctx.settings
@@ -449,6 +405,8 @@ def _build_app(ctx) -> Starlette:
                            service.NotReviewed: _not_reviewed},
     )
     app.state.runner = runner
+    app.state.jobs = jobs
+    app.state.actions = actions
     app.state.login_codes = LoginCodes(ctx.clock)
     app.state.sessions = Sessions()
     app.state.store = ctx.store
