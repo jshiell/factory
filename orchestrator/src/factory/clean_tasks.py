@@ -161,7 +161,7 @@ def _delete_empty_branch(task: Task, repo: Path, outcome: Outcome) -> None:
     try:
         run_git(repo, "update-ref", "-d", ref, task.base_sha)
     except subprocess.CalledProcessError as error:
-        reason = ((error.stderr or "").strip().splitlines() or ["no reason given"])[0]
+        reason = _git_refusal_reason(task, error)
         outcome.problems.append(f"branch factory/{task.id} kept: git refused to delete it ({reason})")
         return
     outcome.done.append("deleted branch")
