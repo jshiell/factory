@@ -17,6 +17,10 @@ ACTIONS = {
     TaskState.VERIFIED: "audit",
 }
 
+def can_advance(task: Task) -> bool:
+    return task.state in ACTIONS
+
+
 _KNOWN_ERRORS = (
     BudgetCapReached, MissingBudget, InvalidTransition, WorktreeExists, BranchExists,
     subprocess.CalledProcessError, ProjectSubdirEscapes,

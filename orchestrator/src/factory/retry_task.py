@@ -16,12 +16,27 @@ class RetryRefused(Exception):
     pass
 
 
+def _retry_refusal(task: Task) -> str | None:
+    if task.state not in RETRYABLE:
+        return f"{task.id} is {task.state.value}; only failed or audited tasks can be retried"
+    if not task.goal:
+        return f"{task.id} has no goal to retry"
+    return None
+
+
+def can_retry(task: Task) -> bool:
+    return _retry_refusal(task) is None
+
+
+def _require_retryable(task: Task) -> None:
+    refusal = _retry_refusal(task)
+    if refusal:
+        raise RetryRefused(refusal)
+
+
 def retry_task(task_id: str, store: TaskStore, clock: Callable[[], datetime]) -> Task:
     task = store.load(task_id)
-    if task.state not in RETRYABLE:
-        raise RetryRefused(f"{task.id} is {task.state.value}; only failed or audited tasks can be retried")
-    if not task.goal:
-        raise RetryRefused(f"{task.id} has no goal to retry")
+    _require_retryable(task)
     return create_with_fresh_id(
         store, clock,
         lambda new_id: Task(
@@ -77,10 +92,7 @@ def _still_waived(task: Task, reinstated: tuple[str, ...]) -> tuple[str, ...]:
 
 
 def require_keepable_plan(task: Task, shown_digest: str) -> None:
-    if task.state not in RETRYABLE:
-        raise RetryRefused(f"{task.id} is {task.state.value}; only failed or audited tasks can be retried")
-    if not task.goal:
-        raise RetryRefused(f"{task.id} has no goal to retry")
+    _require_retryable(task)
     if not task.plan:
         raise RetryRefused(f"{task.id} has no plan to keep")
     if not (plan_digest(task.plan) == shown_digest == task.plan_digest):
