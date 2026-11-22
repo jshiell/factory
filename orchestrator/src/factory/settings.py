@@ -1,3 +1,4 @@
+import ipaddress
 import json
 import os
 import re
@@ -72,6 +73,7 @@ class Settings:
 BIND_HOSTS = ("127.0.0.1", "0.0.0.0")
 _ALWAYS_ALLOWED_HOSTS = ("127.0.0.1", "localhost", "0.0.0.0")
 _HOST_NAME = re.compile(r"[a-z0-9-]+(\.[a-z0-9-]+)*")
+_NUMERIC_HOST = re.compile(r"[0-9.]+")
 _PATH_KEYS = ("repo", "state_dir", "worktree_root", "home")
 _STRING_KEYS = ("project_subdir", "claude_executable", "sandbox_executable", "model", "main_branch", "harness", "sandbox", "server_host")
 _PROMPT_KEYS = ("append_system_prompt",)
@@ -124,7 +126,17 @@ def _allowed_host_problem(host: str) -> str | None:
         return "this name is already accepted or can never be a Host"
     if not _HOST_NAME.fullmatch(host):
         return "use lowercase letters, digits and hyphens separated by dots, or an IPv4 address (no port, scheme, wildcard, trailing dot or IPv6)"
+    if _NUMERIC_HOST.fullmatch(host) and not _is_ipv4(host):
+        return "a numeric name must be a full IPv4 address of four octets, 0-255, without leading zeros"
     return None
+
+
+def _is_ipv4(host: str) -> bool:
+    try:
+        ipaddress.IPv4Address(host)
+    except ValueError:
+        return False
+    return True
 
 
 def _global_layer(path: Path) -> dict:
