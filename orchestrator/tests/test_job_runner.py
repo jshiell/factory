@@ -109,3 +109,24 @@ def test_an_unexpected_exception_is_failed_with_a_fixed_sentence_and_logged(runn
     assert jobs.get(good.id).state == "succeeded"
     log_lines = capsys.readouterr().err.strip().splitlines()
     assert len(log_lines) == 1 and "ValueError" in log_lines[0] and "/secret/path" in log_lines[0]
+
+
+class _FailsToRecordSuccess(JobStore):
+    def mark_succeeded(self, job_id, result):
+        raise ValueError("cannot write /secret/db")
+
+
+def test_a_failed_result_write_is_failed_with_the_fixed_sentence_logged_and_the_worker_survives(tmp_path, capsys):
+    jobs = _FailsToRecordSuccess(tmp_path / "factory.db")
+    runner = JobRunner(jobs)
+    runner.start()
+    try:
+        first = runner.submit("advance", "t1", lambda: {"ok": True})
+        second = runner.submit("advance", "t2", lambda: {"ok": True})
+        runner.wait_idle()
+    finally:
+        runner.stop()
+
+    assert [jobs.get(job.id).error for job in (first, second)] == [JOB_ERROR_SENTENCE] * 2  # the worker ran both
+    log_lines = capsys.readouterr().err.strip().splitlines()
+    assert len(log_lines) == 2 and all("/secret/db" in line for line in log_lines)
