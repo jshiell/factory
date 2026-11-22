@@ -16,6 +16,14 @@ from factory.store import (
 from factory.task import Task
 
 
+def _task_stored_under(key: str, data: str) -> Task:
+    """The task in a row's JSON; a stored `id` that is not the row's key makes the row unreadable (ValueError)."""
+    task = task_from_dict(json.loads(data))
+    if task.id != key:
+        raise ValueError("the stored id differs from the row key")
+    return task
+
+
 class SqliteTaskStore:
     def __init__(self, db_path: Path):
         self._db_path = db_path
@@ -62,7 +70,7 @@ class SqliteTaskStore:
         tasks, skipped = [], []
         for task_id, data in rows:
             try:
-                tasks.append(task_from_dict(json.loads(data)))
+                tasks.append(_task_stored_under(task_id, data))
             except (ValueError, KeyError, TypeError):
                 skipped.append(task_id)
         return Listing(tasks, skipped)
