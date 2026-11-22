@@ -1,6 +1,8 @@
 import sys
 import unicodedata
 
+WITHHELD_REASON = "details in the server log"
+
 
 def failure_detail(error: BaseException) -> str:
     """One escaped line describing a failure for a log: the error text plus the stderr of a failed subprocess."""

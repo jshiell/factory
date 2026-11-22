@@ -7,7 +7,7 @@ from pathlib import Path
 
 from factory.ids import InvalidTaskId, require_safe_id
 from factory.store import TaskNotFound, TaskStore
-from factory.textsafe import log_failure
+from factory.textsafe import WITHHELD_REASON, log_failure
 
 
 @dataclass(frozen=True)
@@ -75,5 +75,5 @@ def remove_cache(cache_root: Path, name: str) -> str | None:
         shutil.rmtree(directory)
     except OSError as error:
         log_failure(f"clean {name} cache removal", error)
-        return f"cache {name} partially removed (details in the server log)"
+        return f"cache {name} partially removed ({WITHHELD_REASON})"
     return None

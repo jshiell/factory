@@ -6,7 +6,7 @@ from pathlib import Path
 from factory.gate_cache import OrphanCache, cache_size, remove_cache
 from factory.store import TaskNotFound, TaskStore
 from factory.task import Task, TaskState
-from factory.textsafe import log_failure
+from factory.textsafe import WITHHELD_REASON, log_failure
 from factory.worktrees import WorktreeManager, run_git
 
 CLEANABLE = (TaskState.MERGED, TaskState.FAILED)
@@ -142,7 +142,6 @@ def _delete_branch(task: Task, repo: Path, outcome: Outcome) -> None:
 
 
 _ABSOLUTE_PATH = re.compile(r"(?<![\w.-])/\S")
-_WITHHELD_REASON = "details in the server log"
 
 
 def _git_refusal_reason(task: Task, error: subprocess.CalledProcessError) -> str:
@@ -150,7 +149,7 @@ def _git_refusal_reason(task: Task, error: subprocess.CalledProcessError) -> str
     reason = ((error.stderr or "").strip().splitlines() or ["no reason given"])[0]
     if _ABSOLUTE_PATH.search(reason):
         log_failure(f"clean {task.id} branch deletion", error)
-        return _WITHHELD_REASON
+        return WITHHELD_REASON
     return reason
 
 
