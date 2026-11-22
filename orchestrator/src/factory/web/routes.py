@@ -15,6 +15,7 @@ from factory import answer_questions, approve_plan, service
 from factory.abandon_task import can_abandon
 from factory.digest import plan_digest
 from factory.ids import InvalidTaskId
+from factory.recover_task import can_recover
 from factory.review_notes import capped_findings, dropped_required_warning
 from factory.store import TaskNotFound
 from factory.task import InvalidTransition, Task, TaskState
@@ -315,6 +316,12 @@ _ABANDON = _TaskAction(
     "abandoned", can_abandon, "That task cannot be abandoned in its current state.", WebActions.enqueue_abandon)
 
 
+_RECOVER = _TaskAction(
+    "recover", "Recover this task? It is marked failed as interrupted, and an assumed cost (a multiple of the budget "
+    "setting) is recorded against the ledger. Do this only if nothing is still working on it.", "Recover task",
+    "recovered", can_recover, "That task cannot be recovered in its current state.", WebActions.enqueue_recover)
+
+
 def _action_refusal(request: Request, task, action: _TaskAction) -> HTMLResponse | None:
     """The 409 page refusing the action for this task (wrong state, or a job already queued or running), or None."""
     if not action.allowed(task):
@@ -509,5 +516,7 @@ def ui_routes() -> list[Route | Mount]:
             Route("/ui/tasks/{task_id}/approve", _approve, methods=["POST"]),
             Route("/ui/tasks/{task_id}/abandon", _action_page(_ABANDON), methods=["GET"]),
             Route("/ui/tasks/{task_id}/abandon", _action_post(_ABANDON), methods=["POST"]),
+            Route("/ui/tasks/{task_id}/recover", _action_page(_RECOVER), methods=["GET"]),
+            Route("/ui/tasks/{task_id}/recover", _action_post(_RECOVER), methods=["POST"]),
             Route("/ui/tasks/{task_id}/events", _task_events, methods=["GET"]),
             Route("/ui/login", _login, methods=["GET"]), Mount("/ui/static", StaticFiles(directory=STATIC_DIR))]
