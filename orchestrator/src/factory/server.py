@@ -252,7 +252,8 @@ def _build_app(ctx) -> Starlette:
         return AsciiJSONResponse({"id": answered.id, "state": answered.state.value})
 
     async def reject(request: Request) -> AsciiJSONResponse:
-        task = service.reject_plan(ctx.store, request.path_params["task_id"])
+        task_id = load_task(request.path_params["task_id"]).id
+        task = service.reject_plan(ctx.store, task_id)
         return AsciiJSONResponse({"id": task.id, "state": ctx.store.load(task.id).state.value})
 
     async def merge_preview_view(request: Request) -> AsciiJSONResponse:

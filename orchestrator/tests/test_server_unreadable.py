@@ -44,3 +44,6 @@ def _assert_unreadable_and_logged_once(response, capsys):
 def test_showing_an_unreadable_task_answers_a_fixed_500_and_logs_the_error(client, broken_id, capsys):
     _assert_unreadable_and_logged_once(client.get(f"/tasks/{broken_id}"), capsys)
 
+
+def test_rejecting_an_unreadable_task_answers_a_fixed_500_and_logs_the_error(client, broken_id, capsys):
+    _assert_unreadable_and_logged_once(client.post(f"/tasks/{broken_id}/reject"), capsys)
