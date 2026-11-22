@@ -57,6 +57,7 @@ from factory.web.changes import TaskChanges
 from factory.web.routes import ui_routes
 from factory.web.stopping import StopRequest
 from factory.web_actions import (
+    MERGE_CHECK_FAILED,
     CleanChanged,
     InvalidInput,
     ShownCommitChanged,
@@ -246,8 +247,10 @@ def _build_app(ctx) -> Starlette:
         service.get_task(ctx.store, task_id)
         try:
             preview = merge_preview(task_id, ctx.store, ctx.settings.repo, ctx.settings.main_branch)
-        except (MergeRefused, InvalidTransition, subprocess.CalledProcessError) as error:
+        except (MergeRefused, InvalidTransition) as error:
             raise ApiError(409, "merge refused", str(error)) from None
+        except subprocess.CalledProcessError:
+            raise ApiError(409, "merge check failed", MERGE_CHECK_FAILED) from None
         return AsciiJSONResponse({"branch": preview.branch, "audited_sha": preview.task.audited_sha,
                              "diffstat": preview.diffstat, "findings": list(preview.findings)})
 

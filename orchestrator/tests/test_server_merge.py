@@ -71,6 +71,20 @@ def test_merge_preview_on_another_branch_than_main_branch_is_409(client, ctx, au
     assert "main is on branch other, not main" in response.json()["detail"]
 
 
+MERGE_CHECK_SENTENCE = "Git could not check this task's branch and worktree, so it cannot be merged."
+
+
+def test_a_git_failure_in_merge_preview_is_409_with_a_fixed_sentence_and_no_git_command(client, ctx, tmp_path):
+    ctx.store.save(Task(id="t2", prompt="p", state=TaskState.AUDITED, worktree=str(tmp_path),
+                        base_sha="0" * 40, audited_sha="1" * 40))  # no factory/t2 branch: rev-parse fails
+
+    response = client.get("/tasks/t2/merge-preview")
+
+    assert response.status_code == 409
+    assert response.json() == {"error": "merge check failed", "detail": MERGE_CHECK_SENTENCE}
+    assert "rev-parse" not in response.text
+
+
 def test_merge_preview_of_an_unknown_task_is_404(client):
     assert client.get("/tasks/nope/merge-preview").status_code == 404
 
