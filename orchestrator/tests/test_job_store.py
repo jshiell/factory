@@ -40,6 +40,20 @@ def test_a_failed_job_keeps_its_error(jobs):
     assert (failed.state, failed.error) == ("failed", "merge refused: nope")
 
 
+def test_latest_for_task_returns_the_newest_job_of_that_task(jobs):
+    jobs.create("advance", "t1")
+    jobs.create("advance", "t2")
+    newest = jobs.create("abandon", "t1")
+
+    assert jobs.latest_for_task("t1") == newest
+
+
+def test_latest_for_task_is_none_when_the_task_has_no_jobs(jobs):
+    jobs.create("advance", "t2")
+
+    assert jobs.latest_for_task("t1") is None
+
+
 def test_list_returns_jobs_in_creation_order(jobs):
     first, second = jobs.create("advance", "a"), jobs.create("merge", "b")
 
