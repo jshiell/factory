@@ -13,6 +13,7 @@ from starlette.staticfiles import StaticFiles
 
 from factory import answer_questions, approve_plan, service
 from factory.abandon_task import can_abandon
+from factory.advance import can_advance
 from factory.digest import plan_digest
 from factory.ids import InvalidTaskId
 from factory.recover_task import can_recover
@@ -322,6 +323,12 @@ _RECOVER = _TaskAction(
     "recovered", can_recover, "That task cannot be recovered in its current state.", WebActions.enqueue_recover)
 
 
+_ADVANCE = _TaskAction(
+    "advance", "Advance this task? It runs until the next decision point and may spend money on several stages "
+    "(up to 10 steps).", "Advance task",
+    "advanced", can_advance, "That task cannot be advanced in its current state.", WebActions.enqueue_advance)
+
+
 def _action_refusal(request: Request, task, action: _TaskAction) -> HTMLResponse | None:
     """The 409 page refusing the action for this task (wrong state, or a job already queued or running), or None."""
     if not action.allowed(task):
@@ -518,5 +525,7 @@ def ui_routes() -> list[Route | Mount]:
             Route("/ui/tasks/{task_id}/abandon", _action_post(_ABANDON), methods=["POST"]),
             Route("/ui/tasks/{task_id}/recover", _action_page(_RECOVER), methods=["GET"]),
             Route("/ui/tasks/{task_id}/recover", _action_post(_RECOVER), methods=["POST"]),
+            Route("/ui/tasks/{task_id}/advance", _action_page(_ADVANCE), methods=["GET"]),
+            Route("/ui/tasks/{task_id}/advance", _action_post(_ADVANCE), methods=["POST"]),
             Route("/ui/tasks/{task_id}/events", _task_events, methods=["GET"]),
             Route("/ui/login", _login, methods=["GET"]), Mount("/ui/static", StaticFiles(directory=STATIC_DIR))]
