@@ -101,4 +101,12 @@ Waivers and reinstating (CLI-only, as the watcher); merge, abandon, retry, rebas
 - Increment 23 was red, not a guard: `NotReviewed` otherwise reached the JSON handler, which echoes the id.
 - The stale-round and plan-changed pages reuse `task_wrong_state.html` with their own messages; no new templates beyond `answer.html`, `approve.html`, `task_wrong_state.html` and `form_rejected.html`.
 - A recommended answer containing CR/LF is stored with a literal `\x0d` (D13: `escape_control` escapes `\r` before the whitespace split). The prompt then escapes it a second time. Typed answers are whitespace-collapsed only, like the CLI, since the planner prompt already escapes the log.
-- Not done: the manual browser check (increment 27) is pending.
+- Browser check (increment 27), automated: headless Chromium (Playwright 1.65.1, `--no-sandbox`) against `factory serve` on a scratch repo with seeded tasks, logged in through a `/ui-login-codes` URL. Observed:
+  - Blank submit kept the prefilled answers (`1. sqlite`, `2. 8765`); the task moved to `proposed` and the 303 landed on the task page, which reloaded fine.
+  - Edited answers `postgres  with   spaces` and `9000` were stored as `1. postgres with spaces`, `2. 9000`.
+  - Recommended answers with a newline, a BEL and a tab prefilled as `line one line two` and `bell\x07tab here`; submitted unchanged they were stored as `1. line one line two`, `2. bell\x07tab here` (the `\x07` text is literal).
+  - A stale answer tab (a new round arrived after the page opened) got the 409 "questions changed" page; the task stayed `open_questions`.
+  - Approving a reviewed plan with one required note gave a 303 to the task page; the task is `queued`, `waived_findings` is empty and the note is in the prompt.
+  - Every POST carried `Origin: http://127.0.0.1:<port>` and `Sec-Fetch-Site: same-origin`; all passed the guard.
+  - Chromium's reload on a POST result page re-sent the POST (the stale page returned 409 again).
+  - Not covered: readability and look of the pages, the stale-digest approve case (not reachable from a tab), and any browser other than Chromium.
