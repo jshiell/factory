@@ -451,7 +451,10 @@ def _action_post(action: _TaskAction):
             await _read_form(request)  # the confirm form carries no fields; this refuses what the UI's pages would not send
         except _BadForm:
             return _bad_form_page()
-        if refusal := _action_refusal(request, task, action):  # the body read awaited: check again, with no await before the submit
+        task, refusal = _load_task(request)  # the body read awaited: load and check again, with no await before the submit
+        if refusal:
+            return refusal
+        if refusal := _action_refusal(request, task, action):
             return refusal
         try:
             action.enqueue(request.app.state.actions, task.id)
