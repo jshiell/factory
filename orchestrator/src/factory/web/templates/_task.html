@@ -17,6 +17,9 @@
 {% if task.state == "open_questions" %}
 <p><a href="/ui/tasks/{{ task.id | urlencode }}/answer">answer these questions</a></p>
 {% endif %}
+{% for name, text in actions %}
+<p><a href="/ui/tasks/{{ task.id | urlencode }}/{{ name }}">{{ text }}</a></p>
+{% endfor %}
 {% if task.failure_reason %}
 <p>failure: {{ task.failure_reason }}</p>
 {% endif %}

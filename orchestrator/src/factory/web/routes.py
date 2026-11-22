@@ -82,6 +82,21 @@ def _job_view(job) -> dict | None:
             "error": _safe(_truncated(job.error, _ERROR_LIMIT)) if job.error else None, "stopped": _safe(stopped)}
 
 
+_ACTION_LINKS = (("advance", "advance this task", can_advance), ("rebase", "rebase this task", can_rebase),
+                 ("merge", "merge this task", can_merge), ("recover", "recover this task", can_recover),
+                 ("abandon", "abandon this task", can_abandon))
+
+
+def _offered_actions(task, job) -> list[tuple[str, str]]:
+    """The (name, text) links the task page offers: those valid for its state, none while its job is unfinished
+    (the POST would be refused), and retry whenever it is valid (a retry creates a new task)."""
+    busy = job is not None and job.state in ("queued", "running")
+    links = [] if busy else [(name, text) for name, text, allowed in _ACTION_LINKS if allowed(task)]
+    if can_retry(task):
+        links.append(("retry", "retry this task"))
+    return links
+
+
 def _missing_page() -> HTMLResponse:
     return HTMLResponse(_TEMPLATES.get_template("task_missing.html").render(), status_code=404)
 
@@ -105,7 +120,8 @@ async def _task_page(request: Request) -> HTMLResponse:
     if refusal:
         return refusal
     job = request.app.state.jobs.latest_for_task(task.id)
-    return HTMLResponse(_TEMPLATES.get_template("task.html").render(task=_task_detail(task), job=_job_view(job)))
+    return HTMLResponse(_TEMPLATES.get_template("task.html").render(
+        task=_task_detail(task), job=_job_view(job), actions=_offered_actions(task, job)))
 
 
 def _not_reviewed_page() -> HTMLResponse:
@@ -552,7 +568,8 @@ async def _new_task(request: Request) -> RedirectResponse | HTMLResponse:
 
 
 def _render_task(task, job=None) -> str:
-    return _TEMPLATES.get_template("_task.html").render(task=_task_detail(task), job=_job_view(job))
+    return _TEMPLATES.get_template("_task.html").render(
+        task=_task_detail(task), job=_job_view(job), actions=_offered_actions(task, job))
 
 
 def render_tasks(store) -> str:
