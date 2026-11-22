@@ -18,6 +18,7 @@ from factory.task import InvalidTransition, TaskState
 from factory.textsafe import escape_control
 from factory.waiver import note_lines
 from factory.web.auth import session_cookie_name
+from factory.web_actions import InvalidInput
 
 _TEMPLATES = jinja2.Environment(loader=jinja2.FileSystemLoader(Path(__file__).parent / "templates"), autoescape=True)
 _GOAL_LIMIT = 120
@@ -294,6 +295,34 @@ async def _approve(request: Request) -> RedirectResponse | HTMLResponse:
     return RedirectResponse(f"/ui/tasks/{quote(task.id, safe='')}", status_code=303)
 
 
+def _new_task_page_with(message: str | None, goal: str, grill: bool, status_code: int = 200) -> HTMLResponse:
+    return HTMLResponse(_TEMPLATES.get_template("new_task.html").render(message=message, goal=goal, grill=grill),
+                        status_code=status_code)
+
+
+async def _new_task_page(request: Request) -> HTMLResponse:
+    return _new_task_page_with(None, "", request.app.state.settings.grill)
+
+
+async def _new_task(request: Request) -> RedirectResponse | HTMLResponse:
+    try:
+        form = await _read_form(request)
+        goal = _single(form, "goal")
+        if goal is None:
+            raise _BadForm
+        grill = _single(form, "grill") is not None
+    except _BadForm:
+        return _bad_form_page()
+    try:
+        if not goal.strip():
+            raise InvalidInput("The goal cannot be blank.")
+        task_id = request.app.state.actions.create(goal, grill)
+    except InvalidInput as error:
+        shown_goal = goal.encode(errors="replace").decode()  # a lone surrogate cannot be written to the response
+        return _new_task_page_with(str(error), shown_goal, grill, status_code=422)
+    return RedirectResponse(f"/ui/tasks/{quote(task_id, safe='')}", status_code=303)
+
+
 def _render_task(task, job=None) -> str:
     return _TEMPLATES.get_template("_task.html").render(task=_task_detail(task), job=_job_view(job))
 
@@ -404,7 +433,9 @@ STATIC_DIR = Path(__file__).parent / "static"
 
 def ui_routes() -> list[Route | Mount]:
     return [Route("/ui", _ui_without_slash, methods=["GET"]), Route("/ui/", _ui_page, methods=["GET"]),
-            Route("/ui/events", _events, methods=["GET"]), Route("/ui/tasks/{task_id}", _task_page, methods=["GET"]),
+            Route("/ui/events", _events, methods=["GET"]), Route("/ui/tasks/new", _new_task_page, methods=["GET"]),
+            Route("/ui/tasks/new", _new_task, methods=["POST"]),
+            Route("/ui/tasks/{task_id}", _task_page, methods=["GET"]),
             Route("/ui/tasks/{task_id}/reject", _reject_page, methods=["GET"]),
             Route("/ui/tasks/{task_id}/reject", _reject, methods=["POST"]),
             Route("/ui/tasks/{task_id}/answer", _answer_page, methods=["GET"]),

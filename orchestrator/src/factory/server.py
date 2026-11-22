@@ -410,6 +410,7 @@ def _build_app(ctx) -> Starlette:
     app.state.login_codes = LoginCodes(ctx.clock)
     app.state.sessions = Sessions()
     app.state.store = ctx.store
+    app.state.settings = ctx.settings
     app.state.changes = changes
     app.state.keepalive_seconds = 15
     app.state.stopping = stopping
