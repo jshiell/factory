@@ -55,6 +55,12 @@ def test_a_git_failure_gets_a_refusal_page_without_the_git_command(client, ctx, 
     _assert_html_refusal(_get(client), 409, "Git could not check")
 
 
+def test_a_task_with_no_worktree_gets_the_git_could_not_check_page(client, ctx, audited):
+    ctx.store.save(replace(audited, worktree=None))
+
+    _assert_html_refusal(_get(client), 409, "Git could not check")
+
+
 def test_a_missing_worktree_directory_gets_a_refusal_page_without_the_path(client, audited):
     shutil.rmtree(audited.worktree)
 
