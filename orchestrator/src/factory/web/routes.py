@@ -15,16 +15,18 @@ from starlette.staticfiles import StaticFiles
 from factory import answer_questions, approve_plan, service
 from factory.abandon_task import can_abandon
 from factory.advance import can_advance
+from factory.audit_gaps import gaps_to_carry
 from factory.digest import plan_digest
 from factory.ids import InvalidTaskId
 from factory.merge_task import MergeRefused, can_merge
 from factory.rebase_task import can_rebase
 from factory.recover_task import can_recover
+from factory.retry_task import RetryRefused, can_retry
 from factory.review_notes import capped_findings, dropped_required_warning
 from factory.store import TaskNotFound
 from factory.task import InvalidTransition, Task, TaskState
 from factory.textsafe import escape_control
-from factory.waiver import note_lines
+from factory.waiver import InvalidWaiver, note_lines
 from factory.web.auth import session_cookie_name
 from factory.web_actions import InvalidInput, ShownCommitChanged, WebActions
 
@@ -452,6 +454,75 @@ async def _merge(request: Request) -> RedirectResponse | HTMLResponse:
     return RedirectResponse(f"/ui/tasks/{quote(task.id, safe='')}", status_code=303)
 
 
+_RETRY_WRONG_STATE = "That task cannot be retried in its current state."
+
+
+def _load_retryable(request: Request):
+    """The task if it can be retried, or the page refusing it. No unfinished-job check: retry makes a new task and
+    accepts duplicates (D8)."""
+    task, refusal = _load_task(request)
+    if refusal is None and not can_retry(task):
+        return None, _wrong_state_page(_RETRY_WRONG_STATE)
+    return task, refusal
+
+
+async def _retry_page(request: Request) -> HTMLResponse:
+    task, refusal = _load_retryable(request)
+    if refusal:
+        return refusal
+    try:
+        kept = _kept_plan(request.app.state.actions.keepable_plan(task.id))
+    except RetryRefused:
+        kept = None
+    except (TaskNotFound, InvalidTaskId):  # the task went between the load above and the one inside keepable_plan
+        return _missing_page()
+    except _UNREADABLE:
+        return _unreadable_page()
+    detail = {"id": task.id, "goal": _safe(task.goal if task.goal is not None else task.prompt)}
+    return HTMLResponse(_TEMPLATES.get_template("retry_confirm.html").render(task=detail, kept=kept))
+
+
+async def _retry(request: Request) -> RedirectResponse | HTMLResponse:
+    _, refusal = _load_retryable(request)  # before the body, so a wrong-state task posted a bad form gets the 409
+    if refusal:
+        return refusal
+    try:
+        shown_digest = _retry_choice(await _read_form(request))
+    except _BadForm:
+        return _bad_form_page()
+    # The body read awaited: load the task again so a task that stopped being retryable gets the wrong-state page.
+    task, refusal = _load_retryable(request)
+    if refusal:
+        return refusal
+    try:
+        new_id = request.app.state.actions.retry(task.id, shown_digest)
+    except RetryRefused:  # its text names the task and the domain's reason; neither is shown
+        if shown_digest is None:
+            return _wrong_state_page(_RETRY_WRONG_STATE)
+        return _wrong_state_page("The plan changed since you opened this page. Open the task again to see what "
+                                 "a retry would keep now.")
+    except InvalidWaiver:  # the UI sends no waivers; a ValueError, so it must come before _UNREADABLE
+        return _wrong_state_page("That task cannot be retried with this form.")
+    except (TaskNotFound, InvalidTaskId):  # the task went between the load above and the one inside the retry
+        return _missing_page()
+    except _UNREADABLE:
+        return _unreadable_page()
+    return RedirectResponse(f"/ui/tasks/{quote(new_id, safe='')}", status_code=303)
+
+
+def _retry_choice(form: dict[str, list[str]]) -> str | None:
+    """The plan digest shown on the page for a keep-plan retry, or None for a retry from scratch."""
+    if _single(form, "keep_plan") is None:
+        return None
+    return _shown_digest(form)
+
+
+def _kept_plan(task) -> dict:
+    """What a keep-plan retry carries over, from the one load that passed the keepable check, with that plan's digest."""
+    return {"plan": _safe(task.plan), "plan_digest": plan_digest(task.plan),
+            "audit_findings": [_safe(finding) for finding in gaps_to_carry(task)]}
+
+
 def _new_task_page_with(message: str | None, goal: str, grill: bool, status_code: int = 200) -> HTMLResponse:
     return HTMLResponse(_TEMPLATES.get_template("new_task.html").render(message=message, goal=goal, grill=grill),
                         status_code=status_code)
@@ -609,5 +680,7 @@ def ui_routes() -> list[Route | Mount]:
             Route("/ui/tasks/{task_id}/rebase", _action_post(_REBASE), methods=["POST"]),
             Route("/ui/tasks/{task_id}/merge", _merge_page, methods=["GET"]),
             Route("/ui/tasks/{task_id}/merge", _merge, methods=["POST"]),
+            Route("/ui/tasks/{task_id}/retry", _retry_page, methods=["GET"]),
+            Route("/ui/tasks/{task_id}/retry", _retry, methods=["POST"]),
             Route("/ui/tasks/{task_id}/events", _task_events, methods=["GET"]),
             Route("/ui/login", _login, methods=["GET"]), Mount("/ui/static", StaticFiles(directory=STATIC_DIR))]

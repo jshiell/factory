@@ -44,7 +44,6 @@ from factory.process_registry import ReapUncertain, leftover_file_records
 from factory.rebase_task import rebase_task
 from factory.retry_task import (
     RetryRefused,
-    require_keepable_plan,
     retry_with_plan,
 )
 from factory.review_notes import capped_findings, dropped_required_warning
@@ -257,12 +256,10 @@ def _build_app(ctx) -> Starlette:
             raise ApiError(409, "merge refused", str(error)) from None
 
     def keepable_task(task_id: str):
-        task = service.get_task(ctx.store, task_id)
         try:
-            require_keepable_plan(task, plan_digest(task.plan or ""))
+            return actions.keepable_plan(task_id)
         except RetryRefused as error:
             raise ApiError(409, "retry refused", str(error)) from None
-        return task
 
     async def retry_preview(request: Request) -> AsciiJSONResponse:
         task = keepable_task(request.path_params["task_id"])

@@ -5,11 +5,12 @@ from factory import service
 from factory.abandon_task import AbandonRefused, abandon_task
 from factory.advance import advance
 from factory.audit_gaps import gaps_to_carry
+from factory.digest import plan_digest
 from factory.merge_task import MergeRefused, Preview, merge_preview
 from factory.rebase_task import RebaseRefused
 from factory.recover_task import RecoverRefused, recover_task
-from factory.retry_task import retry_task
-from factory.task import InvalidTransition
+from factory.retry_task import require_keepable_plan, retry_task
+from factory.task import InvalidTransition, Task
 from factory.worktrees import WorktreeManager
 
 
@@ -109,6 +110,12 @@ class WebActions:
             raise InvalidInput("goal must be valid text") from None
         if len(goal_bytes) > service.MAX_GOAL_BYTES:
             raise InvalidInput(f"goal must be at most {service.MAX_GOAL_BYTES} bytes")
+
+    def keepable_plan(self, task_id: str) -> Task:
+        """The task, loaded now, if a retry can keep its plan; raises `RetryRefused` if it cannot."""
+        task = service.get_task(self._ctx.store, task_id)
+        require_keepable_plan(task, plan_digest(task.plan or ""))
+        return task
 
     def retry(self, task_id: str, plan_digest: str | None = None, waive=(), reinstate=()) -> str:
         """Retry a task and return the new task's id; with `plan_digest` the new task keeps the shown plan.
