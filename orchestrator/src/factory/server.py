@@ -249,7 +249,7 @@ def _build_app(ctx) -> Starlette:
             preview = merge_preview(task_id, ctx.store, ctx.settings.repo, ctx.settings.main_branch)
         except (MergeRefused, InvalidTransition) as error:
             raise ApiError(409, "merge refused", str(error)) from None
-        except subprocess.CalledProcessError:
+        except (subprocess.CalledProcessError, OSError):
             raise ApiError(409, "merge check failed", MERGE_CHECK_FAILED) from None
         return AsciiJSONResponse({"branch": preview.branch, "audited_sha": preview.task.audited_sha,
                              "diffstat": preview.diffstat, "findings": list(preview.findings)})

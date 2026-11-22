@@ -1,3 +1,4 @@
+import shutil
 from dataclasses import replace
 from datetime import datetime
 from pathlib import Path
@@ -83,6 +84,16 @@ def test_a_git_failure_in_merge_preview_is_409_with_a_fixed_sentence_and_no_git_
     assert response.status_code == 409
     assert response.json() == {"error": "merge check failed", "detail": MERGE_CHECK_SENTENCE}
     assert "rev-parse" not in response.text
+
+
+def test_a_missing_worktree_in_merge_preview_is_409_with_a_fixed_sentence_and_no_path(client, audited):
+    shutil.rmtree(audited.worktree)
+
+    response = client.get("/tasks/t1/merge-preview")
+
+    assert response.status_code == 409
+    assert response.json() == {"error": "merge check failed", "detail": MERGE_CHECK_SENTENCE}
+    assert audited.worktree not in response.text
 
 
 def test_merge_preview_of_an_unknown_task_is_404(client):
