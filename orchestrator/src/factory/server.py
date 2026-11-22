@@ -57,6 +57,7 @@ from factory.web.changes import TaskChanges
 from factory.web.routes import ui_routes
 from factory.web.stopping import StopRequest
 from factory.web_actions import (
+    CLEAN_CHECK_FAILED,
     MERGE_CHECK_FAILED,
     CleanChanged,
     InvalidInput,
@@ -311,7 +312,10 @@ def _build_app(ctx) -> Starlette:
         return view
 
     async def clean_preview(request: Request) -> AsciiJSONResponse:
-        return AsciiJSONResponse(clean_preview_now())
+        try:
+            return AsciiJSONResponse(clean_preview_now())
+        except (subprocess.CalledProcessError, OSError):
+            raise ApiError(409, "clean refused", CLEAN_CHECK_FAILED) from None
 
     def clean_preview_now() -> dict:
         return clean_view(*clean_scan())

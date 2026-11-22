@@ -1,4 +1,5 @@
 import shutil
+import subprocess
 from dataclasses import replace
 from datetime import datetime
 from pathlib import Path
@@ -236,3 +237,31 @@ def test_clean_with_a_stale_token_is_409_and_removes_nothing(client, ctx, repo, 
 
 def test_clean_without_a_token_is_422(client):
     assert client.post("/clean", json={}).status_code == 422
+
+
+CLEAN_CHECK_SENTENCE = "Git could not check the repository, so nothing can be cleaned."
+
+CHECK_FAILURES = [
+    subprocess.CalledProcessError(128, ["git", "branch", "--list", "secret-ref"], stderr="fatal: secret"),
+    FileNotFoundError(2, "No such file", "/secret/path"),
+]
+
+
+def _failing_clean_candidates(monkeypatch, error):
+    def fail(*args, **kwargs):
+        raise error
+    monkeypatch.setattr("factory.server.clean_candidates", fail)
+
+
+def _assert_clean_check_refusal(response):
+    assert response.status_code == 409
+    assert response.json() == {"error": "clean refused", "detail": CLEAN_CHECK_SENTENCE}
+    for leaked in ("secret-ref", "/secret/path", "fatal", "CalledProcessError"):
+        assert leaked not in response.text
+
+
+@pytest.mark.parametrize("error", CHECK_FAILURES, ids=["git failure", "os error"])
+def test_a_failed_check_in_clean_preview_is_409_with_a_fixed_sentence(client, monkeypatch, error):
+    _failing_clean_candidates(monkeypatch, error)
+
+    _assert_clean_check_refusal(client.get("/clean-preview"))
