@@ -26,7 +26,7 @@ Facts that shape the design (read, not run):
 - The existing UI pattern for a gated action is: GET confirmation page showing what will happen, POST carrying the shown value, redirect to the task page, a wrong-state page on refusal (`approve`, `reject`).
 - A job's outcome is only visible through `/jobs` today. The task page does not show it.
 
-## Decisions (recommendations; none accepted yet)
+## Decisions (recommendations accepted by the user 2026-11-22)
 | # | Question | Recommendation | Alternatives |
 |---|---|---|---|
 | D1 | Scope | Phase A: new task, advance, abandon, retry, merge, recover, rebase, plus a job-result panel on the task page. Phase B: cost page, jobs list, clean. | All in one phase (large); A only (costs stay CLI-only). |
