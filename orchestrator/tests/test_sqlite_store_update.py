@@ -29,6 +29,20 @@ def test_update_of_a_missing_task_raises_task_not_found_without_calling_change(t
     assert calls == []
 
 
+def test_an_exception_in_change_leaves_the_stored_task_unchanged(tmp_path):
+    # guard (green on arrival): the transaction rolls back
+    store = SqliteTaskStore(tmp_path / "factory.db")
+    store.save(Task(id="t1", prompt="", state=TaskState.QUEUED, goal="g"))
+
+    def failing(task):
+        raise RuntimeError("boom")
+
+    with pytest.raises(RuntimeError):
+        store.update("t1", failing)
+
+    assert store.load("t1").goal == "g"
+
+
 def test_update_of_an_unsafe_id_raises_invalid_task_id(tmp_path):
     # guard (green on arrival)
     store = SqliteTaskStore(tmp_path / "factory.db")
