@@ -1,33 +1,35 @@
 # Plan 79: task ids shown by the web UI
 
-Branch `plans-77-79-known-gaps` (shared by plans 77-79), after plan 78. Drafted 2026-11-22. **Draft, not approved.** Small; do last.
+Branch `plans-77-79-known-gaps` (shared by plans 77-79), after plan 78. Drafted 2026-11-22; revised after plan review. **Draft, not approved.** Small; do last.
 
 ## Problem
-Plan 75 listed two id gaps and left them: "the detail page renders `task.id` raw (`_task_detail`, the `_task.html` heading, `| urlencode`)" and a lone-surrogate id. Plan 71 fixed lone surrogates in goals and similar text with `escape_control`; ids were not covered.
+Plan 75 left two id gaps: the detail page rendering `task.id` raw, and lone-surrogate ids. Review found that most of this is already handled, and the reachable gap is different.
 
-## What I read (2026-11-22)
-- `require_safe_id` allows only `[A-Za-z0-9_-]+` with `fullmatch` (`ids.py:9-12`), and `SqliteTaskStore.save`, `create` and `load` all call it (`sqlite_store.py:34,44,66`). So an id that reaches the UI through the store cannot hold a surrogate, control character, or markup.
-- `_task.html:1` prints `{{ task.id }}` (autoescaped by the template engine: not verified in this pass) and the links use `| urlencode`.
+Already handled (read, to be pinned by guards): `require_safe_id` allows only `[A-Za-z0-9_-]+` (`ids.py:9-12`) and `save`, `create`, `load` call it; the list page and skipped names go through `_safe` (`routes.py:33,40`); autoescape is on (`routes.py:22`).
 
-## Unverified (increment 0, decides the plan)
-- Whether any path puts an unvalidated id in front of the templates: a row written directly into the database (`list()` reads rows without `require_safe_id`, `sqlite_store.py:55-64`, so a bad row's id reaches the list page through `skipped` and the tasks list), the file store's directory names, `migrate`, and the 404/500 pages (which do not echo ids).
-- Whether Jinja autoescape is on for these templates (the `task_id` is shown with `{{ }}` in many places).
+Reachable gap: `load(key)` validates the requested key, but `task_from_dict` takes `id` from the stored JSON unchecked, and `list()` validates neither. A row whose key is fine but whose JSON `id` is unsafe (or differs from the key) can reach the detail page (likely a 500) and the CLI (`cli/tasks.py:40,42`, `cli/admin.py:40`, raw output). Only a direct database write produces such a row; the user judged that unlikely, so this is the cheap fix, not a security fix.
 
-## Decisions (recommendations accepted by the user 2026-11-22; the plan is not yet reviewed)
-| # | Question | Proposal |
+## Decisions (recommendations accepted by the user 2026-11-22)
+| # | Question | Decision |
 |---|---|---|
-| D1 | If increment 0 finds no reachable bad id | Close the gap as "unreachable by construction", record it in the README and Deviations, add guard tests that pin `require_safe_id` on every store entry point, and change no code. |
-| D2 | If a path exists (most likely `list()` and `skipped`) | Validate ids when rows are read: `list()` puts a row with an unsafe id into `skipped` instead of returning it; the UI renders skipped ids with `escape_control`. |
+| D1 | Store | `load` and `list` check that the stored `id` equals the row key; a mismatch is treated as unreadable: `list()` puts the key in `skipped`, `load` raises the same error unreadable rows raise today (increment 0 finds which). |
+| D2 | CLI | `factory list` and the other ids printed in `cli/tasks.py` and `cli/admin.py` go through `escape_control`. |
+| D3 | Probe | A surrogate cannot be bound by Python's sqlite3, so the probe uses a row with a control character or markup in the JSON `id` and a plain key. |
 
-## Increments (test first)
-0. Probe: insert a row with id `bad\ud800<b>` straight into the database; request `GET /ui/`, `GET /ui/tasks/<urlencoded>`, `GET /tasks` and `factory list`; record what each does.
-1. Red (only if increment 0 shows a failure): the failing request from the probe, as a test. Green: D2.
-2. Guards: a test that `save`, `create` and `load` refuse an unsafe id (they may already exist; grep first).
-3. Docs: README note, Deviations here.
-4. Gate: ruff, `pytest -q`, `verify`, `audit-commits`.
+## Increments (test first, one commit each)
+0. Probe (throwaway, flagged): insert a row with key `ok` and JSON `id` `bad<b>\n`; request `GET /ui/`, `GET /ui/tasks/ok`, `GET /tasks` and `factory list`; record each result under Deviations.
+1. Red: `list()` puts such a row in `skipped`. Green: id/key check.
+2. Red: `load("ok")` raises the unreadable-row error, and the detail page shows the unreadable-task page, not a 500. Green.
+3. Red: `factory list` prints ids with control characters escaped. Green: D2.
+4. Guards: `save`, `create`, `load` refuse an unsafe id (grep first; they may exist).
+5. Docs: README note; Deviations here.
+6. Gate: ruff, `pytest -q`, `verify`, `audit-commits`.
+
+## Tests touched
+Grep tests asserting `skipped` contents, list output or unreadable-row messages before increment 1 and record them here. No existing test is edited.
 
 ## Out of scope
-Rejecting surrogates in goals at write time; changing id format; unreadable-row handling beyond ids.
+Rejecting surrogates in goals at write time; changing id format; other unreadable-row handling.
 
 ## Deviations
 Recorded after implementation.
