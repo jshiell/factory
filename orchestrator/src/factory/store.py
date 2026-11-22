@@ -65,6 +65,12 @@ class TaskStore:
     def save(self, task: Task) -> None:
         self._write_atomically(self._path(task.id), json.dumps(task_to_dict(task)))
 
+    def update(self, task_id: str, change: Callable[[Task], Task]) -> Task:
+        """Load, apply `change` and save. Single-process: unlike the SQLite store it takes no lock."""
+        updated = change(self.load(task_id))
+        self.save(updated)
+        return updated
+
     def create(self, task: Task) -> None:
         """Save a new task, never overwriting an existing one."""
         data = task_to_dict(task)
