@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block content %}
+<p>{{ action.question }}</p>
+<p>goal: {{ task.goal }}</p>
+<form method="post" action="/ui/tasks/{{ task.id | urlencode }}/{{ action.name }}">
+<button type="submit">{{ action.button }}</button>
+</form>
+<p><a href="/ui/tasks/{{ task.id | urlencode }}">back to the task</a></p>
+{% endblock %}

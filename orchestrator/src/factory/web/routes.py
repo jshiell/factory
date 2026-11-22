@@ -1,5 +1,7 @@
 import asyncio
+from collections.abc import Callable
 from contextlib import aclosing
+from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import parse_qs, quote
 
@@ -10,15 +12,16 @@ from starlette.routing import Mount, Route
 from starlette.staticfiles import StaticFiles
 
 from factory import answer_questions, approve_plan, service
+from factory.abandon_task import can_abandon
 from factory.digest import plan_digest
 from factory.ids import InvalidTaskId
 from factory.review_notes import capped_findings, dropped_required_warning
 from factory.store import TaskNotFound
-from factory.task import InvalidTransition, TaskState
+from factory.task import InvalidTransition, Task, TaskState
 from factory.textsafe import escape_control
 from factory.waiver import note_lines
 from factory.web.auth import session_cookie_name
-from factory.web_actions import InvalidInput
+from factory.web_actions import InvalidInput, WebActions
 
 _TEMPLATES = jinja2.Environment(loader=jinja2.FileSystemLoader(Path(__file__).parent / "templates"), autoescape=True)
 _GOAL_LIMIT = 120
@@ -295,6 +298,68 @@ async def _approve(request: Request) -> RedirectResponse | HTMLResponse:
     return RedirectResponse(f"/ui/tasks/{quote(task.id, safe='')}", status_code=303)
 
 
+@dataclass(frozen=True)
+class _TaskAction:
+    """A confirmed task action: its URL name, the confirm page's question and button, and the refusals' wording."""
+    name: str
+    question: str
+    button: str
+    gerund: str
+    allowed: Callable[[Task], bool]
+    wrong_state: str
+    enqueue: Callable[[WebActions, str], object]  # queues the job for a task id
+
+
+_ABANDON = _TaskAction(
+    "abandon", "Abandon this task? It becomes failed and is no longer worked on. This cannot be undone.", "Abandon task",
+    "abandoned", can_abandon, "That task cannot be abandoned in its current state.", WebActions.enqueue_abandon)
+
+
+def _action_refusal(request: Request, task, action: _TaskAction) -> HTMLResponse | None:
+    """The 409 page refusing the action for this task (wrong state, or a job already queued or running), or None."""
+    if not action.allowed(task):
+        return _wrong_state_page(action.wrong_state)
+    if request.app.state.jobs.unfinished_for_task(task.id):
+        return _wrong_state_page(f"That task already has a job queued or running, so it cannot be {action.gerund} yet. "
+                                 "Open the task and wait for the job to finish.")
+    return None
+
+
+def _action_page(action: _TaskAction):
+    async def page(request: Request) -> HTMLResponse:
+        task, refusal = _load_task(request)
+        if refusal:
+            return refusal
+        if refusal := _action_refusal(request, task, action):
+            return refusal
+        detail = {"id": task.id, "goal": _safe(task.goal if task.goal is not None else task.prompt)}
+        return HTMLResponse(_TEMPLATES.get_template("action_confirm.html").render(task=detail, action=action))
+    return page
+
+
+def _action_post(action: _TaskAction):
+    async def post(request: Request) -> RedirectResponse | HTMLResponse:
+        task, refusal = _load_task(request)
+        if refusal:
+            return refusal
+        if refusal := _action_refusal(request, task, action):
+            return refusal
+        try:
+            await _read_form(request)  # the confirm form carries no fields; this refuses what the UI's pages would not send
+        except _BadForm:
+            return _bad_form_page()
+        if refusal := _action_refusal(request, task, action):  # the body read awaited: check again, with no await before the submit
+            return refusal
+        try:
+            action.enqueue(request.app.state.actions, task.id)
+        except (TaskNotFound, InvalidTaskId):  # the task went between the load above and the one inside the enqueue
+            return _missing_page()
+        except _UNREADABLE:
+            return _unreadable_page()
+        return RedirectResponse(f"/ui/tasks/{quote(task.id, safe='')}", status_code=303)
+    return post
+
+
 def _new_task_page_with(message: str | None, goal: str, grill: bool, status_code: int = 200) -> HTMLResponse:
     return HTMLResponse(_TEMPLATES.get_template("new_task.html").render(message=message, goal=goal, grill=grill),
                         status_code=status_code)
@@ -442,5 +507,7 @@ def ui_routes() -> list[Route | Mount]:
             Route("/ui/tasks/{task_id}/answer", _answer, methods=["POST"]),
             Route("/ui/tasks/{task_id}/approve", _approve_page, methods=["GET"]),
             Route("/ui/tasks/{task_id}/approve", _approve, methods=["POST"]),
+            Route("/ui/tasks/{task_id}/abandon", _action_page(_ABANDON), methods=["GET"]),
+            Route("/ui/tasks/{task_id}/abandon", _action_post(_ABANDON), methods=["POST"]),
             Route("/ui/tasks/{task_id}/events", _task_events, methods=["GET"]),
             Route("/ui/login", _login, methods=["GET"]), Mount("/ui/static", StaticFiles(directory=STATIC_DIR))]
