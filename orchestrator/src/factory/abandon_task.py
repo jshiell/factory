@@ -6,13 +6,24 @@ class AbandonRefused(Exception):
     pass
 
 
-def _abandoned(task: Task) -> Task:
+def _refusal(task: Task) -> str | None:
     if task.state in (TaskState.MERGED, TaskState.FAILED):
-        raise AbandonRefused(f"{task.id} is {task.state.value}, already finished")
+        return f"{task.id} is {task.state.value}, already finished"
     if task.state is TaskState.RUNNING:
-        raise AbandonRefused(f"{task.id} is running: use `factory recover` once the driver is gone")
+        return f"{task.id} is running: use `factory recover` once the driver is gone"
     if task.fix_in_flight:
-        raise AbandonRefused(f"{task.id} has a fix agent that may still be alive: run `factory advance` first")
+        return f"{task.id} has a fix agent that may still be alive: run `factory advance` first"
+    return None
+
+
+def can_abandon(task: Task) -> bool:
+    return _refusal(task) is None
+
+
+def _abandoned(task: Task) -> Task:
+    refusal = _refusal(task)
+    if refusal:
+        raise AbandonRefused(refusal)
     return apply(task, Event.ABANDONED, reason="abandoned")
 
 
