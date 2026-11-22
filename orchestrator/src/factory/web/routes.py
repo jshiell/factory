@@ -478,7 +478,7 @@ async def _merge_page(request: Request) -> HTMLResponse:
         return _wrong_state_page(f"That task cannot be merged: {_safe(_truncated(str(error), _ERROR_LIMIT))}")
     except InvalidTransition:  # the task left audited between the load above and the one inside the preview
         return _wrong_state_page(_MERGE.wrong_state)
-    except subprocess.CalledProcessError:  # its text is the git command line, not a reason
+    except (subprocess.CalledProcessError, OSError):  # the text is a git command line or a path, not a reason; a missing worktree is an OSError
         return _wrong_state_page("Git could not check this task's branch and worktree, so it cannot be merged.")
     except (TaskNotFound, InvalidTaskId):  # the task went between the load above and the one inside the preview
         return _missing_page()

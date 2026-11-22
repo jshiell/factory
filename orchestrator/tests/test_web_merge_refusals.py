@@ -1,4 +1,5 @@
 """The merge page's refusals from the git checks in merge_preview: HTML pages, never the app-wide JSON 404/409."""
+import shutil
 import subprocess
 from dataclasses import replace
 from pathlib import Path
@@ -52,6 +53,15 @@ def test_a_git_failure_gets_a_refusal_page_without_the_git_command(client, ctx, 
         worktree=str(tmp_path), base_sha="0" * 40, audited_sha="1" * 40)  # no factory/<id> branch: rev-parse fails
 
     _assert_html_refusal(_get(client), 409, "Git could not check")
+
+
+def test_a_missing_worktree_directory_gets_a_refusal_page_without_the_path(client, audited):
+    shutil.rmtree(audited.worktree)
+
+    response = _get(client)
+
+    _assert_html_refusal(response, 409, "Git could not check")
+    assert audited.worktree not in response.text
 
 
 @pytest.mark.parametrize("error, shown", [
