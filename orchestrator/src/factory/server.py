@@ -51,6 +51,7 @@ from factory.sqlite_process_records import SqliteProcessRecords
 from factory.stages import stage_config
 from factory.store import TaskNotFound, task_to_dict
 from factory.task import InvalidTransition, TaskState
+from factory.textsafe import log_failure
 from factory.waiver import InvalidWaiver, note_lines
 from factory.web.auth import LoginCodes, Sessions, session_cookie_name
 from factory.web.changes import TaskChanges
@@ -72,6 +73,9 @@ class AsciiJSONResponse(JSONResponse):
 
     def render(self, content: Any) -> bytes:
         return json.dumps(content, ensure_ascii=True, allow_nan=False, indent=None, separators=(",", ":")).encode("utf-8")
+
+
+_UNREADABLE = (ValueError, KeyError, TypeError)  # what `store.load` raises for a corrupt row
 
 
 class ApiError(Exception):
@@ -169,8 +173,16 @@ def _build_app(ctx) -> Starlette:
         tasks = [{"id": t.id, "state": t.state.value, "failure_reason": t.failure_reason} for t in listing.tasks]
         return AsciiJSONResponse({"tasks": tasks, "skipped": listing.skipped})
 
+    def load_task(task_id: str):
+        """The task, or the fixed 500 for a record that cannot be read; only the load is translated."""
+        try:
+            return service.get_task(ctx.store, task_id)
+        except _UNREADABLE as error:
+            log_failure("load task", error)
+            raise ApiError(500, "task unreadable", "task record is unreadable") from None
+
     async def show_task(request: Request) -> AsciiJSONResponse:
-        return AsciiJSONResponse(task_to_dict(service.get_task(ctx.store, request.path_params["task_id"])))
+        return AsciiJSONResponse(task_to_dict(load_task(request.path_params["task_id"])))
 
     async def costs(request: Request) -> AsciiJSONResponse:
         report = service.cost_report(ctx.store, ctx.ledger, request.query_params.get("task_id"))
