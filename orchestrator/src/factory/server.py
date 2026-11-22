@@ -185,26 +185,33 @@ def _build_app(ctx) -> Starlette:
         return AsciiJSONResponse(task_to_dict(load_task(request.path_params["task_id"])))
 
     async def costs(request: Request) -> AsciiJSONResponse:
-        report = service.cost_report(ctx.store, ctx.ledger, request.query_params.get("task_id"))
+        task_id = request.query_params.get("task_id")
+        if task_id is not None:
+            load_task(task_id)
+        report = service.cost_report(ctx.store, ctx.ledger, task_id)
         return AsciiJSONResponse(report._asdict())
 
     def queued(job) -> AsciiJSONResponse:
         return AsciiJSONResponse({"job": _job_json(job)}, status_code=202)
 
     async def advance_task(request: Request) -> AsciiJSONResponse:
-        return queued(actions.enqueue_advance(request.path_params["task_id"]))
+        task_id = load_task(request.path_params["task_id"]).id
+        return queued(actions.enqueue_advance(task_id))
 
     async def abandon(request: Request) -> AsciiJSONResponse:
-        return queued(actions.enqueue_abandon(request.path_params["task_id"]))
+        task_id = load_task(request.path_params["task_id"]).id
+        return queued(actions.enqueue_abandon(task_id))
 
     async def recover(request: Request) -> AsciiJSONResponse:
-        return queued(actions.enqueue_recover(request.path_params["task_id"]))
+        task_id = load_task(request.path_params["task_id"]).id
+        return queued(actions.enqueue_recover(task_id))
 
     async def rebase(request: Request) -> AsciiJSONResponse:
-        return queued(actions.enqueue_rebase(request.path_params["task_id"]))
+        task_id = load_task(request.path_params["task_id"]).id
+        return queued(actions.enqueue_rebase(task_id))
 
     async def approval_preview(request: Request) -> AsciiJSONResponse:
-        task = service.get_task(ctx.store, request.path_params["task_id"])
+        task = load_task(request.path_params["task_id"])
         if task.state is not TaskState.REVIEWED:
             raise service.NotReviewed(task)
         shown = capped_findings(task.review_findings)
@@ -215,7 +222,7 @@ def _build_app(ctx) -> Starlette:
         })
 
     async def approve(request: Request) -> AsciiJSONResponse:
-        task = service.get_task(ctx.store, request.path_params["task_id"])
+        task = load_task(request.path_params["task_id"])
         body = await _json_object(request)
         shown_digest = _required_string(body, "plan_digest")
         waived = _string_list(body, "waive")
@@ -229,13 +236,13 @@ def _build_app(ctx) -> Starlette:
         return AsciiJSONResponse({"id": approved.id, "state": approved.state.value})
 
     async def questions(request: Request) -> AsciiJSONResponse:
-        task = service.get_task(ctx.store, request.path_params["task_id"])
+        task = load_task(request.path_params["task_id"])
         if task.state is not TaskState.OPEN_QUESTIONS:
             raise ApiError(409, "wrong state", f"{task.id} is {task.state.value}, not open_questions")
         return AsciiJSONResponse({"round": task.grill_rounds, "questions": list(task.open_questions)})
 
     async def answer(request: Request) -> AsciiJSONResponse:
-        task = service.get_task(ctx.store, request.path_params["task_id"])
+        task = load_task(request.path_params["task_id"])
         body = await _json_object(request)
         round_number = body.get("round")
         if not isinstance(round_number, int) or isinstance(round_number, bool):
@@ -258,7 +265,7 @@ def _build_app(ctx) -> Starlette:
 
     async def merge_preview_view(request: Request) -> AsciiJSONResponse:
         task_id = request.path_params["task_id"]
-        service.get_task(ctx.store, task_id)
+        load_task(task_id)
         try:
             preview = merge_preview(task_id, ctx.store, ctx.settings.repo, ctx.settings.main_branch)
         except (MergeRefused, InvalidTransition) as error:
@@ -270,7 +277,7 @@ def _build_app(ctx) -> Starlette:
 
     async def merge(request: Request) -> AsciiJSONResponse:
         task_id = request.path_params["task_id"]
-        service.get_task(ctx.store, task_id)
+        load_task(task_id)
         shown_sha = _required_string(await _json_object(request), "audited_sha")
         try:
             return queued(actions.enqueue_merge(task_id, shown_sha))
@@ -278,6 +285,7 @@ def _build_app(ctx) -> Starlette:
             raise ApiError(409, "merge refused", str(error)) from None
 
     def keepable_task(task_id: str):
+        load_task(task_id)
         try:
             return actions.keepable_plan(task_id)
         except RetryRefused as error:
@@ -296,7 +304,7 @@ def _build_app(ctx) -> Starlette:
 
     async def retry(request: Request) -> AsciiJSONResponse:
         task_id = request.path_params["task_id"]
-        service.get_task(ctx.store, task_id)
+        load_task(task_id)
         body = await _json_object(request) if await request.body() else {}
         try:
             if body.get("keep_plan"):

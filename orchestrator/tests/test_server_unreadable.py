@@ -47,3 +47,18 @@ def test_showing_an_unreadable_task_answers_a_fixed_500_and_logs_the_error(clien
 
 def test_rejecting_an_unreadable_task_answers_a_fixed_500_and_logs_the_error(client, broken_id, capsys):
     _assert_unreadable_and_logged_once(client.post(f"/tasks/{broken_id}/reject"), capsys)
+
+
+LOADING_ROUTES = [
+    ("GET", "/tasks/{id}/approval"), ("POST", "/tasks/{id}/approve"), ("GET", "/tasks/{id}/questions"),
+    ("POST", "/tasks/{id}/answer"), ("GET", "/tasks/{id}/merge-preview"), ("POST", "/tasks/{id}/merge"),
+    ("GET", "/tasks/{id}/retry-preview"), ("POST", "/tasks/{id}/retry"), ("POST", "/tasks/{id}/advance"),
+    ("POST", "/tasks/{id}/abandon"), ("POST", "/tasks/{id}/recover"), ("POST", "/tasks/{id}/rebase"),
+    ("GET", "/costs?task_id={id}"),
+]
+
+
+@pytest.mark.parametrize(("method", "path"), LOADING_ROUTES)
+def test_every_route_that_loads_a_task_answers_the_fixed_500_for_an_unreadable_one(
+        client, broken_id, capsys, method, path):
+    _assert_unreadable_and_logged_once(client.request(method, path.format(id=broken_id)), capsys)
