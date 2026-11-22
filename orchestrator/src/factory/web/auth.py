@@ -1,7 +1,9 @@
 import secrets
+import time
 from datetime import timedelta
 
 CODE_LIFETIME = timedelta(minutes=5)
+SESSION_IDLE_LIMIT = timedelta(hours=8)
 
 
 def session_cookie_name(host: str) -> str:
@@ -30,15 +32,32 @@ class LoginCodes:
 
 
 class Sessions:
-    """Browser sessions, held in memory so a restart logs everyone out."""
+    """Browser sessions, held in memory so a restart logs everyone out. One unused for `SESSION_IDLE_LIMIT` expires.
 
-    def __init__(self):
-        self._ids = set()
+    `clock` returns seconds on a monotonic scale.
+    """
+
+    def __init__(self, clock=time.monotonic):
+        self._clock = clock
+        self._last_used = {}
 
     def create(self) -> str:
+        self._drop_expired()
         session_id = secrets.token_urlsafe(32)
-        self._ids.add(session_id)
+        self._last_used[session_id] = self._clock()
         return session_id
 
     def valid(self, session_id: str) -> bool:
-        return session_id in self._ids
+        self._drop_expired()
+        if session_id not in self._last_used:
+            return False
+        self._last_used[session_id] = self._clock()
+        return True
+
+    def count(self) -> int:
+        return len(self._last_used)
+
+    def _drop_expired(self) -> None:
+        now = self._clock()
+        limit = SESSION_IDLE_LIMIT.total_seconds()
+        self._last_used = {session_id: used for session_id, used in self._last_used.items() if now - used < limit}
