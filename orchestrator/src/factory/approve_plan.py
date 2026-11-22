@@ -47,20 +47,20 @@ def approve_plan(
     task_id: str, store: TaskStore, shown_digest: str, shown_findings: tuple[str, ...], waived: tuple[str, ...] = ()
 ) -> Task:
     """Human-only by process: queue a reviewed task whose plan matches the digest the human was shown."""
-    task = store.load(task_id)
-    approved = apply(task, Event.APPROVED)
-    actual = plan_digest(task.plan)
-    if not (actual == shown_digest == task.plan_digest):
-        raise ValueError(f"plan digest mismatch for {task_id}")
-    if capped_findings(shown_findings) != capped_findings(task.review_findings):
-        raise ValueError(f"review findings mismatch for {task_id}")
-    notes = remove_waived(capped_findings(task.review_findings), waived) if waived else task.review_findings
-    queued = replace(
-        approved, prompt=build_implementation_prompt(task.goal, task.plan, notes), review_findings=notes,
-        waived_findings=task.waived_findings + waived,
-    )
-    store.save(queued)
-    return queued
+    def queue(task: Task) -> Task:
+        approved = apply(task, Event.APPROVED)
+        actual = plan_digest(task.plan)
+        if not (actual == shown_digest == task.plan_digest):
+            raise ValueError(f"plan digest mismatch for {task_id}")
+        if capped_findings(shown_findings) != capped_findings(task.review_findings):
+            raise ValueError(f"review findings mismatch for {task_id}")
+        notes = remove_waived(capped_findings(task.review_findings), waived) if waived else task.review_findings
+        return replace(
+            approved, prompt=build_implementation_prompt(task.goal, task.plan, notes), review_findings=notes,
+            waived_findings=task.waived_findings + waived,
+        )
+
+    return store.update(task_id, queue)
 
 
 def reject_plan(task_id: str, store: TaskStore) -> Task:
