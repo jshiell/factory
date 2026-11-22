@@ -106,6 +106,14 @@ def test_an_audited_task_with_no_worktree_in_merge_preview_is_409_merge_check_fa
     assert response.json() == {"error": "merge check failed", "detail": MERGE_CHECK_SENTENCE}
 
 
+def test_a_verified_task_with_no_worktree_in_merge_preview_is_still_409_merge_refused(client, ctx, audited):
+    ctx.store.save(replace(audited, state=TaskState.VERIFIED, worktree=None))
+
+    response = client.get("/tasks/t1/merge-preview")
+
+    assert (response.status_code, response.json()["error"]) == (409, "merge refused")
+
+
 def test_merge_preview_of_an_unknown_task_is_404(client):
     assert client.get("/tasks/nope/merge-preview").status_code == 404
 
