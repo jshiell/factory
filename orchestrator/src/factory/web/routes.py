@@ -118,8 +118,15 @@ def _clean_flags(candidate: dict) -> list[str]:
     return [text for text, present in flags if present]
 
 
+def _clean_git_failed_page() -> HTMLResponse:
+    return _wrong_state_page("Git could not check the repository, so nothing can be cleaned.")
+
+
 async def _clean_page(request: Request) -> HTMLResponse:
-    view = request.app.state.clean_preview()
+    try:
+        view = request.app.state.clean_preview()
+    except (subprocess.CalledProcessError, OSError):  # the text is a git command line or a path
+        return _clean_git_failed_page()
     shown = {"token": view["token"], "skipped": [_safe(name) for name in view["skipped"]],
              "orphans": [{"name": _safe(o["name"]), "size": o["size"]} for o in view["orphans"]],
              "candidates": [{"id": _safe(c["id"]), "state": c["state"], "flags": _clean_flags(c)}
@@ -139,6 +146,8 @@ async def _clean(request: Request) -> RedirectResponse | HTMLResponse:
     except CleanChanged:
         return _wrong_state_page("What would be cleaned changed since you opened the page. Open it again to see "
                                  "what would be cleaned now.")
+    except (subprocess.CalledProcessError, OSError):
+        return _clean_git_failed_page()
     return RedirectResponse("/ui/jobs", status_code=303)
 
 
