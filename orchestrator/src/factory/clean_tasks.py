@@ -96,7 +96,7 @@ def _clean_one(
         problem = remove_cache(cache_root, task.id)  # path recomputed from cache_root/id, never carried
         (outcome.problems if problem else outcome.done).append(problem or "removed gate cache")
     if candidate.outside_root:
-        outcome.problems.append(f"skipped: worktree {task.worktree} is outside the worktree root")
+        outcome.problems.append("skipped: worktree is outside the worktree root")
         return outcome
     if task.worktree and not _remove_worktree(task, candidate, store, worktrees, repo, outcome):
         return outcome

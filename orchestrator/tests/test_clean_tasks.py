@@ -373,6 +373,16 @@ def test_an_empty_branch_delete_refused_with_a_repo_path_is_withheld_and_logged(
     assert len(log_lines) == 1 and str(repo) in log_lines[0] and "cannot lock ref" in log_lines[0]
 
 
+def test_an_outside_root_worktree_problem_does_not_name_the_path(env, tmp_path):
+    store, repo, manager, root, add = env
+    add("failed", S.FAILED)
+    store.save(Task(id="failed", prompt="", state=S.FAILED, worktree=str(tmp_path / "elsewhere")))
+
+    problems = [p for o in run_clean_with_caches(env, tmp_path) for p in o.problems]
+
+    assert problems == ["skipped: worktree is outside the worktree root"]
+
+
 def test_an_outside_root_worktree_does_not_stop_the_cache_removal(env, tmp_path):
     store, repo, manager, root, add = env
     add("failed", S.FAILED)
