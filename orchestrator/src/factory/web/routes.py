@@ -97,6 +97,14 @@ def _offered_actions(task, job) -> list[tuple[str, str]]:
     return links
 
 
+async def _costs_page(request: Request) -> HTMLResponse:
+    report = service.cost_report(request.app.state.store, request.app.state.ledger)
+    shown = {"total": report.total, "assumed": report.assumed,
+             "by_stage": [(_safe(stage), cost) for stage, cost in sorted(report.by_stage.items())],
+             "by_task": [(_safe(task_id), cost) for task_id, cost in sorted(report.by_task.items())]}
+    return HTMLResponse(_TEMPLATES.get_template("costs.html").render(report=shown))
+
+
 def _missing_page() -> HTMLResponse:
     return HTMLResponse(_TEMPLATES.get_template("task_missing.html").render(), status_code=404)
 
@@ -678,7 +686,8 @@ STATIC_DIR = Path(__file__).parent / "static"
 
 def ui_routes() -> list[Route | Mount]:
     return [Route("/ui", _ui_without_slash, methods=["GET"]), Route("/ui/", _ui_page, methods=["GET"]),
-            Route("/ui/events", _events, methods=["GET"]), Route("/ui/tasks/new", _new_task_page, methods=["GET"]),
+            Route("/ui/events", _events, methods=["GET"]), Route("/ui/costs", _costs_page, methods=["GET"]),
+Route("/ui/tasks/new", _new_task_page, methods=["GET"]),
             Route("/ui/tasks/new", _new_task, methods=["POST"]),
             Route("/ui/tasks/{task_id}", _task_page, methods=["GET"]),
             Route("/ui/tasks/{task_id}/reject", _reject_page, methods=["GET"]),
