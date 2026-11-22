@@ -64,6 +64,4 @@ def approve_plan(
 
 
 def reject_plan(task_id: str, store: TaskStore) -> Task:
-    rejected = apply(store.load(task_id), Event.HUMAN_REJECTED, "plan_rejected_by_human")
-    store.save(rejected)
-    return rejected
+    return store.update(task_id, lambda task: apply(task, Event.HUMAN_REJECTED, "plan_rejected_by_human"))
