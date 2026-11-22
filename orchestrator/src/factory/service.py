@@ -61,7 +61,10 @@ def reject_plan(store, task_id: str) -> Task:
     task = store.load(task_id)
     if task.state is not TaskState.REVIEWED:
         raise NotReviewed(task)
-    reject_reviewed_plan(task_id, store)
+    try:
+        reject_reviewed_plan(task_id, store)
+    except InvalidTransition:
+        raise NotReviewed(store.load(task_id)) from None
     return task
 
 

@@ -1,8 +1,7 @@
-from updateonly import UpdateOnly
-
 from factory.approve_plan import reject_plan
 from factory.store import TaskStore
 from factory.task import Task, TaskState
+from updateonly import UpdateOnly
 
 
 def test_rejecting_a_plan_writes_through_update_not_save(tmp_path):
