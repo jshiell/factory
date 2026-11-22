@@ -281,8 +281,8 @@ async def _approve(request: Request) -> RedirectResponse | HTMLResponse:
     return RedirectResponse(f"/ui/tasks/{quote(task.id, safe='')}", status_code=303)
 
 
-def _render_task(task) -> str:
-    return _TEMPLATES.get_template("_task.html").render(task=_task_detail(task))
+def _render_task(task, job=None) -> str:
+    return _TEMPLATES.get_template("_task.html").render(task=_task_detail(task), job=job)
 
 
 def render_tasks(store) -> str:
@@ -335,27 +335,28 @@ def _stream(request: Request, render) -> StreamingResponse:
 
 async def _events(request: Request) -> StreamingResponse:
     store = request.app.state.store
-    return _stream(request, lambda: _event("tasks", render_tasks(store)))
+    return _stream(request, _unless_unchanged(lambda: _event("tasks", render_tasks(store))))
 
 
 async def _task_events(request: Request) -> StreamingResponse | HTMLResponse:
     _, refusal = _load_task(request)  # before the stream exists, so a refusal still has its real status
     if refusal:
         return refusal
-    store, task_id = request.app.state.store, request.path_params["task_id"]
-    return _stream(request, _unless_unchanged(lambda: _event("task", _task_fragment(store, task_id))))
+    state, task_id = request.app.state, request.path_params["task_id"]
+    return _stream(request, _unless_unchanged(lambda: _event("task", _task_fragment(state.store, state.jobs, task_id))))
 
 
-def _task_fragment(store, task_id: str) -> str:
-    """The task fragment, or the unreadable notice when a later write left the row unreadable; never the raw row."""
+def _task_fragment(store, jobs, task_id: str) -> str:
+    """The task fragment with its latest job, or the unreadable notice when a later write left the row unreadable;
+    never the raw row."""
     try:
-        return _render_task(store.load(task_id))
+        return _render_task(store.load(task_id), jobs.latest_for_task(task_id))
     except _UNREADABLE:
         return _TEMPLATES.get_template("_task_unreadable.html").render()
 
 
 def _unless_unchanged(render):
-    """`render`, but None when it gives what it gave last time: any store write wakes the stream, and resending
+    """`render`, but None when it gives what it gave last time: any task or job store write wakes the stream, and resending
     an unchanged fragment would reset the reader's selection and scroll."""
     last = None
 

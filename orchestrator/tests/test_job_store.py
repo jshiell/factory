@@ -85,3 +85,54 @@ def test_interrupt_unfinished_marks_queued_and_running_jobs_only(jobs):
     jobs.interrupt_unfinished()
 
     assert [jobs.get(j.id).state for j in (queued, running, done)] == ["interrupted", "interrupted", "succeeded"]
+
+
+def _each_state_write(jobs):
+    """Every state write in turn; returns the number made."""
+    job = jobs.create("advance", "t1")
+    jobs.mark_running(job.id)
+    jobs.mark_succeeded(job.id, {})
+    jobs.mark_failed(jobs.create("abandon", "t1").id, "refused")
+    jobs.interrupt_unfinished()
+    return 6
+
+
+def test_every_state_write_calls_on_change_once(tmp_path):
+    calls = []
+    jobs = JobStore(tmp_path / "factory.db", on_change=lambda: calls.append(1))
+
+    writes = _each_state_write(jobs)
+    jobs.get(jobs.list()[0].id)
+    jobs.latest_for_task("t1")
+    jobs.unfinished_for_task("t1")
+
+    assert len(calls) == writes
+
+
+def test_on_change_runs_after_the_write_is_committed(tmp_path):
+    db = tmp_path / "factory.db"
+    seen = []
+    jobs = JobStore(db, on_change=lambda: seen.append([job.state for job in JobStore(db).list()]))
+
+    job = jobs.create("advance", "t1")
+    jobs.mark_running(job.id)
+    jobs.mark_failed(job.id, "refused")
+
+    assert seen == [["queued"], ["running"], ["failed"]]
+
+
+def test_a_failing_on_change_neither_raises_nor_undoes_the_write(tmp_path):
+    def broken():
+        raise RuntimeError("listener broke")
+
+    jobs = JobStore(tmp_path / "factory.db", on_change=broken)
+
+    _each_state_write(jobs)
+
+    assert [job.state for job in jobs.list()] == ["succeeded", "failed"]
+
+
+def test_without_on_change_writes_still_work(jobs):
+    _each_state_write(jobs)
+
+    assert [job.state for job in jobs.list()] == ["succeeded", "failed"]

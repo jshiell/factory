@@ -128,13 +128,13 @@ def _resumed_eval_dir(evals_root, name) -> Path:
 
 
 def _build_app(ctx) -> Starlette:
-    jobs = JobStore(ctx.settings.db_path)
+    changes = TaskChanges()
+    jobs = JobStore(ctx.settings.db_path, on_change=changes.notify)  # the worker thread writes: notify is thread-safe
     runner = JobRunner(jobs)
     actions = WebActions(  # looked up at call time: this module is where these are wired
         ctx, runner, merge=lambda *args, **kwargs: merge_task(*args, **kwargs),
         rebase=lambda *args, **kwargs: rebase_task(*args, **kwargs),
         retry_with_plan=lambda *args, **kwargs: retry_with_plan(*args, **kwargs))
-    changes = TaskChanges()
     stopping = StopRequest()
     if hasattr(ctx.store, "subscribe"):  # the legacy JSON store cannot announce writes; its pages update on reload
         ctx.store.subscribe(changes.notify)  # once per app, not per lifespan, so repeated lifespans do not stack

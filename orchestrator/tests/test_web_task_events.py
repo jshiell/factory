@@ -4,7 +4,8 @@ from urllib.parse import unquote
 import pytest
 
 from factory.sqlite_db import transaction
-from factory.task import TaskState
+from factory.sqlite_store import SqliteTaskStore
+from factory.task import Task, TaskState
 from webhelpers import add, assert_ui_security_headers
 
 pytest_plugins = ["webfixtures"]
@@ -234,3 +235,70 @@ def test_a_task_stream_opened_after_a_stop_ends_at_once(client, ctx):
     client.app.state.request_stop()
 
     assert read_until_end(client, EVENTS) == []
+
+
+def _save_silently(ctx, task):
+    """Save through a store with no listeners, so only some other write can wake the stream."""
+    SqliteTaskStore(ctx.settings.db_path).save(task)
+
+
+def test_a_job_state_write_wakes_the_task_stream(client, ctx):
+    add(ctx, state=TaskState.QUEUED)
+    jobs = client.app.state.jobs
+    job = jobs.create("abandon", "20260102-030405")
+
+    def change_task_unannounced_then_fail_the_job():
+        _save_silently(ctx, Task("20260102-030405", "prompt", state=TaskState.FAILED))
+        jobs.mark_failed(job.id, "refused")
+
+    _, (first, second) = read_events(client, EVENTS, count=2, after_first_event=change_task_unannounced_then_fail_the_job)
+
+    assert any("state: queued" in line for line in first)
+    assert any("state: failed" in line for line in second)
+
+
+def test_a_refused_job_that_writes_no_task_re_renders_the_fragment_from_the_job_store(client, ctx, monkeypatch):
+    add(ctx, state=TaskState.MERGED)
+    state = client.app.state
+    latest, saw_failed_job = state.jobs.latest_for_task, threading.Event()
+
+    def latest_watched(task_id):
+        job = latest(task_id)
+        if task_id == "20260102-030405" and job is not None and job.state == "failed":
+            saw_failed_job.set()
+        return job
+
+    monkeypatch.setattr(state.jobs, "latest_for_task", latest_watched)
+    first_event = threading.Event()
+
+    def read():
+        with client.stream("GET", EVENTS) as response:
+            for line in response.iter_lines():
+                if not line:
+                    first_event.set()
+
+    reader = threading.Thread(target=read, daemon=True)
+    reader.start()
+    assert first_event.wait(TIMEOUT), "no first event"
+    state.actions.enqueue_abandon("20260102-030405")  # a merged task cannot be abandoned: the job fails, no task write
+
+    rendered = saw_failed_job.wait(TIMEOUT)
+    state.request_stop()
+    reader.join(TIMEOUT)
+    state.runner.wait_idle()
+
+    assert rendered, "the stream did not re-render after the refused job failed"
+    assert state.jobs.latest_for_task("20260102-030405").state == "failed"
+    assert ctx.store.load("20260102-030405").state is TaskState.MERGED
+
+
+def test_guard_a_job_write_that_changes_nothing_shown_sends_no_event(client, ctx):
+    add(ctx)
+    client.app.state.keepalive_seconds = 0.2
+    jobs = client.app.state.jobs
+    job = jobs.create("abandon", "20260102-999999")
+
+    _, (first, second) = read_events(client, EVENTS, count=2, after_first_event=lambda: jobs.mark_failed(job.id, "x"))
+
+    assert first[0] == "event: task"
+    assert second == [": keepalive"]

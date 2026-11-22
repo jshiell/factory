@@ -32,7 +32,7 @@ def test_guard_the_detail_page_and_fragment_show_a_surrogate_goal_escaped(client
 
     assert response.status_code == 200
     _assert_escaped(response.text)
-    _assert_escaped(_task_fragment(ctx.store, TASK_ID))
+    _assert_escaped(_task_fragment(ctx.store, client.app.state.jobs, TASK_ID))
 
 
 def test_guard_the_reject_page_shows_a_surrogate_goal_escaped(client, ctx):

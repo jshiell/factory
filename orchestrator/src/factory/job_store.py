@@ -1,5 +1,7 @@
 import json
+import logging
 import secrets
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -21,8 +23,10 @@ class Job:
 
 
 class JobStore:
-    def __init__(self, db_path: Path):
+    def __init__(self, db_path: Path, on_change: Callable[[], None] | None = None):
+        """`on_change` is called after every committed state write, on the writer's thread."""
         self._db_path = db_path
+        self._on_change = on_change
         with transaction(db_path) as conn:
             conn.execute(
                 "CREATE TABLE IF NOT EXISTS jobs (seq INTEGER PRIMARY KEY AUTOINCREMENT, id TEXT NOT NULL UNIQUE, "
@@ -33,6 +37,7 @@ class JobStore:
         job_id = secrets.token_hex(8)
         with transaction(self._db_path) as conn:
             conn.execute("INSERT INTO jobs (id, kind, task_id, state) VALUES (?, ?, ?, 'queued')", (job_id, kind, task_id))
+        self._changed()
         return self.get(job_id)
 
     def get(self, job_id: str) -> Job:
@@ -76,10 +81,20 @@ class JobStore:
     def interrupt_unfinished(self) -> None:
         with transaction(self._db_path) as conn:
             conn.execute("UPDATE jobs SET state = 'interrupted' WHERE state IN ('queued', 'running')")
+        self._changed()
 
     def _update(self, job_id: str, state: str, result: str | None = None, error: str | None = None) -> None:
         with transaction(self._db_path) as conn:
             conn.execute("UPDATE jobs SET state = ?, result = ?, error = ? WHERE id = ?", (state, result, error, job_id))
+        self._changed()
+
+    def _changed(self) -> None:
+        if self._on_change is None:
+            return
+        try:
+            self._on_change()
+        except Exception:  # a committed write, and the job worker making it, must not fail because a listener did
+            logging.getLogger(__name__).warning("a job store listener failed", exc_info=True)
 
     @staticmethod
     def _job(job_id, kind, task_id, state, result, error) -> Job:

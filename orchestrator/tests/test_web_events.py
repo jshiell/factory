@@ -99,6 +99,17 @@ def test_an_idle_stream_sends_a_keepalive_comment_after_the_interval(client):
     assert second == [": keepalive"]
 
 
+def test_a_job_write_that_leaves_the_table_unchanged_sends_no_event(client, ctx):
+    ctx.store.save(Task("20260102-030405", "p", state=TaskState.QUEUED, goal="g"))
+    client.app.state.keepalive_seconds = 0.2
+    jobs = client.app.state.jobs
+
+    _, (first, second) = read_events(client, count=2, after_first_event=lambda: jobs.create("abandon", "20260102-030405"))
+
+    assert first[0] == "event: tasks"
+    assert second == [": keepalive"]
+
+
 def read_until_end(client, stop_after=None):
     """Every event of /ui/events until the server ends the stream; fails instead of hanging.
 
