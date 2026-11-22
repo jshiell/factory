@@ -48,4 +48,5 @@ Branch `plan-83-clean-branch-deletion-reason`, cut from `main`. Drafted 2026-11-
 - The remaining plan 82 out-of-scope items (`watch` retry cap, `store.load` unreadable rows, unread `recover` and eval-runner `OSError` paths).
 
 ## Deviations
-_To be filled in during implementation._
+- Display check (increment 1): CLI `clean` runs through the server (`/clean` job) and prints each line through `escape_control` (`cli/recovery.py:165`). The web clean POST only enqueues the job and redirects to `/ui/jobs`; it never renders problem text. No change needed.
+- Increments 1 and 2 red tests were committed together with their green code (one commit each), as the first increment needed the helper to be shown red-then-green in one cycle.
