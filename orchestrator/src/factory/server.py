@@ -343,6 +343,8 @@ def _build_app(ctx) -> Starlette:
             job = enqueue_clean(shown_token)
         except CleanChanged as error:
             raise ApiError(409, "clean refused", str(error)) from None
+        except (subprocess.CalledProcessError, OSError):
+            raise ApiError(409, "clean refused", CLEAN_CHECK_FAILED) from None
         return AsciiJSONResponse({"job": _job_json(job)}, status_code=202)
 
     async def eval_audit(request: Request) -> AsciiJSONResponse:

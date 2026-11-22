@@ -265,3 +265,11 @@ def test_a_failed_check_in_clean_preview_is_409_with_a_fixed_sentence(client, mo
     _failing_clean_candidates(monkeypatch, error)
 
     _assert_clean_check_refusal(client.get("/clean-preview"))
+
+
+@pytest.mark.parametrize("error", CHECK_FAILURES, ids=["git failure", "os error"])
+def test_a_failed_check_in_clean_is_409_with_a_fixed_sentence_and_queues_nothing(client, monkeypatch, error):
+    _failing_clean_candidates(monkeypatch, error)
+
+    _assert_clean_check_refusal(client.post("/clean", json={"token": "0" * 64}))
+    assert client.app.state.jobs.list() == []
