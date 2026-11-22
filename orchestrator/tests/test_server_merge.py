@@ -97,6 +97,15 @@ def test_a_missing_worktree_in_merge_preview_is_409_with_a_fixed_sentence_and_no
     assert audited.worktree not in response.text
 
 
+def test_an_audited_task_with_no_worktree_in_merge_preview_is_409_merge_check_failed(client, ctx, audited):
+    ctx.store.save(replace(audited, worktree=None))
+
+    response = client.get("/tasks/t1/merge-preview")
+
+    assert response.status_code == 409
+    assert response.json() == {"error": "merge check failed", "detail": MERGE_CHECK_SENTENCE}
+
+
 def test_merge_preview_of_an_unknown_task_is_404(client):
     assert client.get("/tasks/nope/merge-preview").status_code == 404
 

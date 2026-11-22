@@ -24,6 +24,10 @@ def can_merge(task: Task) -> bool:
     return task.state is TaskState.AUDITED and not task.fix_in_flight
 
 
+class WorktreeMissing(FileNotFoundError):
+    """The task has no worktree to check; an `OSError`, like a worktree directory that is gone."""
+
+
 @dataclass(frozen=True)
 class Preview:
     task: Task
@@ -38,6 +42,8 @@ def merge_preview(task_id: str, store: TaskStore, repo: Path, main_branch: str |
     branch = f"factory/{task.id}"
     if run_git(repo, "rev-parse", branch) != task.audited_sha:
         raise MergeRefused(f"{branch} is not at the audited commit")
+    if task.worktree is None:
+        raise WorktreeMissing(f"{task.id} has no worktree")
     if run_git(Path(task.worktree), "rev-parse", "HEAD") != task.audited_sha:
         raise MergeRefused("the worktree is not at the audited commit")
     if run_git(Path(task.worktree), "status", "--porcelain"):

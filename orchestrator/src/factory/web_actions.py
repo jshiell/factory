@@ -85,8 +85,8 @@ class WebActions:
             lambda rebased: {**_task_result_json(rebased.task), "old_audited_sha": rebased.old_audited_sha})
 
     def merge_preview(self, task_id: str) -> Preview:
-        """What a merge would do, checked against git now; raises `MergeRefused`, `InvalidTransition` and
-        `CalledProcessError` from the domain."""
+        """What a merge would do, checked against git now; raises `MergeRefused`, `InvalidTransition`,
+        `CalledProcessError` and `OSError` (including `WorktreeMissing`) from the domain."""
         settings = self._ctx.settings
         return merge_preview(task_id, self._ctx.store, settings.repo, settings.main_branch)
 
