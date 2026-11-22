@@ -195,7 +195,7 @@ def _costs(args, io, ctx) -> int:
         print(f"  {stage}  ${cost:.4f}", file=io.stdout)
     print("by task:", file=io.stdout)
     for task_id, cost in sorted(report.by_task.items()):
-        print(f"  {task_id}  ${cost:.4f}", file=io.stdout)
+        print(f"  {escape_control(task_id)}  ${cost:.4f}", file=io.stdout)
     print(f"assumed: ${report.assumed:.4f}", file=io.stdout)
     print(f"total: ${report.total:.4f}", file=io.stdout)
     return 0

@@ -311,6 +311,14 @@ def test_costs_totals_by_stage_and_task_and_flags_assumed_entries(ctx):
     assert "t1  $0.3000" in out and "t2  $0.6500" in out and "assumed: $0.6000" in out and "total: $0.9500" in out
 
 
+def test_costs_shows_ledger_task_ids_with_control_characters_escaped(ctx):
+    ctx.ledger.append("x\x1b[31my", 0.5, stage="plan")
+
+    _, out, _ = run(ctx, "costs")
+
+    assert "x\\x1b[31my  $0.5000" in out and "\x1b" not in out
+
+
 def test_costs_for_one_task_only_counts_that_task(ctx):
     put(ctx)
     ctx.ledger.append("t1", 0.1, stage="plan")
