@@ -5,6 +5,7 @@ from pathlib import Path
 from factory.gate_cache import OrphanCache, cache_size, remove_cache
 from factory.store import TaskNotFound, TaskStore
 from factory.task import Task, TaskState
+from factory.textsafe import log_failure
 from factory.worktrees import WorktreeManager, run_git
 
 CLEANABLE = (TaskState.MERGED, TaskState.FAILED)
@@ -116,7 +117,8 @@ def _remove_worktree(
             run_git(repo, "worktree", "prune")
             outcome.done.append("pruned missing worktree")
     except subprocess.CalledProcessError as error:
-        outcome.problems.append(f"worktree kept: git failed ({error})")
+        log_failure(f"clean {task.id} worktree removal", error)
+        outcome.problems.append("worktree kept: git failed")
         return False
     store.save(replace(task, worktree=None))
     return True

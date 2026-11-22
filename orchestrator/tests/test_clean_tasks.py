@@ -326,6 +326,20 @@ def test_a_worktree_failure_does_not_stop_the_cache_removal(env, tmp_path, monke
     assert not cache.exists() and any("worktree kept" in p for o in outcomes for p in o.problems)
 
 
+def test_a_worktree_removal_failure_problem_has_no_git_command_and_is_logged(env, tmp_path, monkeypatch, capsys):
+    store, repo, manager, root, add = env
+    add("failed", S.FAILED)
+    candidates = clean_candidates(store, repo, root, tmp_path / "gate-cache")
+    error = subprocess.CalledProcessError(1, ["git", "worktree", "remove", "secret-ref"], stderr="fatal: secret")
+    monkeypatch.setattr(manager, "remove", lambda task_id: (_ for _ in ()).throw(error))
+
+    outcomes = clean_tasks(candidates, store, manager, repo, root, tmp_path / "gate-cache")
+
+    assert [p for o in outcomes for p in o.problems] == ["worktree kept: git failed"]
+    log = capsys.readouterr().err
+    assert "secret-ref" in log and "fatal: secret" in log
+
+
 def test_an_outside_root_worktree_does_not_stop_the_cache_removal(env, tmp_path):
     store, repo, manager, root, add = env
     add("failed", S.FAILED)
