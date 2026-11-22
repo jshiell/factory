@@ -1,6 +1,6 @@
 # Plan 84: clean's last two path leaks
 
-Branch `plan-84-clean-path-leaks`, cut from `main`. Drafted 2026-11-22, revised after plan review (`plan-reviewer`, opus). Follows plan 83's decision D4. **Awaiting approval.**
+Branch `plan-84-clean-path-leaks`, cut from `main`. Drafted 2026-11-22, revised after plan review (`plan-reviewer`, opus). Follows plan 83's decision D4. **Approved and implemented.**
 
 ## Problem
 - `clean_tasks.py:99`: an outside-root task reports `skipped: worktree <task.worktree> is outside the worktree root`. `task.worktree` is a host path from the task record.
@@ -38,4 +38,5 @@ Branch `plan-84-clean-path-leaks`, cut from `main`. Drafted 2026-11-22, revised 
 - The remaining plan 82 items (`watch` retry cap, `store.load` unreadable rows, unread `recover` and eval-runner `OSError` paths).
 
 ## Deviations
-_To be filled in during implementation._
+- Increment 2 failed first on the old text (`partially removed: [Errno 13] Permission denied: '.../a-failed/sub'`), which confirms the logged path is the directory `rmtree` was walking, not the file `g`.
+- The pre-increment grep found no other quote of either message in tests, README or docs, beyond plan files (plan 11, plan 83, spike-findings) that describe the old behaviour historically and are left as written.
