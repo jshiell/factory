@@ -57,4 +57,7 @@ Branch `plan-81-json-git-errors`, cut from `main`. Drafted 2026-11-22, revised a
 - Unreadable-row errors from `store.load`, common to every JSON route.
 
 ## Deviations
-_To be filled in during implementation._
+- Increment 4 and 5 reds raise (TestClient re-raises server exceptions) rather than return 500, as the plan noted.
+- Increment 6 was a guard (passed without code change), as the plan expected; the added test is committed.
+- Increments 4 and 5 catch in `clean_preview` and `clean` separately, as planned; `clean_preview_now` itself is unchanged.
+- The `watch` caller's behaviour on today's plain-text 500 stayed unverified; it is no longer reachable for these routes.
