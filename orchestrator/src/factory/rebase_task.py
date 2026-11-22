@@ -5,7 +5,7 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 
 from factory.store import TaskStore
-from factory.task import Event, Task, apply
+from factory.task import Event, Task, TaskState, apply
 from factory.worktrees import (
     NO_USER_CONFIG_OVERRIDES,
     is_ancestor,
@@ -51,6 +51,11 @@ def _failure_reason(error: subprocess.CalledProcessError) -> tuple[str, bool]:
     if conflict:
         return conflict, True
     return next((line for line in lines if line.startswith(("error:", "fatal:"))), None) or (lines or ["no reason given"])[0], False
+
+
+def can_rebase(task: Task) -> bool:
+    """The task-only part of the rules; what needs git (worktree, main) is checked in the job."""
+    return task.state is TaskState.AUDITED and not task.fix_in_flight
 
 
 def rebase_task(task_id: str, store: TaskStore, repo: Path, main_branch: str | None = None) -> Rebased:

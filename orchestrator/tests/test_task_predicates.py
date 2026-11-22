@@ -4,6 +4,7 @@ import pytest
 
 from factory.abandon_task import can_abandon
 from factory.advance import ACTIONS, can_advance
+from factory.rebase_task import can_rebase
 from factory.recover_task import can_recover
 from factory.retry_task import RETRYABLE, can_retry
 from factory.task import Task, TaskState
@@ -41,3 +42,11 @@ def test_cannot_retry_a_task_without_a_goal():
 
 def test_cannot_abandon_a_task_with_a_fix_agent_in_flight():
     assert not can_abandon(replace(task_in(TaskState.AGENT_DONE), fix_in_flight=True))
+
+
+def test_can_rebase_only_an_audited_task():
+    assert [s for s in TaskState if can_rebase(task_in(s))] == [TaskState.AUDITED]
+
+
+def test_cannot_rebase_a_task_with_a_fix_agent_in_flight():
+    assert not can_rebase(replace(task_in(TaskState.AUDITED), fix_in_flight=True))

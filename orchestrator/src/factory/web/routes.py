@@ -16,6 +16,7 @@ from factory.abandon_task import can_abandon
 from factory.advance import can_advance
 from factory.digest import plan_digest
 from factory.ids import InvalidTaskId
+from factory.rebase_task import can_rebase
 from factory.recover_task import can_recover
 from factory.review_notes import capped_findings, dropped_required_warning
 from factory.store import TaskNotFound
@@ -329,6 +330,13 @@ _ADVANCE = _TaskAction(
     "advanced", can_advance, "That task cannot be advanced in its current state.", WebActions.enqueue_advance)
 
 
+_REBASE = _TaskAction(
+    "rebase", "Rebase this task onto the current main? Its commits are replayed on main's latest commit and the task "
+    "returns to agent done, so it must be verified and audited again (which may spend money). Its audit result and "
+    "fix rounds are cleared. If the rebase conflicts, nothing is changed.", "Rebase task",
+    "rebased", can_rebase, "That task cannot be rebased in its current state.", WebActions.enqueue_rebase)
+
+
 def _action_refusal(request: Request, task, action: _TaskAction) -> HTMLResponse | None:
     """The 409 page refusing the action for this task (wrong state, or a job already queued or running), or None."""
     if not action.allowed(task):
@@ -527,5 +535,7 @@ def ui_routes() -> list[Route | Mount]:
             Route("/ui/tasks/{task_id}/recover", _action_post(_RECOVER), methods=["POST"]),
             Route("/ui/tasks/{task_id}/advance", _action_page(_ADVANCE), methods=["GET"]),
             Route("/ui/tasks/{task_id}/advance", _action_post(_ADVANCE), methods=["POST"]),
+            Route("/ui/tasks/{task_id}/rebase", _action_page(_REBASE), methods=["GET"]),
+            Route("/ui/tasks/{task_id}/rebase", _action_post(_REBASE), methods=["POST"]),
             Route("/ui/tasks/{task_id}/events", _task_events, methods=["GET"]),
             Route("/ui/login", _login, methods=["GET"]), Mount("/ui/static", StaticFiles(directory=STATIC_DIR))]
