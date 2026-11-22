@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>jobs</h2>
+<ul>
+  {% for job in jobs %}<li>{{ job.kind }}, {{ job.state }}{% if job.task_id %} <a href="/ui/tasks/{{ job.task_id | urlencode }}">{{ job.task_id }}</a>{% endif %}{% if job.error %} error: {{ job.error }}{% endif %}</li>
+  {% endfor %}
+</ul>
+<p><a href="/ui/">back to the task list</a></p>
+{% endblock %}

@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% block content %}
-<p><a href="/ui/tasks/new">New task</a> · <a href="/ui/costs">Costs</a></p>
+<p><a href="/ui/tasks/new">New task</a> · <a href="/ui/costs">Costs</a> · <a href="/ui/jobs">Jobs</a></p>
 <div id="tasks" hx-ext="sse" sse-connect="/ui/events" sse-swap="tasks">
 {% include "_tasks.html" %}
 </div>

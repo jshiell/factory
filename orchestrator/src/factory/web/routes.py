@@ -105,6 +105,16 @@ async def _costs_page(request: Request) -> HTMLResponse:
     return HTMLResponse(_TEMPLATES.get_template("costs.html").render(report=shown))
 
 
+_JOBS_SHOWN = 50
+
+
+async def _jobs_page(request: Request) -> HTMLResponse:
+    newest = request.app.state.jobs.list()[-_JOBS_SHOWN:][::-1]
+    shown = [{"kind": _safe(job.kind), "state": job.state, "task_id": _safe(job.task_id),
+              "error": _safe(_truncated(job.error, _ERROR_LIMIT)) if job.error else None} for job in newest]
+    return HTMLResponse(_TEMPLATES.get_template("jobs.html").render(jobs=shown))
+
+
 def _missing_page() -> HTMLResponse:
     return HTMLResponse(_TEMPLATES.get_template("task_missing.html").render(), status_code=404)
 
@@ -687,6 +697,7 @@ STATIC_DIR = Path(__file__).parent / "static"
 def ui_routes() -> list[Route | Mount]:
     return [Route("/ui", _ui_without_slash, methods=["GET"]), Route("/ui/", _ui_page, methods=["GET"]),
             Route("/ui/events", _events, methods=["GET"]), Route("/ui/costs", _costs_page, methods=["GET"]),
+            Route("/ui/jobs", _jobs_page, methods=["GET"]),
 Route("/ui/tasks/new", _new_task_page, methods=["GET"]),
             Route("/ui/tasks/new", _new_task, methods=["POST"]),
             Route("/ui/tasks/{task_id}", _task_page, methods=["GET"]),
