@@ -109,4 +109,5 @@ Waivers and reinstating (CLI-only, as the watcher); merge, abandon, retry, rebas
   - Approving a reviewed plan with one required note gave a 303 to the task page; the task is `queued`, `waived_findings` is empty and the note is in the prompt.
   - Every POST carried `Origin: http://127.0.0.1:<port>` and `Sec-Fetch-Site: same-origin`; all passed the guard.
   - Chromium's reload on a POST result page re-sent the POST (the stale page returned 409 again).
-  - Not covered: readability and look of the pages, the stale-digest approve case (not reachable from a tab), and any browser other than Chromium.
+  - Not covered: the stale-digest approve case (not reachable from a tab). Chromium alone is accepted as sufficient.
+- After the user's look at the pages (approve and reject looked good), two changes: the approve page's waive sentence now names the command (`factory approve <id>` in a terminal) instead of "needs the CLI", and the task page links back to the task list, outside the streamed fragment so a live update does not remove it. Before this, the only way back to the list after approving or rejecting was the browser's Back button. Each change has one new test; no existing test was edited.
