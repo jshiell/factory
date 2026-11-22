@@ -31,5 +31,15 @@ Grep tests asserting `skipped` contents, list output or unreadable-row messages 
 ## Out of scope
 Rejecting surrogates in goals at write time; changing id format; other unreadable-row handling.
 
+## Tests touched (recorded 2026-11-22)
+Grep for `skipped`, list output and unreadable-row messages found one existing test that conflicts with D1: `test_web_list_escape.py::test_a_task_id_with_control_characters_is_shown_escaped` planted a row with an unsafe JSON id under a different key and expected it listed, escaped. The user chose to edit it (see Deviations).
+
 ## Deviations
-Recorded after implementation.
+Implemented 2026-11-22.
+
+- **Test edit (named exception, asked of the user).** That test now monkeypatches `ctx.store.list` to return a `Listing` holding the unsafe-id task, so the page's own escaping stays pinned; the assertions are unchanged. It passes with and without the store check, and has its own commit before the store change.
+- **Increment 0 skipped as a separate probe.** The red tests in increments 1 and 2 showed the behaviour directly: before the change `list` returned the row and `load` returned it, and the detail page for it was not the unreadable page.
+- **Unreadable error.** `load` raises `ValueError` for a mismatch, the same family (`ValueError`, `KeyError`, `TypeError`) that damaged rows raise and that the routes already map to the unreadable page. `update` reads through the same function, so it is covered.
+- **Increment 3.** The red test uses the file store (the CLI tests' store) with an unsafe JSON id and a control character in a skipped file name. The same escaping was added to the `factory migrate` skipped line with no test of its own (a one-line change of the same shape).
+- **Increment 4 (guards).** Already covered: `test_sqlite_store.py:61-65` and `test_store.py:51-53` refuse unsafe ids in `save`, `create` and `load`. No new test.
+- **File store.** `TaskStore.list` and `load` do not make the id/key check (the task lives in `<id>.json`, used only by `migrate` and the eval tools); the CLI escaping covers display. Recorded in the README.
