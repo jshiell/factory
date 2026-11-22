@@ -1,3 +1,4 @@
+import subprocess
 import threading
 import time
 
@@ -69,3 +70,25 @@ def test_a_job_error_with_a_lone_surrogate_is_still_recorded_and_the_worker_surv
     assert jobs.get(bad.id).state == "failed"
     assert "bad" in jobs.get(bad.id).error
     assert jobs.get(good.id).state == "succeeded"
+
+
+JOB_FAILED_SENTENCE = "Git or the system failed while running this job. The server log has the details."
+
+
+@pytest.mark.parametrize("error, logged", [
+    (subprocess.CalledProcessError(128, ["git", "branch", "secret-ref"], stderr="fatal: secret\nforged line"), "fatal: secret"),
+    (FileNotFoundError(2, "No such file", "/secret/path"), "/secret/path"),
+    (subprocess.TimeoutExpired(["git", "secret-ref"], 1), "secret-ref"),
+], ids=["git failure", "os error", "timeout"])
+def test_a_git_or_system_failure_is_failed_with_a_fixed_sentence_and_logged_escaped(runner, jobs, capsys, error, logged):
+    def fail():
+        raise error
+
+    bad = runner.submit("merge", "t1", fail)
+    good = runner.submit("advance", "t2", lambda: {"ok": True})
+    runner.wait_idle()
+
+    assert (jobs.get(bad.id).state, jobs.get(bad.id).error) == ("failed", JOB_FAILED_SENTENCE)
+    assert jobs.get(good.id).state == "succeeded"
+    log_lines = capsys.readouterr().err.strip().splitlines()
+    assert len(log_lines) == 1 and logged in log_lines[0]  # a newline in git's stderr cannot forge a second line

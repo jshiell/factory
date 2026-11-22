@@ -1,8 +1,13 @@
 import queue
+import subprocess
+import sys
 import threading
 from collections.abc import Callable
 
 from factory.job_store import Job, JobStore
+from factory.textsafe import failure_detail
+
+JOB_FAILED_SENTENCE = "Git or the system failed while running this job. The server log has the details."
 
 
 class JobRunner:
@@ -32,9 +37,15 @@ class JobRunner:
         while (item := self._queue.get()) is not None:
             job_id, run = item
             try:
-                self._jobs.mark_running(job_id)
-                self._jobs.mark_succeeded(job_id, run())
-            except Exception as error:  # a failed job must not stop the worker
+                try:
+                    self._jobs.mark_running(job_id)
+                    result = run()
+                except (subprocess.SubprocessError, OSError) as error:  # git's command line and paths stay out of job.error
+                    print(f"job {job_id} failed: {failure_detail(error)}", file=sys.stderr)
+                    self._jobs.mark_failed(job_id, JOB_FAILED_SENTENCE)
+                else:
+                    self._jobs.mark_succeeded(job_id, result)
+            except Exception as error:  # a failed job (or a failed result write) must not stop the worker
                 self._jobs.mark_failed(job_id, str(error))
             finally:
                 self._queue.task_done()
