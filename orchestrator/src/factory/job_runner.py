@@ -1,11 +1,10 @@
 import queue
 import subprocess
-import sys
 import threading
 from collections.abc import Callable
 
 from factory.job_store import Job, JobStore
-from factory.textsafe import failure_detail
+from factory.textsafe import log_failure
 
 JOB_FAILED_SENTENCE = "Git or the system failed while running this job. The server log has the details."
 
@@ -41,7 +40,7 @@ class JobRunner:
                     self._jobs.mark_running(job_id)
                     result = run()
                 except (subprocess.SubprocessError, OSError) as error:  # git's command line and paths stay out of job.error
-                    print(f"job {job_id} failed: {failure_detail(error)}", file=sys.stderr)
+                    log_failure(f"job {job_id}", error)
                     self._jobs.mark_failed(job_id, JOB_FAILED_SENTENCE)
                 else:
                     self._jobs.mark_succeeded(job_id, result)

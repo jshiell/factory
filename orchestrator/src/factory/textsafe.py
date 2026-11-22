@@ -1,3 +1,4 @@
+import sys
 import unicodedata
 
 
@@ -8,6 +9,11 @@ def failure_detail(error: BaseException) -> str:
         stderr = stderr.decode(errors="replace")
     text = f"{type(error).__name__}: {error}" + (f" [{stderr.strip()}]" if stderr and stderr.strip() else "")
     return escape_control(text).replace("\n", "\\n")
+
+
+def log_failure(context: str, error: BaseException) -> None:
+    """Print one stderr line: the context and the failure's detail, so the operator can read what the user is not shown."""
+    print(f"{context} failed: {failure_detail(error)}", file=sys.stderr)
 
 
 def escape_control(text: str) -> str:

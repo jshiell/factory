@@ -167,6 +167,19 @@ def test_known_stage_exceptions_are_reported_with_the_stage_and_the_exception(st
     assert result.task.state is S.PROPOSED
 
 
+def test_a_git_failure_in_a_stage_is_reported_without_the_command_and_logged(store, capsys):
+    start(store, S.PROPOSED)
+
+    def boom(task_id):
+        raise subprocess.CalledProcessError(128, ["git", "branch", "secret-ref"], stderr="fatal: secret")
+
+    result = advance("t1", store, {**pipeline(store, []), "plan": boom})
+
+    assert result.stopped == "plan: CalledProcessError: git failed, see the server log"
+    log = capsys.readouterr().err
+    assert "secret-ref" in log and "fatal: secret" in log and len(log.strip().splitlines()) == 1
+
+
 def test_a_dirty_pre_made_worktree_is_reported_as_needing_human_action(store):
     start(store, S.QUEUED)
 

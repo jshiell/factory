@@ -7,6 +7,7 @@ from factory.run_task import WorktreeNotPristine
 from factory.step import BudgetCapReached, MissingBudget
 from factory.store import TaskStore
 from factory.task import InvalidTransition, Task, TaskState
+from factory.textsafe import log_failure
 from factory.worktrees import BranchExists, WorktreeExists
 
 ACTIONS = {
@@ -23,7 +24,7 @@ def can_advance(task: Task) -> bool:
 
 _KNOWN_ERRORS = (
     BudgetCapReached, MissingBudget, InvalidTransition, WorktreeExists, BranchExists,
-    subprocess.CalledProcessError, ProjectSubdirEscapes,
+    ProjectSubdirEscapes,
 )
 
 
@@ -57,6 +58,9 @@ def advance(
             after = stages[stage](task_id)
         except WorktreeNotPristine:
             return AdvanceResult(task, steps, f"{stage}: needs human action: worktree dirty or moved")
+        except subprocess.CalledProcessError as error:  # the command line and git's output stay in the log
+            log_failure(f"advance {task_id} {stage}", error)
+            return AdvanceResult(store.load(task_id), steps, f"{stage}: CalledProcessError: git failed, see the server log")
         except _KNOWN_ERRORS as error:
             return AdvanceResult(store.load(task_id), steps, f"{stage}: {type(error).__name__}: {error}")
         if after.state is task.state:
