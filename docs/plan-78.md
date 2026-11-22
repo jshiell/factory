@@ -42,5 +42,15 @@ Grep for the exact strings and status codes first: candidates are `test_server_a
 ## Out of scope
 TLS, `Secure`, proxies and `X-Forwarded-*`, wildcards, host-bound sessions, rate limiting of login codes, any server-side check of `factory ui --host`.
 
+## Tests touched (recorded 2026-11-22)
+No existing test was edited. Existing tests that exercise the changed paths and stayed green: `test_server_allowed_hosts.py`, `test_server_security.py` (loopback `[::1]:8765`), `test_web_allowed_hosts.py`, `test_settings_allowed_hosts.py`, `test_cli_ui_host.py`, `test_cli_serve_allowed_hosts.py`, `test_web_login.py`, `test_web_auth.py` (the only test constructing `Sessions()`), the `test_web_*_guard.py` files. New: `test_server_host_parse.py`, `test_server_duplicate_headers.py`, `test_settings_ipv4_hosts.py`, `test_web_session_expiry.py`.
+
 ## Deviations
-Recorded after implementation.
+Implemented 2026-11-22.
+
+- **Increment 0 (probe, throwaway).** Real uvicorn answers 400 to a duplicate `Host` before the app sees it; a duplicate `Origin` reaches the app. So the duplicate-`Host` refusal is defence in depth (the in-app test client skips uvicorn), and duplicate `Origin` and `Sec-Fetch-Site` are the live cases.
+- **Increment 2.** One guard check covers all three headers, refusing before any other rule.
+- **Increment 3.** The rule is "an entry made only of digits and dots must be a valid IPv4 address" (so `123` and `1.2.3` fail). Leading zeros fail (`ipaddress` behaviour, Python 3.14).
+- **Increment 4.** `Sessions(clock=time.monotonic)`; `valid()` is the use that refreshes; expired ids are dropped on `create` and `valid`. Added `Sessions.count()` so the pruning test needs no private access. Ruff rewrote one test assertion into constant-first order.
+- **Test for non-ASCII ports** sends the header as latin-1 bytes (the client cannot encode it as ASCII); it uses `²`, which `str.isdigit` accepts.
+- **Increment 6 (browser check):** see below once run.
