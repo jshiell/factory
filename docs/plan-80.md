@@ -78,4 +78,11 @@ Which existing tests expect 202 for a wrong-state request, and whether any run t
 `eval-audit`; the CLI-only commands; waive and reinstate in the web UI; multi-user accounts; changing the task state machine; deduping in the JSON API; TLS.
 
 ## Deviations
-Recorded after implementation.
+- Increment 0 found no uncovered refusal path, so it made no guard commit.
+- Increment 7 added `can_*` predicates for every action. `rebase_task` now repeats the `fix_in_flight` rule inside its own refusal (a duplicate of `can_rebase`'s).
+- Merge's web refusal for a fix agent in flight lives in the web layer only (the domain merge does not refuse it).
+- Increment 9's guard needed no source change (a guard, not red); the per-action guard files already existed.
+- Increment 10: the task page offers no gated action while the latest job is queued or running, not only recover (D8 applied to every button). Retry is still offered.
+- Increment 11 split into three commits: costs, jobs, clean. `clean_preview` and `enqueue_clean` closures stay in `server.py` (tests patch `factory.server.clean_candidates` and `clean_tasks`) and are exposed on `app.state`. `CleanChanged` is new. The JSON merge preview still calls `merge_preview` directly for the same reason.
+- Jobs page has no per-job detail page; it shows the latest 50.
+- Open follow-ups: a lone surrogate in a job error passed to `mark_failed` could break the runner; a missing worktree directory gives a 500.
