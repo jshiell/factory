@@ -1,6 +1,6 @@
 # Plan 80: task actions in the web UI
 
-Branch `plan-80-web-actions`, cut from `main`. Drafted 2026-11-22 from a read of `web/routes.py`, `server.py`, `job_runner.py`, `job_store.py` and the CLI parser; revised after plan review (`plan-reviewer`, spot-checked by me). **Draft, not approved.**
+Branch `plan-80-web-actions`, cut from `main`. Drafted 2026-11-22 from a read of `web/routes.py`, `server.py`, `job_runner.py`, `job_store.py` and the CLI parser; revised after plan review (`plan-reviewer`, spot-checked by me). **Approved 2026-11-22.**
 
 ## Problem
 The web UI lists and opens tasks, follows them live, and handles the three human gates: approve a plan, reject a plan, answer questions. Everything else needs the CLI or the JSON API:
@@ -46,6 +46,8 @@ Not UI work, by nature: `init`, `clone`, `migrate`, `serve`, `ui`, `watch`, `eva
 
 ## Increments (test first, one commit each)
 0. **Tests-touched list.** Grep tests for the routes, strings and statuses this changes (task-page tests, `test_web_*_race.py`, and every `test_server_*` test through the closures D2 extracts: abandon, recover, rebase, merge's three exceptions, the merge sha pre-check, retry's 409/422, create's 422s). Record the list here. Add guard tests, in their own commit, for any refusal path not yet covered. Check whether the tests run the lifespan (runner thread) and use `runner.wait_idle()`.
+   - **Result (done).** Tests that must stay green through increment 1, and that cover each extracted closure's refusals: `test_server.py` (create 422s incl. goal-byte cap and surrogate, advance, abandon and recover refused-as-failed-job, rebase wrong state, retry 409/422 and keep-plan/waive/reinstate, costs, clean token 409/422), `test_server_merge.py` (preview, sha 409, 422, 404, failed job), `test_server_surrogate.py`, `test_server_reject_race.py`, `test_server_security.py`. Web tests that increments 4-5 touch: `test_web_changes.py`, `test_web_task_events.py`, `test_web_task_page.py`, `test_web_task_wiring.py`, `test_web_task_sections.py`, `test_web_page_wiring.py`, and the approve/reject/answer `*_race`, `*_stale` and `*_guard` tests as the patterns to copy. Tests use `served(ctx)`/`client`/`app` with `TestClient` as a context manager (runner thread runs) and `app.state.runner.wait_idle()`.
+   - **Gaps.** Advance never refuses by design, so it has no refusal path to guard. No other uncovered refusal path found, so no guard commit.
 1. **Refactor (D2), flagged, no red.** Extract and wire as D2; set `app.state.actions` and `app.state.jobs`. The existing server tests are the safety net.
 2. Red: `JobStore.latest_for_task(task_id)`. Green.
 3. Red: `JobStore.unfinished_for_task(task_id)` (queued or running). Green.
