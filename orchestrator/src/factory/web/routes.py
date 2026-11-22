@@ -21,12 +21,13 @@ from factory.web.auth import session_cookie_name
 
 _TEMPLATES = jinja2.Environment(loader=jinja2.FileSystemLoader(Path(__file__).parent / "templates"), autoescape=True)
 _GOAL_LIMIT = 120
+_ERROR_LIMIT = 500
 _HUMAN_GATE_STATES = {TaskState.OPEN_QUESTIONS, TaskState.REVIEWED, TaskState.AUDITED}
 _UNREADABLE = (ValueError, KeyError, TypeError)  # what `load` lets escape for a bad row; `list` skips a row for the same
 
 
-def _truncated(text: str) -> str:
-    return text if len(text) <= _GOAL_LIMIT else text[:_GOAL_LIMIT] + "…"
+def _truncated(text: str, limit: int = _GOAL_LIMIT) -> str:
+    return text if len(text) <= limit else text[:limit] + "…"
 
 
 def _task_row(task) -> dict:
@@ -61,6 +62,15 @@ def _task_detail(task) -> dict:
             "lists": [(label, [_safe(item) for item in items]) for label, items in lists if items]}
 
 
+def _job_view(job) -> dict | None:
+    """What the task panel shows of a job: its error is job-failure text, so it is capped and escaped."""
+    if job is None:
+        return None
+    stopped = (job.result or {}).get("stopped")
+    return {"kind": _safe(job.kind), "state": job.state,
+            "error": _safe(_truncated(job.error, _ERROR_LIMIT)) if job.error else None, "stopped": _safe(stopped)}
+
+
 def _missing_page() -> HTMLResponse:
     return HTMLResponse(_TEMPLATES.get_template("task_missing.html").render(), status_code=404)
 
@@ -81,7 +91,10 @@ def _load_task(request: Request):
 
 async def _task_page(request: Request) -> HTMLResponse:
     task, refusal = _load_task(request)
-    return refusal or HTMLResponse(_TEMPLATES.get_template("task.html").render(task=_task_detail(task)))
+    if refusal:
+        return refusal
+    job = request.app.state.jobs.latest_for_task(task.id)
+    return HTMLResponse(_TEMPLATES.get_template("task.html").render(task=_task_detail(task), job=_job_view(job)))
 
 
 def _not_reviewed_page() -> HTMLResponse:
@@ -282,7 +295,7 @@ async def _approve(request: Request) -> RedirectResponse | HTMLResponse:
 
 
 def _render_task(task, job=None) -> str:
-    return _TEMPLATES.get_template("_task.html").render(task=_task_detail(task), job=job)
+    return _TEMPLATES.get_template("_task.html").render(task=_task_detail(task), job=_job_view(job))
 
 
 def render_tasks(store) -> str:

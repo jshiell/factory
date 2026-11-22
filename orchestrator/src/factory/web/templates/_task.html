@@ -1,6 +1,15 @@
 <h2>{{ task.id }}</h2>
 <p>state: {{ task.state }}{% if task.needs_you %} <strong>needs you</strong>{% endif %}</p>
 <p>goal: {{ task.goal }}</p>
+{% if job %}
+<p>job: {{ job.kind }}, {{ job.state }}</p>
+{% if job.error %}
+<p>job error: {{ job.error }}</p>
+{% endif %}
+{% if job.stopped %}
+<p>stopped: {{ job.stopped }}</p>
+{% endif %}
+{% endif %}
 {% if task.state == "reviewed" %}
 <p><a href="/ui/tasks/{{ task.id | urlencode }}/approve">approve this plan</a></p>
 <p><a href="/ui/tasks/{{ task.id | urlencode }}/reject">reject this plan</a></p>
