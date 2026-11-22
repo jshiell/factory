@@ -1,6 +1,6 @@
 # Plan 85: unreadable rows on JSON routes, and job exceptions that name paths
 
-Branch `plan-85-unreadable-rows-and-job-errors`, cut from `main`. Drafted 2026-11-22, revised after plan review (`plan-reviewer`, opus). Follows plan 82's out-of-scope list. **Awaiting approval, including one test edit (see Tests touched).**
+Branch `plan-85-unreadable-rows-and-job-errors`, cut from `main`. Drafted 2026-11-22, revised after plan review (`plan-reviewer`, opus). Follows plan 82's out-of-scope list. **Approved and implemented.**
 
 ## Problem
 1. **Unreadable rows (JSON routes).** `store.load` lets `ValueError`, `KeyError` or `TypeError` escape for a corrupt row (`sqlite_store.py:78-81`, `_read` `:97-101`, id mismatch `:23`; `store.py:33-42`). The web pages catch `_UNREADABLE` (`web/routes.py:44`) and answer with an unreadable page. Every JSON route that loads a task catches nothing, and `_build_app` (`server.py:425`) has no handler for these types, so the error escapes to the server. No path or `str(error)` is placed in a body by our code: a consistency gap, not a leak. The test client re-raises server errors by default, so Starlette's own 500 body is not pinned here and is not claimed.
@@ -53,4 +53,6 @@ Branch `plan-85-unreadable-rows-and-job-errors`, cut from `main`. Drafted 2026-1
 - The pre-flight grep and the full gate found no other test relying on a non-`RuntimeError` job message: after increment 5 only the approved symlink test failed.
 - The symlink test edit (increment 7) landed in increment 5's commit, as the plan allowed, so there is no separate increment 7 commit.
 - Increment 4's guard uses a ledger stub whose `entries()` raises `KeyError`: a corrupt ledger row cannot be inserted (the columns are `NOT NULL`). Increments 4 and 6 passed on first run, as guards.
+- Increment 6's stub fails every result write, so the second job also ends `failed`; the test proves the worker survives, not that a later job succeeds.
+- The symlink test is named `…without_naming_the_path`, not `…without_naming_the_symlink`.
 - `reject` and the four action routes (advance, abandon, recover, rebase) call `load_task(...)` for the id first, so each loads the task one extra time.
