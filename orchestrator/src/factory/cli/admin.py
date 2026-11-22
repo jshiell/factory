@@ -37,7 +37,7 @@ def _copy_old_files(io, ctx, cleared_any: bool) -> int:
         return 1
     print(f"migrated {report.tasks} tasks, {report.ledger_entries} ledger entries", file=io.stdout)
     for name in report.skipped:
-        print(f"skipped: {name}", file=io.stdout)
+        print(escape_control(f"skipped: {name}"), file=io.stdout)
     return 0
 
 

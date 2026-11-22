@@ -37,9 +37,9 @@ def _list(args, io, ctx) -> int:
     listing = ctx.server.get("/tasks")
     for task in listing["tasks"]:
         reason = f"  {task['failure_reason']}" if task["failure_reason"] else ""
-        print(f"{task['id']}  {task['state']}{reason}", file=io.stdout)
+        print(escape_control(f"{task['id']}  {task['state']}{reason}"), file=io.stdout)
     for name in listing["skipped"]:
-        print(f"skipped: {name}", file=io.stdout)
+        print(escape_control(f"skipped: {name}"), file=io.stdout)
     return 0
 
 

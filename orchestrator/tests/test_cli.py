@@ -15,7 +15,7 @@ from factory.ledger import Ledger
 from factory.merge_task import MergeRefused
 from factory.server import create_secured_app, load_or_create_token
 from factory.settings import Settings
-from factory.store import TaskStore
+from factory.store import TaskStore, task_to_dict
 from factory.task import Task, TaskState
 
 S = TaskState
@@ -87,6 +87,18 @@ def test_list_shows_id_state_and_failure_reason_and_names_skipped_files(ctx):
 
     assert code == 0
     assert "a  failed  tests_failed" in out and "b  reviewed" in out and "skipped: broken.json" in out
+
+
+def test_list_shows_ids_and_skipped_names_with_control_characters_escaped(ctx):
+    ctx.settings.tasks_dir.mkdir(parents=True, exist_ok=True)
+    (ctx.settings.tasks_dir / "plain.json").write_text(_json.dumps(task_to_dict(Task(id="x\x1b[31my", prompt=""))))
+    (ctx.settings.tasks_dir / "bad\x07name.json").write_text("{nope")
+
+    code, out, _ = run(ctx, "list")
+
+    assert code == 0
+    assert "\x1b" not in out and "\x07" not in out
+    assert "x\\x1b[31my  queued" in out and "skipped: bad\\x07name.json" in out
 
 
 def test_show_prints_the_task_details(ctx):
