@@ -1,6 +1,6 @@
 # Plan 78: web guard hardening
 
-Branch `plans-77-79-known-gaps` (shared by plans 77-79), after plan 77. Drafted 2026-11-22 from plan 74's Deviations and a read of `server.py:484-600`; revised after plan review. **Draft, not approved.**
+Branch `plans-77-79-known-gaps` (shared by plans 77-79), after plan 77. Drafted 2026-11-22 from plan 74's Deviations and a read of `server.py:484-600`; revised after plan review. **Approved and implemented 2026-11-22.**
 
 ## Problem
 Gaps recorded in plans 73-76 and not fixed:

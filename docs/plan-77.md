@@ -1,6 +1,6 @@
 # Plan 77: a task update that cannot overwrite a concurrent write
 
-Branch `plans-77-79-known-gaps` (shared by plans 77-79), cut from `main` (plan 76 is merged). Drafted 2026-11-22; revised after plan review the same day. **Draft, not approved.** Plans 78 (guard) and 79 (ids) follow it and are independent.
+Branch `plans-77-79-known-gaps` (shared by plans 77-79), cut from `main` (plan 76 is merged). Drafted 2026-11-22; revised after plan review the same day. **Approved and implemented 2026-11-22.** Plans 78 (guard) and 79 (ids) follow it and are independent.
 
 ## Problem
 Human-gate actions and `abandon_task` each load a task, check its state, then `store.save` it (`approve_plan.py:62,68`, `answer_questions.py:27`, `abandon_task.py:10-18`). `save` is `INSERT OR REPLACE` (`sqlite_store.py:30`), so a write landing between the load and the save is overwritten.
@@ -62,3 +62,5 @@ Implemented 2026-11-22.
 - **`service.reject_plan`** keeps its pre-check load (the existing web tests count loads) and now maps `InvalidTransition` to `NotReviewed`.
 - **Not added:** the Risks-section test that the callbacks do not touch the store; each callback takes only the task and has no store reference.
 - **UI.** No new UI test: the existing `test_web_*_race.py` tests cover the 409 page through the passthrough wrappers.
+- **Approve-vs-reject one winner.** No test is named for it; `test_server_reject_race.py` and `test_service_reject_race.py` move the task to queued (an approve) and show the reject losing, and increment 4 proves update atomicity.
+- **Increment 0 grep list.** Not written back before increment 7; the domain tests use the file store, and the wrapper commit lists the six web test files it touched.

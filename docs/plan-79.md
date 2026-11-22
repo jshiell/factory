@@ -1,6 +1,6 @@
 # Plan 79: task ids shown by the web UI
 
-Branch `plans-77-79-known-gaps` (shared by plans 77-79), after plan 78. Drafted 2026-11-22; revised after plan review. **Draft, not approved.** Small; do last.
+Branch `plans-77-79-known-gaps` (shared by plans 77-79), after plan 78. Drafted 2026-11-22; revised after plan review. **Approved and implemented 2026-11-22.** Small; do last.
 
 ## Problem
 Plan 75 left two id gaps: the detail page rendering `task.id` raw, and lone-surrogate ids. Review found that most of this is already handled, and the reachable gap is different.
