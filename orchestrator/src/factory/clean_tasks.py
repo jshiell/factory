@@ -155,7 +155,7 @@ def _git_refusal_reason(task: Task, error: subprocess.CalledProcessError) -> str
 
 
 def _checked_out_in_a_worktree(task: Task, repo: Path, outcome: Outcome) -> bool:
-    """Git's own refusal names the worktree path, so say it in our words instead."""
+    """Report a branch held by a worktree in our words: `branch -d` refuses with the path, `update-ref -d` does not refuse."""
     checked_out = f"branch refs/heads/factory/{task.id}" in run_git(repo, "worktree", "list", "--porcelain").splitlines()
     if checked_out:
         outcome.problems.append(f"branch factory/{task.id} kept: it is checked out in a worktree")

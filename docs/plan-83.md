@@ -1,6 +1,6 @@
 # Plan 83: clean's branch-deletion reasons stop leaking repo paths
 
-Branch `plan-83-clean-branch-deletion-reason`, cut from `main`. Drafted 2026-11-22, revised after plan review (`plan-reviewer`, opus; its git claims re-run by me on git 2.53.0, files ref format). Follows plan 82's flagged gap. **Awaiting approval.**
+Branch `plan-83-clean-branch-deletion-reason`, cut from `main`. Drafted 2026-11-22, revised after plan review (`plan-reviewer`, opus; its git claims re-run by me on git 2.53.0, files ref format). Follows plan 82's flagged gap. **Approved and implemented.**
 
 ## Problem
 - `clean_tasks.py` (`_delete_branch`, `_delete_empty_branch`) shows the first line of git's stderr in the clean problem: `branch factory/<id> kept: git refused to delete it (<line>)`.
