@@ -994,6 +994,18 @@ def test_a_thumbs_up_when_the_merge_preview_is_now_refused_posts_merge_refused_a
     assert load_state(tmp_path).issues[5].phase is Phase.MERGE_STOPPED
 
 
+def test_guard_a_thumbs_up_when_the_merge_check_failed_posts_nothing_and_is_left_for_the_next_pass(tmp_path, capsys):
+    failure = ServerRefused(409, "merge check failed", "Git could not check this task's branch and worktree.")
+    server = FakeServer(task_state="audited", merge_preview=failure)
+
+    github, server = merge_reaction_pass(tmp_path, [Reaction("+1", 1001, "alice")], server=server)
+
+    assert server.merge_requests == []
+    assert github.comments_posted == []
+    assert load_state(tmp_path).issues[5] == AWAITING_THE_MERGE
+    assert "Git could not check" in capsys.readouterr().err
+
+
 def test_guard_a_thumbs_up_when_the_merge_preview_says_main_moved_offers_a_rebase_and_does_not_merge(tmp_path):
     refusal = ServerRefused(409, "merge refused", MAIN_MOVED)
     server = FakeServer(task_state="audited", merge_preview=refusal, audited_sha="abc123")
