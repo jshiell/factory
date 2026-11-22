@@ -481,10 +481,13 @@ def load_or_create_token(state_dir) -> str:
 _LOOPBACK_HOSTS = {"127.0.0.1", "localhost", "[::1]"}
 
 
+_HOST_HEADER = re.compile(r"(?P<name>\[::1\]|[^:\[\]]*)(:[0-9]+)?")
+
+
 def _host_name(host: str) -> str:
-    if host.startswith("["):  # a bracketed IPv6 literal, with or without a port
-        return host[:host.find("]") + 1]
-    return host.partition(":")[0]
+    """The name in a `Host` header, or "" when the header is not a name with an optional ASCII-digit port."""
+    match = _HOST_HEADER.fullmatch(host)
+    return match["name"] if match else ""
 
 
 _NOT_SIGNED_IN = HTMLResponse("<!doctype html><title>factory</title><p>not signed in; run <code>factory ui</code></p>",
