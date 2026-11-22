@@ -50,4 +50,7 @@ Branch `plan-85-unreadable-rows-and-job-errors`, cut from `main`. Drafted 2026-1
 - The path text in `rebase_task` refusals (see Risks).
 
 ## Deviations
-(to fill in after implementation)
+- The pre-flight grep and the full gate found no other test relying on a non-`RuntimeError` job message: after increment 5 only the approved symlink test failed.
+- The symlink test edit (increment 7) landed in increment 5's commit, as the plan allowed, so there is no separate increment 7 commit.
+- Increment 4's guard uses a ledger stub whose `entries()` raises `KeyError`: a corrupt ledger row cannot be inserted (the columns are `NOT NULL`). Increments 4 and 6 passed on first run, as guards.
+- `reject` and the four action routes (advance, abandon, recover, rebase) call `load_task(...)` for the id first, so each loads the task one extra time.
