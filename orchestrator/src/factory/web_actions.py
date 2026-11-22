@@ -22,6 +22,10 @@ class ShownCommitChanged(Exception):
     """The commit the caller was shown is not the task's audited commit."""
 
 
+class CleanChanged(Exception):
+    """What would be cleaned is no longer what the caller was shown."""
+
+
 def _refusal_as(prefix: str, refused: type[Exception] | tuple[type[Exception], ...], run):
     """Run `run`, turning the domain's refusal into the CLI's `<prefix> refused: <reason>` message."""
     def wrapped():

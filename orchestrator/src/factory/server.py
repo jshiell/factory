@@ -56,7 +56,12 @@ from factory.web.auth import LoginCodes, Sessions, session_cookie_name
 from factory.web.changes import TaskChanges
 from factory.web.routes import ui_routes
 from factory.web.stopping import StopRequest
-from factory.web_actions import InvalidInput, ShownCommitChanged, WebActions
+from factory.web_actions import (
+    CleanChanged,
+    InvalidInput,
+    ShownCommitChanged,
+    WebActions,
+)
 from factory.worktrees import WorktreeManager
 
 
@@ -303,12 +308,15 @@ def _build_app(ctx) -> Starlette:
         return view
 
     async def clean_preview(request: Request) -> AsciiJSONResponse:
-        return AsciiJSONResponse(clean_view(*clean_scan()))
+        return AsciiJSONResponse(clean_preview_now())
 
-    async def clean(request: Request) -> AsciiJSONResponse:
-        shown_token = _required_string(await _json_object(request), "token")
-        if clean_view(*clean_scan())["token"] != shown_token:
-            raise ApiError(409, "clean refused", "what would be cleaned changed since the preview")
+    def clean_preview_now() -> dict:
+        return clean_view(*clean_scan())
+
+    def enqueue_clean(shown_token: str):
+        """Queue the clean of what the caller was shown; raises `CleanChanged` if that is no longer what would be cleaned."""
+        if clean_preview_now()["token"] != shown_token:
+            raise CleanChanged("what would be cleaned changed since the preview")
 
         def clean_now():
             settings = ctx.settings
@@ -320,7 +328,15 @@ def _build_app(ctx) -> Starlette:
             outcomes += remove_orphan_caches(ctx.store, settings.gate_cache_dir, scan.orphans)
             return {"outcomes": [{"task_id": o.task_id, "done": o.done, "problems": o.problems} for o in outcomes]}
 
-        return AsciiJSONResponse({"job": _job_json(runner.submit("clean", None, clean_now))}, status_code=202)
+        return runner.submit("clean", None, clean_now)
+
+    async def clean(request: Request) -> AsciiJSONResponse:
+        shown_token = _required_string(await _json_object(request), "token")
+        try:
+            job = enqueue_clean(shown_token)
+        except CleanChanged as error:
+            raise ApiError(409, "clean refused", str(error)) from None
+        return AsciiJSONResponse({"job": _job_json(job)}, status_code=202)
 
     async def eval_audit(request: Request) -> AsciiJSONResponse:
         body = await _json_object(request)
@@ -408,6 +424,8 @@ def _build_app(ctx) -> Starlette:
     app.state.sessions = Sessions()
     app.state.store = ctx.store
     app.state.ledger = ctx.ledger
+    app.state.clean_preview = clean_preview_now
+    app.state.enqueue_clean = enqueue_clean
     app.state.settings = ctx.settings
     app.state.changes = changes
     app.state.keepalive_seconds = 15

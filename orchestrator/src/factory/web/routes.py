@@ -28,7 +28,12 @@ from factory.task import InvalidTransition, Task, TaskState
 from factory.textsafe import escape_control
 from factory.waiver import InvalidWaiver, note_lines
 from factory.web.auth import session_cookie_name
-from factory.web_actions import InvalidInput, ShownCommitChanged, WebActions
+from factory.web_actions import (
+    CleanChanged,
+    InvalidInput,
+    ShownCommitChanged,
+    WebActions,
+)
 
 _TEMPLATES = jinja2.Environment(loader=jinja2.FileSystemLoader(Path(__file__).parent / "templates"), autoescape=True)
 _GOAL_LIMIT = 120
@@ -103,6 +108,38 @@ async def _costs_page(request: Request) -> HTMLResponse:
              "by_stage": [(_safe(stage), cost) for stage, cost in sorted(report.by_stage.items())],
              "by_task": [(_safe(task_id), cost) for task_id, cost in sorted(report.by_task.items())]}
     return HTMLResponse(_TEMPLATES.get_template("costs.html").render(report=shown))
+
+
+def _clean_flags(candidate: dict) -> list[str]:
+    flags = [("directory missing", not candidate["directory_exists"]), ("dirty", candidate["dirty"]),
+             (f"{candidate['commits_ahead']} commits ahead", candidate["commits_ahead"]),
+             ("branch exists", candidate["branch_exists"]), ("outside the worktree root", candidate["outside_root"]),
+             (f"gate cache {candidate['cache_bytes']} bytes", candidate["cache_bytes"] is not None)]
+    return [text for text, present in flags if present]
+
+
+async def _clean_page(request: Request) -> HTMLResponse:
+    view = request.app.state.clean_preview()
+    shown = {"token": view["token"], "skipped": [_safe(name) for name in view["skipped"]],
+             "orphans": [{"name": _safe(o["name"]), "size": o["size"]} for o in view["orphans"]],
+             "candidates": [{"id": _safe(c["id"]), "state": c["state"], "flags": _clean_flags(c)}
+                            for c in view["candidates"]]}
+    return HTMLResponse(_TEMPLATES.get_template("clean.html").render(view=shown))
+
+
+async def _clean(request: Request) -> RedirectResponse | HTMLResponse:
+    try:
+        token = _single(await _read_form(request), "token")
+    except _BadForm:
+        return _bad_form_page()
+    if token is None:
+        return _bad_form_page()
+    try:
+        request.app.state.enqueue_clean(token)
+    except CleanChanged:
+        return _wrong_state_page("What would be cleaned changed since you opened the page. Open it again to see "
+                                 "what would be cleaned now.")
+    return RedirectResponse("/ui/jobs", status_code=303)
 
 
 _JOBS_SHOWN = 50
@@ -698,6 +735,7 @@ def ui_routes() -> list[Route | Mount]:
     return [Route("/ui", _ui_without_slash, methods=["GET"]), Route("/ui/", _ui_page, methods=["GET"]),
             Route("/ui/events", _events, methods=["GET"]), Route("/ui/costs", _costs_page, methods=["GET"]),
             Route("/ui/jobs", _jobs_page, methods=["GET"]),
+            Route("/ui/clean", _clean_page, methods=["GET"]), Route("/ui/clean", _clean, methods=["POST"]),
 Route("/ui/tasks/new", _new_task_page, methods=["GET"]),
             Route("/ui/tasks/new", _new_task, methods=["POST"]),
             Route("/ui/tasks/{task_id}", _task_page, methods=["GET"]),
