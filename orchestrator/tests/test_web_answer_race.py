@@ -27,6 +27,11 @@ class _MovesOnSecondLoad:
         self.saved.append(task)
         self._store.save(task)
 
+    def update(self, task_id, change):  # plan 77: the actions call update; same load and save path as before
+        updated = change(self.load(task_id))
+        self.save(updated)
+        return updated
+
 
 def test_a_task_that_left_open_questions_after_the_first_load_gives_the_409_page_and_saves_nothing(client, ctx):
     add(ctx, TASK_ID, TaskState.OPEN_QUESTIONS, goal="fix the widget", grill_rounds=1, open_questions=QUESTIONS)

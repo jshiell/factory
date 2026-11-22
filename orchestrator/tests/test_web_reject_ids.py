@@ -69,6 +69,11 @@ class _FailsOnSecondLoad:
         self.saved.append(task)
         self._store.save(task)
 
+    def update(self, task_id, change):  # plan 77: the actions call update; same load and save path as before
+        updated = change(self.load(task_id))
+        self.save(updated)
+        return updated
+
 
 @pytest.mark.parametrize("error, status", [(TaskNotFound("20260102-030405"), 404), (ValueError("20260102-030405 broken"), 500)])
 def test_a_task_lost_after_the_first_load_gives_the_same_page_and_saves_nothing(client, ctx, error, status):

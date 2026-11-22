@@ -29,6 +29,11 @@ class _FailsOnSecondLoad:
         self.saved.append(task)
         self._store.save(task)
 
+    def update(self, task_id, change):  # plan 77: the actions call update; same load and save path as before
+        updated = change(self.load(task_id))
+        self.save(updated)
+        return updated
+
 
 def _post_answer(client):
     return client.post(f"/ui/tasks/{TASK_ID}/answer", data={"round": "1", "q0": "postgres"},

@@ -38,6 +38,11 @@ class _MovesOnSecondLoad:
     def save(self, task):
         self._store.save(task)
 
+    def update(self, task_id, change):  # plan 77: the actions call update; same load and save path as before
+        updated = change(self.load(task_id))
+        self.save(updated)
+        return updated
+
 
 def test_a_task_that_leaves_review_between_the_load_and_the_rejection_gives_the_409_page(client, ctx):
     add(ctx, "20260102-030405", TaskState.REVIEWED, goal="fix the widget")
