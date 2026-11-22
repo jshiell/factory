@@ -29,6 +29,8 @@ from factory.textsafe import escape_control
 from factory.waiver import InvalidWaiver, note_lines
 from factory.web.auth import session_cookie_name
 from factory.web_actions import (
+    CLEAN_CHECK_FAILED,
+    MERGE_CHECK_FAILED,
     CleanChanged,
     InvalidInput,
     ShownCommitChanged,
@@ -119,7 +121,7 @@ def _clean_flags(candidate: dict) -> list[str]:
 
 
 def _clean_git_failed_page() -> HTMLResponse:
-    return _wrong_state_page("Git could not check the repository, so nothing can be cleaned.")
+    return _wrong_state_page(CLEAN_CHECK_FAILED)
 
 
 async def _clean_page(request: Request) -> HTMLResponse:
@@ -488,7 +490,7 @@ async def _merge_page(request: Request) -> HTMLResponse:
     except InvalidTransition:  # the task left audited between the load above and the one inside the preview
         return _wrong_state_page(_MERGE.wrong_state)
     except (subprocess.CalledProcessError, OSError):  # the text is a git command line or a path, not a reason; a missing worktree is an OSError
-        return _wrong_state_page("Git could not check this task's branch and worktree, so it cannot be merged.")
+        return _wrong_state_page(MERGE_CHECK_FAILED)
     except (TaskNotFound, InvalidTaskId):  # the task went between the load above and the one inside the preview
         return _missing_page()
     except _UNREADABLE:

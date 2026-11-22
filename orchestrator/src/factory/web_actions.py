@@ -13,6 +13,11 @@ from factory.retry_task import require_keepable_plan, retry_task
 from factory.task import InvalidTransition, Task
 from factory.worktrees import WorktreeManager
 
+# What the web pages and the JSON API tell a caller when git or the filesystem could not run a check: never the git
+# command line or a path.
+MERGE_CHECK_FAILED = "Git could not check this task's branch and worktree, so it cannot be merged."
+CLEAN_CHECK_FAILED = "Git could not check the repository, so nothing can be cleaned."
+
 
 class InvalidInput(Exception):
     """The caller's input cannot make a task."""
