@@ -52,8 +52,8 @@ Branch `plan-81-json-git-errors`, cut from `main`. Drafted 2026-11-22, revised a
 - `OSError` is broad. Every case means the check could not run, so one sentence fits.
 
 ## Out of scope
-- A `CalledProcessError` raised inside a queued job still lands in `job.error` as `str(error)` (the web panel escapes and caps it; the JSON `/jobs` shows it raw).
-- `merge-preview` for an AUDITED task with `worktree=None` raises `TypeError` and stays a 500 (the web page treats it as unreadable).
+- ~~A `CalledProcessError` raised inside a queued job lands in `job.error` as `str(error)`~~ — closed by plan 82 (a fixed sentence, detail in the server log).
+- ~~`merge-preview` for an AUDITED task with `worktree=None` stays a 500~~ — closed by plan 82 (409 `merge check failed`).
 - Unreadable-row errors from `store.load`, common to every JSON route.
 
 ## Deviations

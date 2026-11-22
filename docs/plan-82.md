@@ -60,4 +60,8 @@ Branch `plan-82-job-errors-and-no-worktree`, cut from `main`. Drafted 2026-11-22
 - A `recover` or eval-runner `OSError` path not read.
 
 ## Deviations
-_To be filled in during implementation._
+- Increment 2 (the `RuntimeError("boom")` guard) was not added: `test_a_job_that_raises_is_failed_with_the_message_and_the_worker_survives` already asserts a `RuntimeError` stores its message.
+- Increments 6 and 7 are guards (passed with no code change), committed as tests only.
+- A shared `textsafe.failure_detail` and `log_failure` produce the one escaped stderr line (error text plus the subprocess's stderr); the runner, advance and clean all use it. The runner's log line names the job id only, because the queue does not carry the job kind.
+- CLI users now see the generic sentence for job failures and need the server log (recorded as intended risk).
+- Not changed: `clean_tasks` still reports git's first stderr line for branch deletion problems (lines ~132 and ~147); that text can carry paths and is not covered by the plan. Flag for a follow-up.
