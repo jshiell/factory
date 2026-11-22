@@ -1,4 +1,5 @@
 import asyncio
+import subprocess
 from collections.abc import Callable
 from contextlib import aclosing
 from dataclasses import dataclass
@@ -16,6 +17,7 @@ from factory.abandon_task import can_abandon
 from factory.advance import can_advance
 from factory.digest import plan_digest
 from factory.ids import InvalidTaskId
+from factory.merge_task import MergeRefused, can_merge
 from factory.rebase_task import can_rebase
 from factory.recover_task import can_recover
 from factory.review_notes import capped_findings, dropped_required_warning
@@ -24,7 +26,7 @@ from factory.task import InvalidTransition, Task, TaskState
 from factory.textsafe import escape_control
 from factory.waiver import note_lines
 from factory.web.auth import session_cookie_name
-from factory.web_actions import InvalidInput, WebActions
+from factory.web_actions import InvalidInput, ShownCommitChanged, WebActions
 
 _TEMPLATES = jinja2.Environment(loader=jinja2.FileSystemLoader(Path(__file__).parent / "templates"), autoescape=True)
 _GOAL_LIMIT = 120
@@ -310,7 +312,7 @@ class _TaskAction:
     gerund: str
     allowed: Callable[[Task], bool]
     wrong_state: str
-    enqueue: Callable[[WebActions, str], object]  # queues the job for a task id
+    enqueue: Callable[[WebActions, str], object] | None = None  # queues the job for a task id; merge has its own post
 
 
 _ABANDON = _TaskAction(
@@ -335,6 +337,12 @@ _REBASE = _TaskAction(
     "returns to agent done, so it must be verified and audited again (which may spend money). Its audit result and "
     "fix rounds are cleared. If the rebase conflicts, nothing is changed.", "Rebase task",
     "rebased", can_rebase, "That task cannot be rebased in its current state.", WebActions.enqueue_rebase)
+
+
+_MERGE = _TaskAction(
+    "merge", "Merge this task into main? Main is fast-forwarded to the audited commit below and the task's worktree "
+    "is removed. This cannot be undone.", "Merge task",
+    "merged", can_merge, "That task cannot be merged in its current state.")
 
 
 def _action_refusal(request: Request, task, action: _TaskAction) -> HTMLResponse | None:
@@ -380,6 +388,68 @@ def _action_post(action: _TaskAction):
             return _unreadable_page()
         return RedirectResponse(f"/ui/tasks/{quote(task.id, safe='')}", status_code=303)
     return post
+
+
+async def _merge_page(request: Request) -> HTMLResponse:
+    task, refusal = _load_task(request)
+    if refusal:
+        return refusal
+    if refusal := _action_refusal(request, task, _MERGE):
+        return refusal
+    try:
+        preview = request.app.state.actions.merge_preview(task.id)  # git runs on the event loop, as the JSON preview's does
+    except MergeRefused as error:
+        return _wrong_state_page(f"That task cannot be merged: {_safe(_truncated(str(error), _ERROR_LIMIT))}")
+    except InvalidTransition:  # the task left audited between the load above and the one inside the preview
+        return _wrong_state_page(_MERGE.wrong_state)
+    except subprocess.CalledProcessError:  # its text is the git command line, not a reason
+        return _wrong_state_page("Git could not check this task's branch and worktree, so it cannot be merged.")
+    except (TaskNotFound, InvalidTaskId):  # the task went between the load above and the one inside the preview
+        return _missing_page()
+    except _UNREADABLE:
+        return _unreadable_page()
+    shown = preview.task
+    if not can_merge(shown):  # the preview loaded the task again; it checks the state but not a fix agent in flight
+        return _wrong_state_page(_MERGE.wrong_state)
+    detail = {"id": shown.id, "goal": _safe(shown.goal if shown.goal is not None else shown.prompt)}
+    merge = {"branch": _safe(preview.branch), "audited_sha": _safe(shown.audited_sha), "diffstat": _safe(preview.diffstat),
+             "findings": [_safe(finding) for finding in preview.findings]}
+    return HTMLResponse(_TEMPLATES.get_template("merge_confirm.html").render(task=detail, action=_MERGE, merge=merge))
+
+
+def _shown_sha(form: dict[str, list[str]]) -> str:
+    value = _single(form, "audited_sha")
+    if value is None or not value.strip():
+        raise _BadForm
+    return value
+
+
+async def _merge(request: Request) -> RedirectResponse | HTMLResponse:
+    task, refusal = _load_task(request)
+    if refusal:
+        return refusal
+    if refusal := _action_refusal(request, task, _MERGE):  # before the body, so a wrong-state task posted a bad form gets the 409
+        return refusal
+    try:
+        shown_sha = _shown_sha(await _read_form(request))
+    except _BadForm:
+        return _bad_form_page()
+    # The body read awaited: load the task again and check it, with no await from here to the queueing (D8).
+    task, refusal = _load_task(request)
+    if refusal:
+        return refusal
+    if refusal := _action_refusal(request, task, _MERGE):
+        return refusal
+    try:
+        request.app.state.actions.enqueue_merge(task.id, shown_sha)  # compares with the audited sha it loads, then queues
+    except ShownCommitChanged:
+        return _wrong_state_page("The audited commit changed since you opened this page. Open the task again to see "
+                                 "what would be merged now.")
+    except (TaskNotFound, InvalidTaskId):  # the task went between the load above and the one inside the enqueue
+        return _missing_page()
+    except _UNREADABLE:
+        return _unreadable_page()
+    return RedirectResponse(f"/ui/tasks/{quote(task.id, safe='')}", status_code=303)
 
 
 def _new_task_page_with(message: str | None, goal: str, grill: bool, status_code: int = 200) -> HTMLResponse:
@@ -537,5 +607,7 @@ def ui_routes() -> list[Route | Mount]:
             Route("/ui/tasks/{task_id}/advance", _action_post(_ADVANCE), methods=["POST"]),
             Route("/ui/tasks/{task_id}/rebase", _action_page(_REBASE), methods=["GET"]),
             Route("/ui/tasks/{task_id}/rebase", _action_post(_REBASE), methods=["POST"]),
+            Route("/ui/tasks/{task_id}/merge", _merge_page, methods=["GET"]),
+            Route("/ui/tasks/{task_id}/merge", _merge, methods=["POST"]),
             Route("/ui/tasks/{task_id}/events", _task_events, methods=["GET"]),
             Route("/ui/login", _login, methods=["GET"]), Mount("/ui/static", StaticFiles(directory=STATIC_DIR))]

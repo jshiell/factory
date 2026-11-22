@@ -2,7 +2,7 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 
 from factory.store import TaskStore
-from factory.task import Event, Task, apply
+from factory.task import Event, Task, TaskState, apply
 from factory.worktrees import (
     WorktreeManager,
     branch_problem,
@@ -17,6 +17,11 @@ ALREADY_IN_MAIN = "the audited commit is already in main; there is nothing to me
 
 class MergeRefused(Exception):
     pass
+
+
+def can_merge(task: Task) -> bool:
+    """The task-only part of the rules; what needs git (branch, worktree, main) is checked by the preview and the job."""
+    return task.state is TaskState.AUDITED and not task.fix_in_flight
 
 
 @dataclass(frozen=True)

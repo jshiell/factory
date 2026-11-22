@@ -1,0 +1,14 @@
+{% extends "action_confirm.html" %}
+{% block details %}
+<p>branch: {{ merge.branch }}</p>
+<p>audited commit: <code>{{ merge.audited_sha }}</code></p>
+<pre>{{ merge.diffstat }}</pre>
+{% if merge.findings %}
+<p>audit findings:</p>
+<ul>
+{% for finding in merge.findings %}<li>{{ finding }}</li>
+{% endfor %}</ul>
+{% endif %}
+{% endblock %}
+{% block fields %}<input type="hidden" name="audited_sha" value="{{ merge.audited_sha }}">
+{% endblock %}

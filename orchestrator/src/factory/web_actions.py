@@ -5,7 +5,7 @@ from factory import service
 from factory.abandon_task import AbandonRefused, abandon_task
 from factory.advance import advance
 from factory.audit_gaps import gaps_to_carry
-from factory.merge_task import MergeRefused
+from factory.merge_task import MergeRefused, Preview, merge_preview
 from factory.rebase_task import RebaseRefused
 from factory.recover_task import RecoverRefused, recover_task
 from factory.retry_task import retry_task
@@ -74,6 +74,12 @@ class WebActions:
             "rebase", task_id, (RebaseRefused, InvalidTransition, subprocess.CalledProcessError),
             lambda id_: self._rebase(id_, ctx.store, ctx.settings.repo, ctx.settings.main_branch),
             lambda rebased: {**_task_result_json(rebased.task), "old_audited_sha": rebased.old_audited_sha})
+
+    def merge_preview(self, task_id: str) -> Preview:
+        """What a merge would do, checked against git now; raises `MergeRefused`, `InvalidTransition` and
+        `CalledProcessError` from the domain."""
+        settings = self._ctx.settings
+        return merge_preview(task_id, self._ctx.store, settings.repo, settings.main_branch)
 
     def enqueue_merge(self, task_id: str, shown_sha: str):
         """Queue the merge of the commit the caller was shown; raises `ShownCommitChanged` if it is not the audited one."""
