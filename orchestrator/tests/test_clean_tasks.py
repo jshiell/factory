@@ -340,6 +340,20 @@ def test_a_worktree_removal_failure_problem_has_no_git_command_and_is_logged(env
     assert "secret-ref" in log and "fatal: secret" in log
 
 
+def test_a_branch_delete_refused_with_a_repo_path_is_withheld_and_logged(env, capsys):
+    store, repo, _, _, add = env
+    add("merged", S.MERGED)
+    lock = repo / ".git" / "refs" / "heads" / "factory" / "merged.lock"
+    lock.parent.mkdir(parents=True, exist_ok=True)
+    lock.touch()  # a stale ref lock: git's first line names the lock file's absolute path
+
+    problems = [p for o in run_clean(env) for p in o.problems]
+
+    assert problems == ["branch factory/merged kept: git refused to delete it (details in the server log)"]
+    log_lines = capsys.readouterr().err.strip().splitlines()
+    assert len(log_lines) == 1 and str(repo) in log_lines[0] and "cannot lock ref" in log_lines[0]
+
+
 def test_an_outside_root_worktree_does_not_stop_the_cache_removal(env, tmp_path):
     store, repo, manager, root, add = env
     add("failed", S.FAILED)

@@ -1,3 +1,4 @@
+import re
 import subprocess
 from dataclasses import dataclass, field, replace
 from pathlib import Path
@@ -132,10 +133,23 @@ def _delete_branch(task: Task, repo: Path, outcome: Outcome) -> None:
     try:
         run_git(repo, "branch", "-d", f"factory/{task.id}")
     except subprocess.CalledProcessError as error:
-        reason = ((error.stderr or "").strip().splitlines() or ["no reason given"])[0]  # git's own words, not a guess
+        reason = _git_refusal_reason(task, error)
         outcome.problems.append(f"branch factory/{task.id} kept: git refused to delete it ({reason})")
         return
     outcome.done.append("deleted branch")
+
+
+_ABSOLUTE_PATH = re.compile(r"(?<![\w.-])/\S")
+_WITHHELD_REASON = "details in the server log"
+
+
+def _git_refusal_reason(task: Task, error: subprocess.CalledProcessError) -> str:
+    """Git's first line, in its own words; withheld (and logged) when it names an absolute path."""
+    reason = ((error.stderr or "").strip().splitlines() or ["no reason given"])[0]
+    if _ABSOLUTE_PATH.search(reason):
+        log_failure(f"clean {task.id} branch deletion", error)
+        return _WITHHELD_REASON
+    return reason
 
 
 def _delete_empty_branch(task: Task, repo: Path, outcome: Outcome) -> None:
