@@ -554,6 +554,10 @@ def _has_valid_session(headers, sessions: Sessions) -> bool:
     return morsel is not None and sessions.valid(morsel.value)
 
 
+_DECIDING_HEADERS = ("host", "origin", "sec-fetch-site")
+_REPEATED_HEADER = AsciiJSONResponse({"error": "forbidden", "detail": "a header must not be repeated"}, status_code=403)
+
+
 class _Guard:
     """Pure ASGI gate: a loopback or allowed Host (DNS rebinding), no Origin (browsers), then the bearer token."""
 
@@ -566,10 +570,12 @@ class _Guard:
         if scope["type"] != "http":
             await self._app(scope, receive, send)
             return
+        names = [name.decode("latin-1").lower() for name, _ in scope["headers"]]
         headers = {name.decode("latin-1").lower(): value.decode("latin-1") for name, value in scope["headers"]}
         if _is_ui_path(scope["path"]):
             send = _with_ui_security_headers(send)
-        refusal = self._refusal(scope["method"], headers, scope["path"])
+        refusal = _REPEATED_HEADER if any(names.count(name) > 1 for name in _DECIDING_HEADERS) \
+            else self._refusal(scope["method"], headers, scope["path"])
         if refusal:
             await refusal(scope, receive, send)
             return
