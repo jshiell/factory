@@ -130,6 +130,8 @@ def _delete_branch(task: Task, repo: Path, outcome: Outcome) -> None:
     if not run_git(repo, "branch", "--show-current"):
         outcome.problems.append(f"branch factory/{task.id} kept: main is not on a branch")
         return
+    if _checked_out_in_a_worktree(task, repo, outcome):
+        return
     try:
         run_git(repo, "branch", "-d", f"factory/{task.id}")
     except subprocess.CalledProcessError as error:
@@ -152,11 +154,18 @@ def _git_refusal_reason(task: Task, error: subprocess.CalledProcessError) -> str
     return reason
 
 
+def _checked_out_in_a_worktree(task: Task, repo: Path, outcome: Outcome) -> bool:
+    """Git's own refusal names the worktree path, so say it in our words instead."""
+    checked_out = f"branch refs/heads/factory/{task.id}" in run_git(repo, "worktree", "list", "--porcelain").splitlines()
+    if checked_out:
+        outcome.problems.append(f"branch factory/{task.id} kept: it is checked out in a worktree")
+    return checked_out
+
+
 def _delete_empty_branch(task: Task, repo: Path, outcome: Outcome) -> None:
     """The tip is exactly the base commit, so nothing is lost; `update-ref -d <ref> <base>` deletes only if it still is."""
     ref = f"refs/heads/factory/{task.id}"
-    if f"branch {ref}" in run_git(repo, "worktree", "list", "--porcelain").splitlines():  # update-ref would not refuse
-        outcome.problems.append(f"branch factory/{task.id} kept: it is checked out in a worktree")
+    if _checked_out_in_a_worktree(task, repo, outcome):  # update-ref would not refuse
         return
     try:
         run_git(repo, "update-ref", "-d", ref, task.base_sha)

@@ -560,6 +560,17 @@ def test_a_refusal_for_a_registered_worktree_quotes_git_and_does_not_claim_unmer
     assert "worktree" in problem and "not merged into main" not in problem
 
 
+def test_a_merged_branch_still_registered_to_a_worktree_is_kept_without_a_path(env):
+    store, repo, manager, root, add = env
+    add("merged", S.MERGED)
+    task = store.load("merged")
+    store.save(Task(**{**task.__dict__, "worktree": None}))  # git still has the worktree registered
+
+    problems = run_clean(env)[0].problems
+
+    assert problems == ["branch factory/merged kept: it is checked out in a worktree"]
+
+
 def test_a_refusal_for_an_unmerged_branch_quotes_git(env):
     store, repo, _, _, add = env
     commit_on(add("merged", S.MERGED))  # a merged task whose branch still holds a commit main lacks: `branch -d` refuses
