@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 
 from factory.process import run_to_exit
-from factory.worktrees import git_completed, run_git
+from factory.worktrees import WorktreeGit, git_completed, run_git
 
 DEFAULT_PROTECTED_NAMES = ("conftest.py", "pytest.ini", ".pytest.ini", "pytest.toml", ".pytest.toml", "tox.ini", "setup.cfg", "uv.toml", ".python-version", ".python-versions")
 # Build scripts a backend runs when the project is installed; they can declare dependencies and entry points.
@@ -21,14 +21,12 @@ _LINK_MODES = ("120000", "160000")
 _FACTORY_IDENTITY = ("-c", "user.name=factory", "-c", "user.email=factory@localhost")
 
 
-def commit_all(worktree: Path, message: str) -> bool:
-    run_git(worktree, "add", "-A")
-    if not run_git(worktree, "status", "--porcelain"):
+def commit_all(worktree: Path, message: str, git_dir: Path | None = None) -> bool:
+    tree = WorktreeGit(worktree, git_dir)
+    tree.git("add", "-A")
+    if not tree.git("status", "--porcelain"):
         return False
-    run_git(
-        worktree, *_FACTORY_IDENTITY, "-c", "commit.gpgsign=false",
-        "commit", "-q", "--no-verify", "-m", message,
-    )
+    tree.git(*_FACTORY_IDENTITY, "-c", "commit.gpgsign=false", "commit", "-q", "--no-verify", "-m", message)
     return True
 
 

@@ -8,7 +8,9 @@ from factory.store import TaskStore
 from factory.task import Event, Task, TaskState, apply
 from factory.worktrees import (
     NO_USER_CONFIG_OVERRIDES,
+    WorktreeMismatch,
     is_ancestor,
+    linked_git_dir,
     main_checkout_problem,
     run_git,
 )
@@ -108,16 +110,10 @@ def _require_rebasable(task: Task, repo: Path, main_branch: str | None) -> _Work
 
 
 def _expected_git_dir(task: Task, repo: Path) -> Path:
-    """The linked worktree's admin dir inside the main repo, accepted only if the worktree's `.git` file says so."""
-    worktree = Path(task.worktree)
-    expected = (repo / run_git(repo, "rev-parse", "--git-common-dir")).resolve() / "worktrees" / task.id
-    gitfile = worktree / ".git"
-    if gitfile.is_symlink() or not gitfile.is_file():
-        raise RebaseRefused("the worktree's .git is not a plain file: refusing to trust its gitdir")
-    claimed = gitfile.read_text().strip().removeprefix("gitdir:").strip()
-    if not expected.is_dir() or Path(claimed).resolve() != expected:
-        raise RebaseRefused(f"the worktree's gitdir ({claimed}) is not {expected}")
-    return expected
+    try:
+        return linked_git_dir(repo, task.id, Path(task.worktree))
+    except WorktreeMismatch as mismatch:
+        raise RebaseRefused(str(mismatch)) from mismatch
 
 
 def _rebase_in_progress(worktree: _Worktree) -> bool:

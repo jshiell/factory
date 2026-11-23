@@ -1,5 +1,6 @@
 import os
 import subprocess
+from dataclasses import dataclass
 from pathlib import Path
 
 from factory.ids import require_safe_id
@@ -25,6 +26,43 @@ def run_git(cwd: Path, *args: str, env: dict[str, str] | None = None, user_confi
         env=env if user_config else hardened_env(env),
     )
     return result.stdout.strip()
+
+
+class WorktreeMismatch(Exception):
+    """A task worktree's `.git` does not point at the admin dir git made for it."""
+
+
+@dataclass(frozen=True)
+class WorktreeGit:
+    """Git over a task's worktree. Pinned (`git_dir` set), every call names its git-dir and work-tree itself: the agent-writable `.git` file is never read by git."""
+    path: Path
+    git_dir: Path | None = None
+
+    def git(self, *args: str) -> str:
+        pin = (f"--git-dir={self.git_dir}", f"--work-tree={self.path}") if self.git_dir else ()
+        return run_git(self.path, *pin, *args)
+
+
+def linked_git_dir(repo: Path, task_id: str, worktree: Path) -> Path:
+    """The linked worktree's admin dir inside the main repo, accepted only if the worktree's `.git` file says so."""
+    expected = (repo / run_git(repo, "rev-parse", "--git-common-dir")).resolve() / "worktrees" / task_id
+    gitfile = worktree / ".git"
+    if gitfile.is_symlink() or not gitfile.is_file():
+        raise WorktreeMismatch("the worktree's .git is not a plain file: refusing to trust its gitdir")
+    try:  # agent-written: any content, any size
+        with gitfile.open("rb") as handle:
+            claimed = handle.read(4096).decode().strip().removeprefix("gitdir:").strip()
+        matches = expected.is_dir() and Path(claimed).resolve() == expected
+    except (OSError, UnicodeDecodeError, ValueError):
+        claimed, matches = "unreadable", False
+    if not matches:
+        raise WorktreeMismatch(f"the worktree's gitdir ({claimed}) is not {expected}")
+    return expected
+
+
+def worktree_git(worktree: Path, task_id: str, repo: Path | None) -> WorktreeGit:
+    """Pinned to the admin dir `repo` made for the task (raises WorktreeMismatch); without a repo, git discovers it as before."""
+    return WorktreeGit(worktree, None if repo is None else linked_git_dir(repo, task_id, worktree))
 
 
 def git_completed(cwd: Path, *args: str) -> subprocess.CompletedProcess[bytes]:

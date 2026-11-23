@@ -14,7 +14,7 @@ from factory.step import ASSUMED_COST_MULTIPLIER, Runner, check_budget
 from factory.store import TaskStore
 from factory.task import Event, Task, apply
 from factory.worktree_clean import clean_worktree
-from factory.worktrees import run_git
+from factory.worktrees import WorktreeMismatch, run_git, worktree_git
 
 _SUCCESS = (OutcomeKind.SUCCESS, OutcomeKind.SUCCESS_WITH_DENIALS)
 FIX_STAGE = "fix"
@@ -38,6 +38,7 @@ def verify_task(
     records=None,
     gate_allow_outside: tuple[str, ...] = (),
     gate_allow_dependency_changes: bool = False,
+    repo: Path | None = None,
 ) -> Task:
     """Gate the agent's work; on `tests_failed`, up to `fix_rounds` fresh agent runs get the failure text.
 
@@ -52,7 +53,7 @@ def verify_task(
     while True:
         result = _gate_once(
             task, project_subdir, test_argv, gate_timeout_s, sandbox, capture, factory_paths, tracker,
-            gate_allow_outside, gate_allow_dependency_changes,
+            gate_allow_outside, gate_allow_dependency_changes, repo,
         )
         if result.passed:
             return _finish(apply(task, Event.GATE_PASSED), store)
@@ -114,11 +115,16 @@ def _gate_once(
     tracker=None,
     allow_outside: tuple[str, ...] = (),
     allow_dependency_changes: bool = False,
+    repo: Path | None = None,
 ) -> GateResult:
     worktree = Path(task.worktree)
+    try:
+        git_dir = worktree_git(worktree, task.id, repo).git_dir
+    except WorktreeMismatch:
+        return GateResult(False, "worktree_mismatch")
     if has_nested_repo(worktree, project_subdir):  # before `git add -A` records it as a gitlink
         return GateResult(False, "nested_repo")
-    commit_all(worktree, f"Task {task.id}")
+    commit_all(worktree, f"Task {task.id}", git_dir)
     not_clean = clean_worktree(worktree, factory_paths)  # the tests must see only what the tamper checks saw
     if not_clean:
         return GateResult(False, not_clean)

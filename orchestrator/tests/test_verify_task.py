@@ -4,7 +4,9 @@ from factory.process_registry import load_records
 from factory.store import TaskStore
 from factory.task import InvalidTransition, Task, TaskState
 from factory.verify_task import verify_task
+from factory.worktrees import WorktreeManager
 from gitutil import git
+from planted_gitdir import redirect_to_planted_gitdir
 from slowrecords import RecordsWrittenLate
 
 
@@ -118,3 +120,19 @@ def test_the_gate_test_run_is_recorded_as_a_gate_process_while_it_runs_and_the_r
     assert task.state is TaskState.VERIFIED
     assert '"task_id": "t1"' in seen.read_text() and '"stage": "gate"' in seen.read_text()
     assert load_records(state) == []
+
+
+def test_a_rewritten_dot_git_file_fails_the_gate_without_running_the_planted_repos_filter(repo, store, tmp_path):
+    (repo / "proj").mkdir()
+    (repo / "proj" / "code.py").write_text("x")
+    git(repo, "add", "proj")
+    git(repo, "commit", "-q", "-m", "project")
+    worktree, base = WorktreeManager(repo, tmp_path / "wt").create("t1")
+    store.save(Task(id="t1", prompt="p", state=TaskState.AGENT_DONE, worktree=str(worktree), base_sha=base))
+    (worktree / "proj" / "code.py").write_text("changed by agent")
+    marker = redirect_to_planted_gitdir(worktree, tmp_path, clone_of=repo)
+
+    task = verify_task("t1", store, project_subdir="proj", test_argv=["true"], gate_timeout_s=10, repo=repo)
+
+    assert (task.state, task.failure_reason) == (TaskState.FAILED, "worktree_mismatch")
+    assert not marker.exists()
