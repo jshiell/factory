@@ -192,7 +192,7 @@ def test_a_merge_on_another_branch_than_main_branch_ends_the_job_failed_and_chan
     job = _wait(client, client.post("/tasks/t1/merge", json={"audited_sha": audited.audited_sha}).json()["job"]["id"])
 
     assert job["state"] == "failed"
-    assert job["error"] == "merge refused: main is on branch other, not main (main_branch in factory.toml)"
+    assert job["error"] == "merge refused: main is on branch other, not main (main_branch in .factory/factory.toml)"
     assert git(repo, "rev-parse", "HEAD") == audited.base_sha
     assert ctx.store.load("t1").state is TaskState.AUDITED
 
@@ -207,7 +207,7 @@ def test_a_rebase_on_another_branch_than_main_branch_ends_the_job_failed_and_cha
     job = _wait(client, client.post("/tasks/t1/rebase").json()["job"]["id"])
 
     assert job["state"] == "failed"
-    assert job["error"] == "rebase refused: main is on branch other, not main (main_branch in factory.toml)"
+    assert job["error"] == "rebase refused: main is on branch other, not main (main_branch in .factory/factory.toml)"
     assert ctx.store.load("t1") == audited
 
 

@@ -78,7 +78,7 @@ def detached(repo):
     git(repo, "checkout", "-q", "--detach")
 
 
-WRONG_BRANCH = "main is on branch other, not main (main_branch in factory.toml)"
+WRONG_BRANCH = "main is on branch other, not main (main_branch in .factory/factory.toml)"
 
 
 @pytest.mark.parametrize("setup, main_branch, expected", [

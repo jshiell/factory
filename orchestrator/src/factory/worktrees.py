@@ -87,7 +87,7 @@ def branch_problem(repo: Path, main_branch: str | None = None) -> str | None:
     if not branch:
         return "main is not on a branch"
     if main_branch is not None and branch != main_branch:
-        return f"main is on branch {branch}, not {main_branch} (main_branch in factory.toml)"
+        return f"main is on branch {branch}, not {main_branch} (main_branch in .factory/factory.toml)"
     return None
 
 
