@@ -187,6 +187,7 @@ def test_the_audit_stage_refuses_a_rewritten_dot_git_before_its_diff_reaches_an_
     "stage,state,reason",
     [
         ("plan", TaskState.PROPOSED, "plan_modified_worktree"),
+        ("review", TaskState.PLANNED, "review_modified_worktree"),
     ],
 )
 def test_a_read_only_stage_refuses_a_rewritten_dot_git_without_running_the_planted_repos_filter(setup, tmp_path, stage, state, reason):

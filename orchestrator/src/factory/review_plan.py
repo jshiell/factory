@@ -1,4 +1,5 @@
 from dataclasses import replace
+from pathlib import Path
 
 from factory.command import RunnerConfig
 from factory.digest import plan_digest
@@ -58,14 +59,15 @@ def build_review_prompt(goal: str, plan: str) -> str:
 
 
 def review_plan(
-    task_id: str, store: TaskStore, ledger: Ledger, runner: Runner, config: RunnerConfig, cap_usd: float
+    task_id: str, store: TaskStore, ledger: Ledger, runner: Runner, config: RunnerConfig, cap_usd: float,
+    repo: Path | None = None,
 ) -> Task:
     task = store.load(task_id)
     apply(task, Event.REVIEW_PASSED)  # reject tasks that are not planned before any other work
     if plan_digest(task.plan) != task.plan_digest:
         return _finish(store, apply(task, Event.REVIEW_FAILED, "plan_changed"))
     check_budget(task_id, ledger, config, cap_usd)
-    staged = run_readonly_stage(task, build_review_prompt(task.goal, task.plan), runner, config, ledger, "review")
+    staged = run_readonly_stage(task, build_review_prompt(task.goal, task.plan), runner, config, ledger, "review", repo)
     if isinstance(staged, Modified):
         return _reject(store, task, "review_modified_worktree")
     if isinstance(staged, Infra):
