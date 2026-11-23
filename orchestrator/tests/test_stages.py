@@ -352,7 +352,7 @@ def test_the_implementer_is_told_to_stay_inside_the_project(setup):
 
     config = implementer_config(settings)
 
-    assert "Only change files inside the project directory" in config.append_system_prompt
+    assert "Change any file in the repository except .factory/; changes there are refused." in config.append_system_prompt
 
 
 def test_the_implementer_is_told_not_to_touch_uv_config(setup):

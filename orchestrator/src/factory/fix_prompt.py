@@ -19,7 +19,7 @@ _ANSI_CSI = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
 
 def boundary_rule() -> str:
     """The sentence telling an agent where it may change files; mirrors what the gate refuses."""
-    return "Only change files inside the project directory; changes anywhere else are refused."
+    return "Change any file in the repository except .factory/; changes there are refused."
 
 
 def dependency_rule(allow_dependency_changes: bool = False) -> str:

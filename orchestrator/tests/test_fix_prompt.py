@@ -70,7 +70,7 @@ def test_a_task_without_goal_or_plan_falls_back_to_its_stored_prompt():
 def test_the_prompt_tells_the_fixer_to_stay_inside_the_project():
     prompt = build_fix_prompt(task(), "FAILED test_x")
 
-    assert "Only change files inside the project directory" in prompt
+    assert "Change any file in the repository except .factory/; changes there are refused." in prompt
 
 
 def test_the_prompt_tells_the_fixer_not_to_touch_uv_config():
