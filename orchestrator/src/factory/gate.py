@@ -18,7 +18,7 @@ INERT_PROJECT_KEYS = (
 INERT_TOOLS = ("ruff", "mypy", "black", "isort", "pyright", "coverage")
 DEFAULT_TEST_GLOBS = ("test_*.py", "*_test.py")
 _LINK_MODES = ("120000", "160000")
-# Never editable, whatever the project or `allow_outside`; icase because a case-insensitive checkout folds them together.
+# Never editable, whatever the project; icase because a case-insensitive checkout folds them together.
 _FORBIDDEN_PATHSPECS = (
     ":(top,literal,icase).factory", ":(top,literal,icase)factory.toml",
     ":(glob,icase)**/.gitattributes", ":(glob,icase)**/.gitmodules",  # git reads these: filters, submodule URLs
@@ -68,7 +68,6 @@ def check_gate(
     capture_limit: int | None = None,
     frozen_sha: str | None = None,
     tracker=None,
-    allow_outside: tuple[str, ...] = (),
     allow_dependency_changes: bool = False,
 ) -> GateResult:
     project_dir = _resolve_inside(worktree, project_subdir)

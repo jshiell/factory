@@ -136,12 +136,12 @@ def _gate_once(
         return check_gate(
             worktree, task.base_sha, project_subdir, test_argv, gate_timeout_s,
             capture_limit=capture_limit, frozen_sha=task.fix_frozen_sha, tracker=tracker,
-            allow_outside=allow_outside, allow_dependency_changes=allow_dependency_changes,
+            allow_dependency_changes=allow_dependency_changes,
         )
     confined = sandbox(task)
     return check_gate(
         worktree, task.base_sha, project_subdir, list(confined.argv), gate_timeout_s,
         env=confined.env, test_prefix=confined.prefix, capture_limit=capture_limit,
-        frozen_sha=task.fix_frozen_sha, tracker=tracker, allow_outside=allow_outside,
+        frozen_sha=task.fix_frozen_sha, tracker=tracker,
         allow_dependency_changes=allow_dependency_changes,
     )

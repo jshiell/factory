@@ -1005,110 +1005,6 @@ def test_guard_a_nested_project_allows_a_change_beside_it(repo):
     assert check_gate(repo, base, "a/b", ["true"], 5).passed is True
 
 
-# gate_allow_outside (plan 50)
-def test_an_allowed_root_file_beside_a_project_change_passes(repo):
-    base = repo_with_project_change(repo)
-    commit_root_file(repo, "README.md", "hello\n")
-
-    result = check_gate(repo, base, "proj", ["true"], 10, allow_outside=("README.md",))
-
-    assert result.passed is True
-
-
-def test_a_change_only_to_an_allowed_path_counts_as_a_change(repo):
-    (repo / "proj").mkdir()
-    (repo / "proj" / "code.py").write_text("x")
-    git(repo, "add", "proj")
-    git(repo, "commit", "-q", "-m", "project")
-    base = git(repo, "rev-parse", "HEAD")
-    commit_root_file(repo, "README.md", "hello\n")
-
-    allowed = check_gate(repo, base, "proj", ["true"], 10, allow_outside=("README.md",))
-    unlisted = check_gate(repo, base, "proj", ["true"], 10)
-
-    assert (allowed.passed, unlisted.passed) == (True, True)
-
-
-def test_a_new_symlink_under_an_allowed_directory_fails_outside_project(repo):
-    base = repo_with_project_change(repo)
-    (repo / "docs").mkdir()
-    (repo / "docs" / "link").symlink_to("../proj/code.py")
-    git(repo, "add", "-A")
-    git(repo, "commit", "-q", "-m", "symlink")
-
-    result = check_gate(repo, base, "proj", ["true"], 10, allow_outside=("docs",))
-
-    assert result.reason == "outside_project"
-
-
-def test_guard_a_file_turned_into_a_symlink_under_an_allowed_directory_fails(repo):
-    commit_root_file(repo, "docs/a.md", "a\n")
-    base = repo_with_project_change(repo)
-    (repo / "docs" / "a.md").unlink()
-    (repo / "docs" / "a.md").symlink_to("../proj/code.py")
-    git(repo, "add", "-A")
-    git(repo, "commit", "-q", "-m", "swap")
-
-    result = check_gate(repo, base, "proj", ["true"], 10, allow_outside=("docs",))
-
-    assert result.reason == "outside_project"
-
-
-def test_a_gitlink_under_an_allowed_directory_fails_outside_project(repo):
-    base = repo_with_project_change(repo)
-    git(repo, "update-index", "--add", "--cacheinfo", f"160000,{base},docs/sub")
-    git(repo, "commit", "-q", "-m", "gitlink")
-
-    result = check_gate(repo, base, "proj", ["true"], 10, allow_outside=("docs",))
-
-    assert result.reason == "outside_project"
-
-
-def test_guard_an_unchanged_symlink_under_an_allowed_directory_passes(repo):
-    (repo / "docs").mkdir()
-    (repo / "docs" / "link").symlink_to("../proj/code.py")
-    commit_root_file(repo, "docs/a.md", "a\n")
-    base = repo_with_project_change(repo)
-    commit_root_file(repo, "docs/a.md", "changed\n")
-
-    result = check_gate(repo, base, "proj", ["true"], 10, allow_outside=("docs",))
-
-    assert result.passed is True
-
-
-@pytest.mark.parametrize("name", ["docs/conftest.py", "docs/UV.toml"])
-def test_guard_a_protected_file_alone_under_an_allowed_directory_fails_tests_modified(repo, name):
-    (repo / "proj").mkdir()
-    (repo / "proj" / "code.py").write_text("x")
-    git(repo, "add", "proj")
-    git(repo, "commit", "-q", "-m", "project")
-    base = git(repo, "rev-parse", "HEAD")
-    commit_root_file(repo, name, "x\n")
-
-    result = check_gate(repo, base, "proj", ["true"], 10, allow_outside=("docs",))
-
-    assert result.reason == "tests_modified"
-
-
-def test_guard_a_listed_directory_covers_nested_files_and_a_prefix_sibling_passes_too(repo):
-    base = repo_with_project_change(repo)
-    commit_root_file(repo, "docs/guide/a.md", "a\n")
-    assert check_gate(repo, base, "proj", ["true"], 10, allow_outside=("docs",)).passed is True
-
-    commit_root_file(repo, "docs2/x.md", "x\n")
-    assert check_gate(repo, base, "proj", ["true"], 10, allow_outside=("docs",)).passed is True
-
-
-def test_guard_an_unlisted_root_file_beside_a_listed_one_passes(repo):
-    base = repo_with_project_change(repo)
-    commit_root_file(repo, "README.md", "hello\n")
-    commit_root_file(repo, "LICENSE", "mit\n")
-
-    result = check_gate(repo, base, "proj", ["true"], 10, allow_outside=("README.md",))
-
-    assert result.passed is True
-
-
 # Plan 87: the editable area is the repo except `.factory/` and a few fixed names.
 @pytest.mark.parametrize("path", [".factory/factory.toml", ".FACTORY/notes.txt", ".Factory/deep/x"])
 def test_a_change_under_the_factory_dir_fails_outside_project_even_alone(repo, path):
@@ -1120,15 +1016,6 @@ def test_a_change_under_the_factory_dir_fails_outside_project_even_alone(repo, p
     commit_root_file(repo, path, "x\n")
 
     assert gate(repo, base).reason == "outside_project"
-
-
-def test_a_change_under_the_factory_dir_fails_even_when_allowed_outside(repo):
-    base = repo_with_project_change(repo)
-    commit_root_file(repo, ".factory/factory.toml", "x\n")
-
-    result = check_gate(repo, base, "proj", ["true"], 10, allow_outside=(".factory",))
-
-    assert result.reason == "outside_project"
 
 
 @pytest.mark.parametrize("name", ["factory.toml", "Factory.TOML"])
@@ -1157,7 +1044,7 @@ def test_a_gitattributes_or_gitmodules_at_any_depth_fails_outside_project(repo, 
     base = repo_with_project_change(repo)
     commit_root_file(repo, path, "x\n")
 
-    assert check_gate(repo, base, "proj", ["true"], 10, allow_outside=(".gitattributes", ".gitmodules", "docs")).reason == "outside_project"
+    assert check_gate(repo, base, "proj", ["true"], 10).reason == "outside_project"
 
 
 def test_removing_a_test_file_outside_the_project_fails_tests_modified(repo):
