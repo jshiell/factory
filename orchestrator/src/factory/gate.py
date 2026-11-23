@@ -18,6 +18,8 @@ INERT_PROJECT_KEYS = (
 INERT_TOOLS = ("ruff", "mypy", "black", "isort", "pyright", "coverage")
 DEFAULT_TEST_GLOBS = ("test_*.py", "*_test.py")
 _LINK_MODES = ("120000", "160000")
+# Never editable, whatever the project or `allow_outside`; icase because a case-insensitive checkout folds them together.
+_FORBIDDEN_PATHSPECS = (":(top,literal,icase).factory",)
 _FACTORY_IDENTITY = ("-c", "user.name=factory", "-c", "user.email=factory@localhost")
 
 
@@ -67,6 +69,8 @@ def check_gate(
         return GateResult(False, "not_descendant")
     if run_git(worktree, "rev-parse", "HEAD") == base_sha:
         return GateResult(False, "no_commits")
+    if _forbidden_changed(worktree, base_sha):
+        return GateResult(False, "outside_project")
     allowed_changes = [f":(top,literal){entry}" for entry in allow_outside]
     if not run_git(worktree, "diff", "--name-only", base_sha, "HEAD", "--", project_subdir, *allowed_changes):
         return GateResult(False, "no_changes")
@@ -94,6 +98,13 @@ def check_gate(
     if ran.exit_code != 0:
         return GateResult(False, "tests_failed", ran.exit_code, ran.tail)
     return GateResult(True)
+
+
+def _forbidden_changed(worktree: Path, base_sha: str) -> bool:
+    return bool(run_git(
+        worktree, "diff", "--name-only", "--no-renames", "--ignore-submodules=none", base_sha, "HEAD",
+        "--", *_FORBIDDEN_PATHSPECS,
+    ))
 
 
 def _changed_outside_project(

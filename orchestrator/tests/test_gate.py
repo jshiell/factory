@@ -1100,3 +1100,25 @@ def test_guard_an_unlisted_root_file_beside_a_listed_one_fails_outside_project(r
     result = check_gate(repo, base, "proj", ["true"], 10, allow_outside=("README.md",))
 
     assert result.reason == "outside_project"
+
+
+# Plan 87: the editable area is the repo except `.factory/` and a few fixed names.
+@pytest.mark.parametrize("path", [".factory/factory.toml", ".FACTORY/notes.txt", ".Factory/deep/x"])
+def test_a_change_under_the_factory_dir_fails_outside_project_even_alone(repo, path):
+    (repo / "proj").mkdir()
+    (repo / "proj" / "code.py").write_text("x")
+    git(repo, "add", "proj")
+    git(repo, "commit", "-q", "-m", "project")
+    base = git(repo, "rev-parse", "HEAD")
+    commit_root_file(repo, path, "x\n")
+
+    assert gate(repo, base).reason == "outside_project"
+
+
+def test_a_change_under_the_factory_dir_fails_even_when_allowed_outside(repo):
+    base = repo_with_project_change(repo)
+    commit_root_file(repo, ".factory/factory.toml", "x\n")
+
+    result = check_gate(repo, base, "proj", ["true"], 10, allow_outside=(".factory",))
+
+    assert result.reason == "outside_project"
