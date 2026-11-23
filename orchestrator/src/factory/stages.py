@@ -88,7 +88,7 @@ def build_stages(settings: Settings, deps: Deps) -> dict[str, Callable[[str], Ta
     review_config = stage_config(REVIEW_CONFIG, settings, "review")
     audit_config = stage_config(AUDIT_CONFIG, settings, "audit")
     return {
-        "plan": lambda task_id: plan_task(task_id, store, ledger, runner, plan_config, cap, deps.worktrees, grill_max_rounds=settings.grill_max_rounds),
+        "plan": lambda task_id: plan_task(task_id, store, ledger, runner, plan_config, cap, deps.worktrees, settings.repo, grill_max_rounds=settings.grill_max_rounds),
         "review": lambda task_id: review_plan(task_id, store, ledger, runner, review_config, cap),
         "implement": lambda task_id: run_task(task_id, store, ledger, runner, implementer, cap, deps.worktrees, settings.repo),
         "verify": lambda task_id: verify_task(

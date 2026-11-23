@@ -122,6 +122,7 @@ def plan_task(
     config: RunnerConfig,
     cap_usd: float,
     worktrees,
+    repo: Path | None = None,
     grill_max_rounds: int = 3,
 ) -> Task:
     task = store.load(task_id)
@@ -139,7 +140,7 @@ def plan_task(
         plugin_dirs = tuple(dict.fromkeys((*config.plugin_dirs, str(GRILLING_PLUGIN_DIR))))
         config = replace(config, json_schema=GRILL_SCHEMA, max_turns=GRILL_MAX_TURNS, plugin_dirs=plugin_dirs)
         prompt = build_grill_prompt(task.goal, task.grill_log, task.grill_rounds + 1)
-    staged = run_readonly_stage(task, prompt, runner, config, ledger, "plan")
+    staged = run_readonly_stage(task, prompt, runner, config, ledger, "plan", repo)
     if isinstance(staged, Modified):
         failed = apply(task, Event.PLAN_FAILED, "plan_modified_worktree")
         return _finish(store, replace(failed, plan_error=None))

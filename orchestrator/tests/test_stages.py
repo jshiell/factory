@@ -183,6 +183,23 @@ def test_the_audit_stage_refuses_a_rewritten_dot_git_before_its_diff_reaches_an_
     assert runner.configs == []
 
 
+@pytest.mark.parametrize(
+    "stage,state,reason",
+    [
+        ("plan", TaskState.PROPOSED, "plan_modified_worktree"),
+    ],
+)
+def test_a_read_only_stage_refuses_a_rewritten_dot_git_without_running_the_planted_repos_filter(setup, tmp_path, stage, state, reason):
+    store, runner, settings, deps, repo, base = setup
+    worktree = save(store, settings, state, goal="g", plan="p", plan_digest=plan_digest("p"))
+    marker = redirect_to_planted_gitdir(worktree, tmp_path, clone_of=repo)
+
+    task = build_stages(settings, deps)[stage]("t1")
+
+    assert (task.state, task.failure_reason) == (TaskState.FAILED, reason)
+    assert runner.configs == [] and not marker.exists()
+
+
 def test_the_verify_stage_passes_the_allowed_outside_paths(setup, monkeypatch):
     store, runner, settings, deps, repo, base = setup
     settings = replace(settings, gate_allow_outside=("README.md", "docs"))
