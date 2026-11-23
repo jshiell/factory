@@ -7,6 +7,7 @@ from factory.store import TaskStore
 from factory.task import InvalidTransition, Task, TaskState
 from factory.worktrees import WorktreeManager
 from gitutil import git
+from planted_gitdir import redirect_to_planted_gitdir
 
 
 @pytest.fixture
@@ -234,3 +235,13 @@ def test_merge_refuses_when_main_moved_and_leaves_everything_unchanged(audited):
 
     assert git(repo, "rev-parse", "HEAD") == main_before
     assert store.load("t1") == task and worktree.exists()
+
+
+def test_preview_refuses_a_rewritten_dot_git_without_running_the_planted_repos_filter(audited, tmp_path):
+    store, repo, worktree, _, _ = audited
+    marker = redirect_to_planted_gitdir(worktree, tmp_path, clone_of=worktree)  # the clone is at the audited commit
+
+    with pytest.raises(MergeRefused, match=r"\.git"):
+        merge_preview("t1", store, repo)
+
+    assert not marker.exists()

@@ -4,11 +4,14 @@ from pathlib import Path
 from factory.store import TaskStore
 from factory.task import Event, Task, TaskState, apply
 from factory.worktrees import (
+    WorktreeGit,
     WorktreeManager,
+    WorktreeMismatch,
     branch_problem,
     is_ancestor,
     main_checkout_problem,
     run_git,
+    worktree_git,
 )
 
 MAIN_MOVED = "main moved since the plan; re-run the task"
@@ -44,9 +47,10 @@ def merge_preview(task_id: str, store: TaskStore, repo: Path, main_branch: str |
         raise MergeRefused(f"{branch} is not at the audited commit")
     if task.worktree is None:
         raise WorktreeMissing(f"{task.id} has no worktree")
-    if run_git(Path(task.worktree), "rev-parse", "HEAD") != task.audited_sha:
+    tree = _pinned_worktree(task, repo)
+    if tree.git("rev-parse", "HEAD") != task.audited_sha:
         raise MergeRefused("the worktree is not at the audited commit")
-    if run_git(Path(task.worktree), "status", "--porcelain"):
+    if tree.git("status", "--porcelain"):
         raise MergeRefused("the worktree is dirty")
     if problem := main_checkout_problem(repo, main_branch):
         raise MergeRefused(problem)
@@ -57,6 +61,16 @@ def merge_preview(task_id: str, store: TaskStore, repo: Path, main_branch: str |
         raise MergeRefused(MAIN_MOVED)
     diffstat = run_git(repo, "diff", "--stat=200", task.base_sha, task.audited_sha)
     return Preview(task, branch, diffstat, task.audit_findings)
+
+
+def _pinned_worktree(task: Task, repo: Path) -> WorktreeGit:
+    worktree = Path(task.worktree)
+    if not worktree.is_dir():
+        raise WorktreeMissing(f"{task.id}'s worktree is gone")
+    try:
+        return worktree_git(worktree, task.id, repo)
+    except WorktreeMismatch:  # its message quotes agent-written text: keep it out of the refusal
+        raise MergeRefused("the worktree's .git does not point at its own gitdir") from None
 
 
 def merge_task(
