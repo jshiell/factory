@@ -465,6 +465,20 @@ def test_a_relative_path_in_the_global_config_resolves_against_its_own_directory
     assert settings.state_dir == global_config.parent / "projects" / "repo" / "state"
 
 
+def test_the_global_config_in_a_home_kept_under_git_is_not_a_root_factory_toml(global_config):
+    home = global_config.parent
+    subprocess.run(["git", "init", "-q"], cwd=home, check=True)
+    global_config.write_text('model = "opus"\n')
+    clone = home / "proj" / "repo"
+    clone.mkdir(parents=True)
+    subprocess.run(["git", "init", "-q"], cwd=clone, check=True)
+    write_config(clone, "cap_usd = 3\n")
+
+    settings = load_settings(None, cwd=clone)
+
+    assert (settings.model, settings.cap_usd, settings.state_dir) == ("opus", 3.0, home / "proj" / "state")
+
+
 @pytest.mark.parametrize("key", ["repo", "state_dir", "worktree_root"])
 def test_per_repo_paths_are_rejected_in_the_global_config(repo_dir, global_config, key):
     global_config.write_text(f'{key} = "x"\n')
