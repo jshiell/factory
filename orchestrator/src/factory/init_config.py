@@ -2,7 +2,7 @@ from factory.settings import global_config_path
 
 TEMPLATE = '''\
 # Global factory settings, applied to every project.
-# A project's own factory.toml (or --config) overrides these key by key.
+# A project's own .factory/factory.toml (or --config) overrides these key by key.
 # Per-repo paths (repo, state_dir, worktree_root) are not allowed here.
 # Uncomment and edit what you want to change.
 

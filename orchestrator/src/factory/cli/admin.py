@@ -97,7 +97,7 @@ def _watch(args, io, ctx) -> int:
 
 def _watch_locked(args, io, ctx) -> int:
     if not ctx.settings.watch_approvers:
-        print("watch needs watch_approvers: set it in the repo's factory.toml to the GitHub logins whose issues may start tasks", file=io.stderr)
+        print("watch needs watch_approvers: set it in the repo's .factory/factory.toml to the GitHub logins whose issues may start tasks", file=io.stderr)
         return 1
     try:
         owner, name = ctx.origin_slug(ctx.settings.repo)

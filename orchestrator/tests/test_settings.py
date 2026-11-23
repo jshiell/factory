@@ -75,7 +75,7 @@ def test_outside_a_git_repository_without_a_configured_repo_is_an_error(tmp_path
         load_settings(None, cwd=tmp_path)
 
 
-def test_factory_toml_in_the_cwd_is_used_when_no_path_is_given(repo_dir):
+def test_the_dot_factory_config_is_used_when_no_path_is_given(repo_dir):
     write_config(repo_dir, 'cap_usd = 9\nproject_subdir = "app"\n')
 
     settings = load_settings(None, cwd=repo_dir)
