@@ -102,6 +102,6 @@ def build_stages(settings: Settings, deps: Deps) -> dict[str, Callable[[str], Ta
             repo=settings.repo,
         ),
         "audit": lambda task_id: audit_task(
-            task_id, store, ledger, runner, audit_config, cap, settings.project_subdir, repo=settings.repo
+            task_id, store, ledger, runner, audit_config, cap, repo=settings.repo
         ),
     }

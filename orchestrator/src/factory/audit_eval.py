@@ -80,7 +80,7 @@ def run_one(
             worktree=str(worktree), base_sha=base_sha, goal=case.goal, plan=case.plan,
         ))
         before = len(ledger.entries())
-        task = audit_task(task_id, store, ledger, runner, config, cap_usd, PROJECT_SUBDIR, repo=None)
+        task = audit_task(task_id, store, ledger, runner, config, cap_usd, repo=None)
         spent = ledger.entries()[before:]
     finally:
         manager.remove(task_id)

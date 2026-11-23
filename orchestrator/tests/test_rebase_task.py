@@ -371,7 +371,7 @@ def test_a_rebased_task_is_unmergeable_until_the_gate_and_audit_pass_again_and_t
     verified = verify_task("t1", store, project_subdir="proj", test_argv=["true"], gate_timeout_s=10, repo=None)
     assert verified.state is TaskState.VERIFIED, verified.failure_reason  # the stale freeze reference was cleared
     audited = audit_task("t1", store, Ledger(tmp_path / "ledger.jsonl"), PassingAudit(), AUDIT_CONFIG,
-                         cap_usd=10, project_subdir="proj", repo=None)
+                         cap_usd=10, repo=None)
     assert audited.state is TaskState.AUDITED and audited.audited_sha == new_head != old_tip
     assert merge_preview("t1", store, repo).task.audited_sha == new_head
     assert merge_task("t1", store, repo, manager, shown_sha=new_head).state is TaskState.MERGED

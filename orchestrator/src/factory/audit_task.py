@@ -55,7 +55,6 @@ def audit_task(
     runner: Runner,
     config: RunnerConfig,
     cap_usd: float,
-    project_subdir: str,
     repo: Path | None,
 ) -> Task:
     task = store.load(task_id)

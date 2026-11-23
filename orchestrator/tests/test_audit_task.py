@@ -98,7 +98,7 @@ def verified(repo, store):
 
 
 def audit(store, ledger, runner, config=AUDIT_CONFIG, cap=10):
-    return audit_task("t1", store, ledger, runner, config, cap_usd=cap, project_subdir="proj", repo=None)
+    return audit_task("t1", store, ledger, runner, config, cap_usd=cap, repo=None)
 
 
 def test_a_task_that_is_not_verified_is_rejected_before_budget_or_git(repo, store, ledger):
@@ -301,7 +301,7 @@ def test_a_rewritten_dot_git_fails_the_audit_before_its_diff_reaches_an_auditor(
     redirect_to_planted_gitdir(worktree, tmp_path, clone_of=repo)  # at base: its diff would show nothing
     runner = AuditRunner(verdict_stdout())
 
-    task = audit_task("t1", store, ledger, runner, AUDIT_CONFIG, cap_usd=10, project_subdir="proj", repo=repo)
+    task = audit_task("t1", store, ledger, runner, AUDIT_CONFIG, cap_usd=10, repo=repo)
 
     assert (task.state, task.failure_reason) == (TaskState.FAILED, "worktree_mismatch")
     assert runner.tasks == []
