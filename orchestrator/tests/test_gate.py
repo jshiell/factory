@@ -1122,3 +1122,22 @@ def test_a_change_under_the_factory_dir_fails_even_when_allowed_outside(repo):
     result = check_gate(repo, base, "proj", ["true"], 10, allow_outside=(".factory",))
 
     assert result.reason == "outside_project"
+
+
+@pytest.mark.parametrize("name", ["factory.toml", "Factory.TOML"])
+def test_a_root_factory_toml_fails_outside_project_even_alone(repo, name):
+    (repo / "proj").mkdir()
+    (repo / "proj" / "code.py").write_text("x")
+    git(repo, "add", "proj")
+    git(repo, "commit", "-q", "-m", "project")
+    base = git(repo, "rev-parse", "HEAD")
+    commit_root_file(repo, name, "x\n")
+
+    assert gate(repo, base).reason == "outside_project"
+
+
+def test_guard_a_factory_toml_below_the_root_is_an_ordinary_file(repo):
+    base = repo_with_project_change(repo)
+    commit_root_file(repo, "proj/factory.toml", "x\n")
+
+    assert gate(repo, base).passed is True
