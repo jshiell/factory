@@ -40,6 +40,36 @@ def test_defaults_come_from_the_git_toplevel_and_the_harness_home(repo_dir, isol
     assert settings.tasks_dir == project / "state" / "tasks"
 
 
+def test_an_unset_project_subdir_warns_when_the_repo_has_the_old_default_target(repo_dir):
+    (repo_dir / "target").mkdir()
+
+    [warning] = load_settings(None, cwd=repo_dir).warnings
+
+    assert "target/" in warning and 'project_subdir = "target"' in warning and ".factory/factory.toml" in warning
+
+
+def test_no_project_subdir_warning_without_a_target_directory(repo_dir):
+    (repo_dir / "target").write_text("a file, not the old project")
+
+    assert load_settings(None, cwd=repo_dir).warnings == ()
+
+
+@pytest.mark.parametrize("value", ["target", "."])
+def test_no_project_subdir_warning_when_the_project_config_sets_it(repo_dir, value):
+    (repo_dir / "target").mkdir()
+    write_config(repo_dir, f'project_subdir = "{value}"\n')
+
+    assert load_settings(None, cwd=repo_dir).warnings == ()
+
+
+def test_no_project_subdir_warning_when_the_global_config_sets_it(repo_dir, isolated_home):
+    (repo_dir / "target").mkdir()
+    (isolated_home / ".harness").mkdir()
+    (isolated_home / ".harness" / "factory.toml").write_text('project_subdir = "target"\n')
+
+    assert load_settings(None, cwd=repo_dir).warnings == ()
+
+
 def test_outside_a_git_repository_without_a_configured_repo_is_an_error(tmp_path):
     with pytest.raises(SettingsError, match="repo"):
         load_settings(None, cwd=tmp_path)

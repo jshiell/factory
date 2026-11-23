@@ -52,6 +52,7 @@ class Settings:
     gate_allow_dependency_changes: bool = False
     main_branch: str | None = None
     gate_allow_outside: tuple[str, ...] = ()
+    warnings: tuple[str, ...] = ()
 
     @property
     def ledger_path(self) -> Path:
@@ -111,7 +112,8 @@ def load_settings(path: Path | None, cwd: Path) -> Settings:
         stage: _plugin_dirs(names, configured_home) for stage, names in typed.get("stage_plugins", {}).items()
     }
     settings = replace(
-        Settings(repo, state_dir, worktree_root), plugin_dirs=plugin_dirs, stage_plugin_dirs=stage_plugin_dirs, **typed
+        Settings(repo, state_dir, worktree_root), plugin_dirs=plugin_dirs, stage_plugin_dirs=stage_plugin_dirs,
+        warnings=_project_subdir_warnings(repo, typed), **typed,
     )
     _check_project_subdir(settings.project_subdir)
     if settings.harness not in HARNESSES:
@@ -122,6 +124,17 @@ def load_settings(path: Path | None, cwd: Path) -> Settings:
         raise SettingsError(f"server_host {settings.server_host!r} is unknown; known: {', '.join(BIND_HOSTS)}")
     _check_allowed_hosts(settings.server_allowed_hosts)
     return replace(settings, gate_allow_outside=_checked_allow_outside(settings))
+
+
+def _project_subdir_warnings(repo: Path, typed: dict) -> tuple[str, ...]:
+    # The default moved from target to the repo root; a repo laid out for the old default should say which it means.
+    if "project_subdir" in typed or not (repo / "target").is_dir():
+        return ()
+    return (
+        'project_subdir is unset, so tasks now work at the repo root ("."), but this repo has target/, '
+        'the old default: set project_subdir = "target" in .factory/factory.toml to keep working there, '
+        'or project_subdir = "." to silence this',
+    )
 
 
 def _check_no_old_layout(toplevel: Path) -> None:
