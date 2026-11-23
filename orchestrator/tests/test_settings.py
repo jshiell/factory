@@ -76,6 +76,19 @@ def test_a_root_factory_toml_fails_with_the_git_mv_fix(repo_dir):
     assert "gitignore" in message
 
 
+@pytest.mark.parametrize("name", ["factory.db", "token"])
+def test_old_in_repo_state_fails_naming_where_to_move_it(repo_dir, isolated_home, name):
+    (repo_dir / ".factory").mkdir()
+    (repo_dir / ".factory" / name).write_text("")
+
+    with pytest.raises(SettingsError) as raised:
+        load_settings(None, cwd=repo_dir)
+
+    message = str(raised.value)
+    assert str(repo_dir / ".factory" / name) in message
+    assert str(isolated_home / ".harness" / "repo" / "state") in message
+
+
 def test_only_repo_state_and_worktree_paths_resolve_against_the_config_directory(tmp_path, repo_dir):
     config_dir = tmp_path / "cfg"
     config_dir.mkdir()

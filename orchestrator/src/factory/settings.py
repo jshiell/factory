@@ -102,6 +102,8 @@ def load_settings(path: Path | None, cwd: Path) -> Settings:
     configured_home = typed.pop("home", None)
     state_dir = typed.pop("state_dir", None) or _project_dir(repo, configured_home) / "state"
     worktree_root = typed.pop("worktree_root", None) or _project_dir(repo, configured_home) / "worktrees"
+    if toplevel is not None:
+        _check_no_in_repo_state(toplevel / ".factory", state_dir)
     plugin_dirs = _plugin_dirs(typed.get("plugins", ()), configured_home)
     stage_plugin_dirs = {
         stage: _plugin_dirs(names, configured_home) for stage, names in typed.get("stage_plugins", {}).items()
@@ -127,6 +129,15 @@ def _check_no_old_layout(toplevel: Path) -> None:
             f"{toplevel / 'factory.toml'} is no longer read: the project config lives in .factory/factory.toml. "
             "Move it with `git mv factory.toml .factory/factory.toml` (or plain `mv` if .factory/ is gitignored)"
         )
+
+
+def _check_no_in_repo_state(factory_dir: Path, state_dir: Path) -> None:
+    for name in ("factory.db", "token"):
+        if (factory_dir / name).exists():
+            raise SettingsError(
+                f"{factory_dir / name} is old in-repo state, which is no longer read: "
+                f"move the state files in {factory_dir} (factory.db, token, tasks, ledger) to {state_dir}"
+            )
 
 
 def _check_allowed_hosts(hosts: tuple[str, ...]) -> None:
