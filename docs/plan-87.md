@@ -71,3 +71,9 @@ A worktree's root `.git` is a file (`gitdir: …`). Today neither sandbox can wr
 
 ## Deviations
 (none yet)
+- Increments 1-5: the expected gitdir needs the main repo, which `verify_task`, `run_task`, `run_readonly_stage` and `audit_task` did not have. Each takes an optional `repo`: with it, git is pinned and the `.git` file verified; without it, behaviour is unchanged. `merge_preview` already had `repo` and is pinned always.
+- Not wired in `stages.py` yet: passing `repo=settings.repo` breaks three passing tests (`test_stages.py::test_verify_receives_the_test_command_subdir_and_timeout`, which compares the exact kwargs, and the two `audit` cases of the read-only stage tests, whose worktree is the main checkout). Needs approval to edit them.
+- Extra cycle 1b: the fix round's `rev-parse`/`status` after the fixer are pinned too (they read a rewritten `.git` before the next gate).
+- Increment 5 was red, not a guard: the audit diff ran before the read-only stage, so it is now pinned and a mismatch fails `worktree_mismatch`.
+- Only the gate's commit is pinned inside the gate; `clean_worktree` and `check_gate` run right after the `.git` check with nothing writing in between (reasoning, not a test).
+- The merge refusal uses a fixed sentence (the mismatch message quotes agent-written text); a missing worktree still raises `WorktreeMissing` (an `OSError`), as before.
