@@ -1991,6 +1991,14 @@ def test_a_failed_pass_adds_one_to_the_issues_count_and_saves_it(tmp_path, error
     assert load_state(tmp_path).failed_passes == {5: 3}
 
 
+def test_guard_an_unreachable_server_neither_counts_nor_resets(tmp_path):
+    failing_issue_state(tmp_path, {5: 2})
+
+    pass_over(tmp_path, [], server=FailingServer(ServerUnreachable("down")), github=FakeGitHub([raw_issue(number=5)]))
+
+    assert load_state(tmp_path).failed_passes == {5: 2}
+
+
 def test_a_pass_that_finishes_resets_the_issues_count(tmp_path):
     failing_issue_state(tmp_path, {5: 2})
 
