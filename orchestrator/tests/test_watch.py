@@ -2019,6 +2019,29 @@ def test_a_failed_stop_post_still_stops_and_saves_the_issue_and_logs_one_escaped
     assert "issue #5" in stop_line and "boom" in stop_line
 
 
+class DeletedOfferGitHub(FakeGitHub):
+    def reactions(self, comment_id):
+        raise GitHubError("gh: Not Found (HTTP 404)")
+
+
+def test_guard_a_retry_offer_whose_comment_was_deleted_stops_after_20_passes_and_a_later_thumbs_up_does_nothing(tmp_path):
+    record = IssueRecord(task_id="t-9", phase=Phase.AWAITING_RETRY, result_comment_id=7, retry_comment_id=8)
+    save_state(tmp_path, WatchState(watching_since=SINCE, issues={5: record}))
+    server = FakeServer(task_state="failed", failure_reason="plan rejected: too vague")
+    github = DeletedOfferGitHub([raw_issue(number=5)])
+
+    for _ in range(20):
+        pass_over(tmp_path, [], server=server, github=github, retry=True)
+
+    assert [body.split("\n", 1)[0] for _, body in github.comments_posted] == ["<!-- factory:task=t-9:kind=gave-up -->"]
+    assert load_state(tmp_path).issues[5].phase is Phase.STOPPED
+
+    thumbs_up = FakeGitHub([raw_issue(number=5)], reactions={8: [Reaction("+1", 1001, "alice")]})
+    pass_over(tmp_path, [], server=server, github=thumbs_up, retry=True)
+
+    assert server.retry_requests == [] and thumbs_up.comments_posted == []
+
+
 def test_a_stopped_issue_makes_no_server_or_comment_call_on_later_passes(tmp_path):
     failing_issue_state(tmp_path, {5: 19})
     github = FakeGitHub([raw_issue(number=5)])
