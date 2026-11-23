@@ -93,6 +93,34 @@ def test_a_relative_home_in_dot_factory_config_resolves_against_the_repo_root(re
     assert settings.state_dir == repo_dir / "h" / "repo" / "state"
 
 
+def test_an_explicit_config_inside_the_repo_but_outside_dot_factory_is_refused(repo_dir):
+    (repo_dir / "conf").mkdir()
+    (repo_dir / "conf" / "f.toml").write_text("cap_usd = 7\n")
+
+    with pytest.raises(SettingsError, match=r"conf/f\.toml.*\.factory"):
+        load_settings(repo_dir / "conf" / "f.toml", cwd=repo_dir)
+
+
+def test_an_explicit_config_inside_the_configured_repo_is_refused_from_any_cwd(tmp_path, repo_dir):
+    (repo_dir / "f.toml").write_text(f'repo = "{repo_dir}"\n')
+
+    with pytest.raises(SettingsError, match=r"f\.toml.*\.factory"):
+        load_settings(repo_dir / "f.toml", cwd=tmp_path)
+
+
+def test_an_explicit_config_naming_a_missing_repo_still_loads(tmp_path):
+    (tmp_path / "f.toml").write_text(f'repo = "{tmp_path / "gone"}"\n')
+
+    assert load_settings(tmp_path / "f.toml", cwd=tmp_path).repo == tmp_path / "gone"
+
+
+def test_an_explicit_config_inside_dot_factory_is_accepted(repo_dir):
+    (repo_dir / ".factory").mkdir()
+    (repo_dir / ".factory" / "other.toml").write_text("cap_usd = 7\n")
+
+    assert load_settings(repo_dir / ".factory" / "other.toml", cwd=repo_dir).cap_usd == 7.0
+
+
 @pytest.mark.parametrize("name", ["factory.db", "token"])
 def test_old_in_repo_state_fails_naming_where_to_move_it(repo_dir, isolated_home, name):
     (repo_dir / ".factory").mkdir()

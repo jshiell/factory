@@ -99,6 +99,8 @@ def load_settings(path: Path | None, cwd: Path) -> Settings:
     global_layer = _global_layer(global_path) if global_path and global_path.exists() else {}
     typed = _merged(global_layer, {} if path is None else _layer(path))
     repo = typed.pop("repo", None) or _git_toplevel(cwd)
+    if path is not None:
+        _check_config_outside_editable_area(path, {_toplevel_or_none(repo), toplevel} - {None})
     configured_home = typed.pop("home", None)
     state_dir = typed.pop("state_dir", None) or _project_dir(repo, configured_home) / "state"
     worktree_root = typed.pop("worktree_root", None) or _project_dir(repo, configured_home) / "worktrees"
@@ -129,6 +131,15 @@ def _check_no_old_layout(toplevel: Path) -> None:
             f"{toplevel / 'factory.toml'} is no longer read: the project config lives in .factory/factory.toml. "
             "Move it with `git mv factory.toml .factory/factory.toml` (or plain `mv` if .factory/ is gitignored)"
         )
+
+
+def _check_config_outside_editable_area(path: Path, repos: set[Path]) -> None:
+    # Tasks may edit the whole repo except `.factory/`, so a config anywhere else in it could be rewritten by a task.
+    resolved = path.resolve()
+    for repo in repos:
+        root = repo.resolve()
+        if resolved.is_relative_to(root) and not in_factory_dir(resolved.relative_to(root)):
+            raise SettingsError(f"config {path} is inside the repo {repo}; keep it in .factory/ (tasks can edit the rest)")
 
 
 def _check_no_in_repo_state(factory_dir: Path, state_dir: Path) -> None:
@@ -411,6 +422,8 @@ def _git_toplevel(cwd: Path) -> Path:
 
 
 def _toplevel_or_none(cwd: Path) -> Path | None:
+    if not cwd.is_dir():
+        return None
     completed = subprocess.run(
         ["git", "rev-parse", "--show-toplevel"], cwd=cwd, capture_output=True, text=True,
         stdin=subprocess.DEVNULL,
