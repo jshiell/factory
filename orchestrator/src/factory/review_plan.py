@@ -60,7 +60,7 @@ def build_review_prompt(goal: str, plan: str) -> str:
 
 def review_plan(
     task_id: str, store: TaskStore, ledger: Ledger, runner: Runner, config: RunnerConfig, cap_usd: float,
-    repo: Path | None = None,
+    repo: Path | None,
 ) -> Task:
     task = store.load(task_id)
     apply(task, Event.REVIEW_PASSED)  # reject tasks that are not planned before any other work

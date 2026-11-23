@@ -53,7 +53,7 @@ def ledger(tmp_path):
 def test_worktree_and_base_sha_are_persisted_before_the_runner_runs(store, ledger):
     runner = RecordingRunner(store)
 
-    run_task("t1", store, ledger, runner, CONFIG, cap_usd=10, worktrees=FakeWorktrees())
+    run_task("t1", store, ledger, runner, CONFIG, cap_usd=10, worktrees=FakeWorktrees(), repo=None)
 
     seen = runner.seen[0]
     assert seen.state is TaskState.RUNNING
@@ -65,7 +65,7 @@ def test_worktree_creation_failure_leaves_the_task_queued_and_runner_unused(stor
     runner = RecordingRunner(store)
 
     with pytest.raises(RuntimeError):
-        run_task("t1", store, ledger, runner, CONFIG, cap_usd=10, worktrees=FakeWorktrees(fail=True))
+        run_task("t1", store, ledger, runner, CONFIG, cap_usd=10, worktrees=FakeWorktrees(fail=True), repo=None)
 
     assert runner.seen == []
     assert store.load("t1").state is TaskState.QUEUED
@@ -76,7 +76,7 @@ def test_refused_run_creates_no_worktree(store, ledger):
     worktrees = FakeWorktrees()
 
     with pytest.raises(BudgetCapReached):
-        run_task("t1", store, ledger, RecordingRunner(store), CONFIG, cap_usd=10, worktrees=worktrees)
+        run_task("t1", store, ledger, RecordingRunner(store), CONFIG, cap_usd=10, worktrees=worktrees, repo=None)
 
     assert worktrees.created == []
 
@@ -92,7 +92,7 @@ def test_a_task_with_a_pristine_worktree_reuses_it_without_creating_one(repo, st
     planned_worktree_task(store, repo)
     worktrees, runner = FakeWorktrees(), RecordingRunner(store)
 
-    run_task("t1", store, ledger, runner, CONFIG, cap_usd=10, worktrees=worktrees)
+    run_task("t1", store, ledger, runner, CONFIG, cap_usd=10, worktrees=worktrees, repo=None)
 
     assert worktrees.created == []
     assert runner.seen[0].worktree == str(repo)
@@ -118,7 +118,7 @@ def test_a_reused_worktree_that_moved_or_is_dirty_is_refused_and_the_task_stays_
     runner = RecordingRunner(store)
 
     with pytest.raises(WorktreeNotPristine):
-        run_task("t1", store, ledger, runner, CONFIG, cap_usd=10, worktrees=FakeWorktrees())
+        run_task("t1", store, ledger, runner, CONFIG, cap_usd=10, worktrees=FakeWorktrees(), repo=None)
 
     assert runner.seen == [] and store.load("t1").state is TaskState.QUEUED
 
@@ -128,7 +128,7 @@ def test_a_reused_worktree_that_no_longer_exists_is_refused(repo, store, ledger,
     runner = RecordingRunner(store)
 
     with pytest.raises(WorktreeNotPristine):
-        run_task("t1", store, ledger, runner, CONFIG, cap_usd=10, worktrees=FakeWorktrees())
+        run_task("t1", store, ledger, runner, CONFIG, cap_usd=10, worktrees=FakeWorktrees(), repo=None)
 
     assert runner.seen == []
 

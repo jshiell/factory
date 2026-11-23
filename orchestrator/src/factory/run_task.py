@@ -27,7 +27,7 @@ def run_task(
     config: RunnerConfig,
     cap_usd: float,
     worktrees: WorktreeFactory,
-    repo: Path | None = None,
+    repo: Path | None,
 ) -> Task:
     preflight(task_id, store, ledger, config, cap_usd)
     task = store.load(task_id)

@@ -69,7 +69,7 @@ def ledger(tmp_path):
 
 
 def plan(store, ledger, runner, worktrees, config=PLAN_CONFIG, cap=10):
-    return plan_task("t1", store, ledger, runner, config, cap_usd=cap, worktrees=worktrees)
+    return plan_task("t1", store, ledger, runner, config, cap_usd=cap, worktrees=worktrees, repo=None)
 
 
 def test_the_plan_prompt_carries_the_goal_and_never_starts_with_a_dash():
@@ -314,7 +314,7 @@ def test_at_the_round_cap_the_planner_must_write_the_plan_with_the_plan_schema(r
     runner = ConfigRecordingRunner(plan_stdout())
 
     task = plan_task("t1", store, ledger, runner, PLAN_CONFIG, cap_usd=10, worktrees=Worktrees(repo),
-                     grill_max_rounds=3)
+                     grill_max_rounds=3, repo=None)
 
     assert runner.configs[0] == PLAN_CONFIG
     assert "write the plan now" in runner.tasks[0].prompt and "use calc.py" in runner.tasks[0].prompt
@@ -326,7 +326,7 @@ def test_with_no_grilling_rounds_allowed_the_plain_plan_prompt_is_used(repo, sto
     runner = ConfigRecordingRunner(plan_stdout())
 
     task = plan_task("t1", store, ledger, runner, PLAN_CONFIG, cap_usd=10, worktrees=Worktrees(repo),
-                     grill_max_rounds=0)
+                     grill_max_rounds=0, repo=None)
 
     assert runner.tasks[0].prompt == build_plan_prompt("add multiply")
     assert runner.configs[0] == PLAN_CONFIG and task.state is TaskState.PLANNED
@@ -338,7 +338,7 @@ def test_below_the_round_cap_the_planner_may_still_ask(repo, store, ledger):
     runner = ConfigRecordingRunner(questions_stdout())
 
     task = plan_task("t1", store, ledger, runner, PLAN_CONFIG, cap_usd=10, worktrees=Worktrees(repo),
-                     grill_max_rounds=3)
+                     grill_max_rounds=3, repo=None)
 
     assert runner.configs[0].json_schema is GRILL_SCHEMA and task.state is TaskState.OPEN_QUESTIONS
     assert "write the plan now" not in runner.tasks[0].prompt
@@ -371,7 +371,7 @@ def test_the_grilling_plugin_is_not_added_without_grilling_or_at_the_cap(repo, s
     plan(store, ledger, plain, Worktrees(repo))
     store.save(Task(id="t1", prompt="", state=TaskState.PROPOSED, goal="g", grill=True, grill_rounds=3))
     capped = ConfigRecordingRunner(plan_stdout())
-    plan_task("t1", store, ledger, capped, PLAN_CONFIG, cap_usd=10, worktrees=Worktrees(repo), grill_max_rounds=3)
+    plan_task("t1", store, ledger, capped, PLAN_CONFIG, cap_usd=10, worktrees=Worktrees(repo), grill_max_rounds=3, repo=None)
 
     assert plain.configs[0].plugin_dirs == () and capped.configs[0].plugin_dirs == ()
 

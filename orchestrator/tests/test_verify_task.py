@@ -29,7 +29,7 @@ def agent_done_task(repo, state=TaskState.AGENT_DONE) -> Task:
 def verify(store, passing=True):
     return verify_task(
         "t1", store, project_subdir="proj",
-        test_argv=["true"] if passing else ["false"], gate_timeout_s=10,
+        test_argv=["true"] if passing else ["false"], gate_timeout_s=10, repo=None,
     )
 
 
@@ -89,7 +89,7 @@ def test_the_gate_runs_its_tests_through_the_sandbox_when_one_is_given(repo, sto
     sandbox = lambda task: GateSandbox(  # noqa: E731
         prefix=("sh", "-c", f'touch {marker}; exec "$@"', "sandbox"), argv=("true",), env={"PATH": "/usr/bin:/bin"})
 
-    task = verify_task("t1", store, project_subdir="proj", test_argv=["false"], gate_timeout_s=10, sandbox=sandbox)
+    task = verify_task("t1", store, project_subdir="proj", test_argv=["false"], gate_timeout_s=10, sandbox=sandbox, repo=None)
 
     assert task.state is TaskState.VERIFIED and marker.exists()
 
@@ -102,7 +102,7 @@ def test_a_root_pytest_config_written_by_the_agent_fails_tests_modified_without_
 
     task = verify_task(
         "t1", store, project_subdir="proj",
-        test_argv=["touch", str(ran)], gate_timeout_s=10,
+        test_argv=["touch", str(ran)], gate_timeout_s=10, repo=None,
     )
 
     assert (task.state, task.failure_reason) == (TaskState.FAILED, "tests_modified")
@@ -115,7 +115,7 @@ def test_the_gate_test_run_is_recorded_as_a_gate_process_while_it_runs_and_the_r
     (repo / "proj" / "code.py").write_text("changed by agent")
 
     task = verify_task("t1", store, project_subdir="proj", gate_timeout_s=10, records=RecordsWrittenLate(state),
-                       test_argv=["sh", "-c", 'for _ in $(seq 100); do ls "$1"/*.json >/dev/null 2>&1 && break; sleep 0.05; done; cat "$1"/*.json > "$2"', "_", str(state / "procs"), str(seen)])
+                       test_argv=["sh", "-c", 'for _ in $(seq 100); do ls "$1"/*.json >/dev/null 2>&1 && break; sleep 0.05; done; cat "$1"/*.json > "$2"', "_", str(state / "procs"), str(seen)], repo=None)
 
     assert task.state is TaskState.VERIFIED
     assert '"task_id": "t1"' in seen.read_text() and '"stage": "gate"' in seen.read_text()

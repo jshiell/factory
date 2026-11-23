@@ -46,7 +46,7 @@ def task(repo):
 
 
 def stage(task, runner, ledger, name="audit"):
-    return run_readonly_stage(task, "STAGE PROMPT", runner, CONFIG, ledger, name)
+    return run_readonly_stage(task, "STAGE PROMPT", runner, CONFIG, ledger, name, repo=None)
 
 
 def test_a_clean_run_returns_the_output_and_head_and_charges_the_stage(repo, task, ledger):

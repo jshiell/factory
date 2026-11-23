@@ -38,7 +38,7 @@ def verify_task(
     records=None,
     gate_allow_outside: tuple[str, ...] = (),
     gate_allow_dependency_changes: bool = False,
-    repo: Path | None = None,
+    repo: Path | None,
 ) -> Task:
     """Gate the agent's work; on `tests_failed`, up to `fix_rounds` fresh agent runs get the failure text.
 
@@ -53,7 +53,7 @@ def verify_task(
     while True:
         result = _gate_once(
             task, project_subdir, test_argv, gate_timeout_s, sandbox, capture, factory_paths, tracker,
-            gate_allow_outside, gate_allow_dependency_changes, repo,
+            gate_allow_outside, gate_allow_dependency_changes, repo=repo,
         )
         if result.passed:
             return _finish(apply(task, Event.GATE_PASSED), store)
@@ -61,7 +61,7 @@ def verify_task(
             return _finish(apply(task, Event.GATE_FAILED, reason=result.reason), store)
         task, failure = _fix_round(
             task, result.output or "", store, runner, ledger, fix_config, cap_usd, gate_allow_outside,
-            gate_allow_dependency_changes, repo,
+            gate_allow_dependency_changes, repo=repo,
         )
         if failure is not None:
             return _finish(apply(task, Event.GATE_FAILED, reason=failure), store)
@@ -69,7 +69,7 @@ def verify_task(
 
 def _fix_round(
     task: Task, test_output: str, store: TaskStore, runner: Runner, ledger: Ledger, config: RunnerConfig, cap_usd: float,
-    allow_outside: tuple[str, ...] = (), allow_dependency_changes: bool = False, repo: Path | None = None,
+    allow_outside: tuple[str, ...] = (), allow_dependency_changes: bool = False, *, repo: Path | None,
 ) -> tuple[Task, str | None]:
     """One agent run. Returns the updated task and a failure reason, or None when the gate should run again."""
     check_budget(task.id, ledger, config, cap_usd)  # raises with the task untouched: raise the cap and re-advance
@@ -118,7 +118,8 @@ def _gate_once(
     tracker=None,
     allow_outside: tuple[str, ...] = (),
     allow_dependency_changes: bool = False,
-    repo: Path | None = None,
+    *,
+    repo: Path | None,
 ) -> GateResult:
     worktree = Path(task.worktree)
     try:

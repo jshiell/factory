@@ -68,7 +68,7 @@ def write_fix(repo):
 
 def verify(store, ledger, runner, rounds=2, test_argv=FIXED_ONLY_IF_FILE, cap=10.0, config=CONFIG):
     return verify_task("t1", store, project_subdir="proj", test_argv=test_argv, gate_timeout_s=10,
-                       runner=runner, ledger=ledger, fix_config=config, cap_usd=cap, fix_rounds=rounds)
+                       runner=runner, ledger=ledger, fix_config=config, cap_usd=cap, fix_rounds=rounds, repo=None)
 
 
 def test_a_gate_that_passes_first_time_runs_no_agent_and_charges_nothing(repo, store, ledger, task):
@@ -116,7 +116,7 @@ def test_a_timeout_starts_no_round(repo, store, ledger, task, argv, reason):
     runner = FakeRunner(repo)
 
     result = verify_task("t1", store, project_subdir="proj", test_argv=argv, gate_timeout_s=0.3,
-                         runner=runner, ledger=ledger, fix_config=CONFIG, cap_usd=10.0, fix_rounds=2)
+                         runner=runner, ledger=ledger, fix_config=CONFIG, cap_usd=10.0, fix_rounds=2, repo=None)
 
     assert result.failure_reason == reason and runner.calls == []
 
@@ -344,7 +344,7 @@ def test_the_gate_runs_only_committed_files_and_cleans_before_the_sandbox_is_bui
         seen.append((repo / "proj" / "conftest.py").exists())
         return GateSandbox((), ("sh", "-c", "test ! -e conftest.py && test ! -e .venv/x.pth"), {"PATH": os.environ["PATH"]})
 
-    result = verify_task("t1", store, project_subdir="proj", test_argv=["unused"], gate_timeout_s=10, sandbox=sandbox)
+    result = verify_task("t1", store, project_subdir="proj", test_argv=["unused"], gate_timeout_s=10, sandbox=sandbox, repo=None)
 
     assert result.state == TaskState.VERIFIED
     assert seen == [False]
@@ -355,7 +355,7 @@ def test_a_gate_that_cannot_clean_fails_the_task_instead_of_raising(repo, store,
     state_inside.mkdir()
     (state_inside / "ledger.jsonl").write_text("l")
 
-    result = verify_task("t1", store, project_subdir="proj", test_argv=["true"], gate_timeout_s=10, factory_paths=(state_inside,))
+    result = verify_task("t1", store, project_subdir="proj", test_argv=["true"], gate_timeout_s=10, factory_paths=(state_inside,), repo=None)
 
     assert (result.state, result.failure_reason) == (TaskState.FAILED, "worktree_mismatch")
     assert (state_inside / "ledger.jsonl").exists()
@@ -389,7 +389,7 @@ def test_an_allowed_root_change_beside_the_project_change_verifies_the_task(repo
     (repo / "README.md").write_text("edited by the agent")
 
     result = verify_task("t1", store, project_subdir="proj", test_argv=["true"], gate_timeout_s=10,
-                         gate_allow_outside=("README.md",))
+                         gate_allow_outside=("README.md",), repo=None)
 
     assert result.state is TaskState.VERIFIED
 
@@ -399,7 +399,7 @@ def test_the_fix_prompt_names_the_allowed_outside_paths(repo, store, ledger, tas
 
     verify_task("t1", store, project_subdir="proj", test_argv=FIXED_ONLY_IF_FILE, gate_timeout_s=10,
                 runner=runner, ledger=ledger, fix_config=CONFIG, cap_usd=10.0, fix_rounds=1,
-                gate_allow_outside=("README.md",))
+                gate_allow_outside=("README.md",), repo=None)
 
     (called, _), = runner.calls
     assert "or these paths: README.md;" in called.prompt
@@ -411,7 +411,7 @@ def test_the_fix_prompt_follows_the_dependency_setting(repo, store, ledger, task
 
     verify_task("t1", store, project_subdir="proj", test_argv=FIXED_ONLY_IF_FILE, gate_timeout_s=10,
                 runner=runner, ledger=ledger, fix_config=CONFIG, cap_usd=10.0, fix_rounds=1,
-                gate_allow_dependency_changes=allowed)
+                gate_allow_dependency_changes=allowed, repo=None)
 
     (called, _), = runner.calls
     assert ("Do not add or change dependencies" in called.prompt) is not allowed
@@ -426,7 +426,7 @@ def test_an_allowed_root_change_passes_the_sandboxed_gate_too(repo, store, ledge
         return GateSandbox((), ("true",), {"PATH": os.environ["PATH"]})
 
     result = verify_task("t1", store, project_subdir="proj", test_argv=["unused"], gate_timeout_s=10,
-                         sandbox=sandbox, gate_allow_outside=("README.md",))
+                         sandbox=sandbox, gate_allow_outside=("README.md",), repo=None)
 
     assert result.state is TaskState.VERIFIED
 
@@ -447,7 +447,7 @@ def add_a_dependency(repo, store):
 def test_a_dependency_change_fails_tests_modified_by_default(repo, store, ledger, task):
     add_a_dependency(repo, store)
 
-    result = verify_task("t1", store, project_subdir="proj", test_argv=["true"], gate_timeout_s=10)
+    result = verify_task("t1", store, project_subdir="proj", test_argv=["true"], gate_timeout_s=10, repo=None)
 
     assert result.state is TaskState.FAILED and result.failure_reason == "tests_modified"
 
@@ -456,7 +456,7 @@ def test_a_dependency_change_verifies_when_allowed(repo, store, ledger, task):
     add_a_dependency(repo, store)
 
     result = verify_task("t1", store, project_subdir="proj", test_argv=["true"], gate_timeout_s=10,
-                         gate_allow_dependency_changes=True)
+                         gate_allow_dependency_changes=True, repo=None)
 
     assert result.state is TaskState.VERIFIED
 
@@ -469,10 +469,10 @@ def test_a_dependency_change_fails_the_sandboxed_gate_by_default_and_passes_when
     def sandbox(_task):
         return GateSandbox((), ("true",), {"PATH": os.environ["PATH"]})
 
-    refused = verify_task("t1", store, project_subdir="proj", test_argv=["unused"], gate_timeout_s=10, sandbox=sandbox)
+    refused = verify_task("t1", store, project_subdir="proj", test_argv=["unused"], gate_timeout_s=10, sandbox=sandbox, repo=None)
     store.save(replace(store.load("t1"), state=TaskState.AGENT_DONE, failure_reason=None))
     allowed = verify_task("t1", store, project_subdir="proj", test_argv=["unused"], gate_timeout_s=10,
-                          sandbox=sandbox, gate_allow_dependency_changes=True)
+                          sandbox=sandbox, gate_allow_dependency_changes=True, repo=None)
 
     assert refused.failure_reason == "tests_modified" and allowed.state is TaskState.VERIFIED
 

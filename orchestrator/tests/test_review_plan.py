@@ -51,7 +51,7 @@ def ledger(tmp_path):
 
 
 def review(store, ledger, runner, config=REVIEW_CONFIG, cap=10):
-    return review_plan("t1", store, ledger, runner, config, cap_usd=cap)
+    return review_plan("t1", store, ledger, runner, config, cap_usd=cap, repo=None)
 
 
 @pytest.mark.smoke

@@ -76,7 +76,7 @@ def test_the_audit_diff_does_not_run_a_textconv_driver_selected_by_a_gitattribut
         def run(self, task, config):
             return RunResult(verdict, 0)
 
-    audit_task("t1", store, Ledger(tmp_path / "l.jsonl"), Runner(), RunnerConfig(model="m", budget_usd=0.3), 5.0, "proj")
+    audit_task("t1", store, Ledger(tmp_path / "l.jsonl"), Runner(), RunnerConfig(model="m", budget_usd=0.3), 5.0, "proj", repo=None)
 
     assert not marker.exists()
 

@@ -122,7 +122,7 @@ def plan_task(
     config: RunnerConfig,
     cap_usd: float,
     worktrees,
-    repo: Path | None = None,
+    repo: Path | None,
     grill_max_rounds: int = 3,
 ) -> Task:
     task = store.load(task_id)

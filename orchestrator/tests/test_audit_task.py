@@ -98,7 +98,7 @@ def verified(repo, store):
 
 
 def audit(store, ledger, runner, config=AUDIT_CONFIG, cap=10):
-    return audit_task("t1", store, ledger, runner, config, cap_usd=cap, project_subdir="proj")
+    return audit_task("t1", store, ledger, runner, config, cap_usd=cap, project_subdir="proj", repo=None)
 
 
 def test_a_task_that_is_not_verified_is_rejected_before_budget_or_git(repo, store, ledger):

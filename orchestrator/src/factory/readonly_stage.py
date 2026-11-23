@@ -23,7 +23,7 @@ class Ran:
 
 def run_readonly_stage(
     task: Task, stage_prompt: str, runner: Runner, config: RunnerConfig, ledger: Ledger, stage: str,
-    repo: Path | None = None,
+    repo: Path | None,
 ) -> Modified | Infra | Ran:
     tree = _verified(task, repo)
     if tree is None:

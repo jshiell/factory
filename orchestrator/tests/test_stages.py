@@ -1,16 +1,18 @@
+import inspect
 from dataclasses import replace
 from pathlib import Path
 
 import pytest
 
-from factory.audit_task import AUDIT_CONFIG
+from factory.audit_task import AUDIT_CONFIG, audit_task
 from factory.digest import plan_digest
 from factory.gate_sandbox import UvTooling
 from factory.ledger import Ledger
-from factory.plan_task import PLAN_CONFIG
+from factory.plan_task import PLAN_CONFIG, plan_task
 from factory.process_registry import Record
-from factory.review_plan import REVIEW_CONFIG
-from factory.run_task import WorktreeNotPristine
+from factory.readonly_stage import run_readonly_stage
+from factory.review_plan import REVIEW_CONFIG, review_plan
+from factory.run_task import WorktreeNotPristine, run_task
 from factory.sandbox import SANDBOXES
 from factory.settings import Settings
 from factory.sqlite_process_records import SqliteProcessRecords
@@ -24,6 +26,7 @@ from factory.stages import (
 from factory.step import RunResult
 from factory.store import TaskStore
 from factory.task import Task, TaskState
+from factory.verify_task import verify_task
 from factory.worktrees import WorktreeManager
 from gitutil import git
 from planted_gitdir import redirect_to_planted_gitdir
@@ -199,6 +202,11 @@ def test_a_read_only_stage_refuses_a_rewritten_dot_git_without_running_the_plant
 
     assert (task.state, task.failure_reason) == (TaskState.FAILED, reason)
     assert runner.configs == [] and not marker.exists()
+
+
+@pytest.mark.parametrize("entry", [plan_task, review_plan, run_task, verify_task, audit_task, run_readonly_stage])
+def test_every_stage_entry_point_must_be_told_its_repo_so_none_can_silently_skip_the_gitdir_check(entry):
+    assert inspect.signature(entry).parameters["repo"].default is inspect.Parameter.empty
 
 
 def test_the_verify_stage_passes_the_allowed_outside_paths(setup, monkeypatch):

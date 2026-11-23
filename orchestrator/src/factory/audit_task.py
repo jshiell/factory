@@ -54,7 +54,7 @@ def audit_task(
     config: RunnerConfig,
     cap_usd: float,
     project_subdir: str,
-    repo: Path | None = None,
+    repo: Path | None,
 ) -> Task:
     task = store.load(task_id)
     apply(task, Event.AUDIT_PASSED)  # reject tasks that are not verified before any other work
