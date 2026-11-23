@@ -725,6 +725,14 @@ def test_project_subdir_dot_is_rejected_with_a_message_naming_the_repo_root(repo
         load_settings(None, cwd=repo_dir)
 
 
+@pytest.mark.parametrize("subdir", [".factory", ".FACTORY", "./.Factory/sub", ".factory/"])
+def test_project_subdir_in_the_factory_dir_is_rejected(repo_dir, subdir):
+    (repo_dir / "factory.toml").write_text(f'project_subdir = "{subdir}"\n')
+
+    with pytest.raises(SettingsError, match=r"project_subdir.*\.factory"):
+        load_settings(None, cwd=repo_dir)
+
+
 def test_a_global_entry_that_is_an_ancestor_of_the_local_project_subdir_is_rejected(repo_dir, global_config):
     global_config.write_text('gate_allow_outside = ["a"]\n')
     (repo_dir / "factory.toml").write_text('project_subdir = "a/b"\n')

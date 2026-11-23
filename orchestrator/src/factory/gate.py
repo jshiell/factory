@@ -2,7 +2,7 @@ import ast
 import os
 import tomllib
 from dataclasses import dataclass
-from pathlib import Path
+from pathlib import Path, PurePath
 
 from factory.process import run_to_exit
 from factory.worktrees import WorktreeGit, git_completed, run_git
@@ -217,10 +217,10 @@ def _is_ancestor(worktree: Path, base_sha: str) -> bool:
 def _resolve_inside(worktree: Path, subdir: str) -> Path:
     root = worktree.resolve()
     resolved = (worktree / subdir).resolve()
-    if not resolved.is_relative_to(root) or _in_factory_dir(resolved.relative_to(root)):
+    if not resolved.is_relative_to(root) or in_factory_dir(resolved.relative_to(root)):
         raise ProjectSubdirEscapes(subdir)
     return resolved
 
 
-def _in_factory_dir(relative: Path) -> bool:
+def in_factory_dir(relative: PurePath) -> bool:
     return relative.parts[:1] != () and relative.parts[0].casefold() == ".factory"  # casefold: a case-insensitive checkout is the same dir

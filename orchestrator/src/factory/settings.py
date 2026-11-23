@@ -7,7 +7,7 @@ import tomllib
 from dataclasses import dataclass, field, replace
 from pathlib import Path, PurePosixPath
 
-from factory.gate import DEFAULT_PROTECTED_NAMES
+from factory.gate import DEFAULT_PROTECTED_NAMES, in_factory_dir
 from factory.harness import DEFAULT_HARNESS, HARNESSES
 from factory.sandbox import DEFAULT_SANDBOX, SANDBOXES
 
@@ -342,6 +342,8 @@ def _check_project_subdir(subdir: str) -> None:
         )
     if path.is_absolute() or ".." in parts:
         raise SettingsError("project_subdir must be a relative path without '..'")
+    if in_factory_dir(path):
+        raise SettingsError("project_subdir may not be .factory or inside it; the factory's own files live there")
 
 
 _ALWAYS_REFUSED_NAMES = ("uv.lock", ".gitattributes", ".gitmodules")
