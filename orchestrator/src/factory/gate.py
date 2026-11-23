@@ -217,7 +217,7 @@ def _is_ancestor(worktree: Path, base_sha: str) -> bool:
 def _resolve_inside(worktree: Path, subdir: str) -> Path:
     root = worktree.resolve()
     resolved = (worktree / subdir).resolve()
-    if not resolved.is_relative_to(root) or resolved == root or _in_factory_dir(resolved.relative_to(root)):
+    if not resolved.is_relative_to(root) or _in_factory_dir(resolved.relative_to(root)):
         raise ProjectSubdirEscapes(subdir)
     return resolved
 

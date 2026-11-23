@@ -123,7 +123,7 @@ def test_hanging_tests_fail_the_gate_with_tests_timeout(repo):
     assert result.reason == "tests_timeout"
 
 
-@pytest.mark.parametrize("subdir", ["..", "../elsewhere", "/etc", "proj/../..", "."])
+@pytest.mark.parametrize("subdir", ["..", "../elsewhere", "/etc", "proj/../.."])
 def test_project_subdir_escaping_the_worktree_is_rejected(repo, subdir):
     base = repo_with_project_change(repo)
 
@@ -1223,3 +1223,19 @@ def test_guard_the_worktree_s_own_git_is_not_a_nested_repo(repo):
     (repo / "proj").mkdir()
 
     assert has_nested_repo(repo, "proj") is False
+
+
+@pytest.mark.parametrize("subdir", [".", "./", "proj/.."])
+def test_a_root_project_runs_its_tests_at_the_worktree_root(repo, subdir):
+    base = repo_with_project_change(repo)
+
+    result = gate(repo, base, test_argv=["sh", "-c", 'test -d proj && test -e .git'], project_subdir=subdir)
+
+    assert result.passed is True
+
+
+def test_a_root_project_finds_a_nested_repo_but_not_its_own_git(repo):
+    assert has_nested_repo(repo, ".") is False
+
+    (repo / "docs" / ".git").mkdir(parents=True)
+    assert has_nested_repo(repo, ".") is True
