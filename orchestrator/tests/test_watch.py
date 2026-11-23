@@ -954,6 +954,28 @@ def test_with_merge_on_an_approved_task_that_audits_posts_the_result_then_a_merg
            "merge_body_hash": hashlib.sha256(merge_body.encode()).hexdigest(), "merge_sha": "abc123"})}
 
 
+def test_the_merge_comment_flags_root_tool_config_after_the_changes(tmp_path):
+    save_state(tmp_path, WatchState(watching_since=SINCE, issues={5: APPROVED}))
+    preview = {**MERGE_PREVIEW, "tool_config": [".mcp.json", ".github/workflows/ci.yml"]}
+    server = FakeServer(advance_result=AUDITED, merge_preview=preview)
+
+    github, _ = pass_over(tmp_path, [], server=server, github=FakeGitHub([raw_issue(number=5)]), merge=True)
+
+    merge_body = github.comments_posted[-1][1]
+    changes, flagged = merge_body.split("**Root tool config", 1)
+    assert "calc.py" in changes and "**Audit findings**" in flagged
+    assert "```\n- .mcp.json\n- .github/workflows/ci.yml\n```" in flagged
+
+
+def test_the_merge_comment_has_no_tool_config_section_when_none_is_touched(tmp_path):
+    save_state(tmp_path, WatchState(watching_since=SINCE, issues={5: APPROVED}))
+    server = FakeServer(advance_result=AUDITED, merge_preview={**MERGE_PREVIEW, "tool_config": []})
+
+    github, _ = pass_over(tmp_path, [], server=server, github=FakeGitHub([raw_issue(number=5)]), merge=True)
+
+    assert "Root tool config" not in github.comments_posted[-1][1]
+
+
 MERGE_BODY = "<!-- factory:task=t-9:kind=merge -->\n\n**Task**"
 MERGE_COMMENT = Comment(2, MERGE_BODY, 4242, "factory-bot")
 AWAITING_THE_MERGE = IssueRecord(

@@ -88,6 +88,14 @@ def _merge_preview_or_refuse(thread: IssueThread, server, progress: Progress) ->
         return None
 
 
+def _tool_config_section(paths: list[str]) -> list[tuple[str, str, bool]]:
+    # Only when flagged, so an ordinary merge comment (and its stored hash) stays as it was.
+    if not paths:
+        return []
+    return [("Root tool config (tools on your machine may read or run these after the merge; review them)",
+             "\n".join(f"- {path}" for path in paths), True)]
+
+
 def _post_merge_comment(thread: IssueThread, server, progress: Progress) -> None:
     record = progress.record
     preview = _merge_preview_or_refuse(thread, server, progress)
@@ -98,6 +106,7 @@ def _post_merge_comment(thread: IssueThread, server, progress: Progress) -> None
         ("Audited commit", preview["audited_sha"], True),
         ("Branch", preview["branch"], True),
         ("Changes", preview["diffstat"], True),
+        *_tool_config_section(preview.get("tool_config", [])),
         ("Audit findings", "\n".join(f"- {finding}" for finding in preview["findings"]), True),
     ])
     exact_copy = thread.own_comment_id(lambda c: c.body == body)
