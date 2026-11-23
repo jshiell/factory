@@ -1187,3 +1187,13 @@ def test_a_link_added_inside_the_project_fails_outside_project(repo, add_link):
     git(repo, "commit", "-q", "-m", "link")
 
     assert gate(repo, base).reason == "outside_project"
+
+
+@pytest.mark.parametrize("subdir", [".factory", ".FACTORY/sub", "proj/../.factory/x", "alias"])
+def test_a_project_subdir_resolving_into_the_factory_dir_is_rejected(repo, subdir):
+    base = repo_with_project_change(repo)
+    (repo / ".factory" / "x").mkdir(parents=True)
+    (repo / "alias").symlink_to(".factory")
+
+    with pytest.raises(ProjectSubdirEscapes):
+        gate(repo, base, project_subdir=subdir)
