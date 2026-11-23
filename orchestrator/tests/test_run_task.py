@@ -8,7 +8,9 @@ from factory.run_task import WorktreeNotPristine, run_task
 from factory.step import BudgetCapReached, RunResult
 from factory.store import TaskStore
 from factory.task import Task, TaskState
+from factory.worktrees import WorktreeManager
 from gitutil import git
+from planted_gitdir import redirect_to_planted_gitdir
 
 CONFIG = RunnerConfig(model="sonnet", budget_usd=0.5)
 
@@ -129,3 +131,15 @@ def test_a_reused_worktree_that_no_longer_exists_is_refused(repo, store, ledger,
         run_task("t1", store, ledger, runner, CONFIG, cap_usd=10, worktrees=FakeWorktrees())
 
     assert runner.seen == []
+
+
+def test_a_reused_worktree_whose_dot_git_was_rewritten_is_refused_without_running_the_planted_repos_filter(repo, store, ledger, tmp_path):
+    worktree, base = WorktreeManager(repo, tmp_path / "wt").create("t1")
+    store.save(Task(id="t1", prompt="do it", worktree=str(worktree), base_sha=base))
+    marker = redirect_to_planted_gitdir(worktree, tmp_path, clone_of=repo)
+    runner = RecordingRunner(store)
+
+    with pytest.raises(WorktreeNotPristine):
+        run_task("t1", store, ledger, runner, CONFIG, cap_usd=10, worktrees=FakeWorktrees(), repo=repo)
+
+    assert runner.seen == [] and not marker.exists()
