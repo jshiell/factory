@@ -38,6 +38,39 @@ def test_preview_of_an_audited_task_names_the_branch_diffstat_and_findings(audit
     assert preview.findings == ("looks fine",)
 
 
+def _audited_with(tmp_path, repo, paths):
+    """An audited task t2 whose one commit adds each path."""
+    (tmp_path / "tasks").mkdir(exist_ok=True)
+    store = TaskStore(tmp_path / "tasks")
+    worktree, base = WorktreeManager(repo, tmp_path / "wt").create("t2")
+    for path in paths:
+        (worktree / path).parent.mkdir(parents=True, exist_ok=True)
+        (worktree / path).write_text("x")
+    git(worktree, "add", "-A")
+    git(worktree, "commit", "-q", "-m", "Task t2")
+    store.save(Task(id="t2", prompt="p", state=TaskState.AUDITED, worktree=str(worktree), base_sha=base,
+                    audited_sha=git(worktree, "rev-parse", "HEAD")))
+    return store
+
+
+def test_preview_flags_root_tool_config_the_merge_touches(tmp_path, repo):
+    flagged = [".claude/settings.json", ".mcp.json", "mise.toml", ".mise.toml", ".vscode/tasks.json",
+               ".github/workflows/ci.yml", ".CLAUDE/x", ".Github/Workflows/y.yml",
+               ".claude/new\nline", ".claude/é"]  # names git would quote without -z
+    ignored = ["b.txt", "sub/.claude/x", "sub/mise.toml", ".github/CODEOWNERS", "docs/.mcp.json"]
+    store = _audited_with(tmp_path, repo, flagged + ignored)
+
+    preview = merge_preview("t2", store, repo)
+
+    assert sorted(preview.tool_config) == sorted(flagged)
+
+
+def test_preview_flags_no_tool_config_for_an_ordinary_change(audited):
+    store, repo, _, _, _ = audited
+
+    assert merge_preview("t1", store, repo).tool_config == ()
+
+
 def test_preview_refuses_a_task_that_is_not_audited(audited):
     store, repo, _, task, _ = audited
     store.save(replace(task, state=TaskState.VERIFIED))

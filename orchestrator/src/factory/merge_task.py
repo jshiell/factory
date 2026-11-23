@@ -37,6 +37,7 @@ class Preview:
     branch: str
     diffstat: str
     findings: tuple[str, ...]
+    tool_config: tuple[str, ...] = ()
 
 
 def merge_preview(task_id: str, store: TaskStore, repo: Path, main_branch: str | None = None) -> Preview:
@@ -60,7 +61,22 @@ def merge_preview(task_id: str, store: TaskStore, repo: Path, main_branch: str |
             raise MergeRefused(ALREADY_IN_MAIN)
         raise MergeRefused(MAIN_MOVED)
     diffstat = run_git(repo, "diff", "--stat=200", task.base_sha, task.audited_sha)
-    return Preview(task, branch, diffstat, task.audit_findings)
+    return Preview(task, branch, diffstat, task.audit_findings, _tool_config_touched(repo, task))
+
+
+_TOOL_CONFIG_FILES = (".mcp.json", "mise.toml", ".mise.toml")
+_TOOL_CONFIG_DIRS = ((".claude",), (".vscode",), (".github", "workflows"))
+
+
+def _tool_config_touched(repo: Path, task: Task) -> tuple[str, ...]:
+    """Root files that tools on the user's machine read and may run after the merge (D7: allowed, but shown)."""
+    # -z: raw names, so a quoted name cannot hide a match; casefolded, as a case-insensitive checkout would read them.
+    names = run_git(repo, "diff", "--name-only", "-z", "--no-renames", task.base_sha, task.audited_sha).split("\0")
+    return tuple(name for name in names if name and _is_tool_config(name.casefold().split("/")))
+
+
+def _is_tool_config(parts: list[str]) -> bool:
+    return "/".join(parts) in _TOOL_CONFIG_FILES or any(tuple(parts[: len(d)]) == d for d in _TOOL_CONFIG_DIRS)
 
 
 def _pinned_worktree(task: Task, repo: Path) -> WorktreeGit:
