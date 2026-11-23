@@ -339,7 +339,10 @@ def run() -> None:
             print(f"settings error: {error}", file=sys.stderr)
             sys.exit(2)
     try:
-        ctx = build_context(load_settings(known.config, cwd=Path.cwd()))
+        settings = load_settings(known.config, cwd=Path.cwd())
+        for warning in settings.warnings:
+            print(f"settings warning: {warning}", file=sys.stderr)
+        ctx = build_context(settings)
     except SettingsError as error:
         print(f"settings error: {error}", file=sys.stderr)
         sys.exit(2)
