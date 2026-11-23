@@ -53,6 +53,23 @@ def test_the_agent_runner_wraps_a_confined_run_in_the_configured_sandbox(tmp_pat
     assert [policy.worktree for policy in policies] == [str(worktree.resolve())]
 
 
+def test_the_gate_of_a_root_project_may_write_the_whole_worktree_and_its_cache(tmp_path, monkeypatch):
+    import factory.stages as stages
+    from factory.gate_sandbox import UvTooling
+    policies = []
+    sandbox = type("Fake", (), {"wrap": lambda self, policy: policies.append(policy) or []})()
+    monkeypatch.setitem(SANDBOXES, "fake", lambda executable: sandbox)
+    monkeypatch.setattr(stages, "discover_uv_tooling", lambda project_dir: UvTooling("/real/uv", "/py", "/uvpy"))
+    worktree = tmp_path / "wt"
+    worktree.mkdir()
+    settings = Settings(tmp_path / "repo", tmp_path / "state", tmp_path / "wts", sandbox="fake", project_subdir=".")
+
+    stages.gate_sandbox_for(settings)(Task(id="t1", prompt="do it", worktree=str(worktree)))
+
+    (policy,) = policies
+    assert policy.write == (str(worktree.resolve()), str(settings.gate_cache_dir / "t1"))
+
+
 def test_the_agent_runner_hands_an_unset_sandbox_executable_to_the_sandbox_as_none(tmp_path, monkeypatch):
     asked = []
     monkeypatch.setitem(SANDBOXES, "fake", lambda executable: asked.append(executable) or type("Fake", (), {"wrap": lambda self, policy: []})())
