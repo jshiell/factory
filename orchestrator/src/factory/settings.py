@@ -189,10 +189,16 @@ def _layer(path: Path, per_repo_allowed: bool = True) -> dict:
     if unknown:
         raise SettingsError(f"unknown setting: {unknown[0]}")
     typed = {key: _typed(key, value) for key, value in values.items()}
+    base = _relative_base(path)
     for key in _PATH_KEYS:
         if key in typed:
-            typed[key] = path.parent / _expanded(key, typed[key])
+            typed[key] = base / _expanded(key, typed[key])
     return typed
+
+
+def _relative_base(path: Path) -> Path:
+    # `.factory/factory.toml` speaks for the repo it sits in, so its paths are relative to the repo root.
+    return path.parent.parent if path.parent.name == ".factory" else path.parent
 
 
 def _merged(base: dict, override: dict) -> dict:

@@ -76,6 +76,23 @@ def test_a_root_factory_toml_fails_with_the_git_mv_fix(repo_dir):
     assert "gitignore" in message
 
 
+def test_relative_paths_in_dot_factory_config_resolve_against_the_repo_root(repo_dir):
+    write_config(repo_dir, 'state_dir = "s"\nworktree_root = "../wt"\n')
+
+    settings = load_settings(None, cwd=repo_dir)
+
+    assert settings.state_dir == repo_dir / "s"
+    assert settings.worktree_root == repo_dir / ".." / "wt"
+
+
+def test_a_relative_home_in_dot_factory_config_resolves_against_the_repo_root(repo_dir):
+    write_config(repo_dir, 'home = "h"\n')
+
+    settings = load_settings(None, cwd=repo_dir)
+
+    assert settings.state_dir == repo_dir / "h" / "repo" / "state"
+
+
 @pytest.mark.parametrize("name", ["factory.db", "token"])
 def test_old_in_repo_state_fails_naming_where_to_move_it(repo_dir, isolated_home, name):
     (repo_dir / ".factory").mkdir()
