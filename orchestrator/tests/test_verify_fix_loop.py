@@ -9,7 +9,9 @@ from factory.step import BudgetCapReached, RunResult
 from factory.store import TaskStore
 from factory.task import Task, TaskState
 from factory.verify_task import verify_task
+from factory.worktrees import WorktreeManager
 from gitutil import git
+from planted_gitdir import redirect_to_planted_gitdir
 
 CONFIG = RunnerConfig(model="sonnet", budget_usd=0.3)
 FIXED_ONLY_IF_FILE = ["sh", "-c", "echo 'FAIL: no fixed file'; test -f fixed"]
@@ -493,3 +495,43 @@ def test_a_fix_round_that_edits_outside_the_project_fails_outside_project(repo, 
 
     assert result.state is TaskState.FAILED and result.failure_reason == "outside_project"
     assert len(runner.calls) == 1 and result.fix_rounds_used == 1
+
+
+def test_a_fixer_that_rewrites_dot_git_fails_the_gate_without_running_the_planted_repos_filter(repo, store, ledger, tmp_path):
+    (repo / "proj").mkdir()
+    (repo / "proj" / "code.py").write_text("x")
+    git(repo, "add", "proj")
+    git(repo, "commit", "-q", "-m", "project")
+    worktree, base = WorktreeManager(repo, tmp_path / "wt").create("t1")
+    store.save(Task(id="t1", prompt="p", state=TaskState.AGENT_DONE, worktree=str(worktree), base_sha=base))
+    (worktree / "proj" / "code.py").write_text("changed by the agent")
+    markers = []
+
+    def fix_and_redirect():
+        (worktree / "proj" / "fixed").write_text("ok")
+        markers.append(redirect_to_planted_gitdir(worktree, tmp_path, clone_of=repo))
+
+    result = verify_task("t1", store, project_subdir="proj", test_argv=FIXED_ONLY_IF_FILE, gate_timeout_s=10,
+                         runner=FakeRunner(repo, fix_and_redirect), ledger=ledger, fix_config=CONFIG, cap_usd=10.0,
+                         fix_rounds=1, repo=repo)
+
+    assert (result.state, result.failure_reason) == (TaskState.FAILED, "worktree_mismatch")
+    assert not markers[0].exists()
+
+
+def test_tests_that_rewrite_dot_git_fail_worktree_mismatch_before_a_fixer_runs(repo, store, ledger, tmp_path):
+    (repo / "proj").mkdir()
+    (repo / "proj" / "code.py").write_text("x")
+    git(repo, "add", "proj")
+    git(repo, "commit", "-q", "-m", "project")
+    worktree, base = WorktreeManager(repo, tmp_path / "wt").create("t1")
+    store.save(Task(id="t1", prompt="p", state=TaskState.AGENT_DONE, worktree=str(worktree), base_sha=base))
+    (worktree / "proj" / "code.py").write_text("changed by the agent")
+    runner = FakeRunner(repo)
+
+    result = verify_task("t1", store, project_subdir="proj", gate_timeout_s=10,
+                         test_argv=["sh", "-c", f"echo 'gitdir: {tmp_path}' > {worktree}/.git; exit 1"],
+                         runner=runner, ledger=ledger, fix_config=CONFIG, cap_usd=10.0, fix_rounds=1, repo=repo)
+
+    assert (result.state, result.failure_reason) == (TaskState.FAILED, "worktree_mismatch")
+    assert runner.calls == [] and result.fix_rounds_used == 0

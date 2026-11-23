@@ -14,7 +14,7 @@ from factory.step import ASSUMED_COST_MULTIPLIER, Runner, check_budget
 from factory.store import TaskStore
 from factory.task import Event, Task, apply
 from factory.worktree_clean import clean_worktree
-from factory.worktrees import WorktreeMismatch, run_git, worktree_git
+from factory.worktrees import WorktreeMismatch, worktree_git
 
 _SUCCESS = (OutcomeKind.SUCCESS, OutcomeKind.SUCCESS_WITH_DENIALS)
 FIX_STAGE = "fix"
@@ -61,7 +61,7 @@ def verify_task(
             return _finish(apply(task, Event.GATE_FAILED, reason=result.reason), store)
         task, failure = _fix_round(
             task, result.output or "", store, runner, ledger, fix_config, cap_usd, gate_allow_outside,
-            gate_allow_dependency_changes,
+            gate_allow_dependency_changes, repo,
         )
         if failure is not None:
             return _finish(apply(task, Event.GATE_FAILED, reason=failure), store)
@@ -69,12 +69,15 @@ def verify_task(
 
 def _fix_round(
     task: Task, test_output: str, store: TaskStore, runner: Runner, ledger: Ledger, config: RunnerConfig, cap_usd: float,
-    allow_outside: tuple[str, ...] = (), allow_dependency_changes: bool = False,
+    allow_outside: tuple[str, ...] = (), allow_dependency_changes: bool = False, repo: Path | None = None,
 ) -> tuple[Task, str | None]:
     """One agent run. Returns the updated task and a failure reason, or None when the gate should run again."""
     check_budget(task.id, ledger, config, cap_usd)  # raises with the task untouched: raise the cap and re-advance
-    worktree = Path(task.worktree)
-    head = run_git(worktree, "rev-parse", "HEAD")
+    try:
+        tree = worktree_git(Path(task.worktree), task.id, repo)  # pinned before the agent runs: it may rewrite .git
+    except WorktreeMismatch:
+        return task, "worktree_mismatch"
+    head = tree.git("rev-parse", "HEAD")
     task = replace(task, fix_rounds_used=task.fix_rounds_used + 1, fix_in_flight=True, fix_frozen_sha=head)
     store.save(task)  # before the run: a crash cannot reset the counter, and the marker flags a possible orphan
     prompt = build_fix_prompt(
@@ -89,9 +92,9 @@ def _fix_round(
     store.save(task)
     if called.outcome.kind not in _SUCCESS:
         return task, f"fix_{called.outcome.kind.value}"
-    if run_git(worktree, "rev-parse", "HEAD") != head:
+    if tree.git("rev-parse", "HEAD") != head:
         return task, "fix_moved"
-    if not run_git(worktree, "status", "--porcelain"):
+    if not tree.git("status", "--porcelain"):
         return task, "fix_no_changes"  # the same gate would fail the same way: stop spending
     return task, None
 
