@@ -15,8 +15,9 @@ from factory.review_notes import notes_block
 from factory.step import BudgetCapReached, MissingBudget, RunResult
 from factory.store import TaskStore
 from factory.task import InvalidTransition, Task, TaskState
-from factory.worktrees import run_git
+from factory.worktrees import WorktreeManager, run_git
 from gitutil import git
+from planted_gitdir import redirect_to_planted_gitdir
 
 
 def test_the_audit_prompt_carries_the_required_and_optional_rule_when_the_task_has_notes():
@@ -286,3 +287,21 @@ def test_audit_costs_are_recorded_under_the_audit_stage(verified, store, ledger)
     audit(store, ledger, AuditRunner(verdict_stdout()))
 
     assert [e["stage"] for e in ledger.entries()] == ["audit", "audit"]
+
+
+def test_a_rewritten_dot_git_fails_the_audit_before_its_diff_reaches_an_auditor(repo, store, ledger, tmp_path):
+    (repo / "proj").mkdir()
+    (repo / "proj" / "code.py").write_text("x")
+    git(repo, "add", "proj")
+    git(repo, "commit", "-q", "-m", "project")
+    worktree, base = WorktreeManager(repo, tmp_path / "wt").create("t1")
+    (worktree / "proj" / "code.py").write_text("the real change")
+    git(worktree, "commit", "-q", "-am", "Task t1")
+    store.save(Task(id="t1", prompt="p", state=TaskState.VERIFIED, worktree=str(worktree), base_sha=base))
+    redirect_to_planted_gitdir(worktree, tmp_path, clone_of=repo)  # at base: its diff would show nothing
+    runner = AuditRunner(verdict_stdout())
+
+    task = audit_task("t1", store, ledger, runner, AUDIT_CONFIG, cap_usd=10, project_subdir="proj", repo=repo)
+
+    assert (task.state, task.failure_reason) == (TaskState.FAILED, "worktree_mismatch")
+    assert runner.tasks == []
