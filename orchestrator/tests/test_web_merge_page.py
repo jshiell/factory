@@ -88,6 +88,19 @@ def test_everything_on_the_merge_page_is_escaped(client, audit):
         assert raw not in text
 
 
+def test_the_merge_page_flags_root_tool_config_escaped(client, audit):
+    audit(filename=".claude/<i>x\x1b.json")
+
+    text = client.get(f"/ui/tasks/{TASK_ID}/merge").text
+
+    assert "root tool config" in text
+    assert "<li>.claude/&lt;i&gt;x\\x1b.json</li>" in text and "\x1b" not in text
+
+
+def test_the_merge_page_shows_no_tool_config_note_for_an_ordinary_change(client, audited):
+    assert "root tool config" not in client.get(f"/ui/tasks/{TASK_ID}/merge").text
+
+
 def test_a_task_without_a_goal_shows_its_escaped_prompt_on_the_merge_page(client, audit):
     audit(goal=None, prompt="do <i>this</i>")
 

@@ -500,7 +500,8 @@ async def _merge_page(request: Request) -> HTMLResponse:
         return _wrong_state_page(_MERGE.wrong_state)
     detail = {"id": shown.id, "goal": _safe(shown.goal if shown.goal is not None else shown.prompt)}
     merge = {"branch": _safe(preview.branch), "audited_sha": _safe(shown.audited_sha), "diffstat": _safe(preview.diffstat),
-             "findings": [_safe(finding) for finding in preview.findings]}
+             "findings": [_safe(finding) for finding in preview.findings],
+             "tool_config": [_safe(path) for path in preview.tool_config]}
     return HTMLResponse(_TEMPLATES.get_template("merge_confirm.html").render(task=detail, action=_MERGE, merge=merge))
 
 

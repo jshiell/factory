@@ -27,6 +27,7 @@ def ctx(tmp_path, repo):
 
 def _audit_task(ctx, repo, filename="b.txt", **fields) -> Task:
     worktree, base = WorktreeManager(repo, ctx.settings.worktree_root).create(TASK_ID)
+    (worktree / filename).parent.mkdir(parents=True, exist_ok=True)
     (worktree / filename).write_text("b")
     git(worktree, "add", "-A")
     git(worktree, "commit", "-q", "-m", "Task")

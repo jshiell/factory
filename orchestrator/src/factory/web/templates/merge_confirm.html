@@ -3,6 +3,12 @@
 <p>branch: {{ merge.branch }}</p>
 <p>audited commit: <code>{{ merge.audited_sha }}</code></p>
 <pre>{{ merge.diffstat }}</pre>
+{% if merge.tool_config %}
+<p>root tool config (tools on your machine may read or run these after the merge; review them):</p>
+<ul>
+{% for path in merge.tool_config %}<li>{{ path }}</li>
+{% endfor %}</ul>
+{% endif %}
 {% if merge.findings %}
 <p>audit findings:</p>
 <ul>
