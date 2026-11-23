@@ -1,4 +1,5 @@
 import sys
+from contextlib import suppress
 from pathlib import Path
 
 from factory.client import ServerRefused, ServerUnreachable
@@ -171,7 +172,18 @@ def _count_failed_pass(github, state, state_dir, number: int, self_id: int, home
 
 
 def _give_up(github, state, state_dir, number: int, self_id: int, home: str, last_error: str) -> None:
-    """Stop the issue for good and say so once; the stopped phase is skipped by every later pass."""
+    """Stop the issue for good and say so once; the stopped phase is skipped by every later pass.
+    Nothing escapes: if the comment cannot be posted the issue is stopped silently and the log is the trace."""
+    try:
+        _post_gave_up(github, state, state_dir, number, self_id, home, last_error)
+    except Exception as error:
+        _log_line(f"issue #{number} stopped without a comment", str(error))
+        state.issues[number].phase = Phase.STOPPED
+        with suppress(Exception):  # unsaved, the next pass counts it past the cap again and stops it again
+            save_state(state_dir, state)
+
+
+def _post_gave_up(github, state, state_dir, number: int, self_id: int, home: str, last_error: str) -> None:
     record = state.issues[number]
     sections = [
         ("Stopped", f"The watcher stopped retrying this issue after {GIVE_UP_AFTER} failed passes and no longer acts on reactions to its earlier comments here.", False),
@@ -193,7 +205,11 @@ def _failure_text(failed: dict, home: str) -> str:
 
 def _log_failure(subject: str, text: str) -> None:
     """One escaped line on stderr: gh and server text is not trusted, and a newline would forge a second log line."""
-    print(f"watch: {subject} left for the next pass: {escape_control(text.strip()).replace(chr(10), '\\n')}", file=sys.stderr)
+    _log_line(f"{subject} left for the next pass", text)
+
+
+def _log_line(what: str, text: str) -> None:
+    print(f"watch: {what}: {escape_control(text.strip()).replace(chr(10), '\\n')}", file=sys.stderr)
 
 
 def _handle_issue(github, server, state, state_dir, issue: Issue, options: Options, self_id: int, merge: bool, retry: bool) -> None:

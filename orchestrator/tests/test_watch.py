@@ -2005,6 +2005,20 @@ def test_the_failed_pass_that_reaches_the_cap_posts_one_gave_up_comment_and_stop
     assert (record.phase, record.result_comment_id) == (Phase.STOPPED, 1)
 
 
+def test_a_failed_stop_post_still_stops_and_saves_the_issue_and_logs_one_escaped_line(tmp_path, capsys):
+    failing_issue_state(tmp_path, {5: 19})
+    github = FlakyGitHub([raw_issue(number=5)])
+    github.failures_left = 1
+    server = FailingServer(ServerRefused(409, "refused", "busy"))
+
+    pass_over(tmp_path, [], server=server, github=github)
+
+    assert github.comments_posted == []
+    assert load_state(tmp_path).issues[5].phase is Phase.STOPPED
+    [stop_line] = [line for line in capsys.readouterr().err.splitlines() if "stop" in line]
+    assert "issue #5" in stop_line and "boom" in stop_line
+
+
 def test_a_stopped_issue_makes_no_server_or_comment_call_on_later_passes(tmp_path):
     failing_issue_state(tmp_path, {5: 19})
     github = FakeGitHub([raw_issue(number=5)])
