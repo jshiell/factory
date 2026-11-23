@@ -273,7 +273,8 @@ def _build_app(ctx) -> Starlette:
         except (subprocess.CalledProcessError, OSError):
             raise ApiError(409, "merge check failed", MERGE_CHECK_FAILED) from None
         return AsciiJSONResponse({"branch": preview.branch, "audited_sha": preview.task.audited_sha,
-                             "diffstat": preview.diffstat, "findings": list(preview.findings)})
+                             "diffstat": preview.diffstat, "findings": list(preview.findings),
+                             "tool_config": list(preview.tool_config)})
 
     async def merge(request: Request) -> AsciiJSONResponse:
         task_id = request.path_params["task_id"]

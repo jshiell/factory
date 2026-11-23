@@ -53,6 +53,18 @@ def test_merge_preview_shows_branch_diffstat_findings_and_the_audited_sha(client
     assert body["findings"] == ["looks fine"]
 
 
+def test_merge_preview_lists_the_root_tool_config_the_merge_touches(client, ctx, repo):
+    worktree, base = WorktreeManager(repo, ctx.settings.worktree_root).create("t2")
+    (worktree / ".mcp.json").write_text("{}")
+    (worktree / "b.txt").write_text("b")
+    git(worktree, "add", "-A")
+    git(worktree, "commit", "-q", "-m", "Task t2")
+    ctx.store.save(Task(id="t2", prompt="p", state=TaskState.AUDITED, worktree=str(worktree), base_sha=base,
+                        audited_sha=git(worktree, "rev-parse", "HEAD")))
+
+    assert client.get("/tasks/t2/merge-preview").json()["tool_config"] == [".mcp.json"]
+
+
 def test_merge_preview_of_a_task_that_is_not_audited_is_409(client, ctx, audited):
     ctx.store.save(replace(audited, state=TaskState.VERIFIED))
 
