@@ -61,7 +61,7 @@ def linked_git_dir(repo: Path, task_id: str, worktree: Path) -> Path:
 
 
 def worktree_git(worktree: Path, task_id: str, repo: Path | None) -> WorktreeGit:
-    """Pinned to the admin dir `repo` made for the task (raises WorktreeMismatch); without a repo, git discovers it as before."""
+    """Pinned to the admin dir `repo` made for the task (raises WorktreeMismatch); without a repo (eval audit, unit tests), git discovers it as before and a rewritten root `.git` goes unchecked."""
     return WorktreeGit(worktree, None if repo is None else linked_git_dir(repo, task_id, worktree))
 
 

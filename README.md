@@ -368,7 +368,8 @@ flowchart TB
 - **The gate is a clean checkout.** Before the tests run, the worktree is committed and cleaned (`git clean -ffdx`), so only
   committed files can influence the result. Git itself is run with `fsmonitor`, hooks and submodule tricks disabled, and a nested
   `.git` anywhere in the worktree is refused. The worktree's own `.git` file is never trusted: every factory git call on a task
-  names the expected git-dir and work-tree itself, and a `.git` that points elsewhere fails `worktree_mismatch`.
+  names the expected git-dir and work-tree itself, and a `.git` that points elsewhere fails `worktree_mismatch`. Only the eval
+  audit and unit tests run unpinned (`repo` is `None`): git then finds its own git-dir, so a rewritten root `.git` goes unchecked.
 - **The factory's git ignores your git config.** An agent can write a `.gitattributes` that selects a filter, textconv or
   merge driver your own config defines (git-lfs, say), and the factory's `git add -A` or `status` would run it (measured with
   fixture drivers, `spike/git_hardening_probe.py`). So every git call the factory makes reads no global or system git config and drops
