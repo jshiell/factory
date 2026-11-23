@@ -166,6 +166,13 @@ def _clean(args, io, ctx) -> int:
     return 1 if skipped or any(o["problems"] for o in result["outcomes"]) else 0
 
 
+TOOL_CONFIG_HEADING = "ROOT TOOL CONFIG (tools on your machine may read or run these after the merge; review them):"
+
+
+def _tool_config_lines(paths: list[str]) -> list[str]:
+    return [TOOL_CONFIG_HEADING] + [f"  - {path}" for path in paths] if paths else []
+
+
 def _merge(args, io, ctx) -> int:
     task = task_from_dict(ctx.server.get(_task_path(args.task_id)))
     if not io.stdin.isatty():
@@ -182,8 +189,9 @@ def _merge(args, io, ctx) -> int:
         print(escape_control(f"merge refused: {refused.detail}"), file=io.stderr)
         return 1
     shown = "\n".join([f"MERGE {task.id}: fast-forward main to {preview['audited_sha']}",
-                       f"branch: {preview['branch']}", "CHANGES:", preview["diffstat"], "AUDIT FINDINGS:"]
-                      + [f"  - {f}" for f in preview["findings"]])
+                       f"branch: {preview['branch']}", "CHANGES:", preview["diffstat"]]
+                      + _tool_config_lines(preview["tool_config"])
+                      + ["AUDIT FINDINGS:"] + [f"  - {f}" for f in preview["findings"]])
     print(escape_control(shown), file=io.stdout)
     print("Merge? [y/N] ", end="", file=io.stdout)
     io.stdout.flush()

@@ -476,6 +476,25 @@ def test_merge_shows_branch_diffstat_and_findings_escaped_then_merges_the_shown_
     assert args[0] == "t1" and kwargs["shown_sha"] == "abc123"
 
 
+def test_merge_flags_root_tool_config_escaped_after_the_changes(ctx, merge_spy, monkeypatch):
+    from factory.merge_task import Preview
+    task = Task(id="t1", prompt="", state=S.AUDITED, audited_sha="abc123")
+    preview = Preview(task, "factory/t1", " .mcp.json | 1 +", (), (".mcp.json", ".claude/evil\x1b[2J"))
+    monkeypatch.setattr("factory.server.merge_preview", lambda *a, **k: preview)
+
+    _, out, _ = run(ctx, "merge", "t1", stdin="n\n")
+
+    changes, flagged = out.split("ROOT TOOL CONFIG", 1)
+    assert "CHANGES:" in changes and "AUDIT FINDINGS:" in flagged
+    assert "  - .mcp.json\n" in flagged and "  - .claude/evil\\x1b[2J\n" in flagged
+
+
+def test_merge_shows_no_tool_config_heading_when_none_is_touched(ctx, merge_spy):
+    _, out, _ = run(ctx, "merge", "t1", stdin="n\n")
+
+    assert "ROOT TOOL CONFIG" not in out
+
+
 @pytest.mark.parametrize("answer", ["", "n\n", "yes\n"])
 def test_anything_but_y_does_not_merge(ctx, merge_spy, answer):
     code, _, _ = run(ctx, "merge", "t1", stdin=answer)
