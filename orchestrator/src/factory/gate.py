@@ -36,11 +36,15 @@ def commit_all(worktree: Path, message: str, git_dir: Path | None = None) -> boo
 
 
 def has_nested_repo(worktree: Path, project_subdir: str) -> bool:
-    """A `.git` file or directory anywhere under the project: agent-controlled config git must never read."""
-    for _, dirnames, filenames in os.walk(_resolve_inside(worktree, project_subdir)):
-        if ".git" in dirnames or ".git" in filenames:
-            return True
-    return False
+    """A `.git` file or directory anywhere below the worktree root: agent-controlled config git must never read.
+    The root `.git` is the worktree's own; the caller has already checked it names the expected gitdir."""
+    _resolve_inside(worktree, project_subdir)  # refuse an escaping subdir before anything is committed
+    walk = os.walk(worktree)
+    for _, root_dirnames, _ in walk:
+        if ".git" in root_dirnames:
+            root_dirnames.remove(".git")  # never descend into the worktree's own git directory
+        break
+    return any(".git" in dirnames or ".git" in filenames for _, dirnames, filenames in walk)
 
 
 class ProjectSubdirEscapes(Exception):

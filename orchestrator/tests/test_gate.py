@@ -2,7 +2,7 @@ import stat
 
 import pytest
 
-from factory.gate import ProjectSubdirEscapes, check_gate, commit_all
+from factory.gate import ProjectSubdirEscapes, check_gate, commit_all, has_nested_repo
 from gitutil import git
 
 
@@ -1197,3 +1197,22 @@ def test_a_project_subdir_resolving_into_the_factory_dir_is_rejected(repo, subdi
 
     with pytest.raises(ProjectSubdirEscapes):
         gate(repo, base, project_subdir=subdir)
+
+
+@pytest.mark.parametrize("form", ["directory", "gitfile"])
+def test_a_nested_repo_outside_the_project_is_found(repo, form):
+    (repo / "proj").mkdir()
+    nested = repo / "docs" / "x"
+    nested.mkdir(parents=True)
+    if form == "directory":
+        (nested / ".git").mkdir()
+    else:
+        (nested / ".git").write_text("gitdir: /tmp/elsewhere\n")
+
+    assert has_nested_repo(repo, "proj") is True
+
+
+def test_guard_the_worktree_s_own_git_is_not_a_nested_repo(repo):
+    (repo / "proj").mkdir()
+
+    assert has_nested_repo(repo, "proj") is False
