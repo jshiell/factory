@@ -2042,6 +2042,32 @@ def test_guard_a_retry_offer_whose_comment_was_deleted_stops_after_20_passes_and
     assert server.retry_requests == [] and thumbs_up.comments_posted == []
 
 
+def test_guard_an_earlier_gave_up_comment_is_adopted_not_posted_twice(tmp_path):
+    failing_issue_state(tmp_path, {5: 19})
+    earlier = Comment(9, "<!-- factory:task=t-1:kind=gave-up -->\n\nStopped", 4242, "factory-bot")
+    github = FakeGitHub([raw_issue(number=5)], comments={5: [earlier]})
+
+    pass_over(tmp_path, [], server=FailingServer(GitHubError("boom")), github=github)
+
+    record = load_state(tmp_path).issues[5]
+    assert github.comments_posted == [] and (record.phase, record.result_comment_id) == (Phase.STOPPED, 9)
+
+
+def test_guard_a_success_between_failures_restarts_the_count_so_19_and_19_do_not_stop(tmp_path):
+    failing_issue_state(tmp_path)
+    github = FakeGitHub([raw_issue(number=5)])
+    failing = FailingServer(GitHubError("boom"))
+
+    for _ in range(19):
+        pass_over(tmp_path, [], server=failing, github=github)
+    pass_over(tmp_path, [], server=FakeServer(advance_result=REVIEWED, approval=APPROVAL), github=github)
+    for _ in range(19):
+        pass_over(tmp_path, [], server=failing, github=github)
+
+    assert load_state(tmp_path).issues[5].phase is Phase.AWAITING_APPROVAL
+    assert len(github.comments_posted) == 1  # the plan comment only
+
+
 def test_a_stopped_issue_makes_no_server_or_comment_call_on_later_passes(tmp_path):
     failing_issue_state(tmp_path, {5: 19})
     github = FakeGitHub([raw_issue(number=5)])
