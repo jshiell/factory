@@ -1141,3 +1141,13 @@ def test_guard_a_factory_toml_below_the_root_is_an_ordinary_file(repo):
     commit_root_file(repo, "proj/factory.toml", "x\n")
 
     assert gate(repo, base).passed is True
+
+
+@pytest.mark.parametrize("path", [
+    ".gitattributes", ".gitmodules", "proj/.gitattributes", "proj/sub/.GitModules", "docs/.GITATTRIBUTES",
+])
+def test_a_gitattributes_or_gitmodules_at_any_depth_fails_outside_project(repo, path):
+    base = repo_with_project_change(repo)
+    commit_root_file(repo, path, "x\n")
+
+    assert check_gate(repo, base, "proj", ["true"], 10, allow_outside=(".gitattributes", ".gitmodules", "docs")).reason == "outside_project"
