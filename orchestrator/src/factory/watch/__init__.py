@@ -2,7 +2,7 @@ import sys
 from pathlib import Path
 
 from factory.client import ServerRefused, ServerUnreachable
-from factory.comments import strip_home
+from factory.comments import render_comment, strip_home
 from factory.github import GitHubError
 from factory.ids import require_safe_id
 from factory.textsafe import escape_control
@@ -20,7 +20,7 @@ from factory.watch.planning import (
     _post_plan,
     _post_questions,
 )
-from factory.watch.posting import _post_final
+from factory.watch.posting import _post_final, _post_result
 from factory.watch.progress import Progress
 from factory.watch.retrying import _post_failure, _retry_on_thumbs_up
 from factory.watch.state import IssueRecord, Phase, _utc_now, load_state, save_state
@@ -130,6 +130,8 @@ def _advance(server, task_id: str) -> dict | None:
 
 
 
+GIVE_UP_AFTER = 20  # consecutive failed passes; about 20 minutes at the default 60 second interval
+
 _APPROVED_STATES = {"queued", "running", "agent_done", "verified"}  # the task was approved, here or at the terminal
 
 
@@ -149,20 +151,35 @@ def run_pass(github, server, state_dir, approver_ids: set[int], clock=_utc_now, 
             _handle_issue(github, server, state, state_dir, issue, options, self_id, merge, retry)
         except GitHubError as error:
             _log_failure(f"issue #{issue.number}", error.stderr)
-            _count_failed_pass(state, state_dir, issue.number)
+            _count_failed_pass(github, state, state_dir, issue.number, self_id, options.home, error.stderr)
         except ServerRefused as error:
             _log_failure(f"issue #{issue.number}", str(error))
-            _count_failed_pass(state, state_dir, issue.number)
+            _count_failed_pass(github, state, state_dir, issue.number, self_id, options.home, str(error))
         except ServerUnreachable as error:
             _log_failure(f"issue #{issue.number}", str(error))
         else:
             _reset_failed_passes(state, state_dir, issue.number)
 
 
-def _count_failed_pass(state, state_dir, number: int) -> None:
-    if number in state.issues:
-        state.failed_passes[number] = state.failed_passes.get(number, 0) + 1
-        save_state(state_dir, state)
+def _count_failed_pass(github, state, state_dir, number: int, self_id: int, home: str, last_error: str) -> None:
+    if number not in state.issues:
+        return
+    state.failed_passes[number] = state.failed_passes.get(number, 0) + 1
+    save_state(state_dir, state)
+    if state.failed_passes[number] >= GIVE_UP_AFTER:
+        _give_up(github, state, state_dir, number, self_id, home, last_error)
+
+
+def _give_up(github, state, state_dir, number: int, self_id: int, home: str, last_error: str) -> None:
+    """Stop the issue for good and say so once; the stopped phase is skipped by every later pass."""
+    record = state.issues[number]
+    sections = [
+        ("Stopped", f"The watcher stopped retrying this issue after {GIVE_UP_AFTER} failed passes and no longer acts on reactions to its earlier comments here.", False),
+        ("Last error", escape_control(strip_home(last_error, home).strip()), True),
+        ("Next", f"Inspect the task at the terminal: factory show {require_safe_id(record.task_id)}", False),
+    ]
+    body = render_comment(record.task_id, "gave-up", sections)
+    _post_result(IssueThread(github, number, self_id), Progress(state, state_dir, record), "gave-up", Phase.STOPPED, body)
 
 
 def _reset_failed_passes(state, state_dir, number: int) -> None:

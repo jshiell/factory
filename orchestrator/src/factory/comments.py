@@ -2,7 +2,7 @@ import re
 
 from factory.ids import InvalidTaskId, require_safe_id
 
-KINDS = ("plan", "result", "rejected", "changed", "questions", "merge", "merge-refused", "merge-changed", "merge-moved", "rebase-refused", "merged", "not-merged", "retry-offer", "not-retried", "retry-refused")
+KINDS = ("plan", "result", "rejected", "changed", "questions", "merge", "merge-refused", "merge-changed", "merge-moved", "rebase-refused", "merged", "not-merged", "retry-offer", "not-retried", "retry-refused", "gave-up")
 
 # Budget for the whole rendered comment (marker, headings, fences, text, notes).
 # GitHub's limit is 65,536; the margin absorbs anything the accounting misses.

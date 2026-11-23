@@ -1991,6 +1991,31 @@ def test_a_failed_pass_adds_one_to_the_issues_count_and_saves_it(tmp_path, error
     assert load_state(tmp_path).failed_passes == {5: 3}
 
 
+def test_the_failed_pass_that_reaches_the_cap_posts_one_gave_up_comment_and_stops_the_issue(tmp_path):
+    failing_issue_state(tmp_path, {5: 19})
+    github = FakeGitHub([raw_issue(number=5)])
+
+    pass_over(tmp_path, [], server=FailingServer(ServerRefused(409, "refused", "task is busy")), github=github)
+
+    [(issue_number, body)] = github.comments_posted
+    assert issue_number == 5
+    assert body.startswith("<!-- factory:task=t-1:kind=gave-up -->")
+    assert "20" in body and "task is busy" in body and "factory show t-1" in body and "reactions" in body
+    record = load_state(tmp_path).issues[5]
+    assert (record.phase, record.result_comment_id) == (Phase.STOPPED, 1)
+
+
+def test_a_stopped_issue_makes_no_server_or_comment_call_on_later_passes(tmp_path):
+    failing_issue_state(tmp_path, {5: 19})
+    github = FakeGitHub([raw_issue(number=5)])
+    pass_over(tmp_path, [], server=FailingServer(GitHubError("boom")), github=github)
+    fetched_before = list(github.comments_fetched)
+
+    pass_over(tmp_path, [], server=FailingServer(AssertionError("no server call wanted")), github=github)
+
+    assert len(github.comments_posted) == 1 and github.comments_fetched == fetched_before
+
+
 def test_guard_an_unreachable_server_neither_counts_nor_resets(tmp_path):
     failing_issue_state(tmp_path, {5: 2})
 
