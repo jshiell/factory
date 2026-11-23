@@ -86,9 +86,13 @@ GITHUB_LOGIN = re.compile(r"(?!.{40})[A-Za-z0-9]+(-[A-Za-z0-9]+)*")
 _KNOWN =_PATH_KEYS + _STRING_KEYS + _PROMPT_KEYS + ("stage_prompts", "stage_plugins") + _FLOAT_KEYS + _STRING_LIST_KEYS + _INT_KEYS + _BOOL_KEYS
 
 
+PROJECT_CONFIG = Path(".factory") / "factory.toml"
+
+
 def load_settings(path: Path | None, cwd: Path) -> Settings:
-    if path is None and (cwd / "factory.toml").exists():
-        path = cwd / "factory.toml"
+    toplevel = _toplevel_or_none(cwd)
+    if path is None and toplevel is not None and (toplevel / PROJECT_CONFIG).exists():
+        path = toplevel / PROJECT_CONFIG
     global_path = _usable_global_config_path()
     global_layer = _global_layer(global_path) if global_path and global_path.exists() else {}
     typed = _merged(global_layer, {} if path is None else _layer(path))
@@ -372,10 +376,15 @@ def _normalised_entry(entry: str, project: PurePosixPath, protected: set[str]) -
 
 
 def _git_toplevel(cwd: Path) -> Path:
+    toplevel = _toplevel_or_none(cwd)
+    if toplevel is None:
+        raise SettingsError("repo not set and the current directory is not in a git repository")
+    return toplevel
+
+
+def _toplevel_or_none(cwd: Path) -> Path | None:
     completed = subprocess.run(
         ["git", "rev-parse", "--show-toplevel"], cwd=cwd, capture_output=True, text=True,
         stdin=subprocess.DEVNULL,
     )
-    if completed.returncode != 0:
-        raise SettingsError("repo not set and the current directory is not in a git repository")
-    return Path(completed.stdout.strip())
+    return Path(completed.stdout.strip()) if completed.returncode == 0 else None

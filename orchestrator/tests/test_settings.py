@@ -53,6 +53,16 @@ def test_factory_toml_in_the_cwd_is_used_when_no_path_is_given(repo_dir):
     assert (settings.cap_usd, settings.project_subdir) == (9.0, "app")
 
 
+def test_the_project_config_is_read_from_dot_factory_in_the_git_toplevel(repo_dir):
+    (repo_dir / ".factory").mkdir()
+    (repo_dir / ".factory" / "factory.toml").write_text("cap_usd = 7\n")
+    (repo_dir / "sub").mkdir()
+
+    settings = load_settings(None, cwd=repo_dir / "sub")
+
+    assert settings.cap_usd == 7.0
+
+
 def test_only_repo_state_and_worktree_paths_resolve_against_the_config_directory(tmp_path, repo_dir):
     config_dir = tmp_path / "cfg"
     config_dir.mkdir()
