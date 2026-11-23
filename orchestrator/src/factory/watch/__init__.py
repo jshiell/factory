@@ -217,6 +217,7 @@ def _handle_issue(github, server, state, state_dir, issue: Issue, options: Optio
     if issue.number not in state.issues:
         task_id = server.post("/tasks", {"goal": _goal(issue)})["id"]
         state.issues[issue.number] = IssueRecord(task_id)
+        state.failed_passes.pop(issue.number, None)
         save_state(state_dir, state)
     record = state.issues[issue.number]
     progress = Progress(state, state_dir, record)

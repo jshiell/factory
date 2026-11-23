@@ -2114,3 +2114,14 @@ def test_guard_a_pass_starting_above_the_cap_that_fails_again_stops_the_issue_wi
 
     assert len(github.comments_posted) == 1
     assert load_state(tmp_path).issues[5].phase is Phase.STOPPED
+
+
+def test_a_recreated_record_starts_its_failed_pass_count_from_zero(tmp_path):
+    save_state(tmp_path, WatchState(watching_since=SINCE, failed_passes={5: 20}))
+    github = FakeGitHub([raw_issue(number=5)])
+
+    pass_over(tmp_path, [], server=FailingServer(GitHubError("boom")), github=github)
+
+    assert github.comments_posted == []
+    state = load_state(tmp_path)
+    assert (state.issues[5].phase, state.failed_passes) == (Phase.NEW, {5: 1})
