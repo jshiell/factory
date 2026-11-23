@@ -92,7 +92,7 @@ def check_gate(
             return GateResult(False, "not_descendant")
         if _tests_changed_since(worktree, frozen_sha, test_globs):
             return GateResult(False, "tests_modified")
-    if _changed_outside_project(worktree, base_sha, project_dir, allow_outside) or _link_added(worktree, base_sha):
+    if _link_added(worktree, base_sha):
         return GateResult(False, "outside_project")
     try:
         ran = run_to_exit([*test_prefix, *test_argv], project_dir, env, timeout_s, capture_limit, tracker)
@@ -110,19 +110,6 @@ def _forbidden_changed(worktree: Path, base_sha: str) -> bool:
         worktree, "diff", "--name-only", "--no-renames", "--ignore-submodules=none", base_sha, "HEAD",
         "--", *_FORBIDDEN_PATHSPECS,
     ))
-
-
-def _changed_outside_project(
-    worktree: Path, base_sha: str, project_dir: Path, allow_outside: tuple[str, ...] = ()
-) -> bool:
-    """Anything beyond the project (root config, `uv.toml`, `sitecustomize.py`, a gitlink) can change what the tests run."""
-    inside = project_dir.relative_to(worktree.resolve()).as_posix()
-    allowed = [f":(top,exclude,literal){entry}" for entry in allow_outside]
-    changed = run_git(
-        worktree, "diff", "--name-only", "--no-renames", "--ignore-submodules=none", base_sha, "HEAD",
-        "--", ".", f":(top,exclude,literal){inside}", *allowed,
-    )
-    return bool(changed)
 
 
 def _link_added(worktree: Path, base_sha: str) -> bool:

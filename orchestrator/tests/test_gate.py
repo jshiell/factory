@@ -861,7 +861,7 @@ def test_guard_an_unrelated_root_change_beside_a_project_change_passes(repo):
     base = repo_with_project_change(repo)
     commit_root_file(repo, "README.md", "hello\n")
 
-    assert gate(repo, base).reason == "outside_project"
+    assert gate(repo, base).passed is True
 
 
 def test_guard_the_protected_names_override_applies_repo_wide(repo):
@@ -872,7 +872,7 @@ def test_guard_the_protected_names_override_applies_repo_wide(repo):
 
     git(repo, "reset", "-q", "--hard", "HEAD~1")
     commit_root_file(repo, "pytest.ini", "x\n")
-    assert check_gate(repo, base, "proj", ["true"], 5, **custom).reason == "outside_project"
+    assert check_gate(repo, base, "proj", ["true"], 5, **custom).passed is True
 
 
 ROOT_PYPROJECT = '[project]\nname = "r"\n\n[tool.pytest.ini_options]\naddopts = "-q"\n'
@@ -890,7 +890,7 @@ def test_guard_a_root_pyproject_change_outside_the_pytest_table_passes(repo):
     base = repo_with_project_change(repo)
     commit_root_file(repo, "pyproject.toml", ROOT_PYPROJECT.replace('name = "r"', 'name = "renamed"'))
 
-    assert gate(repo, base).reason == "outside_project"
+    assert gate(repo, base).passed is True
 
 
 def test_a_pytest_table_change_in_a_parent_of_a_nested_project_fails_tests_modified(repo):
@@ -911,7 +911,7 @@ def test_guard_a_pytest_table_change_in_a_sibling_directory_passes(repo):
     base = repo_with_project_change(repo)
     commit_root_file(repo, "c/pyproject.toml", ROOT_PYPROJECT)
 
-    assert gate(repo, base).reason == "outside_project"
+    assert gate(repo, base).passed is True
 
 
 @pytest.mark.parametrize("subdir", ["./proj", "proj/"])
@@ -930,13 +930,13 @@ def test_a_gitlink_added_outside_the_project_fails_outside_project(repo):
     assert gate(repo, base).reason == "outside_project"
 
 
-# Guards (start green): the outside-project boundary.
+# Plan 87: the whole repo is editable, except the fixed names.
 @pytest.mark.parametrize("path", ["proj2/x.py", "proj.txt", "docs/note.md", "sitecustomize.py", ".env"])
-def test_guard_any_path_outside_the_project_fails_outside_project(repo, path):
+def test_guard_any_path_outside_the_project_passes(repo, path):
     base = repo_with_project_change(repo)
     commit_root_file(repo, path, "x\n")
 
-    assert gate(repo, base).reason == "outside_project"
+    assert gate(repo, base).passed is True
 
 
 @pytest.mark.parametrize("name", ["uv.toml", ".python-version", ".python-versions"])
@@ -955,33 +955,33 @@ def test_a_differently_cased_protected_name_fails_tests_modified(repo, name):
     assert gate(repo, base).reason == "tests_modified"
 
 
-def test_guard_moving_a_file_out_of_the_project_fails_outside_project(repo):
+def test_guard_moving_a_file_out_of_the_project_passes(repo):
     base = repo_with_project_change(repo)
     git(repo, "mv", "proj/code.py", "moved.py")
     commit_project_edit(repo, "other.py", "z")
 
-    assert gate(repo, base).reason == "outside_project"
+    assert gate(repo, base).passed is True
 
 
-def test_guard_deleting_a_file_outside_the_project_fails_outside_project(repo):
+def test_guard_deleting_a_file_outside_the_project_passes(repo):
     commit_root_file(repo, "notes.txt", "x\n")
     base = repo_with_project_change(repo)
     git(repo, "rm", "-q", "notes.txt")
     git(repo, "commit", "-q", "-m", "delete")
 
-    assert gate(repo, base).reason == "outside_project"
+    assert gate(repo, base).passed is True
 
 
 @pytest.mark.parametrize("subdir", ["./proj", "proj/"])
-def test_guard_an_unnormalised_subdir_still_allows_project_only_changes_and_refuses_others(repo, subdir):
+def test_guard_an_unnormalised_subdir_allows_project_and_outside_changes(repo, subdir):
     base = repo_with_project_change(repo)
     assert check_gate(repo, base, subdir, ["true"], 5).passed is True
 
     commit_root_file(repo, "README.md", "x\n")
-    assert check_gate(repo, base, subdir, ["true"], 5).reason == "outside_project"
+    assert check_gate(repo, base, subdir, ["true"], 5).passed is True
 
 
-def test_guard_a_nested_project_refuses_a_change_beside_it(repo):
+def test_guard_a_nested_project_allows_a_change_beside_it(repo):
     (repo / "a" / "b").mkdir(parents=True)
     (repo / "a" / "b" / "code.py").write_text("x")
     git(repo, "add", "-A")
@@ -995,7 +995,7 @@ def test_guard_a_nested_project_refuses_a_change_beside_it(repo):
     (repo / "a" / "other.py").write_text("z")
     git(repo, "add", "-A")
     git(repo, "commit", "-q", "-m", "beside")
-    assert check_gate(repo, base, "a/b", ["true"], 5).reason == "outside_project"
+    assert check_gate(repo, base, "a/b", ["true"], 5).passed is True
 
 
 # gate_allow_outside (plan 50)
@@ -1083,23 +1083,23 @@ def test_guard_a_protected_file_alone_under_an_allowed_directory_fails_tests_mod
     assert result.reason == "tests_modified"
 
 
-def test_guard_a_listed_directory_covers_nested_files_but_not_a_prefix_sibling(repo):
+def test_guard_a_listed_directory_covers_nested_files_and_a_prefix_sibling_passes_too(repo):
     base = repo_with_project_change(repo)
     commit_root_file(repo, "docs/guide/a.md", "a\n")
     assert check_gate(repo, base, "proj", ["true"], 10, allow_outside=("docs",)).passed is True
 
     commit_root_file(repo, "docs2/x.md", "x\n")
-    assert check_gate(repo, base, "proj", ["true"], 10, allow_outside=("docs",)).reason == "outside_project"
+    assert check_gate(repo, base, "proj", ["true"], 10, allow_outside=("docs",)).passed is True
 
 
-def test_guard_an_unlisted_root_file_beside_a_listed_one_fails_outside_project(repo):
+def test_guard_an_unlisted_root_file_beside_a_listed_one_passes(repo):
     base = repo_with_project_change(repo)
     commit_root_file(repo, "README.md", "hello\n")
     commit_root_file(repo, "LICENSE", "mit\n")
 
     result = check_gate(repo, base, "proj", ["true"], 10, allow_outside=("README.md",))
 
-    assert result.reason == "outside_project"
+    assert result.passed is True
 
 
 # Plan 87: the editable area is the repo except `.factory/` and a few fixed names.
