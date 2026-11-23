@@ -807,48 +807,17 @@ def test_watch_merge_is_off_by_default_and_comes_from_the_config(repo_dir):
     assert load_settings(None, cwd=repo_dir).watch_merge is True
 
 
-def test_gate_allow_outside_defaults_to_none_and_the_local_list_replaces_the_global_one(repo_dir, global_config):
-    assert load_settings(None, cwd=repo_dir).gate_allow_outside == ()
-    global_config.write_text('project_subdir = "target"\ngate_allow_outside = ["README.md", "docs"]\n')
-    assert load_settings(None, cwd=repo_dir).gate_allow_outside == ("README.md", "docs")
-    write_config(repo_dir, 'project_subdir = "target"\ngate_allow_outside = ["LICENSE"]\n')
+@pytest.mark.parametrize("where", ["project", "global"])
+def test_gate_allow_outside_is_refused_naming_the_file_and_why(repo_dir, global_config, where):
+    path = write_config(repo_dir, 'gate_allow_outside = ["README.md"]\n') if where == "project" else global_config
+    global_config.write_text('gate_allow_outside = ["README.md"]\n' if where == "global" else "")
 
-    assert load_settings(None, cwd=repo_dir).gate_allow_outside == ("LICENSE",)
-
-
-@pytest.mark.parametrize(
-    "entry",
-    [
-        "/x", "../x", "a/../b", "a/*.md", "a?", "a[1]", ":(top)x", "", ".", "proj", "./proj", "proj/sub", "proj/sub/x",
-        "uv.toml", "UV.toml", "docs/uv.toml", "uv.lock", ".gitattributes", ".gitmodules", "x/.git/y", ".git",
-        "conftest.py", "docs/pytest.ini",
-    ],
-)
-def test_a_bad_gate_allow_outside_entry_is_rejected_naming_the_key(repo_dir, entry):
-    write_config(repo_dir, f'project_subdir = "proj/sub"\ngate_allow_outside = ["{entry}"]\n')
-
-    with pytest.raises(SettingsError, match="gate_allow_outside"):
+    with pytest.raises(SettingsError) as raised:
         load_settings(None, cwd=repo_dir)
 
-
-@pytest.mark.parametrize("toml", ["[]", '["a", "a"]', '["a", "a/"]', '["docs", "docs/"]'])
-def test_an_empty_or_duplicated_gate_allow_outside_list_is_rejected(repo_dir, toml):
-    write_config(repo_dir, f"gate_allow_outside = {toml}\n")
-
-    with pytest.raises(SettingsError, match="gate_allow_outside"):
-        load_settings(None, cwd=repo_dir)
-
-
-def test_a_trailing_slash_is_normalised_and_a_global_list_is_checked_against_the_local_project_subdir(
-    repo_dir, global_config
-):
-    global_config.write_text('gate_allow_outside = ["docs/", "proj"]\n')
-    write_config(repo_dir, 'project_subdir = "other"\n')
-    assert load_settings(None, cwd=repo_dir).gate_allow_outside == ("docs", "proj")
-    write_config(repo_dir, 'project_subdir = "proj"\n')
-
-    with pytest.raises(SettingsError, match="gate_allow_outside"):
-        load_settings(None, cwd=repo_dir)
+    message = str(raised.value)
+    assert "gate_allow_outside" in message and str(path) in message
+    assert "whole repo" in message and ".factory" in message
 
 
 @pytest.mark.parametrize("subdir", [".", "./"])
@@ -863,14 +832,6 @@ def test_project_subdir_in_the_factory_dir_is_rejected(repo_dir, subdir):
     write_config(repo_dir, f'project_subdir = "{subdir}"\n')
 
     with pytest.raises(SettingsError, match=r"project_subdir.*\.factory"):
-        load_settings(None, cwd=repo_dir)
-
-
-def test_a_global_entry_that_is_an_ancestor_of_the_local_project_subdir_is_rejected(repo_dir, global_config):
-    global_config.write_text('gate_allow_outside = ["a"]\n')
-    write_config(repo_dir, 'project_subdir = "a/b"\n')
-
-    with pytest.raises(SettingsError, match="gate_allow_outside"):
         load_settings(None, cwd=repo_dir)
 
 

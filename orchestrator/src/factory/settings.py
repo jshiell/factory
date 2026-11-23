@@ -7,7 +7,7 @@ import tomllib
 from dataclasses import dataclass, field, replace
 from pathlib import Path, PurePosixPath
 
-from factory.gate import DEFAULT_PROTECTED_NAMES, in_factory_dir
+from factory.gate import in_factory_dir
 from factory.harness import DEFAULT_HARNESS, HARNESSES
 from factory.sandbox import DEFAULT_SANDBOX, SANDBOXES
 
@@ -80,7 +80,7 @@ _STRING_KEYS = ("project_subdir", "claude_executable", "sandbox_executable", "mo
 _PROMPT_KEYS = ("append_system_prompt",)
 _STAGES = ("plan", "review", "implement", "audit")
 _FLOAT_KEYS = ("cap_usd", "gate_timeout_s", "runner_timeout_s", "budget_usd")
-_STRING_LIST_KEYS = ("test_argv", "allowed_tools", "plugins", "watch_approvers", "gate_allow_outside", "server_allowed_hosts")
+_STRING_LIST_KEYS = ("test_argv", "allowed_tools", "plugins", "watch_approvers", "server_allowed_hosts")
 _INT_KEYS = ("max_turns", "fix_rounds", "server_port", "grill_max_rounds")
 _BOOL_KEYS = ("grill", "watch_merge", "watch_retry", "gate_allow_dependency_changes")
 GITHUB_LOGIN = re.compile(r"(?!.{40})[A-Za-z0-9]+(-[A-Za-z0-9]+)*")
@@ -123,7 +123,7 @@ def load_settings(path: Path | None, cwd: Path) -> Settings:
     if settings.server_host not in BIND_HOSTS:
         raise SettingsError(f"server_host {settings.server_host!r} is unknown; known: {', '.join(BIND_HOSTS)}")
     _check_allowed_hosts(settings.server_allowed_hosts)
-    return replace(settings, gate_allow_outside=_checked_allow_outside(settings))
+    return settings
 
 
 def _project_subdir_warnings(repo: Path, typed: dict) -> tuple[str, ...]:
@@ -211,6 +211,11 @@ def _layer(path: Path, per_repo_allowed: bool = True) -> dict:
     values = _read(path)
     if not per_repo_allowed and (misplaced := sorted(set(values) & set(_PER_REPO_KEYS))):
         raise SettingsError(f"{misplaced[0]} is per-repo and not allowed in the global config {path}")
+    if "gate_allow_outside" in values:
+        raise SettingsError(
+            f"gate_allow_outside in {path} is no longer read: tasks may now edit the whole repo except .factory/, "
+            "so there is nothing outside to allow; remove it"
+        )
     unknown = sorted(set(values) - set(_KNOWN))
     if unknown:
         raise SettingsError(f"unknown setting: {unknown[0]}")
@@ -399,34 +404,6 @@ def _check_project_subdir(subdir: str) -> None:
         raise SettingsError("project_subdir must be a relative path without '..'")
     if in_factory_dir(path):
         raise SettingsError("project_subdir may not be .factory or inside it; the factory's own files live there")
-
-
-_ALWAYS_REFUSED_NAMES = ("uv.lock", ".gitattributes", ".gitmodules")
-_GLOB_OR_MAGIC = "*?[:"
-
-
-def _checked_allow_outside(settings: Settings) -> tuple[str, ...]:
-    project = PurePosixPath(settings.project_subdir)
-    protected = {name.casefold() for name in (*DEFAULT_PROTECTED_NAMES, *_ALWAYS_REFUSED_NAMES)}
-    entries = tuple(_normalised_entry(entry, project, protected) for entry in settings.gate_allow_outside)
-    if len(set(entries)) != len(entries):
-        raise SettingsError("gate_allow_outside has a duplicate entry")
-    return entries
-
-
-def _normalised_entry(entry: str, project: PurePosixPath, protected: set[str]) -> str:
-    path = PurePosixPath(entry)
-    parts = path.parts
-    problem = None
-    if not parts or path.is_absolute() or ".." in parts or any(char in entry for char in _GLOB_OR_MAGIC):
-        problem = "must be a literal repo-relative path without '..', globs or ':'"
-    elif ".git" in parts or parts[-1].casefold() in protected:
-        problem = "may not name a file the tests or git read"
-    elif path.is_relative_to(project) or project.is_relative_to(path):
-        problem = "may not be the project or inside or above it"
-    if problem:
-        raise SettingsError(f"gate_allow_outside entry {entry!r} {problem}")
-    return path.as_posix()
 
 
 def _git_toplevel(cwd: Path) -> Path:
