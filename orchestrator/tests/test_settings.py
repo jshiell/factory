@@ -33,7 +33,7 @@ def test_defaults_come_from_the_git_toplevel_and_the_harness_home(repo_dir, isol
     project = isolated_home / ".harness" / "repo"
     assert settings.state_dir == project / "state"
     assert settings.worktree_root == project / "worktrees"
-    assert settings.project_subdir == "target"
+    assert settings.project_subdir == "."
     assert settings.test_argv == ("uv", "run", "pytest", "-q")
     assert settings.claude_executable == "claude"
     assert settings.ledger_path == project / "state" / "ledger.jsonl"
@@ -779,9 +779,9 @@ def test_watch_merge_is_off_by_default_and_comes_from_the_config(repo_dir):
 
 def test_gate_allow_outside_defaults_to_none_and_the_local_list_replaces_the_global_one(repo_dir, global_config):
     assert load_settings(None, cwd=repo_dir).gate_allow_outside == ()
-    global_config.write_text('gate_allow_outside = ["README.md", "docs"]\n')
+    global_config.write_text('project_subdir = "target"\ngate_allow_outside = ["README.md", "docs"]\n')
     assert load_settings(None, cwd=repo_dir).gate_allow_outside == ("README.md", "docs")
-    write_config(repo_dir, 'gate_allow_outside = ["LICENSE"]\n')
+    write_config(repo_dir, 'project_subdir = "target"\ngate_allow_outside = ["LICENSE"]\n')
 
     assert load_settings(None, cwd=repo_dir).gate_allow_outside == ("LICENSE",)
 

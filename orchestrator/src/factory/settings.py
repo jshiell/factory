@@ -21,7 +21,7 @@ class Settings:
     repo: Path
     state_dir: Path
     worktree_root: Path
-    project_subdir: str = "target"
+    project_subdir: str = "."
     test_argv: tuple[str, ...] = ("uv", "run", "pytest", "-q")
     cap_usd: float = 5.0
     gate_timeout_s: float = 120.0
