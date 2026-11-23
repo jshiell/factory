@@ -86,7 +86,7 @@ def check_gate(
     if frozen_sha is not None:
         if not _is_ancestor(worktree, frozen_sha):
             return GateResult(False, "not_descendant")
-        if _tests_changed_since(worktree, frozen_sha, project_subdir, test_globs):
+        if _tests_changed_since(worktree, frozen_sha, test_globs):
             return GateResult(False, "tests_modified")
     if _changed_outside_project(worktree, base_sha, project_dir, allow_outside) or _link_added_under(
         worktree, base_sha, allow_outside
@@ -134,10 +134,11 @@ def _link_added_under(worktree: Path, base_sha: str, allow_outside: tuple[str, .
     return any(line.split()[1] in _LINK_MODES for line in raw.splitlines())
 
 
-def _tests_changed_since(worktree: Path, frozen_sha: str, project_subdir: str, test_globs: tuple[str, ...]) -> bool:
+def _tests_changed_since(worktree: Path, frozen_sha: str, test_globs: tuple[str, ...]) -> bool:
     """Since a fix round began, test files may only be added: the base comparison cannot see edits to the agent's own tests."""
-    pathspecs = tuple(f":(glob){project_subdir}/**/{glob}" for glob in test_globs)
-    statuses = run_git(worktree, "diff", "--name-status", "--no-renames", frozen_sha, "HEAD", "--", *pathspecs)
+    statuses = run_git(
+        worktree, "diff", "--name-status", "--no-renames", frozen_sha, "HEAD", "--", *_test_pathspecs(test_globs)
+    )
     return any(line[0] != "A" for line in statuses.splitlines())
 
 

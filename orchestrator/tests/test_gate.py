@@ -1160,3 +1160,12 @@ def test_removing_a_test_file_outside_the_project_fails_tests_modified(repo):
     git(repo, "commit", "-q", "-m", "delete")
 
     assert gate(repo, base).reason == "tests_modified"
+
+
+def test_rewriting_an_implementer_added_test_outside_the_project_after_the_frozen_commit_fails_tests_modified(repo):
+    base, _ = frozen_scenario(repo)
+    commit_root_file(repo, "other/test_added.py", "def test_a():\n    assert False\n")
+    frozen = git(repo, "rev-parse", "HEAD")
+    commit_root_file(repo, "other/test_added.py", "def test_a():\n    assert True\n")
+
+    assert frozen_gate(repo, base, frozen).reason == "tests_modified"
