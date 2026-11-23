@@ -100,6 +100,7 @@ def build_stages(settings: Settings, deps: Deps) -> dict[str, Callable[[str], Ta
             records=SqliteProcessRecords(settings.db_path),
             gate_allow_outside=settings.gate_allow_outside,
             gate_allow_dependency_changes=settings.gate_allow_dependency_changes,
+            repo=settings.repo,
         ),
         "audit": lambda task_id: audit_task(
             task_id, store, ledger, runner, audit_config, cap, settings.project_subdir

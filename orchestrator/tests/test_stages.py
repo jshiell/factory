@@ -144,26 +144,32 @@ def test_verify_receives_the_test_command_subdir_and_timeout(setup, monkeypatch)
     (args, kwargs), = calls
     sandbox = kwargs.pop("sandbox")
     assert callable(sandbox)
-    for fix_kwarg in ("runner", "ledger", "fix_config", "cap_usd", "fix_rounds", "factory_paths", "records", "gate_allow_outside", "gate_allow_dependency_changes"):
+    for fix_kwarg in ("runner", "ledger", "fix_config", "cap_usd", "fix_rounds", "factory_paths", "records", "gate_allow_outside", "gate_allow_dependency_changes", "repo"):
         kwargs.pop(fix_kwarg)
     assert (args, kwargs) == (("t1", deps.store), {"project_subdir": "proj", "test_argv": ["pytest", "-x"], "gate_timeout_s": 7.0})
 
 
-def linked_worktree(store, settings, repo, state, **fields):
-    worktree, base = WorktreeManager(repo, settings.worktree_root).create("t1")
-    store.save(Task(id="t1", prompt="do it", state=state, worktree=str(worktree), base_sha=base, **fields))
-    return worktree
-
-
 def test_the_implement_stage_refuses_a_reused_worktree_whose_dot_git_was_rewritten(setup, tmp_path):
     store, runner, settings, deps, repo, base = setup
-    worktree = linked_worktree(store, settings, repo, TaskState.QUEUED)
+    worktree = save(store, settings, TaskState.QUEUED)
     marker = redirect_to_planted_gitdir(worktree, tmp_path, clone_of=repo)
 
     with pytest.raises(WorktreeNotPristine):
         build_stages(settings, deps)["implement"]("t1")
 
     assert runner.configs == [] and not marker.exists()
+
+
+def test_the_verify_stage_refuses_a_rewritten_dot_git_without_running_the_planted_repos_filter(setup, tmp_path):
+    store, runner, settings, deps, repo, base = setup
+    worktree = save(store, settings, TaskState.AGENT_DONE)
+    (worktree / "proj" / "code.py").write_text("changed by agent")
+    marker = redirect_to_planted_gitdir(worktree, tmp_path, clone_of=repo)
+
+    task = build_stages(settings, deps)["verify"]("t1")
+
+    assert (task.state, task.failure_reason) == (TaskState.FAILED, "worktree_mismatch")
+    assert not marker.exists()
 
 
 def test_the_verify_stage_passes_the_allowed_outside_paths(setup, monkeypatch):
