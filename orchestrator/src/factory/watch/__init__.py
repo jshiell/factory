@@ -149,8 +149,25 @@ def run_pass(github, server, state_dir, approver_ids: set[int], clock=_utc_now, 
             _handle_issue(github, server, state, state_dir, issue, options, self_id, merge, retry)
         except GitHubError as error:
             _log_failure(f"issue #{issue.number}", error.stderr)
-        except (ServerUnreachable, ServerRefused) as error:
+            _count_failed_pass(state, state_dir, issue.number)
+        except ServerRefused as error:
             _log_failure(f"issue #{issue.number}", str(error))
+            _count_failed_pass(state, state_dir, issue.number)
+        except ServerUnreachable as error:
+            _log_failure(f"issue #{issue.number}", str(error))
+        else:
+            _reset_failed_passes(state, state_dir, issue.number)
+
+
+def _count_failed_pass(state, state_dir, number: int) -> None:
+    if number in state.issues:
+        state.failed_passes[number] = state.failed_passes.get(number, 0) + 1
+        save_state(state_dir, state)
+
+
+def _reset_failed_passes(state, state_dir, number: int) -> None:
+    if state.failed_passes.pop(number, 0):
+        save_state(state_dir, state)
 
 
 def _failure_text(failed: dict, home: str) -> str:

@@ -1975,3 +1975,25 @@ def test_failed_pass_counts_survive_a_save_and_load(tmp_path):
     save_state(tmp_path, state)
 
     assert load_state(tmp_path).failed_passes == {7: 3}
+
+
+def failing_issue_state(tmp_path, failed_passes=None, phase=Phase.NEW):
+    record = IssueRecord(task_id="t-1", phase=phase)
+    save_state(tmp_path, WatchState(watching_since=SINCE, issues={5: record}, failed_passes=failed_passes or {}))
+
+
+@pytest.mark.parametrize("error", [GitHubError("boom"), ServerRefused(409, "refused", "nope")])
+def test_a_failed_pass_adds_one_to_the_issues_count_and_saves_it(tmp_path, error):
+    failing_issue_state(tmp_path, {5: 2})
+
+    pass_over(tmp_path, [], server=FailingServer(error), github=FakeGitHub([raw_issue(number=5)]))
+
+    assert load_state(tmp_path).failed_passes == {5: 3}
+
+
+def test_a_pass_that_finishes_resets_the_issues_count(tmp_path):
+    failing_issue_state(tmp_path, {5: 2})
+
+    pass_over(tmp_path, [], server=FakeServer(advance_result=REVIEWED, approval=APPROVAL), github=FakeGitHub([raw_issue(number=5)]))
+
+    assert load_state(tmp_path).failed_passes == {}
