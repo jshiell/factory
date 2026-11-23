@@ -134,6 +134,15 @@ def test_old_in_repo_state_fails_naming_where_to_move_it(repo_dir, isolated_home
     assert str(isolated_home / ".harness" / "repo" / "state") in message
 
 
+@pytest.mark.parametrize("state_dir", [".factory", "./.factory/"])
+def test_old_in_repo_state_loads_when_state_dir_points_at_it(repo_dir, state_dir):
+    write_config(repo_dir, f'state_dir = "{state_dir}"\n')
+    (repo_dir / ".factory" / "factory.db").write_text("")
+    (repo_dir / ".factory" / "token").write_text("")
+
+    assert load_settings(None, cwd=repo_dir).state_dir.resolve() == repo_dir / ".factory"
+
+
 def test_only_repo_state_and_worktree_paths_resolve_against_the_config_directory(tmp_path, repo_dir):
     config_dir = tmp_path / "cfg"
     config_dir.mkdir()

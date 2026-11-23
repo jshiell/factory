@@ -143,6 +143,8 @@ def _check_config_outside_editable_area(path: Path, repos: set[Path]) -> None:
 
 
 def _check_no_in_repo_state(factory_dir: Path, state_dir: Path) -> None:
+    if state_dir.resolve() == factory_dir.resolve():
+        return  # the old state is configured on purpose, as `migrate` needs
     for name in ("factory.db", "token"):
         if (factory_dir / name).exists():
             raise SettingsError(
