@@ -82,8 +82,6 @@ def test_an_explicit_missing_config_file_raises(repo_dir):
         ('project_subdir = "/abs"', "project_subdir"),
         ('project_subdir = "a/../b"', "project_subdir"),
         ('project_subdir = ""', "project_subdir"),
-        ('project_subdir = "."', "project_subdir"),
-        ('project_subdir = "./"', "project_subdir"),
         ("cap_usd = true", "cap_usd"),
     ],
 )
@@ -718,11 +716,11 @@ def test_a_trailing_slash_is_normalised_and_a_global_list_is_checked_against_the
         load_settings(None, cwd=repo_dir)
 
 
-def test_project_subdir_dot_is_rejected_with_a_message_naming_the_repo_root(repo_dir):
-    (repo_dir / "factory.toml").write_text('project_subdir = "."\n')
+@pytest.mark.parametrize("subdir", [".", "./"])
+def test_project_subdir_dot_names_the_repo_root(repo_dir, subdir):
+    (repo_dir / "factory.toml").write_text(f'project_subdir = "{subdir}"\n')
 
-    with pytest.raises(SettingsError, match="repo root"):
-        load_settings(None, cwd=repo_dir)
+    assert load_settings(None, cwd=repo_dir).project_subdir == subdir
 
 
 @pytest.mark.parametrize("subdir", [".factory", ".FACTORY", "./.Factory/sub", ".factory/"])
