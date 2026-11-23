@@ -78,7 +78,7 @@ def check_gate(
     if not run_git(worktree, "diff", "--name-only", base_sha, "HEAD", "--", project_subdir, *allowed_changes):
         return GateResult(False, "no_changes")
     if (
-        _tests_tampered(worktree, base_sha, project_subdir, test_globs)
+        _tests_tampered(worktree, base_sha, test_globs)
         or _protected_changed(worktree, base_sha, project_subdir, protected_names, allow_dependency_changes)
         or (not allow_dependency_changes and _dependency_file_changed(worktree, base_sha))
     ):
@@ -141,8 +141,13 @@ def _tests_changed_since(worktree: Path, frozen_sha: str, project_subdir: str, t
     return any(line[0] != "A" for line in statuses.splitlines())
 
 
-def _tests_tampered(worktree: Path, base_sha: str, project_subdir: str, test_globs: tuple[str, ...]) -> bool:
-    pathspecs = tuple(f":(glob){project_subdir}/**/{glob}" for glob in test_globs)
+def _test_pathspecs(test_globs: tuple[str, ...]) -> tuple[str, ...]:
+    """Every test in the repo: the agent may edit outside the project, and the project may collect tests there."""
+    return tuple(f":(glob)**/{glob}" for glob in test_globs)
+
+
+def _tests_tampered(worktree: Path, base_sha: str, test_globs: tuple[str, ...]) -> bool:
+    pathspecs = _test_pathspecs(test_globs)
     statuses = run_git(worktree, "diff", "--name-status", "--no-renames", base_sha, "HEAD", "--", *pathspecs)
     if any(line[0] not in "AM" for line in statuses.splitlines()):
         return True

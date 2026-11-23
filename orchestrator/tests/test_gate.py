@@ -1151,3 +1151,12 @@ def test_a_gitattributes_or_gitmodules_at_any_depth_fails_outside_project(repo, 
     commit_root_file(repo, path, "x\n")
 
     assert check_gate(repo, base, "proj", ["true"], 10, allow_outside=(".gitattributes", ".gitmodules", "docs")).reason == "outside_project"
+
+
+def test_removing_a_test_file_outside_the_project_fails_tests_modified(repo):
+    commit_root_file(repo, "other/test_other.py", "def test_o():\n    pass\n")
+    base = repo_with_project_change(repo)
+    git(repo, "rm", "-q", "other/test_other.py")
+    git(repo, "commit", "-q", "-m", "delete")
+
+    assert gate(repo, base).reason == "tests_modified"
