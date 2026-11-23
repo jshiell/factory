@@ -7,7 +7,9 @@ from factory.ledger import Ledger
 from factory.readonly_stage import Infra, Modified, Ran, run_readonly_stage
 from factory.step import RunResult
 from factory.task import Task
+from factory.worktrees import WorktreeManager
 from gitutil import git
+from planted_gitdir import redirect_to_planted_gitdir
 
 CONFIG = RunnerConfig(model="sonnet", budget_usd=0.3)
 
@@ -111,3 +113,14 @@ def test_non_success_outcomes_are_infra_failures_with_the_cost_charged(repo, tas
 
 def test_a_success_without_structured_output_returns_none_output(repo, task, ledger):
     assert stage(task, Runner(RunResult(stdout(), 0)), ledger) == Ran(None, git(repo, "rev-parse", "HEAD"))
+
+
+def test_a_run_that_rewrites_dot_git_is_modified_without_running_the_planted_repos_filter(repo, ledger, tmp_path):
+    worktree, _ = WorktreeManager(repo, tmp_path / "wt").create("t1")
+    markers = []
+    runner = Runner(on_run=lambda: markers.append(redirect_to_planted_gitdir(worktree, tmp_path, clone_of=repo)))
+
+    result = run_readonly_stage(Task(id="t1", prompt="p", worktree=str(worktree)), "P", runner, CONFIG, ledger, "audit", repo=repo)
+
+    assert result == Modified()
+    assert not markers[0].exists()
