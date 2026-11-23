@@ -147,7 +147,7 @@ def test_verify_receives_the_test_command_subdir_and_timeout(setup, monkeypatch)
     (args, kwargs), = calls
     sandbox = kwargs.pop("sandbox")
     assert callable(sandbox)
-    for fix_kwarg in ("runner", "ledger", "fix_config", "cap_usd", "fix_rounds", "factory_paths", "records", "gate_allow_outside", "gate_allow_dependency_changes", "repo"):
+    for fix_kwarg in ("runner", "ledger", "fix_config", "cap_usd", "fix_rounds", "factory_paths", "records", "gate_allow_dependency_changes", "repo"):
         kwargs.pop(fix_kwarg)
     assert (args, kwargs) == (("t1", deps.store), {"project_subdir": "proj", "test_argv": ["pytest", "-x"], "gate_timeout_s": 7.0})
 
@@ -207,17 +207,6 @@ def test_a_read_only_stage_refuses_a_rewritten_dot_git_without_running_the_plant
 @pytest.mark.parametrize("entry", [plan_task, review_plan, run_task, verify_task, audit_task, run_readonly_stage])
 def test_every_stage_entry_point_must_be_told_its_repo_so_none_can_silently_skip_the_gitdir_check(entry):
     assert inspect.signature(entry).parameters["repo"].default is inspect.Parameter.empty
-
-
-def test_the_verify_stage_passes_the_allowed_outside_paths(setup, monkeypatch):
-    store, runner, settings, deps, repo, base = setup
-    settings = replace(settings, gate_allow_outside=("README.md", "docs"))
-    seen = {}
-    monkeypatch.setattr("factory.stages.verify_task", lambda *a, **k: seen.update(k))
-
-    build_stages(settings, deps)["verify"]("t1")
-
-    assert seen["gate_allow_outside"] == ("README.md", "docs")
 
 
 def test_the_verify_stage_passes_the_dependency_changes_setting(setup, monkeypatch):
@@ -364,22 +353,6 @@ def test_the_implementer_is_told_to_stay_inside_the_project(setup):
     config = implementer_config(settings)
 
     assert "Only change files inside the project directory" in config.append_system_prompt
-
-
-def test_the_implementer_is_told_which_outside_paths_it_may_change(setup):
-    _, _, settings, _, _, _ = setup
-    settings = replace(settings, gate_allow_outside=("README.md", "docs"))
-
-    prompt = implementer_config(settings).append_system_prompt
-
-    assert "inside the project directory, or these paths: README.md, docs; changes anywhere else are refused" in prompt
-
-
-def test_the_fixer_is_told_which_outside_paths_it_may_change_too(setup):
-    _, _, settings, _, _, _ = setup
-    settings = replace(settings, gate_allow_outside=("README.md",))
-
-    assert "or these paths: README.md;" in fixer_config(settings).append_system_prompt
 
 
 def test_the_implementer_is_told_not_to_touch_uv_config(setup):

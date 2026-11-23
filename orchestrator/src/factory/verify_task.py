@@ -36,7 +36,6 @@ def verify_task(
     fix_rounds: int = 0,
     factory_paths: tuple[Path, ...] = (),
     records=None,
-    gate_allow_outside: tuple[str, ...] = (),
     gate_allow_dependency_changes: bool = False,
     repo: Path | None,
 ) -> Task:
@@ -53,14 +52,14 @@ def verify_task(
     while True:
         result = _gate_once(
             task, project_subdir, test_argv, gate_timeout_s, sandbox, capture, factory_paths, tracker,
-            gate_allow_outside, gate_allow_dependency_changes, repo=repo,
+            gate_allow_dependency_changes, repo=repo,
         )
         if result.passed:
             return _finish(apply(task, Event.GATE_PASSED), store)
         if result.reason != "tests_failed" or task.fix_rounds_used >= fix_rounds:
             return _finish(apply(task, Event.GATE_FAILED, reason=result.reason), store)
         task, failure = _fix_round(
-            task, result.output or "", store, runner, ledger, fix_config, cap_usd, gate_allow_outside,
+            task, result.output or "", store, runner, ledger, fix_config, cap_usd,
             gate_allow_dependency_changes, repo=repo,
         )
         if failure is not None:
@@ -69,7 +68,7 @@ def verify_task(
 
 def _fix_round(
     task: Task, test_output: str, store: TaskStore, runner: Runner, ledger: Ledger, config: RunnerConfig, cap_usd: float,
-    allow_outside: tuple[str, ...] = (), allow_dependency_changes: bool = False, *, repo: Path | None,
+    allow_dependency_changes: bool = False, *, repo: Path | None,
 ) -> tuple[Task, str | None]:
     """One agent run. Returns the updated task and a failure reason, or None when the gate should run again."""
     check_budget(task.id, ledger, config, cap_usd)  # raises with the task untouched: raise the cap and re-advance
@@ -81,7 +80,7 @@ def _fix_round(
     task = replace(task, fix_rounds_used=task.fix_rounds_used + 1, fix_in_flight=True, fix_frozen_sha=head)
     store.save(task)  # before the run: a crash cannot reset the counter, and the marker flags a possible orphan
     prompt = build_fix_prompt(
-        task, test_output, allow_outside=allow_outside, allow_dependency_changes=allow_dependency_changes
+        task, test_output, allow_dependency_changes=allow_dependency_changes
     )
     called = call_agent(task, prompt, runner, config, ledger, FIX_STAGE)
     task = replace(task, fix_in_flight=False)
@@ -116,7 +115,6 @@ def _gate_once(
     sandbox: Callable[[Task], GateSandbox] | None, capture_limit: int | None = None,
     factory_paths: tuple[Path, ...] = (),
     tracker=None,
-    allow_outside: tuple[str, ...] = (),
     allow_dependency_changes: bool = False,
     *,
     repo: Path | None,

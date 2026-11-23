@@ -389,20 +389,9 @@ def test_an_allowed_root_change_beside_the_project_change_verifies_the_task(repo
     (repo / "README.md").write_text("edited by the agent")
 
     result = verify_task("t1", store, project_subdir="proj", test_argv=["true"], gate_timeout_s=10,
-                         gate_allow_outside=("README.md",), repo=None)
+                         repo=None)
 
     assert result.state is TaskState.VERIFIED
-
-
-def test_the_fix_prompt_names_the_allowed_outside_paths(repo, store, ledger, task):
-    runner = FakeRunner(repo, write_fix(repo))
-
-    verify_task("t1", store, project_subdir="proj", test_argv=FIXED_ONLY_IF_FILE, gate_timeout_s=10,
-                runner=runner, ledger=ledger, fix_config=CONFIG, cap_usd=10.0, fix_rounds=1,
-                gate_allow_outside=("README.md",), repo=None)
-
-    (called, _), = runner.calls
-    assert "or these paths: README.md;" in called.prompt
 
 
 @pytest.mark.parametrize("allowed", [False, True])
@@ -426,7 +415,7 @@ def test_an_allowed_root_change_passes_the_sandboxed_gate_too(repo, store, ledge
         return GateSandbox((), ("true",), {"PATH": os.environ["PATH"]})
 
     result = verify_task("t1", store, project_subdir="proj", test_argv=["unused"], gate_timeout_s=10,
-                         sandbox=sandbox, gate_allow_outside=("README.md",), repo=None)
+                         sandbox=sandbox, repo=None)
 
     assert result.state is TaskState.VERIFIED
 

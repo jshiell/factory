@@ -73,12 +73,6 @@ def test_the_prompt_tells_the_fixer_to_stay_inside_the_project():
     assert "Only change files inside the project directory" in prompt
 
 
-def test_the_prompt_names_the_outside_paths_the_fixer_may_change():
-    prompt = build_fix_prompt(task(), "FAILED test_x", allow_outside=("README.md", "docs"))
-
-    assert "inside the project directory, or these paths: README.md, docs; changes anywhere else are refused" in prompt
-
-
 def test_the_prompt_tells_the_fixer_not_to_touch_uv_config():
     prompt = build_fix_prompt(task(), "FAILED test_x")
 

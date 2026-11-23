@@ -59,7 +59,7 @@ def _implementer_base(settings: Settings) -> RunnerConfig:
         confine=True,
         max_turns=settings.max_turns,
         append_system_prompt="You are in a git worktree; the project lives in the current directory. Do not commit. "
-        + boundary_rule(settings.gate_allow_outside)
+        + boundary_rule()
         + dependency_rule(settings.gate_allow_dependency_changes)
         + " Do not create or edit uv.toml, .python-version or the [tool.uv] table; such changes are refused.",
     )
@@ -98,7 +98,6 @@ def build_stages(settings: Settings, deps: Deps) -> dict[str, Callable[[str], Ta
             cap_usd=cap, fix_rounds=settings.fix_rounds,
             factory_paths=(settings.state_dir, settings.worktree_root),
             records=SqliteProcessRecords(settings.db_path),
-            gate_allow_outside=settings.gate_allow_outside,
             gate_allow_dependency_changes=settings.gate_allow_dependency_changes,
             repo=settings.repo,
         ),

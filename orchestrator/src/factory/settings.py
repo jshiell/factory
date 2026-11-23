@@ -51,7 +51,6 @@ class Settings:
     watch_retry: bool = False
     gate_allow_dependency_changes: bool = False
     main_branch: str | None = None
-    gate_allow_outside: tuple[str, ...] = ()
     warnings: tuple[str, ...] = ()
 
     @property
