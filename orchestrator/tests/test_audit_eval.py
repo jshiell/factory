@@ -497,3 +497,15 @@ def test_the_reviewer_notes_of_a_case_reach_the_auditor_inside_the_task_prompt(r
 
     (task,) = runner.tasks
     assert "REVIEWER NOTES" in task.prompt and "- reject bytes\n" in task.prompt
+
+
+# Guard (starts green): widening the audit diff to the repo leaves every corpus case's diff text unchanged.
+def test_guard_every_corpus_case_shows_the_auditor_only_its_project_diff(tmp_path):
+    from factory.audit_task import AUDITED_PATHS
+    manager = WorktreeManager(build_base_repo(tmp_path), tmp_path / "wt")
+
+    for case in CASES:
+        worktree, base_sha = materialise(case, manager, f"g-{case.id}")
+        project_only = git(worktree, "diff", "--no-ext-diff", "--no-textconv", base_sha, "HEAD", "--", PROJECT_SUBDIR)
+        audited = git(worktree, "diff", "--no-ext-diff", "--no-textconv", base_sha, "HEAD", "--", *AUDITED_PATHS)
+        assert audited == project_only != "", case.id

@@ -305,3 +305,30 @@ def test_a_rewritten_dot_git_fails_the_audit_before_its_diff_reaches_an_auditor(
 
     assert (task.state, task.failure_reason) == (TaskState.FAILED, "worktree_mismatch")
     assert runner.tasks == []
+
+
+def commit_file(repo, path, content):
+    (repo / path).parent.mkdir(parents=True, exist_ok=True)
+    (repo / path).write_text(content)
+    git(repo, "add", "-A")
+    git(repo, "commit", "-q", "-m", f"add {path}")
+
+
+def test_a_change_outside_the_project_reaches_the_auditor(verified, store, ledger):
+    commit_file(verified, "README.md", "outside the project\n")
+    runner = AuditRunner(verdict_stdout())
+
+    audit(store, ledger, runner)
+
+    assert "+outside the project" in runner.tasks[0].prompt
+
+
+# Guard (starts green): `.factory/` changes never pass the gate, and the auditor never sees them either.
+@pytest.mark.parametrize("path", [".factory/notes.txt", ".FACTORY/notes.txt"])
+def test_guard_a_change_under_the_factory_dir_does_not_reach_the_auditor(verified, store, ledger, path):
+    commit_file(verified, path, "factory state\n")
+    runner = AuditRunner(verdict_stdout())
+
+    audit(store, ledger, runner)
+
+    assert "factory state" not in runner.tasks[0].prompt and "+y" in runner.tasks[0].prompt

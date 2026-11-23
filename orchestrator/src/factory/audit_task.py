@@ -11,6 +11,8 @@ from factory.task import Event, Task, apply
 from factory.worktrees import WorktreeMismatch, worktree_git
 
 MAX_DIFF_BYTES = 200_000
+# The task may edit the whole repo; `.factory/` changes never pass the gate, so they are not shown.
+AUDITED_PATHS = (":/", ":(exclude,top,literal,icase).factory")
 
 VERDICT_SCHEMA = {
     "type": "object",
@@ -63,7 +65,7 @@ def audit_task(
         tree = worktree_git(Path(task.worktree), task.id, repo)
     except WorktreeMismatch:
         return _reject(store, task, "worktree_mismatch")
-    diff = tree.git("diff", "--no-ext-diff", "--no-textconv", task.base_sha, "HEAD", "--", project_subdir)
+    diff = tree.git("diff", "--no-ext-diff", "--no-textconv", task.base_sha, "HEAD", "--", *AUDITED_PATHS)
     if len(diff.encode()) > min(MAX_DIFF_BYTES, _room_for_diff(task)):
         return _reject(store, task, "diff_too_large")
     staged = run_readonly_stage(task, build_audit_prompt(task, diff), runner, config, ledger, "audit", repo)
