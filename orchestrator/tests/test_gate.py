@@ -1169,3 +1169,21 @@ def test_rewriting_an_implementer_added_test_outside_the_project_after_the_froze
     commit_root_file(repo, "other/test_added.py", "def test_a():\n    assert True\n")
 
     assert frozen_gate(repo, base, frozen).reason == "tests_modified"
+
+
+def add_project_symlink(repo):
+    (repo / "proj" / "link").symlink_to("code.py")
+    git(repo, "add", "proj/link")
+
+
+def add_project_gitlink(repo):
+    git(repo, "update-index", "--add", "--cacheinfo", f"160000,{git(repo, 'rev-parse', 'HEAD')},proj/sub")
+
+
+@pytest.mark.parametrize("add_link", [add_project_symlink, add_project_gitlink], ids=["symlink", "gitlink"])
+def test_a_link_added_inside_the_project_fails_outside_project(repo, add_link):
+    base = repo_with_project_change(repo)
+    add_link(repo)
+    git(repo, "commit", "-q", "-m", "link")
+
+    assert gate(repo, base).reason == "outside_project"

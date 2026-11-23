@@ -88,9 +88,7 @@ def check_gate(
             return GateResult(False, "not_descendant")
         if _tests_changed_since(worktree, frozen_sha, test_globs):
             return GateResult(False, "tests_modified")
-    if _changed_outside_project(worktree, base_sha, project_dir, allow_outside) or _link_added_under(
-        worktree, base_sha, allow_outside
-    ):
+    if _changed_outside_project(worktree, base_sha, project_dir, allow_outside) or _link_added(worktree, base_sha):
         return GateResult(False, "outside_project")
     try:
         ran = run_to_exit([*test_prefix, *test_argv], project_dir, env, timeout_s, capture_limit, tracker)
@@ -123,14 +121,9 @@ def _changed_outside_project(
     return bool(changed)
 
 
-def _link_added_under(worktree: Path, base_sha: str, allow_outside: tuple[str, ...]) -> bool:
-    """A symlink or gitlink added or changed under an allowed path can point the tests at files the gate never sees."""
-    if not allow_outside:
-        return False
-    raw = run_git(
-        worktree, "diff", "--raw", "--no-renames", "--ignore-submodules=none", base_sha, "HEAD",
-        "--", *(f":(top,literal){entry}" for entry in allow_outside),
-    )
+def _link_added(worktree: Path, base_sha: str) -> bool:
+    """A symlink or gitlink added or changed anywhere can point the tests at files the gate never sees."""
+    raw = run_git(worktree, "diff", "--raw", "--no-renames", "--ignore-submodules=none", base_sha, "HEAD")
     return any(line.split()[1] in _LINK_MODES for line in raw.splitlines())
 
 
