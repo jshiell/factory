@@ -2104,3 +2104,13 @@ def test_guard_the_stop_comments_last_error_is_fenced_and_a_control_character_in
     [(_, body)] = github.comments_posted
     assert "\x1b" not in body
     assert "**Last error**\n\n```\nrefused: bad\\x1b[2J\n@mallory line two\n```" in body
+
+
+def test_guard_a_pass_starting_above_the_cap_that_fails_again_stops_the_issue_with_one_comment(tmp_path):
+    failing_issue_state(tmp_path, {5: 25})
+    github = FakeGitHub([raw_issue(number=5)])
+
+    pass_over(tmp_path, [], server=FailingServer(GitHubError("boom")), github=github)
+
+    assert len(github.comments_posted) == 1
+    assert load_state(tmp_path).issues[5].phase is Phase.STOPPED
