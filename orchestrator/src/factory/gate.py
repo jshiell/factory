@@ -78,8 +78,7 @@ def check_gate(
         return GateResult(False, "no_commits")
     if _forbidden_changed(worktree, base_sha):
         return GateResult(False, "outside_project")
-    allowed_changes = [f":(top,literal){entry}" for entry in allow_outside]
-    if not run_git(worktree, "diff", "--name-only", base_sha, "HEAD", "--", project_subdir, *allowed_changes):
+    if not run_git(worktree, "diff", "--name-only", base_sha, "HEAD", "--", ":/"):  # anywhere in the repo
         return GateResult(False, "no_changes")
     if (
         _tests_tampered(worktree, base_sha, test_globs)

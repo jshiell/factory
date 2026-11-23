@@ -69,7 +69,7 @@ def test_gate_fails_when_head_does_not_descend_from_the_base(repo):
     assert result.reason == "not_descendant"
 
 
-def test_gate_fails_with_no_changes_when_only_files_outside_the_project_changed(repo):
+def test_gate_passes_when_only_files_outside_the_project_changed(repo):
     (repo / "proj").mkdir()
     (repo / "proj" / "code.py").write_text("x")
     git(repo, "add", "proj")
@@ -81,7 +81,7 @@ def test_gate_fails_with_no_changes_when_only_files_outside_the_project_changed(
 
     result = gate(repo, base)
 
-    assert result.reason == "no_changes"
+    assert result.passed is True
 
 
 def repo_with_project_change(repo):
@@ -810,13 +810,12 @@ def commit_root_file(repo, name, content):
     git(repo, "commit", "-q", "-m", f"root {name}")
 
 
-def test_a_change_only_outside_the_project_is_no_changes_not_a_protected_refusal(repo):
-    """Characterisation (starts green): the gate only sees tasks that changed the project."""
+def test_a_protected_change_only_outside_the_project_fails_tests_modified(repo):
     base = repo_with_project_change(repo)
     git(repo, "reset", "-q", "--hard", base)
     commit_root_file(repo, "pytest.ini", "[pytest]\naddopts = --collect-only\n")
 
-    assert gate(repo, base).reason == "no_changes"
+    assert gate(repo, base).reason == "tests_modified"
 
 
 def test_a_new_root_pytest_ini_fails_tests_modified(repo):
@@ -1019,7 +1018,7 @@ def test_a_change_only_to_an_allowed_path_counts_as_a_change(repo):
     allowed = check_gate(repo, base, "proj", ["true"], 10, allow_outside=("README.md",))
     unlisted = check_gate(repo, base, "proj", ["true"], 10)
 
-    assert (allowed.passed, unlisted.reason) == (True, "no_changes")
+    assert (allowed.passed, unlisted.passed) == (True, True)
 
 
 def test_a_new_symlink_under_an_allowed_directory_fails_outside_project(repo):
