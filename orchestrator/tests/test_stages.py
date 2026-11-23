@@ -10,6 +10,7 @@ from factory.ledger import Ledger
 from factory.plan_task import PLAN_CONFIG
 from factory.process_registry import Record
 from factory.review_plan import REVIEW_CONFIG
+from factory.run_task import WorktreeNotPristine
 from factory.sandbox import SANDBOXES
 from factory.settings import Settings
 from factory.sqlite_process_records import SqliteProcessRecords
@@ -23,7 +24,9 @@ from factory.stages import (
 from factory.step import RunResult
 from factory.store import TaskStore
 from factory.task import Task, TaskState
+from factory.worktrees import WorktreeManager
 from gitutil import git
+from planted_gitdir import redirect_to_planted_gitdir
 
 
 class RecordingRunner:
@@ -141,6 +144,23 @@ def test_verify_receives_the_test_command_subdir_and_timeout(setup, monkeypatch)
     for fix_kwarg in ("runner", "ledger", "fix_config", "cap_usd", "fix_rounds", "factory_paths", "records", "gate_allow_outside", "gate_allow_dependency_changes"):
         kwargs.pop(fix_kwarg)
     assert (args, kwargs) == (("t1", deps.store), {"project_subdir": "proj", "test_argv": ["pytest", "-x"], "gate_timeout_s": 7.0})
+
+
+def linked_worktree(store, settings, repo, state, **fields):
+    worktree, base = WorktreeManager(repo, settings.worktree_root).create("t1")
+    store.save(Task(id="t1", prompt="do it", state=state, worktree=str(worktree), base_sha=base, **fields))
+    return worktree
+
+
+def test_the_implement_stage_refuses_a_reused_worktree_whose_dot_git_was_rewritten(setup, tmp_path):
+    store, runner, settings, deps, repo, base = setup
+    worktree = linked_worktree(store, settings, repo, TaskState.QUEUED)
+    marker = redirect_to_planted_gitdir(worktree, tmp_path, clone_of=repo)
+
+    with pytest.raises(WorktreeNotPristine):
+        build_stages(settings, deps)["implement"]("t1")
+
+    assert runner.configs == [] and not marker.exists()
 
 
 def test_the_verify_stage_passes_the_allowed_outside_paths(setup, monkeypatch):
