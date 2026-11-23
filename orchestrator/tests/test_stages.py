@@ -65,8 +65,11 @@ def setup(tmp_path, repo):
     return store, runner, settings, deps, repo, base
 
 
-def save(store, repo, base, state, **fields):
-    store.save(Task(id="t1", prompt="do it", state=state, worktree=str(repo), base_sha=base, **fields))
+def save(store, settings, state, **fields):
+    """A task in a real linked worktree of the settings' repo: the stages pin git to the task's own gitdir."""
+    worktree, base = WorktreeManager(settings.repo, settings.worktree_root).create("t1")
+    store.save(Task(id="t1", prompt="do it", state=state, worktree=str(worktree), base_sha=base, **fields))
+    return worktree
 
 
 def test_the_implementer_config_is_the_only_one_with_write_tools_and_no_git(setup):
@@ -105,7 +108,7 @@ def test_the_default_implementer_allow_list_is_empty_so_default_rules_confine_re
 )
 def test_read_only_stages_receive_their_own_read_only_config(setup, stage, state, expected):
     store, runner, settings, deps, repo, base = setup
-    save(store, repo, base, state, goal="g", plan="p", plan_digest=plan_digest("p"))
+    save(store, settings, state, goal="g", plan="p", plan_digest=plan_digest("p"))
 
     build_stages(settings, deps)[stage]("t1")
 
@@ -114,7 +117,7 @@ def test_read_only_stages_receive_their_own_read_only_config(setup, stage, state
 
 def test_the_plan_stage_stops_asking_at_the_configured_round_cap(setup):
     store, runner, settings, deps, repo, base = setup
-    save(store, repo, base, TaskState.PROPOSED, goal="g", grill=True, grill_rounds=1)
+    save(store, settings, TaskState.PROPOSED, goal="g", grill=True, grill_rounds=1)
     settings = replace(settings, grill_max_rounds=1)
 
     build_stages(settings, deps)["plan"]("t1")
@@ -383,7 +386,7 @@ def test_global_then_stage_prompts_follow_the_built_in_one(setup):
 def test_read_only_stages_append_the_global_and_their_own_prompt(setup, stage, state, base_config):
     store, runner, settings, deps, repo, base = setup
     settings = replace(settings, append_system_prompt="G.", stage_prompts={stage: "S."})
-    save(store, repo, base, state, goal="g", plan="p", plan_digest=plan_digest("p"))
+    save(store, settings, state, goal="g", plan="p", plan_digest=plan_digest("p"))
 
     build_stages(settings, deps)[stage]("t1")
 
@@ -426,7 +429,7 @@ def test_the_plugin_dirs_are_added_to_a_stage_config_as_strings(setup):
 def test_every_agent_stage_and_the_fixer_get_the_plugin_dirs(setup, monkeypatch):
     store, runner, settings, deps, repo, base = setup
     settings = replace(settings, plugin_dirs=(Path("/p/a"),))
-    save(store, repo, base, TaskState.PROPOSED, goal="g", plan="p", plan_digest=plan_digest("p"))
+    save(store, settings, TaskState.PROPOSED, goal="g", plan="p", plan_digest=plan_digest("p"))
     stages = build_stages(settings, deps)
     seen = {}
     monkeypatch.setattr("factory.stages.verify_task", lambda *a, **k: seen.update(k))

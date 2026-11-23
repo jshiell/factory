@@ -257,15 +257,16 @@ def test_a_failing_gate_runs_one_confined_fix_round_and_the_tests_then_pass(proj
 
     from factory.sqlite_store import SqliteTaskStore
     from factory.task import Task, TaskState
+    from factory.worktrees import WorktreeManager
     repo, env, tmp_path = project
     config = repo / "factory.toml"
     config.write_text(config.read_text() + 'test_argv = ["sh", "-c", "echo NEEDS-FIX; test -f fixed"]\n')
     sh("git", "commit", "-q", "-am", "test_argv", cwd=repo, env=env)
-    (repo / "target" / "code.py").write_text("changed by the implementer")
+    worktree, base = WorktreeManager(repo, tmp_path / "wt").create("t9")
+    (worktree / "target" / "code.py").write_text("changed by the implementer")
     (tmp_path / "state").mkdir(parents=True, exist_ok=True)
-    base = sh("git", "rev-parse", "HEAD", cwd=repo, env=env).stdout.strip()
     SqliteTaskStore(tmp_path / "state" / "factory.db").save(
-        Task(id="t9", prompt="stored", state=TaskState.AGENT_DONE, worktree=str(repo), base_sha=base, goal="g", plan="p"))
+        Task(id="t9", prompt="stored", state=TaskState.AGENT_DONE, worktree=str(worktree), base_sha=base, goal="g", plan="p"))
 
     result = factory(project, "advance", "t9")
 
@@ -344,16 +345,17 @@ def test_a_gate_run_launched_by_the_real_cli_is_recorded_while_it_runs(project):
     from factory.sqlite_process_records import SqliteProcessRecords
     from factory.sqlite_store import SqliteTaskStore
     from factory.task import Task, TaskState
+    from factory.worktrees import WorktreeManager
     repo, env, tmp_path = project
     seen = tmp_path / "seen-gate-records"
     config = repo / "factory.toml"
     config.write_text(config.read_text() + f'test_argv = ["{query_records_script(tmp_path)}", "{tmp_path}/state/factory.db", "{seen}"]\n')
     sh("git", "commit", "-q", "-am", "test_argv", cwd=repo, env=env)
-    (repo / "target" / "code.py").write_text("changed by the implementer")
+    worktree, base = WorktreeManager(repo, tmp_path / "wt").create("t9")
+    (worktree / "target" / "code.py").write_text("changed by the implementer")
     (tmp_path / "state").mkdir(parents=True, exist_ok=True)
-    base = sh("git", "rev-parse", "HEAD", cwd=repo, env=env).stdout.strip()
     SqliteTaskStore(tmp_path / "state" / "factory.db").save(
-        Task(id="t9", prompt="stored", state=TaskState.AGENT_DONE, worktree=str(repo), base_sha=base, goal="g", plan="p"))
+        Task(id="t9", prompt="stored", state=TaskState.AGENT_DONE, worktree=str(worktree), base_sha=base, goal="g", plan="p"))
 
     factory(project, "advance", "t9")
 
