@@ -47,4 +47,9 @@ Any existing test that must change is reported to the user first.
 - An issue stopped while waiting for a 👍 leaves the old "React 👍" comment in place, now ignored; the `gave-up` comment says so.
 
 ## Deviations
-(none yet)
+- Done in `188cdc2`..`1d949b5` (7 commits) plus the README. Suite 3394 -> 3406 passed, no existing test edited.
+- Increments 3 and 6 landed as guards (the plan allowed 6; 3 was listed red, but increment 2's code already left `ServerUnreachable` alone).
+- Greps: no test mentions `KINDS`, `left for the next pass`, `retried on the next pass` or `every pass retries`; one `retry-refused` hit (`test_watch.py:715`), unaffected. `--interval` default is 60. `POST /advance` queues (202, no busy check), so a busy issue does not count. Inspect command: `factory show <id>`.
+- The fallback `save_state` after a failed stop post is wrapped in `contextlib.suppress`; if it also fails the stop lasts only in memory and the next pass stops it again (`>=`).
+- The counting step's own `save_state` is not wrapped: an `OSError` there ends `watch` (listed as not covered).
+- README: new "Give-up cap" bullet, and the lines on `merge check failed`, the retry offer and "Serial" updated.
