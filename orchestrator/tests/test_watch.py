@@ -1960,3 +1960,18 @@ def test_a_server_outage_on_one_issue_logs_it_and_the_pass_continues_with_the_re
     assert "5" in logged and "connection refused" in logged and "\x1b" not in logged
     assert load_state(tmp_path).issues[5] == IssueRecord(task_id="t-1", phase=Phase.NEW)
     assert load_state(tmp_path).issues[6].phase is Phase.AWAITING_APPROVAL
+
+
+def test_a_state_file_from_before_the_failure_cap_loads_with_no_failed_passes(tmp_path):
+    old = {"watching_since": "2026-11-13T00:00:00+00:00", "cursor": None, "issues": {}}
+    (tmp_path / "watch.json").write_text(json.dumps(old))
+
+    assert load_state(tmp_path).failed_passes == {}
+
+
+def test_failed_pass_counts_survive_a_save_and_load(tmp_path):
+    state = WatchState(watching_since=SINCE, issues={7: IssueRecord(task_id="t-1")}, failed_passes={7: 3})
+
+    save_state(tmp_path, state)
+
+    assert load_state(tmp_path).failed_passes == {7: 3}

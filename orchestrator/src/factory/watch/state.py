@@ -49,6 +49,7 @@ class WatchState:
     watching_since: datetime
     cursor: datetime | None = None
     issues: dict[int, IssueRecord] = field(default_factory=dict)
+    failed_passes: dict[int, int] = field(default_factory=dict)
 
 
 def _state_path(state_dir) -> Path:
@@ -62,6 +63,7 @@ def save_state(state_dir, state: WatchState) -> None:
         "watching_since": state.watching_since.isoformat(),
         "cursor": state.cursor.isoformat() if state.cursor else None,
         "issues": {str(number): {**vars(record), "phase": record.phase.value} for number, record in state.issues.items()},
+        "failed_passes": {str(number): count for number, count in state.failed_passes.items()},
     }
     fd, temp_name = tempfile.mkstemp(dir=path.parent, suffix=".tmp")
     try:
@@ -97,6 +99,7 @@ def load_state(state_dir, clock=_utc_now) -> WatchState:
                 int(number): IssueRecord(**{**record, "phase": Phase(record["phase"])})
                 for number, record in document["issues"].items()
             },
+            failed_passes={int(number): count for number, count in document.get("failed_passes", {}).items()},
         )
     except ValueError as error:
         raise WatchStateError(f"{path} is unreadable ({error}); fix or delete it, but deleting re-creates tasks for old issues") from error
