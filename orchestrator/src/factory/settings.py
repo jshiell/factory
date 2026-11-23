@@ -91,8 +91,10 @@ PROJECT_CONFIG = Path(".factory") / "factory.toml"
 
 def load_settings(path: Path | None, cwd: Path) -> Settings:
     toplevel = _toplevel_or_none(cwd)
-    if path is None and toplevel is not None and (toplevel / PROJECT_CONFIG).exists():
-        path = toplevel / PROJECT_CONFIG
+    if toplevel is not None:
+        _check_no_old_layout(toplevel)
+        if path is None and (toplevel / PROJECT_CONFIG).exists():
+            path = toplevel / PROJECT_CONFIG
     global_path = _usable_global_config_path()
     global_layer = _global_layer(global_path) if global_path and global_path.exists() else {}
     typed = _merged(global_layer, {} if path is None else _layer(path))
@@ -116,6 +118,15 @@ def load_settings(path: Path | None, cwd: Path) -> Settings:
         raise SettingsError(f"server_host {settings.server_host!r} is unknown; known: {', '.join(BIND_HOSTS)}")
     _check_allowed_hosts(settings.server_allowed_hosts)
     return replace(settings, gate_allow_outside=_checked_allow_outside(settings))
+
+
+def _check_no_old_layout(toplevel: Path) -> None:
+    # A root factory.toml is editable by tasks; only `.factory/` is protected from them.
+    if (toplevel / "factory.toml").exists():
+        raise SettingsError(
+            f"{toplevel / 'factory.toml'} is no longer read: the project config lives in .factory/factory.toml. "
+            "Move it with `git mv factory.toml .factory/factory.toml` (or plain `mv` if .factory/ is gitignored)"
+        )
 
 
 def _check_allowed_hosts(hosts: tuple[str, ...]) -> None:
