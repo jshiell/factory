@@ -52,4 +52,5 @@ Any existing test that must change is reported to the user first.
 - Greps: no test mentions `KINDS`, `left for the next pass`, `retried on the next pass` or `every pass retries`; one `retry-refused` hit (`test_watch.py:715`), unaffected. `--interval` default is 60. `POST /advance` queues (202, no busy check), so a busy issue does not count. Inspect command: `factory show <id>`.
 - The fallback `save_state` after a failed stop post is wrapped in `contextlib.suppress`; if it also fails the stop lasts only in memory and the next pass stops it again (`>=`).
 - The counting step's own `save_state` is not wrapped: an `OSError` there ends `watch` (listed as not covered).
+- After the audit (`9dd7d84`, `d436fe7`, `86c759a`; suite 3409): two guards (the fenced, escaped last error; a count already above 20 still stops) and one fix: recreating a record clears a stale `failed_passes` count, so deleting a record restarts an issue from 0. `escape_control` keeps newlines, so the fence is what keeps them inert.
 - README: new "Give-up cap" bullet, and the lines on `merge check failed`, the retry offer and "Serial" updated.
