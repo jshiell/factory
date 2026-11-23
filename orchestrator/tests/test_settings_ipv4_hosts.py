@@ -3,6 +3,7 @@ import subprocess
 
 import pytest
 
+from configutil import write_config
 from factory.settings import SettingsError, load_settings
 
 
@@ -23,7 +24,7 @@ def repo_dir(tmp_path):
 
 
 def load_with(repo_dir, host):
-    (repo_dir / "factory.toml").write_text(f'server_allowed_hosts = ["{host}"]\n')
+    write_config(repo_dir, f'server_allowed_hosts = ["{host}"]\n')
     return load_settings(None, cwd=repo_dir)
 
 

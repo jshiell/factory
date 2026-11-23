@@ -4,6 +4,7 @@ import subprocess
 
 import pytest
 
+from configutil import write_config
 from factory.settings import SettingsError, load_settings
 
 
@@ -33,7 +34,7 @@ def global_config(isolated_home):
 
 def test_server_allowed_hosts_defaults_to_empty_and_comes_from_the_repo_config(repo_dir):
     assert load_settings(None, cwd=repo_dir).server_allowed_hosts == ()
-    (repo_dir / "factory.toml").write_text('server_allowed_hosts = ["nas.lan", "192.168.1.5"]\n')
+    write_config(repo_dir, 'server_allowed_hosts = ["nas.lan", "192.168.1.5"]\n')
 
     assert load_settings(None, cwd=repo_dir).server_allowed_hosts == ("nas.lan", "192.168.1.5")
 
@@ -47,7 +48,7 @@ def test_server_allowed_hosts_is_rejected_in_the_global_config(repo_dir, global_
 
 @pytest.mark.parametrize("value", ['"nas.lan"', "3", "[]"])
 def test_server_allowed_hosts_must_be_a_non_empty_list_of_strings(repo_dir, value):
-    (repo_dir / "factory.toml").write_text(f"server_allowed_hosts = {value}\n")
+    write_config(repo_dir, f"server_allowed_hosts = {value}\n")
 
     with pytest.raises(SettingsError, match="wrong type for setting: server_allowed_hosts"):
         load_settings(None, cwd=repo_dir)
@@ -61,7 +62,7 @@ def test_server_allowed_hosts_must_be_a_non_empty_list_of_strings(repo_dir, valu
     ],
 )
 def test_invalid_server_allowed_hosts_entries_are_refused(repo_dir, entries):
-    (repo_dir / "factory.toml").write_text(f"server_allowed_hosts = {json.dumps(entries)}\n")
+    write_config(repo_dir, f"server_allowed_hosts = {json.dumps(entries)}\n")
 
     with pytest.raises(SettingsError, match=f"server_allowed_hosts {re.escape(repr(entries[-1]))} is invalid: ."):
         load_settings(None, cwd=repo_dir)

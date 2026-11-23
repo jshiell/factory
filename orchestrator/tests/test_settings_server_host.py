@@ -2,6 +2,7 @@ import subprocess
 
 import pytest
 
+from configutil import write_config
 from factory.settings import SettingsError, load_settings
 
 
@@ -31,7 +32,7 @@ def global_config(isolated_home):
 
 def test_server_host_defaults_to_loopback_and_comes_from_the_repo_config(repo_dir):
     assert load_settings(None, cwd=repo_dir).server_host == "127.0.0.1"
-    (repo_dir / "factory.toml").write_text('server_host = "0.0.0.0"\n')
+    write_config(repo_dir, 'server_host = "0.0.0.0"\n')
 
     assert load_settings(None, cwd=repo_dir).server_host == "0.0.0.0"
 
@@ -44,7 +45,7 @@ def test_server_host_is_rejected_in_the_global_config(repo_dir, global_config):
 
 
 def test_server_host_must_be_a_string(repo_dir):
-    (repo_dir / "factory.toml").write_text("server_host = 3\n")
+    write_config(repo_dir, "server_host = 3\n")
 
     with pytest.raises(SettingsError, match="wrong type for setting: server_host"):
         load_settings(None, cwd=repo_dir)
@@ -52,7 +53,7 @@ def test_server_host_must_be_a_string(repo_dir):
 
 @pytest.mark.parametrize("value", ["localhost", "192.168.1.5", "", "::"])
 def test_server_host_other_than_the_two_bind_addresses_is_refused(repo_dir, value):
-    (repo_dir / "factory.toml").write_text(f'server_host = "{value}"\n')
+    write_config(repo_dir, f'server_host = "{value}"\n')
 
     with pytest.raises(SettingsError, match=r"server_host.*127\.0\.0\.1.*0\.0\.0\.0"):
         load_settings(None, cwd=repo_dir)

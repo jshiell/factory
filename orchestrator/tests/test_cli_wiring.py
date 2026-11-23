@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pytest
 
+from configutil import config_path, write_config
 from test_audit_share import write_eval
 
 ORCHESTRATOR = Path(__file__).parent.parent
@@ -66,8 +67,8 @@ def project(tmp_path):
     nono = tmp_path / "fake-nono"
     nono.write_text(FAKE_NONO)
     nono.chmod(nono.stat().st_mode | stat.S_IEXEC)
-    (repo / "factory.toml").write_text(f'claude_executable = "{fake}"\nsandbox_executable = "{nono}"\nstate_dir = "{tmp_path / "state"}"\n'
-                                       f'worktree_root = "{tmp_path / "wt"}"\nserver_port = {_free_port()}\n')
+    write_config(repo, f'claude_executable = "{fake}"\nsandbox_executable = "{nono}"\nstate_dir = "{tmp_path / "state"}"\n'
+                       f'worktree_root = "{tmp_path / "wt"}"\nserver_port = {_free_port()}\n')
     sh("git", "init", "-q", "-b", "main", cwd=repo, env=env)
     sh("git", "add", "-A", cwd=repo, env=env)
     sh("git", "commit", "-q", "-m", "init", cwd=repo, env=env)
@@ -202,7 +203,7 @@ def test_approve_from_a_non_terminal_changes_nothing(project):
 
 def test_a_bad_config_file_exits_2_naming_the_key(project):
     repo, _, _ = project
-    (repo / "factory.toml").write_text("bogus = 1\n")
+    write_config(repo, "bogus = 1\n")
 
     result = factory(project, "list", served=False)  # the server could not start on this config either
 
@@ -259,7 +260,7 @@ def test_a_failing_gate_runs_one_confined_fix_round_and_the_tests_then_pass(proj
     from factory.task import Task, TaskState
     from factory.worktrees import WorktreeManager
     repo, env, tmp_path = project
-    config = repo / "factory.toml"
+    config = config_path(repo)
     config.write_text(config.read_text() + 'test_argv = ["sh", "-c", "echo NEEDS-FIX; test -f fixed"]\n')
     sh("git", "commit", "-q", "-am", "test_argv", cwd=repo, env=env)
     worktree, base = WorktreeManager(repo, tmp_path / "wt").create("t9")
@@ -330,7 +331,7 @@ def test_an_agent_launched_by_the_real_cli_is_recorded_while_it_runs(project):
     spy = tmp_path / "spy-claude"
     spy.write_text(f'#!/bin/sh\n"{query_records_script(tmp_path)}" "{tmp_path}/state/factory.db" "{seen}"\n')
     spy.chmod(spy.stat().st_mode | stat.S_IEXEC)
-    config = repo / "factory.toml"
+    config = config_path(repo)
     config.write_text(config.read_text().replace("fake-claude", "spy-claude"))
     (tmp_path / "state").mkdir(parents=True, exist_ok=True)
     SqliteTaskStore(tmp_path / "state" / "factory.db").save(Task(id="t9", prompt="implement it", state=TaskState.QUEUED))
@@ -348,7 +349,7 @@ def test_a_gate_run_launched_by_the_real_cli_is_recorded_while_it_runs(project):
     from factory.worktrees import WorktreeManager
     repo, env, tmp_path = project
     seen = tmp_path / "seen-gate-records"
-    config = repo / "factory.toml"
+    config = config_path(repo)
     config.write_text(config.read_text() + f'test_argv = ["{query_records_script(tmp_path)}", "{tmp_path}/state/factory.db", "{seen}"]\n')
     sh("git", "commit", "-q", "-am", "test_argv", cwd=repo, env=env)
     worktree, base = WorktreeManager(repo, tmp_path / "wt").create("t9")
@@ -382,9 +383,9 @@ def test_eval_audit_runs_the_real_runner_in_the_corpus_project_and_records_under
     auditor = tmp_path / "fake-auditor"
     auditor.write_text(FAKE_AUDITOR)
     auditor.chmod(auditor.stat().st_mode | stat.S_IEXEC)
-    config = (repo / "factory.toml").read_text().replace(next(line for line in (repo / "factory.toml").read_text().splitlines()
-                                                              if line.startswith("claude_executable")), f'claude_executable = "{auditor}"')
-    (repo / "factory.toml").write_text(config + 'project_subdir = "elsewhere"\n')
+    config = config_path(repo).read_text().replace(next(line for line in config_path(repo).read_text().splitlines()
+                                                        if line.startswith("claude_executable")), f'claude_executable = "{auditor}"')
+    write_config(repo, config + 'project_subdir = "elsewhere"\n')
     env["FAKE_STATE_DIR"] = str(tmp_path / "state")
     project = (repo, env, tmp_path)
 

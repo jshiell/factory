@@ -2,6 +2,7 @@ import subprocess
 
 import pytest
 
+from configutil import write_config
 from factory.settings import SettingsError, load_settings
 
 
@@ -45,7 +46,7 @@ def test_outside_a_git_repository_without_a_configured_repo_is_an_error(tmp_path
 
 
 def test_factory_toml_in_the_cwd_is_used_when_no_path_is_given(repo_dir):
-    (repo_dir / "factory.toml").write_text('cap_usd = 9\nproject_subdir = "app"\n')
+    write_config(repo_dir, 'cap_usd = 9\nproject_subdir = "app"\n')
 
     settings = load_settings(None, cwd=repo_dir)
 
@@ -86,7 +87,7 @@ def test_an_explicit_missing_config_file_raises(repo_dir):
     ],
 )
 def test_bad_settings_are_rejected_with_a_message_naming_the_key(repo_dir, line, key):
-    (repo_dir / "factory.toml").write_text(line + "\n")
+    write_config(repo_dir, line + "\n")
 
     with pytest.raises(SettingsError, match=key):
         load_settings(None, cwd=repo_dir)
@@ -94,13 +95,13 @@ def test_bad_settings_are_rejected_with_a_message_naming_the_key(repo_dir, line,
 
 def test_sandbox_executable_defaults_to_unset_and_can_be_set(repo_dir):
     assert load_settings(None, cwd=repo_dir).sandbox_executable is None
-    (repo_dir / "factory.toml").write_text('sandbox_executable = "/opt/fake-nono"\n')
+    write_config(repo_dir, 'sandbox_executable = "/opt/fake-nono"\n')
 
     assert load_settings(None, cwd=repo_dir).sandbox_executable == "/opt/fake-nono"
 
 
 def test_a_non_string_sandbox_executable_is_rejected_naming_the_key(repo_dir):
-    (repo_dir / "factory.toml").write_text("sandbox_executable = 3\n")
+    write_config(repo_dir, "sandbox_executable = 3\n")
 
     with pytest.raises(SettingsError, match="sandbox_executable"):
         load_settings(None, cwd=repo_dir)
@@ -109,13 +110,13 @@ def test_a_non_string_sandbox_executable_is_rejected_naming_the_key(repo_dir):
 def test_fix_rounds_defaults_to_two_and_accepts_zero_and_more(repo_dir):
     assert load_settings(None, cwd=repo_dir).fix_rounds == 2
     for value in (0, 3):
-        (repo_dir / "factory.toml").write_text(f"fix_rounds = {value}\n")
+        write_config(repo_dir, f"fix_rounds = {value}\n")
         assert load_settings(None, cwd=repo_dir).fix_rounds == value
 
 
 @pytest.mark.parametrize("value", ["-1", "1.5", '"2"', "true"])
 def test_a_bad_fix_rounds_is_rejected_naming_the_key(repo_dir, value):
-    (repo_dir / "factory.toml").write_text(f"fix_rounds = {value}\n")
+    write_config(repo_dir, f"fix_rounds = {value}\n")
 
     with pytest.raises(SettingsError, match="fix_rounds"):
         load_settings(None, cwd=repo_dir)
@@ -125,7 +126,7 @@ def test_grilling_is_on_by_default_with_three_rounds_and_both_come_from_the_conf
     defaults = load_settings(None, cwd=repo_dir)
     assert (defaults.grill, defaults.grill_max_rounds) == (True, 3)
 
-    (repo_dir / "factory.toml").write_text("grill = false\ngrill_max_rounds = 0\n")
+    write_config(repo_dir, "grill = false\ngrill_max_rounds = 0\n")
     configured = load_settings(None, cwd=repo_dir)
 
     assert (configured.grill, configured.grill_max_rounds) == (False, 0)
@@ -137,7 +138,7 @@ def test_grilling_is_on_by_default_with_three_rounds_and_both_come_from_the_conf
     ('grill_max_rounds = "3"', "grill_max_rounds"),
 ])
 def test_a_bad_grill_setting_is_rejected_naming_the_key(repo_dir, line, key):
-    (repo_dir / "factory.toml").write_text(line + "\n")
+    write_config(repo_dir, line + "\n")
 
     with pytest.raises(SettingsError, match=key):
         load_settings(None, cwd=repo_dir)
@@ -200,7 +201,7 @@ def test_a_home_in_the_config_is_relative_to_the_config_directory(tmp_path, repo
 
 
 def test_a_non_string_home_is_rejected_naming_the_key(repo_dir):
-    (repo_dir / "factory.toml").write_text("home = 3\n")
+    write_config(repo_dir, "home = 3\n")
 
     with pytest.raises(SettingsError, match="home"):
         load_settings(None, cwd=repo_dir)
@@ -297,14 +298,14 @@ def test_a_bad_factory_home_is_harmless_when_both_paths_are_overridden(tmp_path,
 
 def test_append_system_prompt_defaults_to_none_and_can_be_set(repo_dir):
     assert load_settings(None, cwd=repo_dir).append_system_prompt is None
-    (repo_dir / "factory.toml").write_text('append_system_prompt = "Be terse."\n')
+    write_config(repo_dir, 'append_system_prompt = "Be terse."\n')
 
     assert load_settings(None, cwd=repo_dir).append_system_prompt == "Be terse."
 
 
 @pytest.mark.parametrize("value", ['""', "3"])
 def test_a_bad_append_system_prompt_is_rejected_naming_the_key(repo_dir, value):
-    (repo_dir / "factory.toml").write_text(f"append_system_prompt = {value}\n")
+    write_config(repo_dir, f"append_system_prompt = {value}\n")
 
     with pytest.raises(SettingsError, match="append_system_prompt"):
         load_settings(None, cwd=repo_dir)
@@ -312,7 +313,7 @@ def test_a_bad_append_system_prompt_is_rejected_naming_the_key(repo_dir, value):
 
 def test_stage_prompts_default_to_empty_and_can_be_set_per_stage(repo_dir):
     assert load_settings(None, cwd=repo_dir).stage_prompts == {}
-    (repo_dir / "factory.toml").write_text('[stage_prompts]\nplan = "Plan well."\naudit = "Be strict."\n')
+    write_config(repo_dir, '[stage_prompts]\nplan = "Plan well."\naudit = "Be strict."\n')
 
     assert load_settings(None, cwd=repo_dir).stage_prompts == {"plan": "Plan well.", "audit": "Be strict."}
 
@@ -327,7 +328,7 @@ def test_stage_prompts_default_to_empty_and_can_be_set_per_stage(repo_dir):
     ],
 )
 def test_bad_stage_prompts_are_rejected_naming_the_key(repo_dir, toml):
-    (repo_dir / "factory.toml").write_text(toml + "\n")
+    write_config(repo_dir, toml + "\n")
 
     with pytest.raises(SettingsError, match="stage_prompts"):
         load_settings(None, cwd=repo_dir)
@@ -350,7 +351,7 @@ def test_the_global_config_applies_when_there_is_no_local_file(repo_dir, global_
 
 def test_a_local_key_overrides_the_global_one_and_other_global_keys_survive(repo_dir, global_config):
     global_config.write_text('cap_usd = 7\nmodel = "opus"\n')
-    (repo_dir / "factory.toml").write_text("cap_usd = 2\n")
+    write_config(repo_dir, "cap_usd = 2\n")
 
     settings = load_settings(None, cwd=repo_dir)
 
@@ -359,7 +360,7 @@ def test_a_local_key_overrides_the_global_one_and_other_global_keys_survive(repo
 
 def test_stage_prompts_merge_per_stage_with_the_local_one_winning(repo_dir, global_config):
     global_config.write_text('[stage_prompts]\nplan = "G plan."\naudit = "G audit."\n')
-    (repo_dir / "factory.toml").write_text('[stage_prompts]\nplan = "L plan."\n')
+    write_config(repo_dir, '[stage_prompts]\nplan = "L plan."\n')
 
     settings = load_settings(None, cwd=repo_dir)
 
@@ -437,14 +438,14 @@ def test_plugins_default_to_none_and_come_from_the_config_with_local_replacing_g
         (global_config.parent / "_shared" / "plugins" / name).mkdir(parents=True)
     global_config.write_text('plugins = ["a", "b"]\n')
     assert load_settings(None, cwd=repo_dir).plugins == ("a", "b")
-    (repo_dir / "factory.toml").write_text('plugins = ["c"]\n')
+    write_config(repo_dir, 'plugins = ["c"]\n')
 
     assert load_settings(None, cwd=repo_dir).plugins == ("c",)
 
 
 @pytest.mark.parametrize("value", ["[]", '"a"', "[1]", '["../x"]', '["a/b"]', '[""]', '["."]', '[".."]', '["a", "a"]'])
 def test_bad_plugin_names_are_rejected_naming_the_key(repo_dir, value):
-    (repo_dir / "factory.toml").write_text(f"plugins = {value}\n")
+    write_config(repo_dir, f"plugins = {value}\n")
 
     with pytest.raises(SettingsError, match="wrong type for setting: plugins"):
         load_settings(None, cwd=repo_dir)
@@ -454,7 +455,7 @@ def test_plugin_names_resolve_to_directories_under_the_shared_plugins_dir(repo_d
     shared = global_config.parent / "_shared" / "plugins"
     (shared / "a").mkdir(parents=True)
     (shared / "b").mkdir()
-    (repo_dir / "factory.toml").write_text('plugins = ["a", "b"]\n')
+    write_config(repo_dir, 'plugins = ["a", "b"]\n')
 
     assert load_settings(None, cwd=repo_dir).plugin_dirs == (shared / "a", shared / "b")
 
@@ -462,13 +463,13 @@ def test_plugin_names_resolve_to_directories_under_the_shared_plugins_dir(repo_d
 def test_plugin_dirs_follow_a_configured_home(repo_dir, tmp_path):
     shared = tmp_path / "myhome" / "_shared" / "plugins"
     (shared / "a").mkdir(parents=True)
-    (repo_dir / "factory.toml").write_text(f'home = "{tmp_path / "myhome"}"\nplugins = ["a"]\n')
+    write_config(repo_dir, f'home = "{tmp_path / "myhome"}"\nplugins = ["a"]\n')
 
     assert load_settings(None, cwd=repo_dir).plugin_dirs == (shared / "a",)
 
 
 def test_a_missing_plugin_directory_is_an_error_naming_it(repo_dir, global_config):
-    (repo_dir / "factory.toml").write_text('plugins = ["nope"]\n')
+    write_config(repo_dir, 'plugins = ["nope"]\n')
 
     with pytest.raises(SettingsError, match="nope"):
         load_settings(None, cwd=repo_dir)
@@ -482,7 +483,7 @@ def make_plugins(home, *names):
 def test_stage_plugins_default_to_empty_and_can_be_set_per_stage(repo_dir, isolated_home):
     assert load_settings(None, cwd=repo_dir).stage_plugins == {}
     make_plugins(isolated_home, "a", "b", "c")
-    (repo_dir / "factory.toml").write_text('[stage_plugins]\nreview = ["a", "b"]\naudit = ["c"]\n')
+    write_config(repo_dir, '[stage_plugins]\nreview = ["a", "b"]\naudit = ["c"]\n')
 
     assert load_settings(None, cwd=repo_dir).stage_plugins == {"review": ("a", "b"), "audit": ("c",)}
 
@@ -499,7 +500,7 @@ def test_stage_plugins_default_to_empty_and_can_be_set_per_stage(repo_dir, isola
     ],
 )
 def test_bad_stage_plugins_are_rejected_naming_the_key(repo_dir, toml):
-    (repo_dir / "factory.toml").write_text(toml + "\n")
+    write_config(repo_dir, toml + "\n")
 
     with pytest.raises(SettingsError, match="wrong type for setting: stage_plugins"):
         load_settings(None, cwd=repo_dir)
@@ -508,7 +509,7 @@ def test_bad_stage_plugins_are_rejected_naming_the_key(repo_dir, toml):
 def test_stage_plugins_merge_per_stage_with_the_local_list_replacing_the_global_one(repo_dir, global_config):
     make_plugins(global_config.parent.parent, "a", "b", "c")
     global_config.write_text('[stage_plugins]\nreview = ["a"]\naudit = ["b"]\n')
-    (repo_dir / "factory.toml").write_text('[stage_plugins]\nreview = ["c"]\n')
+    write_config(repo_dir, '[stage_plugins]\nreview = ["c"]\n')
 
     assert load_settings(None, cwd=repo_dir).stage_plugins == {"review": ("c",), "audit": ("b",)}
 
@@ -516,7 +517,7 @@ def test_stage_plugins_merge_per_stage_with_the_local_list_replacing_the_global_
 def test_stage_plugin_names_resolve_to_directories_per_stage(repo_dir, isolated_home):
     make_plugins(isolated_home, "a", "b")
     shared = isolated_home / ".harness" / "_shared" / "plugins"
-    (repo_dir / "factory.toml").write_text('[stage_plugins]\nreview = ["a", "b"]\naudit = ["b"]\n')
+    write_config(repo_dir, '[stage_plugins]\nreview = ["a", "b"]\naudit = ["b"]\n')
 
     settings = load_settings(None, cwd=repo_dir)
 
@@ -525,7 +526,7 @@ def test_stage_plugin_names_resolve_to_directories_per_stage(repo_dir, isolated_
 
 
 def test_a_missing_stage_plugin_directory_is_an_error_naming_it(repo_dir, isolated_home):
-    (repo_dir / "factory.toml").write_text('[stage_plugins]\nreview = ["nope"]\n')
+    write_config(repo_dir, '[stage_plugins]\nreview = ["nope"]\n')
 
     with pytest.raises(SettingsError, match="nope"):
         load_settings(None, cwd=repo_dir)
@@ -544,7 +545,7 @@ def test_a_missing_stage_plugin_directory_is_an_error_naming_it(repo_dir, isolat
 def test_a_plugin_with_hooks_or_mcp_servers_is_refused_naming_it(repo_dir, isolated_home, toml, setup_plugin, reason):
     make_plugins(isolated_home, "bad")
     setup_plugin(isolated_home / ".harness" / "_shared" / "plugins" / "bad")
-    (repo_dir / "factory.toml").write_text(toml + "\n")
+    write_config(repo_dir, toml + "\n")
 
     with pytest.raises(SettingsError, match=f"bad.*{reason}"):
         load_settings(None, cwd=repo_dir)
@@ -556,7 +557,7 @@ def test_a_skill_or_agent_with_frontmatter_hooks_is_refused_naming_it(repo_dir, 
     plugin = isolated_home / ".harness" / "_shared" / "plugins" / "bad"
     (plugin / relative).parent.mkdir(parents=True)
     (plugin / relative).write_text("---\nname: x\nhooks:\n  PreToolUse: []\n---\nBody\n")
-    (repo_dir / "factory.toml").write_text('plugins = ["bad"]\n')
+    write_config(repo_dir, 'plugins = ["bad"]\n')
 
     with pytest.raises(SettingsError, match=f"bad.*frontmatter hooks.*{relative}"):
         load_settings(None, cwd=repo_dir)
@@ -567,7 +568,7 @@ def test_a_skill_that_only_mentions_hooks_outside_its_frontmatter_is_accepted(re
     plugin = isolated_home / ".harness" / "_shared" / "plugins" / "ok"
     (plugin / "skills" / "s").mkdir(parents=True)
     (plugin / "skills" / "s" / "SKILL.md").write_text("---\nname: s\n---\nhooks:\n  are discussed here\n")
-    (repo_dir / "factory.toml").write_text('plugins = ["ok"]\n')
+    write_config(repo_dir, 'plugins = ["ok"]\n')
 
     assert load_settings(None, cwd=repo_dir).plugin_dirs == (plugin,)
 
@@ -577,7 +578,7 @@ def test_a_plugin_with_an_unreadable_manifest_is_refused(repo_dir, isolated_home
     plugin = isolated_home / ".harness" / "_shared" / "plugins" / "bad"
     (plugin / ".claude-plugin").mkdir()
     (plugin / ".claude-plugin" / "plugin.json").write_text("{not json")
-    (repo_dir / "factory.toml").write_text('plugins = ["bad"]\n')
+    write_config(repo_dir, 'plugins = ["bad"]\n')
 
     with pytest.raises(SettingsError, match=r"bad.*plugin\.json"):
         load_settings(None, cwd=repo_dir)
@@ -590,7 +591,7 @@ def test_a_plugin_manifest_that_cannot_be_read_is_refused_not_a_crash(repo_dir, 
     manifest = plugin / ".claude-plugin" / "plugin.json"
     manifest.write_text('{"name": "bad"}')
     manifest.chmod(0)
-    (repo_dir / "factory.toml").write_text('plugins = ["bad"]\n')
+    write_config(repo_dir, 'plugins = ["bad"]\n')
     try:
         with pytest.raises(SettingsError, match=r"bad.*plugin\.json"):
             load_settings(None, cwd=repo_dir)
@@ -605,7 +606,7 @@ def test_a_skill_file_that_cannot_be_read_is_refused_not_a_crash(repo_dir, isola
     skill = plugin / "skills" / "s" / "SKILL.md"
     skill.write_text("---\nname: s\n---\n")
     skill.chmod(0)
-    (repo_dir / "factory.toml").write_text('plugins = ["bad"]\n')
+    write_config(repo_dir, 'plugins = ["bad"]\n')
     try:
         with pytest.raises(SettingsError, match=r"bad.*skills/s/SKILL.md"):
             load_settings(None, cwd=repo_dir)
@@ -620,7 +621,7 @@ def test_a_plugin_with_only_skills_and_agents_is_accepted(repo_dir, isolated_hom
     (plugin / "agents").mkdir()
     (plugin / ".claude-plugin").mkdir()
     (plugin / ".claude-plugin" / "plugin.json").write_text('{"name": "ok"}')
-    (repo_dir / "factory.toml").write_text('plugins = ["ok"]\n')
+    write_config(repo_dir, 'plugins = ["ok"]\n')
 
     assert load_settings(None, cwd=repo_dir).plugin_dirs == (plugin,)
 
@@ -638,14 +639,14 @@ def test_a_repo_cloned_into_the_home_is_keyed_by_its_project_directory(isolated_
 
 def test_watch_approvers_default_to_none_and_load_as_a_casefolded_tuple(repo_dir):
     assert load_settings(None, cwd=repo_dir).watch_approvers == ()
-    (repo_dir / "factory.toml").write_text('watch_approvers = ["Alice", "bob-2"]\n')
+    write_config(repo_dir, 'watch_approvers = ["Alice", "bob-2"]\n')
 
     assert load_settings(None, cwd=repo_dir).watch_approvers == ("alice", "bob-2")
 
 
 @pytest.mark.parametrize("login", ["", "-a", "a-", "a--b", "a_b", "a b", "a/b", "@a", "a" * 40])
 def test_a_bad_watch_approver_login_is_rejected_naming_the_key(repo_dir, login):
-    (repo_dir / "factory.toml").write_text(f'watch_approvers = ["{login}"]\n')
+    write_config(repo_dir, f'watch_approvers = ["{login}"]\n')
 
     with pytest.raises(SettingsError, match="wrong type for setting: watch_approvers"):
         load_settings(None, cwd=repo_dir)
@@ -653,13 +654,13 @@ def test_a_bad_watch_approver_login_is_rejected_naming_the_key(repo_dir, login):
 
 def test_main_branch_is_unset_by_default_and_comes_from_the_config(repo_dir):
     assert load_settings(None, cwd=repo_dir).main_branch is None
-    (repo_dir / "factory.toml").write_text('main_branch = "master"\n')
+    write_config(repo_dir, 'main_branch = "master"\n')
 
     assert load_settings(None, cwd=repo_dir).main_branch == "master"
 
 
 def test_an_empty_main_branch_is_rejected_naming_the_key(repo_dir):
-    (repo_dir / "factory.toml").write_text('main_branch = ""\n')
+    write_config(repo_dir, 'main_branch = ""\n')
 
     with pytest.raises(SettingsError, match="wrong type for setting: main_branch"):
         load_settings(None, cwd=repo_dir)
@@ -667,7 +668,7 @@ def test_an_empty_main_branch_is_rejected_naming_the_key(repo_dir):
 
 def test_watch_merge_is_off_by_default_and_comes_from_the_config(repo_dir):
     assert load_settings(None, cwd=repo_dir).watch_merge is False
-    (repo_dir / "factory.toml").write_text("watch_merge = true\n")
+    write_config(repo_dir, "watch_merge = true\n")
 
     assert load_settings(None, cwd=repo_dir).watch_merge is True
 
@@ -676,7 +677,7 @@ def test_gate_allow_outside_defaults_to_none_and_the_local_list_replaces_the_glo
     assert load_settings(None, cwd=repo_dir).gate_allow_outside == ()
     global_config.write_text('gate_allow_outside = ["README.md", "docs"]\n')
     assert load_settings(None, cwd=repo_dir).gate_allow_outside == ("README.md", "docs")
-    (repo_dir / "factory.toml").write_text('gate_allow_outside = ["LICENSE"]\n')
+    write_config(repo_dir, 'gate_allow_outside = ["LICENSE"]\n')
 
     assert load_settings(None, cwd=repo_dir).gate_allow_outside == ("LICENSE",)
 
@@ -690,7 +691,7 @@ def test_gate_allow_outside_defaults_to_none_and_the_local_list_replaces_the_glo
     ],
 )
 def test_a_bad_gate_allow_outside_entry_is_rejected_naming_the_key(repo_dir, entry):
-    (repo_dir / "factory.toml").write_text(f'project_subdir = "proj/sub"\ngate_allow_outside = ["{entry}"]\n')
+    write_config(repo_dir, f'project_subdir = "proj/sub"\ngate_allow_outside = ["{entry}"]\n')
 
     with pytest.raises(SettingsError, match="gate_allow_outside"):
         load_settings(None, cwd=repo_dir)
@@ -698,7 +699,7 @@ def test_a_bad_gate_allow_outside_entry_is_rejected_naming_the_key(repo_dir, ent
 
 @pytest.mark.parametrize("toml", ["[]", '["a", "a"]', '["a", "a/"]', '["docs", "docs/"]'])
 def test_an_empty_or_duplicated_gate_allow_outside_list_is_rejected(repo_dir, toml):
-    (repo_dir / "factory.toml").write_text(f"gate_allow_outside = {toml}\n")
+    write_config(repo_dir, f"gate_allow_outside = {toml}\n")
 
     with pytest.raises(SettingsError, match="gate_allow_outside"):
         load_settings(None, cwd=repo_dir)
@@ -708,9 +709,9 @@ def test_a_trailing_slash_is_normalised_and_a_global_list_is_checked_against_the
     repo_dir, global_config
 ):
     global_config.write_text('gate_allow_outside = ["docs/", "proj"]\n')
-    (repo_dir / "factory.toml").write_text('project_subdir = "other"\n')
+    write_config(repo_dir, 'project_subdir = "other"\n')
     assert load_settings(None, cwd=repo_dir).gate_allow_outside == ("docs", "proj")
-    (repo_dir / "factory.toml").write_text('project_subdir = "proj"\n')
+    write_config(repo_dir, 'project_subdir = "proj"\n')
 
     with pytest.raises(SettingsError, match="gate_allow_outside"):
         load_settings(None, cwd=repo_dir)
@@ -718,14 +719,14 @@ def test_a_trailing_slash_is_normalised_and_a_global_list_is_checked_against_the
 
 @pytest.mark.parametrize("subdir", [".", "./"])
 def test_project_subdir_dot_names_the_repo_root(repo_dir, subdir):
-    (repo_dir / "factory.toml").write_text(f'project_subdir = "{subdir}"\n')
+    write_config(repo_dir, f'project_subdir = "{subdir}"\n')
 
     assert load_settings(None, cwd=repo_dir).project_subdir == subdir
 
 
 @pytest.mark.parametrize("subdir", [".factory", ".FACTORY", "./.Factory/sub", ".factory/"])
 def test_project_subdir_in_the_factory_dir_is_rejected(repo_dir, subdir):
-    (repo_dir / "factory.toml").write_text(f'project_subdir = "{subdir}"\n')
+    write_config(repo_dir, f'project_subdir = "{subdir}"\n')
 
     with pytest.raises(SettingsError, match=r"project_subdir.*\.factory"):
         load_settings(None, cwd=repo_dir)
@@ -733,7 +734,7 @@ def test_project_subdir_in_the_factory_dir_is_rejected(repo_dir, subdir):
 
 def test_a_global_entry_that_is_an_ancestor_of_the_local_project_subdir_is_rejected(repo_dir, global_config):
     global_config.write_text('gate_allow_outside = ["a"]\n')
-    (repo_dir / "factory.toml").write_text('project_subdir = "a/b"\n')
+    write_config(repo_dir, 'project_subdir = "a/b"\n')
 
     with pytest.raises(SettingsError, match="gate_allow_outside"):
         load_settings(None, cwd=repo_dir)
@@ -741,7 +742,7 @@ def test_a_global_entry_that_is_an_ancestor_of_the_local_project_subdir_is_rejec
 
 def test_gate_allow_dependency_changes_is_off_by_default_and_comes_from_the_repo_config(repo_dir):
     assert load_settings(None, cwd=repo_dir).gate_allow_dependency_changes is False
-    (repo_dir / "factory.toml").write_text("gate_allow_dependency_changes = true\n")
+    write_config(repo_dir, "gate_allow_dependency_changes = true\n")
 
     assert load_settings(None, cwd=repo_dir).gate_allow_dependency_changes is True
 
@@ -755,7 +756,7 @@ def test_gate_allow_dependency_changes_is_rejected_in_the_global_config(repo_dir
 
 
 def test_gate_allow_dependency_changes_must_be_a_boolean(repo_dir):
-    (repo_dir / "factory.toml").write_text('gate_allow_dependency_changes = "yes"\n')
+    write_config(repo_dir, 'gate_allow_dependency_changes = "yes"\n')
 
     with pytest.raises(SettingsError, match="gate_allow_dependency_changes"):
         load_settings(None, cwd=repo_dir)
@@ -763,7 +764,7 @@ def test_gate_allow_dependency_changes_must_be_a_boolean(repo_dir):
 
 def test_watch_retry_is_off_by_default_and_comes_from_the_config(repo_dir):
     assert load_settings(None, cwd=repo_dir).watch_retry is False
-    (repo_dir / "factory.toml").write_text("watch_retry = true\n")
+    write_config(repo_dir, "watch_retry = true\n")
 
     assert load_settings(None, cwd=repo_dir).watch_retry is True
 
@@ -771,13 +772,13 @@ def test_watch_retry_is_off_by_default_and_comes_from_the_config(repo_dir):
 def test_the_harness_defaults_to_claude_and_can_be_named_locally_or_globally(repo_dir, global_config):
     assert load_settings(None, cwd=repo_dir).harness == "claude"
     global_config.write_text('harness = "claude"\n')
-    (repo_dir / "factory.toml").write_text('harness = "claude"\n')
+    write_config(repo_dir, 'harness = "claude"\n')
 
     assert load_settings(None, cwd=repo_dir).harness == "claude"
 
 
 def test_an_unknown_harness_names_the_key_and_the_known_ones(repo_dir):
-    (repo_dir / "factory.toml").write_text('harness = "gemini"\n')
+    write_config(repo_dir, 'harness = "gemini"\n')
 
     with pytest.raises(SettingsError, match=r"harness.*gemini.*claude"):
         load_settings(None, cwd=repo_dir)
@@ -786,13 +787,13 @@ def test_an_unknown_harness_names_the_key_and_the_known_ones(repo_dir):
 def test_the_sandbox_defaults_to_nono_and_can_be_named_locally_or_globally(repo_dir, global_config):
     assert load_settings(None, cwd=repo_dir).sandbox == "nono"
     global_config.write_text('sandbox = "nono"\n')
-    (repo_dir / "factory.toml").write_text('sandbox = "nono"\n')
+    write_config(repo_dir, 'sandbox = "nono"\n')
 
     assert load_settings(None, cwd=repo_dir).sandbox == "nono"
 
 
 def test_an_unknown_sandbox_names_the_key_and_the_known_ones(repo_dir):
-    (repo_dir / "factory.toml").write_text('sandbox = "bubblewrap"\n')
+    write_config(repo_dir, 'sandbox = "bubblewrap"\n')
 
     with pytest.raises(SettingsError, match=r"^sandbox 'bubblewrap' is unknown; known: nono$"):
         load_settings(None, cwd=repo_dir)
