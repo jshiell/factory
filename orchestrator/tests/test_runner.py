@@ -606,7 +606,9 @@ def test_a_confined_run_is_wrapped_by_the_given_sandbox_with_the_policy_the_runn
     result = runner.run(task, replace(CONFIG, confine=True, plugin_dirs=("/plug",)))
 
     (policy,) = sandbox.policies
-    assert (policy.worktree, policy.profile, policy.write) == (str(Path(task.worktree).resolve()), "acme/fake", ())
+    assert (policy.worktree, policy.profile, policy.write) == (
+        str(Path(task.worktree).resolve()), "acme/fake", (str(Path(task.worktree).resolve()),)
+    )
     assert "/plug" in policy.read and str(Path(claude).parent) in policy.read
     assert result.exit_code == 0 and log.exists()
 

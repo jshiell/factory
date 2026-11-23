@@ -218,7 +218,7 @@ def test_merge_from_a_non_terminal_changes_nothing(project):
     assert "proposed" in factory(project, "show", task_id).stdout
 
 
-def test_the_implement_stage_runs_confined_with_no_shell_and_a_read_only_view_of_the_rest(project):
+def test_the_implement_stage_runs_confined_with_no_shell_in_its_worktree(project):
     from factory.sqlite_store import SqliteTaskStore
     from factory.task import Task, TaskState
     repo, _, tmp_path = project

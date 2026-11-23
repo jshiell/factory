@@ -58,8 +58,10 @@ class SubprocessRunner:
         if config.confine:
             private_dirs = (*self._private_dirs, *filter(None, [child_env.get("HOME")]))
             executable_grant = _executable_directory(self._executable, child_env.get("PATH"), private_dirs)
+            # The whole worktree: the editable area is the repo, not the project. `.git` and `.factory` are not
+            # protected here (Landlock grants are additive); the pinned git calls and the gate protect them.
             policy = SandboxPolicy(
-                worktree, read=(*config.plugin_dirs, *executable_grant), profile=self._harness.sandbox_profile, cwd=cwd,
+                worktree, write=(worktree,), read=(*config.plugin_dirs, *executable_grant), profile=self._harness.sandbox_profile, cwd=cwd,
             )
             argv = self._sandbox.wrap(policy) + argv
         tracker = Tracker(self._records, task.id, task.state.value) if self._records else None

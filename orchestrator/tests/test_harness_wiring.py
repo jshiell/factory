@@ -53,6 +53,26 @@ def test_the_agent_runner_wraps_a_confined_run_in_the_configured_sandbox(tmp_pat
     assert [policy.worktree for policy in policies] == [str(worktree.resolve())]
 
 
+@pytest.mark.parametrize("project_subdir", [PROJECT_SUBDIR, "."])
+def test_a_confined_agent_may_write_the_whole_worktree_and_nothing_else(tmp_path, monkeypatch, project_subdir):
+    policies = []
+    sandbox = type("Fake", (), {"wrap": lambda self, policy: policies.append(policy) or []})()
+    monkeypatch.setitem(SANDBOXES, "fake", lambda executable: sandbox)
+    worktree = tmp_path / "wt"
+    (worktree / PROJECT_SUBDIR).mkdir(parents=True)
+    settings = Settings(
+        tmp_path / "repo", tmp_path / "state", tmp_path / "wts", sandbox="fake", project_subdir=project_subdir,
+        claude_executable=fake_claude(tmp_path, "echo ok"),
+    )
+
+    agent_runner(settings, project_subdir, records=None).run(
+        Task(id="t1", prompt="do it", worktree=str(worktree)), RunnerConfig(model="sonnet", confine=True)
+    )
+
+    (policy,) = policies
+    assert policy.write == (str(worktree.resolve()),)
+
+
 def test_the_gate_of_a_root_project_may_write_the_whole_worktree_and_its_cache(tmp_path, monkeypatch):
     import factory.stages as stages
     from factory.gate_sandbox import UvTooling
