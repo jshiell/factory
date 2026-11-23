@@ -50,4 +50,8 @@ Items 1, 3 and 4 change something; 2 and 5 are closed with a note; the worker ri
 None edited. New tests only in 4 step 2, if reproduced.
 
 ## Deviations
-(none yet)
+- Item 1 done (README, inline). No test reads `README.md`.
+- Item 2 closed as covered by `test_a_failed_result_write_...` (it asserts both jobs ran); no test added.
+- Item 3 done: the only `repo=None` caller in `src/` is `audit_eval.py:83`; one sentence each in the `worktree_git` docstring and the README gate section.
+- Item 5 closed: the old loader (`9eab694~1`, `settings.py:90-91`) read the exact name `factory.toml`, so `Factory.TOML` was never config on a case-sensitive file system.
+- Item 4 in progress (diagnostician).
