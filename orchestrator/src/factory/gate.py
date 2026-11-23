@@ -2,7 +2,7 @@ import ast
 import os
 import tomllib
 from dataclasses import dataclass
-from pathlib import Path, PurePosixPath
+from pathlib import Path
 
 from factory.process import run_to_exit
 from factory.worktrees import WorktreeGit, git_completed, run_git
@@ -82,7 +82,7 @@ def check_gate(
         return GateResult(False, "no_changes")
     if (
         _tests_tampered(worktree, base_sha, test_globs)
-        or _protected_changed(worktree, base_sha, project_subdir, protected_names, allow_dependency_changes)
+        or _protected_changed(worktree, base_sha, protected_names, allow_dependency_changes)
         or (not allow_dependency_changes and _dependency_file_changed(worktree, base_sha))
     ):
         return GateResult(False, "tests_modified")
@@ -168,13 +168,12 @@ def _dependency_file_changed(worktree: Path, base_sha: str) -> bool:
 
 
 def _protected_changed(
-    worktree: Path, base_sha: str, project_subdir: str, protected_names: tuple[str, ...],
+    worktree: Path, base_sha: str, protected_names: tuple[str, ...],
     allow_dependency_changes: bool = False,
 ) -> bool:
     pathspecs = [f":(glob,icase)**/{name}" for name in protected_names]  # pytest reads ini files above the project too
     if run_git(worktree, "diff", "--name-only", "--no-renames", base_sha, "HEAD", "--", *pathspecs):
         return True
-    project = PurePosixPath(_resolve_inside(worktree, project_subdir).relative_to(worktree.resolve()).as_posix())
     changed = run_git(
         worktree, "diff", "--name-only", "-z", "--no-renames", base_sha, "HEAD", "--", ":(glob,icase)**/pyproject.toml"
     ).split("\0")
@@ -182,13 +181,8 @@ def _protected_changed(
         _config_tables(worktree, base_sha, path, allow_dependency_changes)
         != _config_tables(worktree, "HEAD", path, allow_dependency_changes)
         for path in changed
-        if path and _reaches_project(PurePosixPath(path).parent, project)
+        if path  # every pyproject: the agent may edit any, and one outside the project can still reach it
     )
-
-
-def _reaches_project(directory: PurePosixPath, project: PurePosixPath) -> bool:
-    """A pyproject in the project, below it (a path dependency) or above it (pytest and uv read those too)."""
-    return directory == project or project in directory.parents or directory in project.parents
 
 
 def _config_tables(worktree: Path, revision: str, path: str, allow_dependency_changes: bool = False) -> tuple | None:

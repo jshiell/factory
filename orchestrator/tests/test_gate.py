@@ -906,11 +906,19 @@ def test_a_pytest_table_change_in_a_parent_of_a_nested_project_fails_tests_modif
     assert check_gate(repo, base, "a/b", ["true"], 5).reason == "tests_modified"
 
 
-def test_guard_a_pytest_table_change_in_a_sibling_directory_passes(repo):
+def test_a_pytest_table_change_in_a_sibling_directory_fails(repo):
     base = repo_with_project_change(repo)
     commit_root_file(repo, "c/pyproject.toml", ROOT_PYPROJECT)
 
-    assert gate(repo, base).passed is True
+    assert gate(repo, base).reason == "tests_modified"
+
+
+def test_a_dependency_added_to_a_sibling_path_dependency_fails_tests_modified(repo):
+    commit_root_file(repo, "lib/pyproject.toml", BASE_WITH_UV)
+    base = repo_with_project_change(repo)
+    commit_root_file(repo, "lib/pyproject.toml", BASE_WITH_UV.replace("dependencies = []", 'dependencies = ["requests"]'))
+
+    assert gate(repo, base).reason == "tests_modified"
 
 
 @pytest.mark.parametrize("subdir", ["./proj", "proj/"])
