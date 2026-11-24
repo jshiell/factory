@@ -168,3 +168,28 @@ def test_a_job_whose_failure_cannot_be_recorded_is_logged_and_the_worker_survive
     assert jobs.get(bad.id).state == "running"  # the accepted limit: until the next start marks it interrupted
     recording = [line for line in capsys.readouterr().err.splitlines() if "recording the failure" in line]
     assert len(recording) == 1 and bad.id in recording[0] and "database is locked" in recording[0]
+
+
+class _FailsToRecordFailureOnce(JobStore):
+    def __init__(self, db_path):
+        super().__init__(db_path)
+        self._failed_once = False
+
+    def mark_failed(self, job_id, error):
+        if not self._failed_once:
+            self._failed_once = True
+            raise sqlite3.OperationalError("database is locked")
+        super().mark_failed(job_id, error)
+
+
+def test_a_system_failure_whose_first_recording_fails_is_failed_by_the_second_chance(tmp_path):
+    jobs = _FailsToRecordFailureOnce(tmp_path / "factory.db")
+    runner = JobRunner(jobs)
+    runner.start()
+    try:
+        bad = runner.submit("advance", "t1", _raises(OSError("disk")))
+        runner.wait_idle()
+    finally:
+        runner.stop()
+
+    assert (jobs.get(bad.id).state, jobs.get(bad.id).error) == ("failed", JOB_ERROR_SENTENCE)
