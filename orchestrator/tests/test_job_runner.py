@@ -1,3 +1,4 @@
+import sqlite3
 import subprocess
 import threading
 import time
@@ -130,3 +131,40 @@ def test_a_failed_result_write_is_failed_with_the_fixed_sentence_logged_and_the_
     assert [jobs.get(job.id).error for job in (first, second)] == [JOB_ERROR_SENTENCE] * 2  # the worker ran both
     log_lines = capsys.readouterr().err.strip().splitlines()
     assert len(log_lines) == 2 and all("/secret/db" in line for line in log_lines)
+
+
+class _FailsToRecordFailure(JobStore):
+    def mark_failed(self, job_id, error):
+        if self.get(job_id).task_id == "bad":
+            raise sqlite3.OperationalError("database is locked")
+        super().mark_failed(job_id, error)
+
+
+def _raises(error):
+    def run():
+        raise error
+    return run
+
+
+@pytest.mark.parametrize("error", [
+    OSError("disk"),
+    RuntimeError("refused"),
+    ValueError("odd"),
+], ids=["os error", "refusal", "unexpected"])
+def test_a_job_whose_failure_cannot_be_recorded_is_logged_and_the_worker_survives(tmp_path, capsys, error):
+    jobs = _FailsToRecordFailure(tmp_path / "factory.db")
+    runner = JobRunner(jobs)
+    runner.start()
+    try:
+        bad = runner.submit("advance", "bad", _raises(error))
+        good = runner.submit("advance", "t2", lambda: {"ok": True})
+        deadline = time.monotonic() + 5  # no wait_idle: a dead worker would block it forever
+        while jobs.get(good.id).state != "succeeded" and time.monotonic() < deadline:
+            time.sleep(0.01)
+    finally:
+        runner.stop()
+
+    assert jobs.get(good.id).state == "succeeded"
+    assert jobs.get(bad.id).state == "running"  # the accepted limit: until the next start marks it interrupted
+    recording = [line for line in capsys.readouterr().err.splitlines() if "recording the failure" in line]
+    assert len(recording) == 1 and bad.id in recording[0] and "database is locked" in recording[0]

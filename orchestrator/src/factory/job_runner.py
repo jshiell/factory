@@ -46,10 +46,16 @@ class JobRunner:
                 else:
                     self._jobs.mark_succeeded(job_id, result)
             except RuntimeError as error:  # the refusal channel: its message is written for the user
-                self._jobs.mark_failed(job_id, str(error))
+                self._record_failure(job_id, str(error))
             except Exception as error:  # a failed job (or a failed result write) must not stop the worker
                 log_failure(f"job {job_id}", error)
-                self._jobs.mark_failed(job_id, JOB_ERROR_SENTENCE)
+                self._record_failure(job_id, JOB_ERROR_SENTENCE)
             finally:
                 self._queue.task_done()
         self._queue.task_done()
+
+    def _record_failure(self, job_id: str, message: str) -> None:
+        try:
+            self._jobs.mark_failed(job_id, message)
+        except Exception as error:  # a store fault must not end the worker; the job stays unfinished until the next start
+            log_failure(f"job {job_id}: recording the failure", error)
