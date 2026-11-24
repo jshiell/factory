@@ -40,4 +40,8 @@ Verified by reading: no existing test raises from `mark_failed`; `_FailsToRecord
 - For a git/OS-failing job whose recording also fails, the log has the original error, the line-51 log of the db error, and the recording-failure line.
 
 ## Deviations
-(none yet)
+- Done in `580e0df` (test and fix together, per the plan) and `2039ff8` (guard). Suite 3409 -> 3413 passed, no existing test edited. Red run: all three cases failed with the good job still `queued`.
+- The failing store picks the bad job by `task_id == "bad"`, not by job id: the id exists only after `submit`, and the worker could start the job first.
+- The stderr assertion filters to the "recording the failure" lines and requires exactly one; the `OSError` case legitimately logs three lines. "No raw newline" rests on `log_failure`'s escaping, not a separate assertion.
+- The guard uses `wait_idle()` (it passes only when the worker survives), under a `timeout 60` run.
+- README: one sentence in Known limits. `todo.md` risk removed (working tree only).
