@@ -37,6 +37,15 @@ def test_a_no_progress_stop_describes_its_stage_error_beside_the_raw_code(client
     assert "<p>plan error: The plan came back in a form that could not be read. Advance again to re-plan. (plan_malformed)</p>" in page
 
 
+def test_a_free_text_stop_renders_the_job_section_exactly_as_before_descriptions(client, ctx):
+    add(ctx, TASK)
+    job_in_state(client, "succeeded", result={"stopped": "step cap (10) reached"})
+
+    fragment = _task_fragment(ctx.store, client.app.state.jobs, TASK)
+
+    assert '<p>job: advance, succeeded</p>\n\n\n<p>stopped: step cap (10) reached</p>\n\n</section>\n' in fragment
+
+
 def test_the_tasks_list_describes_a_known_failure_reason_and_leaves_free_text_alone(client, ctx):
     add(ctx, TASK, TaskState.FAILED, failure_reason="timeout")
     add(ctx, "20260102-030406", TaskState.FAILED, failure_reason="gate failed")

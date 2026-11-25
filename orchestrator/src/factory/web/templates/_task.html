@@ -9,9 +9,9 @@
 {% endif %}
 {% if job.stopped %}
 <p>stopped: {{ job.stopped }}</p>
-{% if job.stopped_description %}
+{%- if job.stopped_description %}
 <p>{{ job.stopped_description }}</p>
-{% endif %}
+{%- endif %}
 {% endif %}
 </section>
 {% endif %}
