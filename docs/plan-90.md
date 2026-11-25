@@ -98,3 +98,14 @@ Exact-string hits, from reading the tests before drafting (re-run this grep at t
 - Cycle 3 touches about ten modules; it is mechanical but the widest part. Mitigation: one stage per commit, suite green after each.
 - Wording can drift if a stage's meaning changes; the guard only checks presence.
 - Not verified: whether harnesses other than Claude add outcome kinds (relied on `OutcomeKind`, `classify.py:5-10`), and the exact payload shape for step 11 (confirm in `web_actions.py:46` and `server.py` first).
+
+## Deviations
+- The coverage guard moved to cycle 4 and the literal guard to cycle 3, where the code they check landed.
+- `Explanation` has a `.text` property (sentence plus next step) so the three surfaces share one rendering.
+- Constants were left as literals in `task.py` and `client.py`; the literal guard excludes dict keys.
+- Web `stopped:` description moved after cycle 11, once the structured `stopped_error` existed.
+- Cycle 11 was split into four commits: `AdvanceResult`, job payload, web, CLI.
+- The `stopped_error` payload key is emitted only when set, so the exact-equality assertion at `test_server.py:179` stays unedited.
+- Watch shows the description as an unfenced "What it means" section beside the fenced raw reason.
+- The `list` test was not observed red before its implementation.
+- No assertion on a known code was edited; only new tests were added.
