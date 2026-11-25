@@ -2,6 +2,7 @@ import ast
 import os
 import tomllib
 from dataclasses import dataclass
+from fnmatch import fnmatch
 from pathlib import Path, PurePath
 
 from factory.process import run_to_exit
@@ -81,7 +82,7 @@ def check_gate(
         return GateResult(False, "no_changes")
     if (
         _tests_tampered(worktree, base_sha, test_globs)
-        or _protected_changed(worktree, base_sha, protected_names, allow_dependency_changes)
+        or _protected_changed(worktree, base_sha, protected_names, allow_dependency_changes, test_globs)
         or (not allow_dependency_changes and _dependency_file_changed(worktree, base_sha))
     ):
         return GateResult(False, "tests_modified")
@@ -169,6 +170,7 @@ def _dependency_file_changed(worktree: Path, base_sha: str) -> bool:
 def _protected_changed(
     worktree: Path, base_sha: str, protected_names: tuple[str, ...],
     allow_dependency_changes: bool = False,
+    test_globs: tuple[str, ...] = DEFAULT_TEST_GLOBS,
 ) -> bool:
     pathspecs = [f":(glob,icase)**/{name}" for name in protected_names]  # pytest reads ini files above the project too
     if run_git(worktree, "diff", "--name-only", "--no-renames", base_sha, "HEAD", "--", *pathspecs):
@@ -176,12 +178,26 @@ def _protected_changed(
     changed = run_git(
         worktree, "diff", "--name-only", "-z", "--no-renames", base_sha, "HEAD", "--", ":(glob,icase)**/pyproject.toml"
     ).split("\0")
+    new_config_is_harmless = not _has_tests(worktree, base_sha, test_globs)
     return any(
-        _config_tables(worktree, base_sha, path, allow_dependency_changes)
-        != _config_tables(worktree, "HEAD", path, allow_dependency_changes)
+        _config_changed(worktree, base_sha, path, allow_dependency_changes, new_config_is_harmless)
         for path in changed
         if path  # every pyproject: the agent may edit any, and one outside the project can still reach it
     )
+
+
+def _has_tests(worktree: Path, revision: str, test_globs: tuple[str, ...]) -> bool:
+    names = run_git(worktree, "ls-tree", "-r", "--name-only", "-z", revision).split("\0")
+    return any(fnmatch(PurePath(name).name, glob) for name in names if name for glob in test_globs)
+
+
+def _config_changed(
+    worktree: Path, base_sha: str, path: str, allow_dependency_changes: bool, new_config_is_harmless: bool,
+) -> bool:
+    before = _config_tables(worktree, base_sha, path, allow_dependency_changes)
+    if before is None:
+        return not new_config_is_harmless  # a new pyproject can only hide tests that exist
+    return before != _config_tables(worktree, "HEAD", path, allow_dependency_changes)
 
 
 def _config_tables(worktree: Path, revision: str, path: str, allow_dependency_changes: bool = False) -> tuple | None:

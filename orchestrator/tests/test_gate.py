@@ -84,6 +84,19 @@ def test_gate_passes_when_only_files_outside_the_project_changed(repo):
     assert result.passed is True
 
 
+def repo_with_tests_and_project_change(repo):
+    (repo / "proj").mkdir()
+    (repo / "proj" / "test_calc.py").write_text("a\n")
+    (repo / "proj" / "code.py").write_text("x")
+    git(repo, "add", "proj")
+    git(repo, "commit", "-q", "-m", "project")
+    base = git(repo, "rev-parse", "HEAD")
+    (repo / "proj" / "code.py").write_text("y")
+    git(repo, "add", "proj")
+    git(repo, "commit", "-q", "-m", "change")
+    return base
+
+
 def repo_with_project_change(repo):
     (repo / "proj").mkdir()
     (repo / "proj" / "code.py").write_text("x")
@@ -878,8 +891,22 @@ ROOT_PYPROJECT = '[project]\nname = "r"\n\n[tool.pytest.ini_options]\naddopts = 
 
 
 def test_a_new_root_pyproject_pytest_table_fails_tests_modified(repo):
-    base = repo_with_project_change(repo)
+    base = repo_with_tests_and_project_change(repo)
     commit_root_file(repo, "pyproject.toml", ROOT_PYPROJECT)
+
+    assert gate(repo, base).reason == "tests_modified"
+
+
+def test_a_new_pyproject_in_a_repo_without_tests_passes(repo):
+    base = repo_with_project_change(repo)
+    commit_project_edit(repo, "pyproject.toml", PYPROJECT)
+
+    assert gate(repo, base).passed is True
+
+
+def test_a_new_pyproject_in_a_repo_with_tests_fails_tests_modified(repo):
+    base = repo_with_test_file(repo)
+    commit_project_edit(repo, "pyproject.toml", PYPROJECT)
 
     assert gate(repo, base).reason == "tests_modified"
 
@@ -895,6 +922,7 @@ def test_guard_a_root_pyproject_change_outside_the_pytest_table_passes(repo):
 def test_a_pytest_table_change_in_a_parent_of_a_nested_project_fails_tests_modified(repo):
     (repo / "a" / "b").mkdir(parents=True)
     (repo / "a" / "b" / "code.py").write_text("x")
+    (repo / "a" / "b" / "test_x.py").write_text("t")
     git(repo, "add", "-A")
     git(repo, "commit", "-q", "-m", "nested")
     base = git(repo, "rev-parse", "HEAD")
@@ -907,7 +935,7 @@ def test_a_pytest_table_change_in_a_parent_of_a_nested_project_fails_tests_modif
 
 
 def test_a_pytest_table_change_in_a_sibling_directory_fails(repo):
-    base = repo_with_project_change(repo)
+    base = repo_with_tests_and_project_change(repo)
     commit_root_file(repo, "c/pyproject.toml", ROOT_PYPROJECT)
 
     assert gate(repo, base).reason == "tests_modified"
@@ -923,7 +951,7 @@ def test_a_dependency_added_to_a_sibling_path_dependency_fails_tests_modified(re
 
 @pytest.mark.parametrize("subdir", ["./proj", "proj/"])
 def test_guard_an_unnormalised_project_subdir_still_watches_its_pyproject(repo, subdir):
-    base = repo_with_project_change(repo)
+    base = repo_with_tests_and_project_change(repo)
     commit_root_file(repo, "proj/pyproject.toml", ROOT_PYPROJECT)
 
     assert check_gate(repo, base, subdir, ["true"], 5).reason == "tests_modified"
@@ -991,6 +1019,7 @@ def test_guard_an_unnormalised_subdir_allows_project_and_outside_changes(repo, s
 def test_guard_a_nested_project_allows_a_change_beside_it(repo):
     (repo / "a" / "b").mkdir(parents=True)
     (repo / "a" / "b" / "code.py").write_text("x")
+    (repo / "a" / "b" / "test_x.py").write_text("t")
     git(repo, "add", "-A")
     git(repo, "commit", "-q", "-m", "nested")
     base = git(repo, "rev-parse", "HEAD")
