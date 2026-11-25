@@ -98,3 +98,8 @@ Step 2 (state, stage, job kind and job state humanised in output expressions). E
 - `test_web_clean.py:52`: `failed` becomes `Failed`. Reason: candidate state is humanised (`dirty` and `2 commits ahead` are flags, unchanged).
 - Not edited, left vacuous as step 0 recorded: `test_web_tasks_page.py:19`, `test_web_task_page.py:19` (pass through `gate failed`).
 - Step 2's red test: its raw-state link assertions passed from the start (guards); only the `Open questions` assertion was red.
+
+Step 4a (base, page, `_tasks.html`). Badge renders as `Reviewed (<strong>Needs you</strong>)`.
+- `test_web_tasks_page.py:72`: `page.count("needs you")` becomes `page.count("Needs you")`. Reason: badge wording.
+- `test_web_page_wiring.py:35` (`factory ui`): unedited; it is the `<code>` command, not the title. `test_web_ui_guard.py:37` is the 401 page's command; revisited in 4e.
+- No existing test asserted the title, `<h1>`, the `<th>` headers or "unreadable tasks skipped".

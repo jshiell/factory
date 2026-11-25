@@ -69,7 +69,7 @@ def test_human_gate_states_are_marked_and_others_are_not(client, ctx):
 
     page = client.get("/ui/").text
 
-    assert page.count("needs you") == 3
+    assert page.count("Needs you") == 3
     assert page.count('class="needs-you"') == 3
 
 

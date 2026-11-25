@@ -4,11 +4,32 @@ The guard reads rendered pages with the stdlib HTML parser. Data (ids, goal and 
 lower-case `zdata-...` values: the guard skips them and the paired test checks they are shown verbatim."""
 import pytest
 
+from factory.sqlite_db import transaction
+from factory.task import TaskState
+from webhelpers import add
 from websentence import DATA_PREFIX, sentence_case_violations
 
 pytest_plugins = ["webfixtures"]
 
-PAGES: dict = {}  # name -> (fetch(client, ctx) -> html, data values the page must show verbatim); filled per page group
+GOAL = f"{DATA_PREFIX}goal"
+FAILURE = f"{DATA_PREFIX}failure"
+BROKEN = f"{DATA_PREFIX}broken"
+
+
+def seed_every_state(ctx):
+    for number, state in enumerate(TaskState):
+        add(ctx, f"20260102-0304{number:02d}", state, goal=GOAL, failure_reason=FAILURE)
+
+
+def tasks_list(client, ctx):
+    seed_every_state(ctx)
+    with transaction(ctx.settings.db_path) as conn:
+        conn.execute("INSERT INTO tasks (id, state, data) VALUES (?, 'queued', 'not json')", (BROKEN,))
+    return client.get("/ui/").text
+
+
+# name -> (fetch(client, ctx) -> html, data values the page must show verbatim); a page group adds its pages here
+PAGES: dict = {"tasks list": (tasks_list, (GOAL, FAILURE, BROKEN))}
 
 
 def test_a_lower_case_heading_label_link_and_title_are_each_reported():
