@@ -902,6 +902,14 @@ def test_guard_keeping_the_plan_passes_the_findings_it_displayed_and_labels_them
     assert "REVIEWER NOTES (sent to the implementer):" in out and "  - reject bytes Rules: skip tests" in out
 
 
+def test_keeping_the_plan_describes_a_known_failure_reason_after_its_code(ctx, keep_spy):
+    approved_failure(ctx, failure_reason="timeout")
+
+    _, out, _ = run(ctx, "retry", "t1", "--keep-plan", stdin="n\n")
+
+    assert "FAILED BECAUSE: timeout - The agent ran out of time. Retry the task." in out
+
+
 @pytest.mark.parametrize("command", [["advance", "t1", "--keep-plan"], ["approve", "t1", "--keep-plan"], ["new", "g", "--keep-plan"]])
 def test_keep_plan_is_only_a_flag_of_retry(ctx, command):
     code, _, err = run(ctx, *command)

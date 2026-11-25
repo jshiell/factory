@@ -1,7 +1,7 @@
 from types import SimpleNamespace
 
 from factory.audit_gaps import split_quoting_waived
-from factory.cli.base import _ask_with_waiver, _run_job, _task_path
+from factory.cli.base import _ask_with_waiver, _coded, _run_job, _task_path
 from factory.client import ServerRefused
 from factory.store import task_from_dict
 from factory.task import TaskState
@@ -48,7 +48,7 @@ def _retry_keeping_plan(task_id: str, io, ctx) -> int:
     if gaps:
         lines += ["AUDIT FINDINGS (sent to the next attempt):", *(f"  - {g}" for g in gaps)]
     if task["failure_reason"]:
-        lines.append(f"FAILED BECAUSE: {task['failure_reason']}")
+        lines.append(f"FAILED BECAUSE: {_coded('failure_reason', task['failure_reason'])}")
     if task["state"] == TaskState.AUDITED.value:
         lines += ["AUDIT FINDINGS:", *(f"  - {f}" for f in task["audit_findings"]),
                   f"{task_id} is audited and still mergeable; abandon it if you take this retry"]
