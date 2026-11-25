@@ -1,6 +1,6 @@
 # Plan 91: sentence case in the web UI
 
-Drafted 2026-11-25. Awaiting approval; three decisions are open (below).
+Drafted 2026-11-25. Awaiting plan review and approval. Decisions made by the user: web only; humanise states, stages and job kinds; keep the inline label layout.
 Source: `todo.md` open item "use sentence case in ui".
 Base: `main` (plan 90 merged, unpushed). Branch `plan-91-sentence-case`.
 
@@ -13,16 +13,12 @@ Left exactly as stored (never capitalised or rewritten): task ids, branch names,
 
 ## Scope
 In: every file in `orchestrator/src/factory/web/templates/` (including the SSE partials `_task.html`, `_tasks.html`), the Python-built UI strings in `web/routes.py` (`_ACTION_LINKS`, `_task_detail` fact labels, `_job_view`'s `stopped_description` label, the `_TaskAction` questions/buttons, wrong-state messages) and `web_actions.py` messages that reach a page (`MERGE_CHECK_FAILED`, `CLEAN_CHECK_FAILED` are already sentences), and `static/ui.js` if it writes visible text.
-Out (unless you decide otherwise below): CLI output, JSON payloads, log text, README prose, stored values.
+Out: CLI output, JSON payloads, log text, README prose, stored values.
 
-## Decisions needed
-1. **Scope: web only, or CLI too?**
-   - Web only (recommended): the todo says "ui", and CLI lines such as `state: failed (...)` and `failure: code - sentence` are grep-friendly and asserted by many CLI tests.
-   - Web and CLI: consistent, but a large test churn and breaks greps in scripts.
-2. **States, stages and job kinds: humanise or leave raw?**
-   - Humanise (recommended): a small Jinja filter turns `open_questions` into "Open questions", `implement` into "Implement". Display only; stored values, URLs and the JSON stay raw. Adds one filter and its tests.
-   - Leave raw: lowest effort, but the page keeps `open_questions` with an underscore beside the capitalised labels, so it still reads as a debug view.
-3. **Field labels: "Goal: x" or "Goal" as a heading above the text?** Keep inline "Goal: x" (recommended; minimal change and the same layout), or restructure with `<dl>` (a layout change, not wanted here).
+## Decisions (settled by the user)
+1. Web only. CLI output, JSON payloads and logs are unchanged (CLI lines are grep-friendly and asserted by many CLI tests).
+2. States, stages and job kinds are humanised for display only, by a small Jinja filter (`open_questions` becomes "Open questions"); stored values, URLs and JSON stay raw.
+3. Inline labels stay ("Goal: x"); no `<dl>` restructure.
 
 ## Tests: strings that will change
 Step 0 (before any code): grep every web test for the exact strings touched, list each hit here as affected or not, and record them under Tests. Known from a first count (needs the full grep, not trusted): matches for "back to the task" (1 file), "needs you" (2), "state: " (1), "job: " (3), "job error" (2), "stopped: " (2), "open questions" (3), "new task" (2), "nothing to clean" (1), "total: " (1), "assumed: " (1), "review findings" (1), "audit findings" (1), `<h2>` (1), plus `test_web_task_sections.py` fact labels (`plan error`, `review error`, `audit error`, `fix rounds`, `retry of`, ...), `test_web_task_groups.py` regexes (`JOB_GROUP`, `FAILURE_GROUP`), and the plan-90 tests (`test_web_task_failure_text.py`).
@@ -36,7 +32,7 @@ Rule: an existing assertion is edited only when it asserts the old lower-case wo
    - c. Jobs, costs ("Costs", "By stage", "By task"), clean.
    - d. Approve, reject, answer, new task, retry, merge and the shared `action_confirm.html`.
    - e. Wrong-state, missing, unreadable and form-rejected pages and every message in `routes.py`.
-2. If decision 2 is "humanise": red, a filter test (`open_questions` becomes "Open questions"; an unknown value is capitalised and underscores replaced), then use it for state, stage and job kind on the task, list, jobs and costs pages. Raw values stay in URLs and attributes.
+2. Humanise filter: red, a filter test (`open_questions` becomes "Open questions"; an unknown value is capitalised and underscores replaced), then use it for state, stage and job kind on the task, list, jobs and costs pages. Raw values stay in URLs and attributes.
 3. Visible-text check in the SSE partial path: the `/ui/events` stream and `/ui/tasks/<id>/events` fragments render the same partials; add a guard that the fragment text matches the full page's text.
 4. README/AGENTS: add one line stating the UI style rule (sentence case, what stays raw). Remove the `todo.md` item in the working tree only (untracked; never committed). Commit the docs.
 5. Gate: `cd orchestrator && uv run ruff check`, `uv run pytest -q -n auto` (background, Monitor), then `verify` and `commit-auditor`.
