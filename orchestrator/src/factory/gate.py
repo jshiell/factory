@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from fnmatch import fnmatch
 from pathlib import Path, PurePath
 
+from factory import failure_codes
 from factory.process import run_to_exit
 from factory.worktrees import WorktreeGit, git_completed, run_git
 
@@ -73,35 +74,35 @@ def check_gate(
 ) -> GateResult:
     project_dir = _resolve_inside(worktree, project_subdir)
     if not _is_ancestor(worktree, base_sha):
-        return GateResult(False, "not_descendant")
+        return GateResult(False, failure_codes.NOT_DESCENDANT)
     if run_git(worktree, "rev-parse", "HEAD") == base_sha:
-        return GateResult(False, "no_commits")
+        return GateResult(False, failure_codes.NO_COMMITS)
     if _forbidden_changed(worktree, base_sha):
-        return GateResult(False, "outside_project")
+        return GateResult(False, failure_codes.OUTSIDE_PROJECT)
     if not run_git(worktree, "diff", "--name-only", base_sha, "HEAD", "--", ":/"):  # anywhere in the repo
-        return GateResult(False, "no_changes")
+        return GateResult(False, failure_codes.NO_CHANGES)
     if _tests_tampered(worktree, base_sha, test_globs):
-        return GateResult(False, "tests_modified")
+        return GateResult(False, failure_codes.TESTS_MODIFIED)
     if (
         _protected_changed(worktree, base_sha, protected_names, allow_dependency_changes, test_globs)
         or (not allow_dependency_changes and _dependency_file_changed(worktree, base_sha))
     ):
-        return GateResult(False, "protected_file_changed")
+        return GateResult(False, failure_codes.PROTECTED_FILE_CHANGED)
     if frozen_sha is not None:
         if not _is_ancestor(worktree, frozen_sha):
-            return GateResult(False, "not_descendant")
+            return GateResult(False, failure_codes.NOT_DESCENDANT)
         if _tests_changed_since(worktree, frozen_sha, test_globs):
-            return GateResult(False, "tests_modified")
+            return GateResult(False, failure_codes.TESTS_MODIFIED)
     if _link_added(worktree, base_sha):
-        return GateResult(False, "outside_project")
+        return GateResult(False, failure_codes.OUTSIDE_PROJECT)
     try:
         ran = run_to_exit([*test_prefix, *test_argv], project_dir, env, timeout_s, capture_limit, tracker)
     except OSError:  # a missing sandbox wrapper: fail closed, never run the tests unconfined
-        return GateResult(False, "sandbox_unavailable")
+        return GateResult(False, failure_codes.SANDBOX_UNAVAILABLE)
     if ran.timed_out:
-        return GateResult(False, "tests_timeout")
+        return GateResult(False, failure_codes.TESTS_TIMEOUT)
     if ran.exit_code != 0:
-        return GateResult(False, "tests_failed", ran.exit_code, ran.tail)
+        return GateResult(False, failure_codes.TESTS_FAILED, ran.exit_code, ran.tail)
     return GateResult(True)
 
 

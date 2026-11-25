@@ -2,6 +2,7 @@ from collections.abc import Callable
 from dataclasses import replace
 from pathlib import Path
 
+from factory import failure_codes
 from factory.agent_call import Infra, call_agent
 from factory.classify import OutcomeKind
 from factory.command import RunnerConfig
@@ -56,7 +57,7 @@ def verify_task(
         )
         if result.passed:
             return _finish(apply(task, Event.GATE_PASSED), store)
-        if result.reason != "tests_failed" or task.fix_rounds_used >= fix_rounds:
+        if result.reason != failure_codes.TESTS_FAILED or task.fix_rounds_used >= fix_rounds:
             return _finish(apply(task, Event.GATE_FAILED, reason=result.reason), store)
         task, failure = _fix_round(
             task, result.output or "", store, runner, ledger, fix_config, cap_usd,
@@ -75,7 +76,7 @@ def _fix_round(
     try:
         tree = worktree_git(Path(task.worktree), task.id, repo)  # pinned before the agent runs: it may rewrite .git
     except WorktreeMismatch:
-        return task, "worktree_mismatch"
+        return task, failure_codes.WORKTREE_MISMATCH
     head = tree.git("rev-parse", "HEAD")
     task = replace(task, fix_rounds_used=task.fix_rounds_used + 1, fix_in_flight=True, fix_frozen_sha=head)
     store.save(task)  # before the run: a crash cannot reset the counter, and the marker flags a possible orphan
@@ -86,15 +87,15 @@ def _fix_round(
     task = replace(task, fix_in_flight=False)
     if isinstance(called, Infra):
         store.save(task)
-        return task, f"fix_{called.reason}"
+        return task, f"{failure_codes.FIX_PREFIX}{called.reason}"
     task = replace(task, denials=task.denials + called.outcome.denials)
     store.save(task)
     if called.outcome.kind not in _SUCCESS:
-        return task, f"fix_{called.outcome.kind.value}"
+        return task, f"{failure_codes.FIX_PREFIX}{called.outcome.kind.value}"
     if tree.git("rev-parse", "HEAD") != head:
-        return task, "fix_moved"
+        return task, failure_codes.FIX_MOVED
     if not tree.git("status", "--porcelain"):
-        return task, "fix_no_changes"  # the same gate would fail the same way: stop spending
+        return task, failure_codes.FIX_NO_CHANGES  # the same gate would fail the same way: stop spending
     return task, None
 
 
@@ -102,7 +103,7 @@ def _fail_interrupted(task: Task, store: TaskStore, ledger: Ledger | None, confi
     """A driver died while a fix agent ran: the command that got here already killed it if it was recorded, but touch no git and charge the assumed cost."""
     if ledger is not None and config is not None and config.budget_usd is not None:
         ledger.append(task.id, ASSUMED_COST_MULTIPLIER * config.budget_usd, assumed=True, stage=FIX_STAGE)
-    return _finish(apply(replace(task, fix_in_flight=False), Event.GATE_FAILED, reason="fix_interrupted"), store)
+    return _finish(apply(replace(task, fix_in_flight=False), Event.GATE_FAILED, reason=failure_codes.FIX_INTERRUPTED), store)
 
 
 def _finish(task: Task, store: TaskStore) -> Task:
@@ -123,9 +124,9 @@ def _gate_once(
     try:
         git_dir = worktree_git(worktree, task.id, repo).git_dir
     except WorktreeMismatch:
-        return GateResult(False, "worktree_mismatch")
+        return GateResult(False, failure_codes.WORKTREE_MISMATCH)
     if has_nested_repo(worktree, project_subdir):  # before `git add -A` records it as a gitlink
-        return GateResult(False, "nested_repo")
+        return GateResult(False, failure_codes.NESTED_REPO)
     commit_all(worktree, f"Task {task.id}", git_dir)
     not_clean = clean_worktree(worktree, factory_paths)  # the tests must see only what the tamper checks saw
     if not_clean:
@@ -161,10 +162,10 @@ def _settled(task: Task, worktree: Path, factory_paths: tuple[Path, ...], repo: 
     try:
         tree = worktree_git(worktree, task.id, repo)  # the tests may have rewritten `.git`: pin again before any git runs
     except WorktreeMismatch:
-        return GateResult(False, "worktree_mismatch")
+        return GateResult(False, failure_codes.WORKTREE_MISMATCH)
     not_clean = clean_worktree(worktree, factory_paths)  # files the tests generated must not reach the next stage
     if not_clean:
         return GateResult(False, not_clean)
     if tree.git("status", "--porcelain"):  # `git clean` leaves tracked files alone
-        return GateResult(False, "gate_modified_tracked_files")
+        return GateResult(False, failure_codes.GATE_MODIFIED_TRACKED_FILES)
     return None
