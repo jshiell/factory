@@ -132,6 +132,26 @@ def test_the_gate_test_run_is_recorded_as_a_gate_process_while_it_runs_and_the_r
     assert load_records(state) == []
 
 
+def test_tests_that_rewrite_dot_git_fail_the_gate_without_running_the_planted_repos_filter_in_the_cleanup(repo, store, tmp_path):
+    (repo / "proj").mkdir()
+    (repo / "proj" / "code.py").write_text("x")
+    git(repo, "add", "proj")
+    git(repo, "commit", "-q", "-m", "project")
+    worktree, base = WorktreeManager(repo, tmp_path / "wt").create("t1")
+    store.save(Task(id="t1", prompt="p", state=TaskState.AGENT_DONE, worktree=str(worktree), base_sha=base))
+    (worktree / "proj" / "code.py").write_text("changed by agent")
+    real_pointer = (worktree / ".git").read_text()
+    marker = redirect_to_planted_gitdir(worktree, tmp_path, clone_of=repo)
+    planted_pointer = (worktree / ".git").read_text()
+    (worktree / ".git").write_text(real_pointer)
+    rewrite = ["sh", "-c", f"printf '%s' '{planted_pointer}' > {worktree}/.git"]
+
+    task = verify_task("t1", store, project_subdir="proj", test_argv=rewrite, gate_timeout_s=10, repo=repo)
+
+    assert (task.state, task.failure_reason) == (TaskState.FAILED, "worktree_mismatch")
+    assert not marker.exists()
+
+
 def test_a_rewritten_dot_git_file_fails_the_gate_without_running_the_planted_repos_filter(repo, store, tmp_path):
     (repo / "proj").mkdir()
     (repo / "proj" / "code.py").write_text("x")

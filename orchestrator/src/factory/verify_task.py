@@ -144,5 +144,9 @@ def _gate_once(
             frozen_sha=task.fix_frozen_sha, tracker=tracker,
             allow_dependency_changes=allow_dependency_changes,
         )
+    try:
+        worktree_git(worktree, task.id, repo)  # the tests may have rewritten `.git`: pin again before any git runs
+    except WorktreeMismatch:
+        return GateResult(False, "worktree_mismatch")
     not_clean = clean_worktree(worktree, factory_paths)  # files the tests generated must not reach the next stage
     return GateResult(False, not_clean) if not_clean else result
