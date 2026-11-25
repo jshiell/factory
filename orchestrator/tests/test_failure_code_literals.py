@@ -14,7 +14,7 @@ NOT_CODES = {"FIX_PREFIX", "FIX_SENTENCE_PREFIX"}
 CODES = {
     value
     for name, value in vars(failure_codes).items()
-    if name.isupper() and name not in NOT_CODES and isinstance(value, str)
+    if name.isupper() and not name.startswith("_") and name not in NOT_CODES and isinstance(value, str)
 }
 
 
