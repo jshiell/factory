@@ -130,6 +130,36 @@ def test_show_lists_the_open_questions_with_their_recommendations(ctx):
     assert "questions (round 1):" in out and "1. Which db" in out and "recommended: sqlite" in out
 
 
+def test_show_prints_the_code_first_then_describes_a_known_failure_reason(ctx):
+    put(ctx, S.FAILED, failure_reason="tests_failed")
+
+    _, out, _ = run(ctx, "show", "t1")
+
+    assert ("failure: tests_failed - The tests failed after the agent's change (and any fix rounds). "
+            "Read the test output; retry or fix by hand.") in out
+
+
+def test_show_leaves_a_free_text_failure_reason_as_it_is(ctx):
+    put(ctx, S.FAILED, failure_reason="gate failed")
+
+    _, out, _ = run(ctx, "show", "t1")
+
+    assert "failure: gate failed\n" in out + "\n"
+
+
+@pytest.mark.parametrize("field, code, sentence", [
+    ("plan_error", "plan_malformed", "The plan came back in a form that could not be read."),
+    ("review_error", "review_malformed", "The review came back unreadable."),
+    ("audit_error", "audit_malformed", "The audit came back unreadable."),
+])
+def test_show_describes_a_known_stage_error_after_its_code(ctx, field, code, sentence):
+    put(ctx, S.PROPOSED, **{field: code})
+
+    _, out, _ = run(ctx, "show", "t1")
+
+    assert f"{field}: {code} - {sentence} Advance again" in out
+
+
 @pytest.mark.parametrize("command", ["show", "advance", "approve", "reject", "costs"])
 @pytest.mark.parametrize("task_id", ["missing", "../evil"])
 def test_unknown_or_unsafe_ids_exit_2(ctx, command, task_id):

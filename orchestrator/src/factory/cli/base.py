@@ -7,6 +7,7 @@ from pathlib import Path
 
 from factory.audit_corpus import PROJECT_SUBDIR
 from factory.client import ServerClient
+from factory.failure_codes import explain
 from factory.github import GitHub, origin_slug
 from factory.harness import harness_named, missing_capabilities
 from factory.ids import require_safe_id
@@ -35,6 +36,12 @@ from factory.waiver import (
     parse_answer,
 )
 from factory.watch import run_pass
+
+
+def _coded(field: str, code: str) -> str:
+    """The raw code first, so greps keep working, then our description of it; free text is shown as it is."""
+    explanation = explain(field, code)
+    return f"{code} - {explanation.text}" if explanation else code
 
 
 @dataclass

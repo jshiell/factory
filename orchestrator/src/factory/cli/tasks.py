@@ -1,7 +1,7 @@
 from types import SimpleNamespace
 from urllib.parse import urlsplit, urlunsplit
 
-from factory.cli.base import _ask_with_waiver, _run_job, _task_path
+from factory.cli.base import _ask_with_waiver, _coded, _run_job, _task_path
 from factory.client import ServerRefused
 from factory.ids import require_safe_id
 from factory.question_text import questions_text
@@ -46,7 +46,7 @@ def _list(args, io, ctx) -> int:
 def _describe(task: Task) -> list[str]:
     lines = [f"id: {task.id}", f"state: {task.state.value}", f"goal: {task.goal}"]
     if task.failure_reason:
-        lines.append(f"failure: {task.failure_reason}")
+        lines.append(f"failure: {_coded('failure_reason', task.failure_reason)}")
     if task.retry_of:
         lines.append(f"retry_of: {task.retry_of}")
     if task.fix_rounds_used:
@@ -61,7 +61,7 @@ def _describe(task: Task) -> list[str]:
     for label, value in (("plan_error", task.plan_error), ("review_error", task.review_error),
                          ("audit_error", task.audit_error)):
         if value:
-            lines.append(f"{label}: {value}")
+            lines.append(f"{label}: {_coded(label, value)}")
     if task.worktree:
         lines += [f"worktree: {task.worktree}", f"branch: factory/{task.id}"]
     return lines
