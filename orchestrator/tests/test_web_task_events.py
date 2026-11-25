@@ -149,7 +149,7 @@ def test_the_task_stream_first_event_is_the_task_fragment(client, ctx):
     assert event[0] == "event: task"
     assert all(line.startswith("data: ") for line in event[1:])
     assert any("first goal" in line for line in event[1:])
-    assert "data: step two</pre>" in event
+    assert "data: step two</p>" in event
 
 
 def test_this_tasks_save_sends_the_new_state_as_the_next_event(client, ctx):

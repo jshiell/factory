@@ -22,12 +22,13 @@ def test_a_list_section_appears_with_its_items(client, ctx, label, field):
     assert "<li>first item</li>" in page and "<li>second item</li>" in page
 
 
-def test_the_plan_appears_in_a_pre_block(client, ctx):
-    add(ctx, plan="step one\n  step two")
+def test_the_plan_is_rendered_as_markdown(client, ctx):
+    add(ctx, plan="## step one\n\n- **bold** item")
 
     page = client.get("/ui/tasks/20260102-030405").text
 
-    assert "<pre>step one\n  step two</pre>" in page
+    assert '<div class="plan"><h2>step one</h2>' in page
+    assert "<li><strong>bold</strong> item</li>" in page
 
 
 def test_open_questions_show_the_round_titles_and_recommended_answers(client, ctx):

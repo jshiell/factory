@@ -43,7 +43,7 @@
 {% endif %}
 {% if task.plan %}
 <h3>plan</h3>
-<pre>{{ task.plan }}</pre>
+<div class="plan">{{ task.plan | markdown }}</div>
 {% endif %}
 {% for label, items in task.lists %}
 <h3>{{ label }}</h3>
