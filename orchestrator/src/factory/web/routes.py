@@ -103,9 +103,13 @@ def _job_view(job) -> dict | None:
     """What the task panel shows of a job: its error is job-failure text, so it is capped and escaped."""
     if job is None:
         return None
-    stopped = (job.result or {}).get("stopped")
+    result = job.result or {}
+    stopped_error = result.get("stopped_error") or {}
+    field, code = stopped_error.get("field"), stopped_error.get("code")
+    description = _described(field, code) if field and code and _explanation(field, code) else None
     return {"kind": _safe(job.kind), "state": job.state,
-            "error": _safe(_truncated(job.error, _ERROR_LIMIT)) if job.error else None, "stopped": _safe(stopped)}
+            "error": _safe(_truncated(job.error, _ERROR_LIMIT)) if job.error else None, "stopped": _safe(result.get("stopped")),
+            "stopped_description": f"{field.replace('_', ' ')}: {description}" if description else None}
 
 
 _ACTION_LINKS = (("advance", "advance this task", can_advance), ("rebase", "rebase this task", can_rebase),

@@ -2,7 +2,7 @@ import pytest
 
 from factory.task import TaskState
 from factory.web.routes import _task_fragment
-from test_web_task_job import PAGE, TASK
+from test_web_task_job import PAGE, TASK, job_in_state
 from webhelpers import add
 
 pytest_plugins = ["webfixtures"]
@@ -24,6 +24,17 @@ def test_a_composed_fix_reason_shows_its_description(client, ctx):
     add(ctx, TASK, TaskState.FAILED, failure_reason="fix_tests_failed")
 
     assert "While fixing the failing tests: " in client.get(PAGE).text
+
+
+def test_a_no_progress_stop_describes_its_stage_error_beside_the_raw_code(client, ctx):
+    add(ctx, TASK)
+    job_in_state(client, "succeeded", result={"stopped": "plan: no progress (plan_malformed)",
+                                              "stopped_error": {"field": "plan_error", "code": "plan_malformed"}})
+
+    page = client.get(PAGE).text
+
+    assert "<p>stopped: plan: no progress (plan_malformed)</p>" in page
+    assert "<p>plan error: The plan came back in a form that could not be read. Advance again to re-plan. (plan_malformed)</p>" in page
 
 
 def test_the_tasks_list_describes_a_known_failure_reason_and_leaves_free_text_alone(client, ctx):
