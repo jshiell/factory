@@ -28,7 +28,8 @@
 {% endif %}
 {% if task.failure_reason %}
 <div class="failure">
-<p>failure: {{ task.failure_reason }}</p>
+{% if task.failure_explanation %}<p>{{ task.failure_explanation }}</p>
+{% endif %}<p>failure: {{ task.failure_reason }}</p>
 </div>
 {% endif %}
 {% for label, value in task.facts %}

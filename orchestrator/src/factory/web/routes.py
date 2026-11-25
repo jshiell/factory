@@ -17,6 +17,7 @@ from factory.abandon_task import can_abandon
 from factory.advance import can_advance
 from factory.audit_gaps import gaps_to_carry
 from factory.digest import plan_digest
+from factory.failure_codes import explain
 from factory.ids import InvalidTaskId
 from factory.merge_task import MergeRefused, can_merge
 from factory.rebase_task import can_rebase
@@ -67,6 +68,12 @@ def _safe(value):
     return escape_control(value) if isinstance(value, str) else value
 
 
+def _explanation(field: str, code: str | None) -> str | None:
+    """Our own description of a known failure code; None for free text, which is shown as it is."""
+    explanation = explain(field, code) if code else None
+    return explanation.text if explanation else None
+
+
 def _task_detail(task) -> dict:
     facts = (("retry of", task.retry_of), ("fix rounds", task.fix_rounds_used), ("attempts", task.attempts),
              ("denials", len(task.denials)), ("worktree", task.worktree),
@@ -79,7 +86,8 @@ def _task_detail(task) -> dict:
     return {"id": task.id, "state": task.state.value, "needs_you": task.state in _HUMAN_GATE_STATES,
             "facts": [(label, _safe(value)) for label, value in facts if value],
             "goal": _safe(task.goal if task.goal is not None else task.prompt), "failure_reason": _safe(task.failure_reason),
-            "plan": _safe(task.plan), "open_questions": questions, "grill_rounds": task.grill_rounds,
+            "failure_explanation": _explanation("failure_reason", task.failure_reason),
+            "plan":_safe(task.plan), "open_questions": questions, "grill_rounds": task.grill_rounds,
             "lists": [(label, [_safe(item) for item in items]) for label, items in lists if items]}
 
 
