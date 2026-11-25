@@ -91,6 +91,16 @@ def test_the_page_links_the_static_assets_and_carries_the_htmx_config(client):
     assert "style=" not in page
 
 
+def test_the_page_is_pinned_to_the_light_scheme_and_wraps_its_content_in_main_after_the_pico_stylesheet(client):
+    page = client.get("/ui/").text
+
+    pico = '<link rel="stylesheet" href="/ui/static/pico.classless.min.css">'
+    assert '<html lang="en" data-theme="light">' in page
+    assert pico in page
+    assert page.index(pico) < page.index('<link rel="stylesheet" href="/ui/static/ui.css">')
+    assert "<main>" in page and "</main>" in page
+
+
 SCRIPT = "<script>alert(1)</script>"
 
 
