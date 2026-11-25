@@ -18,14 +18,16 @@ _HOW_TO_RETRY = (
 )
 
 
-def _post_failure(thread: IssueThread, progress: Progress, reason: str, retry: bool) -> None:
-    """The failure comment; with retry on, also the retry offer. Both are adopted or posted before one save, so a lost post leaves the issue for the next pass."""
+def _post_failure(thread: IssueThread, progress: Progress, reason: str, retry: bool, explanation: str | None = None) -> None:
+    """The failure comment; with retry on, also the retry offer. Both are adopted or posted before one save, so a lost post leaves the issue for the next pass.
+    The raw reason stays fenced; our own description of a known code follows it unfenced."""
     record = progress.record
-    failure = render_comment(record.task_id, "result", [("Failure reason", reason, True)])
+    reason_sections = [("Failure reason", reason, True)] + ([("What it means", explanation, False)] if explanation else [])
+    failure = render_comment(record.task_id, "result", reason_sections)
     if not retry:
         _post_result(thread, progress, "result", Phase.FAILED, failure)
         return
-    offer = render_comment(record.task_id, "retry-offer", [("Retry", _HOW_TO_RETRY.format(task_id=record.task_id), False), ("Failure reason", reason, True)])
+    offer = render_comment(record.task_id, "retry-offer", [("Retry", _HOW_TO_RETRY.format(task_id=record.task_id), False), *reason_sections])
     failure_id = _result_comment_id(thread, record, "result", failure)
     record.retry_comment_id = _result_comment_id(thread, record, "retry-offer", offer)
     record.result_comment_id = failure_id

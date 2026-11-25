@@ -627,6 +627,29 @@ def test_a_task_that_fails_gets_one_result_comment_with_the_reason_fenced_and_go
     assert load_state(tmp_path).issues == {5: IssueRecord(task_id="t-1", phase=Phase.FAILED, result_comment_id=1)}
 
 
+TESTS_FAILED_SENTENCE = ("The tests failed after the agent's change (and any fix rounds). "
+                         "Read the test output; retry or fix by hand.")
+
+
+def test_a_known_failure_code_gets_an_unfenced_description_beside_its_fenced_raw_reason(tmp_path):
+    server = FakeServer(advance_result={**FAILED, "failure_reason": "tests_failed"})
+
+    github, _ = pass_over(tmp_path, [raw_issue(number=5)], server=server, retry=True)
+
+    [(_, failure), (_, offer)] = github.comments_posted
+    for body in (failure, offer):
+        assert "```\ntests_failed\n```" in body
+        assert f"**What it means**\n\n{TESTS_FAILED_SENTENCE}" in body
+        assert f"```\n{TESTS_FAILED_SENTENCE}" not in body
+
+
+def test_free_text_and_missing_reasons_get_no_description_section(tmp_path):
+    github, _ = pass_over(tmp_path, [raw_issue(number=5)], server=FakeServer(advance_result=FAILED))
+
+    [(_, body)] = github.comments_posted
+    assert "What it means" not in body
+
+
 def test_with_retry_on_a_task_that_fails_gets_the_failure_comment_then_a_retry_offer_and_awaits_the_retry(tmp_path):
     server = FakeServer(advance_result=FAILED)
 

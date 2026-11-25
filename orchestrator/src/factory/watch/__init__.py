@@ -4,6 +4,7 @@ from pathlib import Path
 
 from factory.client import ServerRefused, ServerUnreachable
 from factory.comments import render_comment, strip_home
+from factory.failure_codes import explain
 from factory.github import GitHubError
 from factory.ids import require_safe_id
 from factory.textsafe import escape_control
@@ -203,6 +204,11 @@ def _failure_text(failed: dict, home: str) -> str:
     return strip_home(failed["failure_reason"] or "No reason recorded.", home)
 
 
+def _failure_explanation(failed: dict) -> str | None:
+    explanation = explain("failure_reason", failed["failure_reason"]) if failed["failure_reason"] else None
+    return explanation.text if explanation else None
+
+
 def _log_failure(subject: str, text: str) -> None:
     """One escaped line on stderr: gh and server text is not trusted, and a newline would forge a second log line."""
     _log_line(f"{subject} left for the next pass", text)
@@ -228,7 +234,7 @@ def _handle_issue(github, server, state, state_dir, issue: Issue, options: Optio
         _retry_on_thumbs_up(thread, server, state, progress, options)
         return
     if task["state"] == "failed":
-        _post_failure(thread, progress, _failure_text(task, options.home), retry)
+        _post_failure(thread, progress, _failure_text(task, options.home), retry, _failure_explanation(task))
         return
     if record.phase is Phase.AWAITING_MERGE and task["state"] == "audited":
         _merge_on_thumbs_up(thread, server, progress, options)
@@ -271,4 +277,4 @@ def _handle_issue(github, server, state, state_dir, issue: Issue, options: Optio
     elif result["state"] == "audited" and record.phase is Phase.APPROVED:
         _post_audited(thread, server, progress, result, merge)
     elif result["state"] == "failed":
-        _post_failure(thread, progress, _failure_text(result, options.home), retry)
+        _post_failure(thread, progress, _failure_text(result, options.home), retry, _failure_explanation(result))
