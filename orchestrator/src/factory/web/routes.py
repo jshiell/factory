@@ -42,6 +42,7 @@ from factory.web_actions import (
 _TEMPLATES = jinja2.Environment(loader=jinja2.FileSystemLoader(Path(__file__).parent / "templates"), autoescape=True)
 _TEMPLATES.filters["markdown"] = render_markdown
 _TEMPLATES.filters["markdown_with_urls"] = render_markdown_with_urls
+_TEMPLATES.filters["humanise"] = lambda value: value[:1].upper() + value[1:].replace("_", " ")  # not capitalize: it lowercases the rest
 _GOAL_LIMIT = 120
 _ERROR_LIMIT = 500
 _HUMAN_GATE_STATES = {TaskState.OPEN_QUESTIONS, TaskState.REVIEWED, TaskState.AUDITED}
