@@ -1,3 +1,5 @@
+import pytest
+
 from factory.task import TaskState
 from factory.web.routes import _task_fragment
 from test_web_task_job import PAGE, TASK
@@ -22,3 +24,17 @@ def test_a_composed_fix_reason_shows_its_description(client, ctx):
     add(ctx, TASK, TaskState.FAILED, failure_reason="fix_tests_failed")
 
     assert "While fixing the failing tests: " in client.get(PAGE).text
+
+
+@pytest.mark.parametrize("field, label, code, sentence", [
+    ("plan_error", "plan error", "plan_malformed", "The plan came back in a form that could not be read."),
+    ("review_error", "review error", "review_malformed", "The review came back unreadable."),
+    ("audit_error", "audit error", "audit_malformed", "The audit came back unreadable."),
+])
+def test_a_known_stage_error_shows_its_description_beside_the_raw_code(client, ctx, field, label, code, sentence):
+    add(ctx, TASK, **{field: code})
+
+    page = client.get(PAGE).text
+
+    assert f"<p>{label}: {sentence} Advance again" in page
+    assert f"({code})</p>" in page

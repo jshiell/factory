@@ -74,11 +74,19 @@ def _explanation(field: str, code: str | None) -> str | None:
     return explanation.text if explanation else None
 
 
+def _described(field: str, code: str | None) -> str | None:
+    """A stage error as 'description (code)' when the code is known; free text is shown as it is."""
+    description = _explanation(field, code)
+    return f"{description} ({code})" if description else code
+
+
 def _task_detail(task) -> dict:
     facts = (("retry of", task.retry_of), ("fix rounds", task.fix_rounds_used), ("attempts", task.attempts),
              ("denials", len(task.denials)), ("worktree", task.worktree),
-             ("branch", f"factory/{task.id}" if task.worktree else None), ("plan error", task.plan_error),
-             ("review error", task.review_error), ("audit error", task.audit_error))
+             ("branch", f"factory/{task.id}" if task.worktree else None),
+             ("plan error", _described("plan_error", task.plan_error)),
+             ("review error", _described("review_error", task.review_error)),
+             ("audit error", _described("audit_error", task.audit_error)))
     lists = (("risks", task.plan_risks), ("review findings", task.review_findings),
              ("audit findings", task.audit_findings), ("waived findings", task.waived_findings))
     questions = [{"number": _safe(question["number"]), "title": _safe(question["title"]), "recommended": _safe(question["recommended"])}
