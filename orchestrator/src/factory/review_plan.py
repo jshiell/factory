@@ -1,6 +1,7 @@
 from dataclasses import replace
 from pathlib import Path
 
+from factory import failure_codes
 from factory.command import RunnerConfig
 from factory.digest import plan_digest
 from factory.ledger import Ledger
@@ -65,23 +66,23 @@ def review_plan(
     task = store.load(task_id)
     apply(task, Event.REVIEW_PASSED)  # reject tasks that are not planned before any other work
     if plan_digest(task.plan) != task.plan_digest:
-        return _finish(store, apply(task, Event.REVIEW_FAILED, "plan_changed"))
+        return _finish(store, apply(task, Event.REVIEW_FAILED, failure_codes.PLAN_CHANGED))
     check_budget(task_id, ledger, config, cap_usd)
     staged = run_readonly_stage(task, build_review_prompt(task.goal, task.plan), runner, config, ledger, "review", repo)
     if isinstance(staged, Modified):
-        return _reject(store, task, "review_modified_worktree")
+        return _reject(store, task, failure_codes.REVIEW_MODIFIED_WORKTREE)
     if isinstance(staged, Infra):
-        if staged.reason == "prompt_too_large":  # a retry would build the same prompt
+        if staged.reason == failure_codes.PROMPT_TOO_LARGE:  # a retry would build the same prompt
             return _reject(store, task, staged.reason)
         return _finish(store, replace(task, review_error=staged.reason))
     verdict = _parse_verdict(staged.structured_output)
     if verdict is None:
-        return _finish(store, replace(task, review_error="review_malformed"))
+        return _finish(store, replace(task, review_error=failure_codes.REVIEW_MALFORMED))
     approved, findings = verdict
     if approved:
         reviewed = apply(task, Event.REVIEW_PASSED)
         return _finish(store, replace(reviewed, review_findings=findings, review_error=None))
-    return _reject(store, task, "plan_rejected", findings)
+    return _reject(store, task, failure_codes.PLAN_REJECTED, findings)
 
 
 def _parse_verdict(output) -> tuple[bool, tuple[str, ...]] | None:
