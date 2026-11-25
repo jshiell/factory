@@ -2,7 +2,7 @@
 {% block content %}
 <p>Retry this task? A new task is made with the same goal; this task is left as it is.</p>
 <p>Goal: {{ task.goal }}</p>
-<p>From scratch, the new task starts at {{ "proposed" | humanise }} and is planned again.</p>
+<p>From scratch, the new task starts at proposed and is planned again.</p>
 <form method="post" action="/ui/tasks/{{ task.id | urlencode }}/retry">
 <button type="submit">Retry from scratch</button>
 </form>
