@@ -1,6 +1,7 @@
 import logging
 from dataclasses import dataclass, replace
 
+from factory import failure_codes
 from factory.classify import Outcome
 from factory.command import PromptTooLarge, RunnerConfig
 from factory.ledger import Ledger
@@ -26,12 +27,12 @@ def call_agent(
         result = runner.run(replace(task, prompt=prompt), config)
     except PromptTooLarge as error:
         logging.getLogger("factory").warning("agent run refused for task %s, stage %s: %s", task.id, stage, error)
-        return Infra("prompt_too_large")
+        return Infra(failure_codes.PROMPT_TOO_LARGE)
     except Exception as error:
         logging.getLogger("factory").warning("agent run failed for task %s, stage %s: %r", task.id, stage, error)
-        return _assumed_failure("runner_error", task, config, ledger, stage)
+        return _assumed_failure(failure_codes.RUNNER_ERROR, task, config, ledger, stage)
     if result.timed_out:
-        return _assumed_failure("timeout", task, config, ledger, stage)
+        return _assumed_failure(failure_codes.TIMEOUT, task, config, ledger, stage)
     outcome = classify_run(result, task.id, stage)
     ledger.append(task.id, outcome.cost_usd, stage=stage)
     return Completed(outcome)

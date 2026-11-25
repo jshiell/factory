@@ -3,6 +3,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field, replace
 from typing import Protocol
 
+from factory import failure_codes
 from factory.classify import Outcome, OutcomeKind, classify
 from factory.command import PromptTooLarge, RunnerConfig
 from factory.ledger import Ledger
@@ -78,14 +79,14 @@ def step(
         result = runner.run(running, config)
     except PromptTooLarge as error:
         logging.getLogger("factory").warning("agent run refused for task %s, stage implement: %s", task_id, error)
-        failed = apply(running, Event.FAILED, reason="prompt_too_large")
+        failed = apply(running, Event.FAILED, reason=failure_codes.PROMPT_TOO_LARGE)
         store.save(failed)
         return failed
     except Exception as error:
         logging.getLogger("factory").warning("agent run failed for task %s, stage implement: %r", task_id, error)
-        return _fail_with_assumed_cost(running, "runner_error", store, ledger, config)
+        return _fail_with_assumed_cost(running, failure_codes.RUNNER_ERROR, store, ledger, config)
     if result.timed_out:
-        return _fail_with_assumed_cost(running, "timeout", store, ledger, config)
+        return _fail_with_assumed_cost(running, failure_codes.TIMEOUT, store, ledger, config)
     outcome = classify_run(result, task_id, "implement")
     ledger.append(task_id, outcome.cost_usd, stage="implement")
     if outcome.kind in (OutcomeKind.SUCCESS, OutcomeKind.SUCCESS_WITH_DENIALS):

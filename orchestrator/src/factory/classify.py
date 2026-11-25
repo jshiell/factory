@@ -1,13 +1,15 @@
 from dataclasses import dataclass
 from enum import Enum
 
+from factory import failure_codes
+
 
 class OutcomeKind(Enum):
     SUCCESS = "success"
     SUCCESS_WITH_DENIALS = "success_with_denials"
-    BUDGET_EXHAUSTED = "budget_exhausted"
-    ERROR = "error"
-    UNPARSEABLE = "unparseable"
+    BUDGET_EXHAUSTED = failure_codes.BUDGET_EXHAUSTED
+    ERROR = failure_codes.ERROR
+    UNPARSEABLE = failure_codes.UNPARSEABLE
 
 
 @dataclass(frozen=True)
