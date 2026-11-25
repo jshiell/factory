@@ -1,3 +1,4 @@
+from factory import failure_codes
 from factory.store import TaskStore
 from factory.task import Event, Task, TaskState, apply
 
@@ -24,7 +25,7 @@ def _abandoned(task: Task) -> Task:
     refusal = _refusal(task)
     if refusal:
         raise AbandonRefused(refusal)
-    return apply(task, Event.ABANDONED, reason="abandoned")
+    return apply(task, Event.ABANDONED, reason=failure_codes.ABANDONED)
 
 
 def abandon_task(task_id: str, store: TaskStore) -> Task:

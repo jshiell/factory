@@ -2,6 +2,7 @@ import secrets
 from collections.abc import Callable
 from dataclasses import replace
 
+from factory import failure_codes
 from factory.digest import plan_digest
 from factory.review_notes import capped_findings, notes_block
 from factory.store import TaskStore
@@ -64,4 +65,4 @@ def approve_plan(
 
 
 def reject_plan(task_id: str, store: TaskStore) -> Task:
-    return store.update(task_id, lambda task: apply(task, Event.HUMAN_REJECTED, "plan_rejected_by_human"))
+    return store.update(task_id, lambda task: apply(task, Event.HUMAN_REJECTED, failure_codes.PLAN_REJECTED_BY_HUMAN))

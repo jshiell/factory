@@ -1,3 +1,4 @@
+from factory import failure_codes
 from factory.ledger import Ledger
 from factory.step import ASSUMED_COST_MULTIPLIER
 from factory.store import TaskStore
@@ -17,6 +18,6 @@ def recover_task(task_id: str, store: TaskStore, ledger: Ledger, budget_usd: flo
     if not can_recover(task):
         raise RecoverRefused(f"{task.id} is {task.state.value}, not running")
     ledger.append(task.id, ASSUMED_COST_MULTIPLIER * budget_usd, assumed=True, stage="implement")
-    failed = apply(task, Event.FAILED, reason="interrupted")
+    failed = apply(task, Event.FAILED, reason=failure_codes.INTERRUPTED)
     store.save(failed)
     return failed
