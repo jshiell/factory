@@ -125,7 +125,7 @@ _FAILURE_REASON = {
 _STAGE_ERROR_INFRA = {
     RUNNER_ERROR: Explanation(_FAILURE_REASON[RUNNER_ERROR].sentence, "Advance again; if it repeats, check the server log."),
     TIMEOUT: Explanation(_FAILURE_REASON[TIMEOUT].sentence, _TASK_KEPT_ITS_STATE),
-    BUDGET_EXHAUSTED: Explanation(_FAILURE_REASON[BUDGET_EXHAUSTED].sentence, _TASK_KEPT_ITS_STATE),
+    BUDGET_EXHAUSTED: _FAILURE_REASON[BUDGET_EXHAUSTED],  # advancing again cannot fix a budget problem
     ERROR: Explanation(_FAILURE_REASON[ERROR].sentence, "See the server log; advance again."),
     UNPARSEABLE: Explanation(_FAILURE_REASON[UNPARSEABLE].sentence, _TASK_KEPT_ITS_STATE),
 }

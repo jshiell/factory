@@ -1,3 +1,5 @@
+import pytest
+
 from factory.failure_codes import explain
 
 
@@ -18,6 +20,11 @@ def test_text_joins_sentence_and_next_step():
 
 def test_text_is_just_the_sentence_without_a_next_step():
     assert explain("failure_reason", "abandoned").text == "The task was abandoned."
+
+
+@pytest.mark.parametrize("field", ["plan_error", "review_error", "audit_error"])
+def test_a_budget_stage_error_says_to_change_the_goal_or_budget_not_to_advance_again(field):
+    assert explain(field, "budget_exhausted").next_step == "Retry with a smaller goal or a higher budget."
 
 
 def test_advice_depends_on_the_field():
