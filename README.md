@@ -430,6 +430,14 @@ flowchart TB
   gate runs it recorded in the `processes` table of `factory.db` and kills them first; if it cannot prove them dead (for example `ps` is blocked)
   it refuses and changes nothing.
 
+### Failure descriptions
+
+`factory/failure_codes.py` maps the stable codes stored in `failure_reason`, `plan_error`, `review_error` and `audit_error` to a plain-English
+sentence and a next step. The mapping is display-only: storage and job payloads keep the raw code, and unknown codes and free text show unchanged.
+The web page shows `description (code)`, the CLI `code - text`, and watch comments add an unfenced "What it means" section beside the fenced raw reason.
+To add a code, add its constant, then an entry per field it can appear in; the guard tests fail on a code with no entry or a literal that bypasses the constant.
+The `fix_` family of `failure_reason` codes is composed from its prefix rather than listed one by one.
+
 ### Why this shape
 
 - *A SQLite file and a state machine* so everything is inspectable and a crashed run is recoverable by hand.
