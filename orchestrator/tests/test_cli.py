@@ -89,6 +89,14 @@ def test_list_shows_id_state_and_failure_reason_and_names_skipped_files(ctx):
     assert "a  failed  tests_failed" in out and "b  reviewed" in out and "skipped: broken.json" in out
 
 
+def test_list_describes_a_known_failure_reason_after_its_code(ctx):
+    put(ctx, S.FAILED, "a", failure_reason="timeout")
+
+    _, out, _ = run(ctx, "list")
+
+    assert "a  failed  timeout - The agent ran out of time. Retry the task." in out
+
+
 def test_list_shows_ids_and_skipped_names_with_control_characters_escaped(ctx):
     ctx.settings.tasks_dir.mkdir(parents=True, exist_ok=True)
     (ctx.settings.tasks_dir / "plain.json").write_text(_json.dumps(task_to_dict(Task(id="x\x1b[31my", prompt=""))))

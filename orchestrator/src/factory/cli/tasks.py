@@ -36,7 +36,7 @@ def _with_host(url: str, host: str) -> str:
 def _list(args, io, ctx) -> int:
     listing = ctx.server.get("/tasks")
     for task in listing["tasks"]:
-        reason = f"  {task['failure_reason']}" if task["failure_reason"] else ""
+        reason = f"  {_coded('failure_reason', task['failure_reason'])}" if task["failure_reason"] else ""
         print(escape_control(f"{task['id']}  {task['state']}{reason}"), file=io.stdout)
     for name in listing["skipped"]:
         print(escape_control(f"skipped: {name}"), file=io.stdout)
