@@ -3,6 +3,7 @@ from collections.abc import Callable
 from dataclasses import replace
 from pathlib import Path
 
+from factory import failure_codes
 from factory.command import RunnerConfig
 from factory.digest import plan_digest
 from factory.ledger import Ledger
@@ -142,10 +143,10 @@ def plan_task(
         prompt = build_grill_prompt(task.goal, task.grill_log, task.grill_rounds + 1)
     staged = run_readonly_stage(task, prompt, runner, config, ledger, "plan", repo)
     if isinstance(staged, Modified):
-        failed = apply(task, Event.PLAN_FAILED, "plan_modified_worktree")
+        failed = apply(task, Event.PLAN_FAILED, failure_codes.PLAN_MODIFIED_WORKTREE)
         return _finish(store, replace(failed, plan_error=None))
     if isinstance(staged, Infra):
-        if staged.reason == "prompt_too_large":  # a retry would build the same prompt
+        if staged.reason == failure_codes.PROMPT_TOO_LARGE:  # a retry would build the same prompt
             return _finish(store, replace(apply(task, Event.PLAN_FAILED, staged.reason), plan_error=None))
         return _finish(store, replace(task, plan_error=staged.reason))
     if grilling and _asks_questions(staged.structured_output):
@@ -173,28 +174,28 @@ def _asks_questions(output) -> bool:
 def _parse_questions(raw: list) -> tuple[dict, ...] | str:
     """Return the questions, or the plan_error reason."""
     if not 0 < len(raw) <= MAX_QUESTIONS:
-        return "plan_malformed"
+        return failure_codes.PLAN_MALFORMED
     for question in raw:
         if not isinstance(question, dict) or not isinstance(question.get("number"), int):
-            return "plan_malformed"
+            return failure_codes.PLAN_MALFORMED
         if not all(isinstance(question.get(key), str) for key in _QUESTION_KEYS):
-            return "plan_malformed"
+            return failure_codes.PLAN_MALFORMED
     if sum(len(question[key].encode()) for question in raw for key in _QUESTION_KEYS) > MAX_QUESTIONS_BYTES:
-        return "questions_too_large"
+        return failure_codes.QUESTIONS_TOO_LARGE
     return tuple(raw)
 
 
 def _parse_plan(output) -> tuple[str, tuple[str, ...]] | str:
     """Return (plan, risks), or the plan_error reason."""
     if not isinstance(output, dict):
-        return "plan_malformed"
+        return failure_codes.PLAN_MALFORMED
     plan, risks = output.get("plan"), output.get("risks")
     if not isinstance(plan, str) or not plan.strip():
-        return "plan_malformed"
+        return failure_codes.PLAN_MALFORMED
     if not isinstance(risks, list) or not all(isinstance(r, str) for r in risks):
-        return "plan_malformed"
+        return failure_codes.PLAN_MALFORMED
     if len(plan.encode()) > MAX_PLAN_BYTES:
-        return "plan_too_large"
+        return failure_codes.PLAN_TOO_LARGE
     return plan, tuple(risks)
 
 
