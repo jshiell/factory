@@ -16,7 +16,7 @@ def test_the_jobs_page_lists_jobs_newest_first_with_kind_state_and_task_link(cli
 
     assert page.index("Clean, Failed") < page.index("Advance, Succeeded")
     assert f'<a href="/ui/tasks/{TASK}">{TASK}</a>' in page
-    assert "error: boom" in page
+    assert "Error: boom" in page
 
 
 def test_the_jobs_page_shows_only_the_latest_fifty(client):

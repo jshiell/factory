@@ -41,7 +41,7 @@ def post(client, fields):
 def test_the_clean_page_says_when_there_is_nothing_to_clean_and_offers_no_button(client):
     page = client.get("/ui/clean").text
 
-    assert "nothing to clean" in page
+    assert "Nothing to clean" in page
     assert "<form" not in page
 
 

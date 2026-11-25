@@ -114,3 +114,9 @@ Step 4b (`task.html`, `_task.html`, `_task_detail`, `_job_view`, `_ACTION_LINKS`
 - `test_web_task_list_link.py:7` (`LIST_LINK`, so also `:15` and the negative at `:17`): `back to the task list` becomes `Back to the task list`. Reason: link wording.
 - `test_web_task_actions.py:80`: `abandon/rebase/merge this task` capitalised. Reason: link wording.
 - Unedited: `retry this task` and the approve/reject/answer link texts were not asserted by any test (link tests key on hrefs).
+
+Step 4c (jobs, costs, clean). The inline label on a job line becomes `Error: boom` (as the plan's `test_web_jobs.py:19` entry expects); flags on a clean candidate (`dirty`, `2 commits ahead`) stay as they are.
+- `test_web_jobs.py:19`: `error: boom` becomes `Error: boom`. Reason: label wording.
+- `test_web_costs.py:17,27`: `total:`/`assumed:` become `Total:`/`Assumed:` (the empty-ledger test too). Reason: label wording.
+- `test_web_clean.py:44`: `nothing to clean` becomes `Nothing to clean`. Reason: message wording. No negative assertions were touched in these three files.
+- No existing test asserted the `Jobs`/`Costs`/`Clean` headings, `By stage`/`By task`, `Orphaned gate caches`, `Skipped` or the back link on these pages.

@@ -1,9 +1,9 @@
 {% extends "base.html" %}
 {% block content %}
-<h2>jobs</h2>
+<h2>Jobs</h2>
 <ul>
-  {% for job in jobs %}<li>{{ job.kind | humanise }}, {{ job.state | humanise }}{% if job.task_id %} <a href="/ui/tasks/{{ job.task_id | urlencode }}">{{ job.task_id }}</a>{% endif %}{% if job.error %} error: {{ job.error }}{% endif %}</li>
+  {% for job in jobs %}<li>{{ job.kind | humanise }}, {{ job.state | humanise }}{% if job.task_id %} <a href="/ui/tasks/{{ job.task_id | urlencode }}">{{ job.task_id }}</a>{% endif %}{% if job.error %} Error: {{ job.error }}{% endif %}</li>
   {% endfor %}
 </ul>
-<p><a href="/ui/">back to the task list</a></p>
+<p><a href="/ui/">Back to the task list</a></p>
 {% endblock %}

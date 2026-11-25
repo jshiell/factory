@@ -4,8 +4,10 @@ The guard reads rendered pages with the stdlib HTML parser. Data (ids, goal and 
 lower-case `zdata-...` values: the guard skips them and the paired test checks they are shown verbatim."""
 import pytest
 
+from factory.clean_tasks import Candidate
+from factory.gate_cache import OrphanCache, OrphanScan
 from factory.sqlite_db import transaction
-from factory.task import TaskState
+from factory.task import Task, TaskState
 from webhelpers import add
 from websentence import DATA_PREFIX, sentence_case_violations
 
@@ -65,7 +67,39 @@ def task_page_with_job(job_state, result=None):
     return fetch
 
 
-STOP_WITH_ERROR = {"stopped": STOPPED, "stopped_error": {"field": "plan_error", "code": "plan_malformed"}}
+def jobs_page(client, ctx):
+    add(ctx, TASK, TaskState.QUEUED)
+    jobs = client.app.state.jobs
+    jobs.create("advance", TASK)
+    jobs.mark_running(jobs.create("rebase", TASK).id)
+    jobs.mark_succeeded(jobs.create("merge", TASK).id, {})
+    jobs.mark_failed(jobs.create("clean", None).id, JOB_ERROR)
+    jobs.interrupt_unfinished()
+    return client.get("/ui/jobs").text
+
+
+def costs_page(client, ctx):
+    add(ctx, TASK, TaskState.AUDITED)
+    ctx.ledger.append(TASK, 1.25, stage="plan")
+    ctx.ledger.append(TASK, 2.0, assumed=True, stage="audit")
+    return client.get("/ui/costs").text
+
+
+def clean_page(client, ctx):
+    found = [Candidate(Task(id=TASK, prompt="", state=TaskState.FAILED, worktree="/w/t1"), directory_exists=False, dirty=True,
+                       commits_ahead=2, branch_exists=True)]
+    orphans = OrphanScan([OrphanCache(f"{DATA_PREFIX}cache", 2048)], [f"{DATA_PREFIX}skipped"])
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setattr("factory.server.clean_candidates", lambda *a, **k: found)
+        patch.setattr("factory.server.orphan_caches", lambda *a, **k: orphans)
+        return client.get("/ui/clean").text
+
+
+def nothing_to_clean_page(client, ctx):
+    return client.get("/ui/clean").text
+
+
+STOP_WITH_ERROR ={"stopped": STOPPED, "stopped_error": {"field": "plan_error", "code": "plan_malformed"}}
 
 # name -> (fetch(client, ctx) -> html, data values the page must show verbatim); a page group adds its pages here
 PAGES: dict = {
@@ -75,6 +109,10 @@ PAGES: dict = {
        for job_state in ("queued", "running", "succeeded", "interrupted")},
     "task page, job failed": (task_page_with_job("failed"), (*FULL_TASK_DATA, JOB_ERROR)),
     "task page, job stopped": (task_page_with_job("succeeded", STOP_WITH_ERROR), (*FULL_TASK_DATA, STOPPED)),
+    "jobs": (jobs_page, (JOB_ERROR,)),
+    "costs": (costs_page, ()),
+    "clean": (clean_page, (f"{DATA_PREFIX}cache", f"{DATA_PREFIX}skipped")),
+    "clean, nothing to clean": (nothing_to_clean_page, ()),
 }
 
 

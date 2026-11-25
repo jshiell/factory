@@ -1,8 +1,8 @@
 {% extends "base.html" %}
 {% block content %}
-<h2>clean</h2>
+<h2>Clean</h2>
 {% if not view.candidates and not view.orphans %}
-<p>nothing to clean</p>
+<p>Nothing to clean</p>
 {% else %}
 <p>Cleaning removes the worktrees, branches and gate caches listed below. This cannot be undone.</p>
 {% if view.candidates %}
@@ -12,7 +12,7 @@
 </ul>
 {% endif %}
 {% if view.orphans %}
-<h3>orphaned gate caches</h3>
+<h3>Orphaned gate caches</h3>
 <ul>
   {% for orphan in view.orphans %}<li>{{ orphan.name }} ({{ orphan.size }} bytes)</li>
   {% endfor %}
@@ -24,11 +24,11 @@
 </form>
 {% endif %}
 {% if view.skipped %}
-<h3>skipped</h3>
+<h3>Skipped</h3>
 <ul>
   {% for name in view.skipped %}<li>{{ name }}</li>
   {% endfor %}
 </ul>
 {% endif %}
-<p><a href="/ui/">back to the task list</a></p>
+<p><a href="/ui/">Back to the task list</a></p>
 {% endblock %}

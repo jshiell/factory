@@ -1,17 +1,17 @@
 {% extends "base.html" %}
 {% block content %}
-<h2>costs</h2>
-<p>total: ${{ "%.2f" | format(report.total) }}</p>
-<p>assumed: ${{ "%.2f" | format(report.assumed) }}</p>
-<h3>by stage</h3>
+<h2>Costs</h2>
+<p>Total: ${{ "%.2f" | format(report.total) }}</p>
+<p>Assumed: ${{ "%.2f" | format(report.assumed) }}</p>
+<h3>By stage</h3>
 <ul>
   {% for stage, cost in report.by_stage %}<li>{{ stage | humanise }}: ${{ "%.2f" | format(cost) }}</li>
   {% endfor %}
 </ul>
-<h3>by task</h3>
+<h3>By task</h3>
 <ul>
   {% for task_id, cost in report.by_task %}<li><a href="/ui/tasks/{{ task_id | urlencode }}">{{ task_id }}</a>: ${{ "%.2f" | format(cost) }}</li>
   {% endfor %}
 </ul>
-<p><a href="/ui/">back to the task list</a></p>
+<p><a href="/ui/">Back to the task list</a></p>
 {% endblock %}
