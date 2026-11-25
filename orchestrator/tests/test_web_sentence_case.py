@@ -28,8 +28,54 @@ def tasks_list(client, ctx):
     return client.get("/ui/").text
 
 
+TASK = "20260102-030405"
+FULL_TASK = {"goal": GOAL, "failure_reason": FAILURE, "retry_of": f"{DATA_PREFIX}retry", "fix_rounds_used": 2, "attempts": 3,
+             "denials": ({"tool": "a"},), "worktree": f"{DATA_PREFIX}worktree", "plan_error": f"{DATA_PREFIX}plan-error",
+             "review_error": f"{DATA_PREFIX}review-error", "audit_error": f"{DATA_PREFIX}audit-error", "plan": f"{DATA_PREFIX}plan",
+             "plan_risks": (f"{DATA_PREFIX}risk",), "review_findings": (f"{DATA_PREFIX}review",),
+             "audit_findings": (f"{DATA_PREFIX}audit",), "waived_findings": (f"{DATA_PREFIX}waived",), "grill_rounds": 2,
+             "open_questions": ({"number": 1, "title": f"{DATA_PREFIX}title", "recommended": f"{DATA_PREFIX}recommended"},)}
+FULL_TASK_DATA = tuple(value for value in (*FULL_TASK.values(), f"{DATA_PREFIX}title", f"{DATA_PREFIX}recommended")
+                       if isinstance(value, str))
+JOB_ERROR = f"{DATA_PREFIX}job-error"
+STOPPED = f"{DATA_PREFIX}stopped"
+
+
+def task_page_in_state(state):
+    def fetch(client, ctx):
+        add(ctx, TASK, state, **FULL_TASK)
+        return client.get(f"/ui/tasks/{TASK}").text
+    return fetch
+
+
+def task_page_with_job(job_state, result=None):
+    def fetch(client, ctx):
+        add(ctx, TASK, TaskState.FAILED, **FULL_TASK)
+        jobs = client.app.state.jobs
+        job = jobs.create("advance", TASK)
+        if job_state == "running":
+            jobs.mark_running(job.id)
+        elif job_state == "succeeded":
+            jobs.mark_succeeded(job.id, result or {})
+        elif job_state == "failed":
+            jobs.mark_failed(job.id, JOB_ERROR)
+        elif job_state == "interrupted":
+            jobs.interrupt_unfinished()
+        return client.get(f"/ui/tasks/{TASK}").text
+    return fetch
+
+
+STOP_WITH_ERROR = {"stopped": STOPPED, "stopped_error": {"field": "plan_error", "code": "plan_malformed"}}
+
 # name -> (fetch(client, ctx) -> html, data values the page must show verbatim); a page group adds its pages here
-PAGES: dict = {"tasks list": (tasks_list, (GOAL, FAILURE, BROKEN))}
+PAGES: dict = {
+    "tasks list": (tasks_list, (GOAL, FAILURE, BROKEN)),
+    **{f"task page {state.value}": (task_page_in_state(state), FULL_TASK_DATA) for state in TaskState},
+    **{f"task page, job {job_state}": (task_page_with_job(job_state), FULL_TASK_DATA)
+       for job_state in ("queued", "running", "succeeded", "interrupted")},
+    "task page, job failed": (task_page_with_job("failed"), (*FULL_TASK_DATA, JOB_ERROR)),
+    "task page, job stopped": (task_page_with_job("succeeded", STOP_WITH_ERROR), (*FULL_TASK_DATA, STOPPED)),
+}
 
 
 def test_a_lower_case_heading_label_link_and_title_are_each_reported():

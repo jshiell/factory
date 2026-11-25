@@ -4,7 +4,7 @@ from webhelpers import add
 pytest_plugins = ["webfixtures"]
 
 TASK_ID = "20260102-030405"
-LIST_LINK = '<a href="/ui/">back to the task list</a>'
+LIST_LINK = '<a href="/ui/">Back to the task list</a>'
 
 
 def test_the_task_page_links_back_to_the_list_outside_the_part_the_stream_replaces(client, ctx):

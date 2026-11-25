@@ -43,6 +43,10 @@ _TEMPLATES = jinja2.Environment(loader=jinja2.FileSystemLoader(Path(__file__).pa
 _TEMPLATES.filters["markdown"] = render_markdown
 _TEMPLATES.filters["markdown_with_urls"] = render_markdown_with_urls
 _TEMPLATES.filters["humanise"] = lambda value: value[:1].upper() + value[1:].replace("_", " ")  # not capitalize: it lowercases the rest
+# One label per task field, shared by the fact lines and by the stopped description of a stage error.
+_FIELD_LABELS = {"retry_of": "Retry of", "fix_rounds": "Fix rounds", "attempts": "Attempts", "denials": "Denials",
+                 "worktree": "Worktree", "branch": "Branch", "plan_error": "Plan error", "review_error": "Review error",
+                 "audit_error": "Audit error", "failure_reason": "Failure"}
 _GOAL_LIMIT = 120
 _ERROR_LIMIT = 500
 _HUMAN_GATE_STATES = {TaskState.OPEN_QUESTIONS, TaskState.REVIEWED, TaskState.AUDITED}
@@ -82,18 +86,18 @@ def _described(field: str, code: str | None) -> str | None:
 
 
 def _task_detail(task) -> dict:
-    facts = (("retry of", task.retry_of), ("fix rounds", task.fix_rounds_used), ("attempts", task.attempts),
-             ("denials", len(task.denials)), ("worktree", task.worktree),
-             ("branch", f"factory/{task.id}" if task.worktree else None),
-             ("plan error", _described("plan_error", task.plan_error)),
-             ("review error", _described("review_error", task.review_error)),
-             ("audit error", _described("audit_error", task.audit_error)))
-    lists = (("risks", task.plan_risks), ("review findings", task.review_findings),
-             ("audit findings", task.audit_findings), ("waived findings", task.waived_findings))
+    facts = {"retry_of": task.retry_of, "fix_rounds": task.fix_rounds_used, "attempts": task.attempts,
+             "denials": len(task.denials), "worktree": task.worktree,
+             "branch": f"factory/{task.id}" if task.worktree else None,
+             "plan_error": _described("plan_error", task.plan_error),
+             "review_error": _described("review_error", task.review_error),
+             "audit_error": _described("audit_error", task.audit_error)}
+    lists = (("Risks", task.plan_risks), ("Review findings", task.review_findings),
+             ("Audit findings", task.audit_findings), ("Waived findings", task.waived_findings))
     questions = [{"number": _safe(question["number"]), "title": _safe(question["title"]), "recommended": _safe(question["recommended"])}
                  for question in task.open_questions]
     return {"id": task.id, "state": task.state.value, "needs_you": task.state in _HUMAN_GATE_STATES,
-            "facts": [(label, _safe(value)) for label, value in facts if value],
+            "facts": [(_FIELD_LABELS[field], _safe(value)) for field, value in facts.items() if value],
             "goal": _safe(task.goal if task.goal is not None else task.prompt), "failure_reason": _safe(task.failure_reason),
             "failure_explanation": _explanation("failure_reason", task.failure_reason),
             "plan":_safe(task.plan), "open_questions": questions, "grill_rounds": task.grill_rounds,
@@ -110,12 +114,12 @@ def _job_view(job) -> dict | None:
     description = _described(field, code) if field and code and _explanation(field, code) else None
     return {"kind": _safe(job.kind), "state": job.state,
             "error": _safe(_truncated(job.error, _ERROR_LIMIT)) if job.error else None, "stopped": _safe(result.get("stopped")),
-            "stopped_description": f"{field.replace('_', ' ')}: {description}" if description else None}
+            "stopped_description": f"{_FIELD_LABELS[field]}: {description}" if description else None}
 
 
-_ACTION_LINKS = (("advance", "advance this task", can_advance), ("rebase", "rebase this task", can_rebase),
-                 ("merge", "merge this task", can_merge), ("recover", "recover this task", can_recover),
-                 ("abandon", "abandon this task", can_abandon))
+_ACTION_LINKS = (("advance", "Advance this task", can_advance), ("rebase", "Rebase this task", can_rebase),
+                 ("merge", "Merge this task", can_merge), ("recover", "Recover this task", can_recover),
+                 ("abandon", "Abandon this task", can_abandon))
 
 
 def _offered_actions(task, job) -> list[tuple[str, str]]:
@@ -124,7 +128,7 @@ def _offered_actions(task, job) -> list[tuple[str, str]]:
     busy = job is not None and job.state in ("queued", "running")
     links = [] if busy else [(name, text) for name, text, allowed in _ACTION_LINKS if allowed(task)]
     if can_retry(task):
-        links.append(("retry", "retry this task"))
+        links.append(("retry", "Retry this task"))
     return links
 
 

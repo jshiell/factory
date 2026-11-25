@@ -7,8 +7,8 @@ from webhelpers import add
 
 pytest_plugins = ["webfixtures"]
 
-JOB_GROUP = re.compile(r'<section class="job">\s*<p>job: Merge, Failed</p>\s*<p>job error: refused</p>\s*</section>')
-FAILURE_GROUP = re.compile(r'<div class="failure">\s*<p>failure: gate failed</p>\s*</div>')
+JOB_GROUP = re.compile(r'<section class="job">\s*<p>Job: Merge, Failed</p>\s*<p>Job error: refused</p>\s*</section>')
+FAILURE_GROUP = re.compile(r'<div class="failure">\s*<p>Failure: gate failed</p>\s*</div>')
 
 
 def test_the_latest_job_is_grouped_in_a_section_with_its_error(client, ctx):
@@ -22,7 +22,7 @@ def test_the_latest_job_is_grouped_in_a_section_with_its_error(client, ctx):
 def test_there_is_no_job_section_without_a_job(client, ctx):
     add(ctx, TASK)
 
-    assert "job" not in client.get(PAGE).text
+    assert "job" not in client.get(PAGE).text.lower()
 
 
 def test_the_failure_reason_is_grouped_in_a_callout(client, ctx):

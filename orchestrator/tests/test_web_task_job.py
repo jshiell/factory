@@ -28,7 +28,7 @@ def test_the_task_page_shows_the_latest_job_kind_and_state(client, ctx, state):
     add(ctx, TASK)
     job_in_state(client, state, kind="rebase")
 
-    assert f"<p>job: Rebase, {state.capitalize()}</p>" in client.get(PAGE).text
+    assert f"<p>Job: Rebase, {state.capitalize()}</p>" in client.get(PAGE).text
 
 
 def test_the_task_page_shows_the_newest_job_only(client, ctx):
@@ -38,20 +38,20 @@ def test_the_task_page_shows_the_newest_job_only(client, ctx):
 
     page = client.get(PAGE).text
 
-    assert "job: Merge, Queued" in page and "job: Advance" not in page
+    assert "Job: Merge, Queued" in page and "Job: Advance" not in page
 
 
 def test_the_task_page_shows_no_job_when_the_task_has_none(client, ctx):
     add(ctx, TASK)
 
-    assert "job:" not in client.get(PAGE).text
+    assert "Job:" not in client.get(PAGE).text
 
 
 def test_the_task_page_shows_the_error_of_a_failed_job(client, ctx):
     add(ctx, TASK)
     job_in_state(client, "failed", error="merge refused")
 
-    assert "<p>job error: merge refused</p>" in client.get(PAGE).text
+    assert "<p>Job error: merge refused</p>" in client.get(PAGE).text
 
 
 def test_the_task_page_escapes_a_hostile_job_error(client, ctx):
@@ -79,21 +79,21 @@ def test_the_task_page_shows_where_a_succeeded_advance_stopped(client, ctx):
 
     page = client.get(PAGE).text
 
-    assert "<p>stopped: needs &lt;you&gt;\\x1b</p>" in page
+    assert "<p>Stopped: needs &lt;you&gt;\\x1b</p>" in page
 
 
 def test_a_succeeded_job_without_stopped_shows_no_stopped_line(client, ctx):
     add(ctx, TASK)
     job_in_state(client, "succeeded", result={"stopped": None})
 
-    assert "stopped:" not in client.get(PAGE).text
+    assert "Stopped:" not in client.get(PAGE).text
 
 
 def test_a_job_without_an_error_shows_no_error_line(client, ctx):
     add(ctx, TASK)
     job_in_state(client, "succeeded")
 
-    assert "job error" not in client.get(PAGE).text
+    assert "Job error" not in client.get(PAGE).text
 
 
 def test_the_live_fragment_shows_the_same_job_panel_as_the_page(client, ctx):
@@ -104,4 +104,4 @@ def test_the_live_fragment_shows_the_same_job_panel_as_the_page(client, ctx):
     page = client.get(PAGE).text
 
     assert fragment in page
-    assert "<p>job: Advance, Failed</p>" in fragment and "<p>job error: bad &lt;thing&gt;</p>" in fragment
+    assert "<p>Job: Advance, Failed</p>" in fragment and "<p>Job error: bad &lt;thing&gt;</p>" in fragment

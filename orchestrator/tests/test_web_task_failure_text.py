@@ -16,8 +16,8 @@ def test_a_known_failure_reason_shows_its_description_beside_the_raw_code(client
 
     for page in (client.get(PAGE).text, _task_fragment(ctx.store, client.app.state.jobs, TASK)):
         assert f"<p>{ESCAPED_DESCRIPTION}</p>" in page
-        assert "<p>failure: tests_failed</p>" in page
-        assert page.index(ESCAPED_DESCRIPTION) < page.index("failure: tests_failed")
+        assert "<p>Failure: tests_failed</p>" in page
+        assert page.index(ESCAPED_DESCRIPTION) < page.index("Failure: tests_failed")
 
 
 def test_a_composed_fix_reason_shows_its_description(client, ctx):
@@ -33,8 +33,8 @@ def test_a_no_progress_stop_describes_its_stage_error_beside_the_raw_code(client
 
     page = client.get(PAGE).text
 
-    assert "<p>stopped: plan: no progress (plan_malformed)</p>" in page
-    assert "<p>plan error: The plan came back in a form that could not be read. Advance again to re-plan. (plan_malformed)</p>" in page
+    assert "<p>Stopped: plan: no progress (plan_malformed)</p>" in page
+    assert "<p>Plan error: The plan came back in a form that could not be read. Advance again to re-plan. (plan_malformed)</p>" in page
 
 
 def test_a_free_text_stop_renders_the_job_section_exactly_as_before_descriptions(client, ctx):
@@ -43,7 +43,7 @@ def test_a_free_text_stop_renders_the_job_section_exactly_as_before_descriptions
 
     fragment = _task_fragment(ctx.store, client.app.state.jobs, TASK)
 
-    assert '<p>job: Advance, Succeeded</p>\n\n\n<p>stopped: step cap (10) reached</p>\n\n</section>\n' in fragment
+    assert '<p>Job: Advance, Succeeded</p>\n\n\n<p>Stopped: step cap (10) reached</p>\n\n</section>\n' in fragment
 
 
 def test_the_tasks_list_describes_a_known_failure_reason_and_leaves_free_text_alone(client, ctx):
@@ -57,9 +57,9 @@ def test_the_tasks_list_describes_a_known_failure_reason_and_leaves_free_text_al
 
 
 @pytest.mark.parametrize("field, label, code, sentence", [
-    ("plan_error", "plan error", "plan_malformed", "The plan came back in a form that could not be read."),
-    ("review_error", "review error", "review_malformed", "The review came back unreadable."),
-    ("audit_error", "audit error", "audit_malformed", "The audit came back unreadable."),
+    ("plan_error", "Plan error", "plan_malformed", "The plan came back in a form that could not be read."),
+    ("review_error", "Review error", "review_malformed", "The review came back unreadable."),
+    ("audit_error", "Audit error", "audit_malformed", "The audit came back unreadable."),
 ])
 def test_a_known_stage_error_shows_its_description_beside_the_raw_code(client, ctx, field, label, code, sentence):
     add(ctx, TASK, **{field: code})

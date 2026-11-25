@@ -103,3 +103,14 @@ Step 4a (base, page, `_tasks.html`). Badge renders as `Reviewed (<strong>Needs y
 - `test_web_tasks_page.py:72`: `page.count("needs you")` becomes `page.count("Needs you")`. Reason: badge wording.
 - `test_web_page_wiring.py:35` (`factory ui`): unedited; it is the `<code>` command, not the title. `test_web_ui_guard.py:37` is the 401 page's command; revisited in 4e.
 - No existing test asserted the title, `<h1>`, the `<th>` headers or "unreadable tasks skipped".
+
+Step 4b (`task.html`, `_task.html`, `_task_detail`, `_job_view`, `_ACTION_LINKS`). Fact labels and the stopped description's label come from one map, `_FIELD_LABELS`. Task page badge: `State: Reviewed (<strong>Needs you</strong>)`. The open-question line keeps `(recommended: x)` lower case: it is a parenthetical inside a line that starts with the number and title, not a label.
+- `test_web_task_job.py:31,41,54,82,107`: `job:`/`job error:`/`stopped:` become `Job:`/`Job error:`/`Stopped:`. Reason: label wording. Negatives `:41` (`Job: Advance`), `:47` (`Job:`), `:89` (`Stopped:`), `:96` (`Job error`) edited the same way so they keep guarding.
+- `test_web_task_groups.py:10-11`: `JOB_GROUP`/`FAILURE_GROUP` use `Job:`, `Job error:`, `Failure:`. Reason: label wording. `:25` negative `"job" not in page` becomes `"job" not in page.lower()` (the page now says `Job`, so the old check would be vacuous).
+- `test_web_task_failure_text.py:19,20,36,37,46,69`: `Failure:`, `Stopped:`, `Plan error:`, `Job:`; the parametrised labels `plan error`/`review error`/`audit error` become `Plan error`/`Review error`/`Audit error`. Reason: label wording.
+- `test_web_task_sections.py:14-15` section labels, `:41` `Open questions (round 2)`, `:47-54` fact labels: capitalised. Reason: label wording. `ABSENT_FOR_A_BARE_TASK` (`:9-11`, used at `:101-105`) capitalised entry by entry so the negative keeps guarding; `<pre>` unchanged. The `recommended:` assertion at `:42` is unchanged (see above).
+- `test_web_task_events.py:160,162,202,203,256,257`: `state: Queued/Failed` become `State: ...`. `:181-182`: `<p>worktree:`/`<p>branch:` become `<p>Worktree:`/`<p>Branch:`; the negative at `:184` becomes `"Worktree"`/`"Branch"`. Reason: label wording, and the negative would otherwise go vacuous.
+- `test_web_task_needs_you.py:17`: `"needs you" in page` becomes `"Needs you" in page`. Reason: badge wording; the negative half of the equality would otherwise go vacuous.
+- `test_web_task_list_link.py:7` (`LIST_LINK`, so also `:15` and the negative at `:17`): `back to the task list` becomes `Back to the task list`. Reason: link wording.
+- `test_web_task_actions.py:80`: `abandon/rebase/merge this task` capitalised. Reason: link wording.
+- Unedited: `retry this task` and the approve/reject/answer link texts were not asserted by any test (link tests key on hrefs).

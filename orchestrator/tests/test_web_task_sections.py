@@ -6,13 +6,13 @@ from webhelpers import add
 
 pytest_plugins = ["webfixtures"]
 
-ABSENT_FOR_A_BARE_TASK = ["failure", "risks", "review findings", "audit findings", "waived findings", "<pre>", "open questions",
-                          "retry of", "fix rounds", "attempts", "denials", "worktree", "branch", "plan error", "review error",
-                          "audit error"]
+ABSENT_FOR_A_BARE_TASK = ["Failure", "Risks", "Review findings", "Audit findings", "Waived findings", "<pre>", "Open questions",
+                          "Retry of", "Fix rounds", "Attempts", "Denials", "Worktree", "Branch", "Plan error", "Review error",
+                          "Audit error"]
 
 
-@pytest.mark.parametrize("label, field", [("risks", "plan_risks"), ("review findings", "review_findings"),
-                                          ("audit findings", "audit_findings"), ("waived findings", "waived_findings")])
+@pytest.mark.parametrize("label, field", [("Risks", "plan_risks"), ("Review findings", "review_findings"),
+                                          ("Audit findings", "audit_findings"), ("Waived findings", "waived_findings")])
 def test_a_list_section_appears_with_its_items(client, ctx, label, field):
     add(ctx, **{field: ("first item", "second item")})
 
@@ -38,20 +38,20 @@ def test_open_questions_show_the_round_titles_and_recommended_answers(client, ct
 
     page = client.get("/ui/tasks/20260102-030405").text
 
-    assert "open questions (round 2)" in page
+    assert "Open questions (round 2)" in page
     for shown in ("1. which database", "recommended: sqlite", "2. which port", "recommended: 8765"):
         assert shown in page
 
 
 @pytest.mark.parametrize("fields, shown", [
-    ({"retry_of": "20260101-000000"}, ["retry of: 20260101-000000"]),
-    ({"fix_rounds_used": 2}, ["fix rounds: 2"]),
-    ({"attempts": 3}, ["attempts: 3"]),
-    ({"denials": ({"tool": "a"}, {"tool": "b"})}, ["denials: 2"]),
-    ({"worktree": "/work/tree"}, ["worktree: /work/tree", "branch: factory/20260102-030405"]),
-    ({"plan_error": "p broke"}, ["plan error: p broke"]),
-    ({"review_error": "r broke"}, ["review error: r broke"]),
-    ({"audit_error": "a broke"}, ["audit error: a broke"]),
+    ({"retry_of": "20260101-000000"}, ["Retry of: 20260101-000000"]),
+    ({"fix_rounds_used": 2}, ["Fix rounds: 2"]),
+    ({"attempts": 3}, ["Attempts: 3"]),
+    ({"denials": ({"tool": "a"}, {"tool": "b"})}, ["Denials: 2"]),
+    ({"worktree": "/work/tree"}, ["Worktree: /work/tree", "Branch: factory/20260102-030405"]),
+    ({"plan_error": "p broke"}, ["Plan error: p broke"]),
+    ({"review_error": "r broke"}, ["Review error: r broke"]),
+    ({"audit_error": "a broke"}, ["Audit error: a broke"]),
 ])
 def test_a_scalar_field_appears_when_set(client, ctx, fields, shown):
     add(ctx, **fields)

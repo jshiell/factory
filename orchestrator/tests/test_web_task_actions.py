@@ -77,5 +77,5 @@ def test_the_action_links_have_readable_text(client, ctx):
 
     html = client.get(PAGE).text
 
-    for text in ("abandon this task", "rebase this task", "merge this task"):
+    for text in ("Abandon this task", "Rebase this task", "Merge this task"):
         assert text in html

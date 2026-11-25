@@ -14,4 +14,4 @@ def test_the_needs_you_mark_is_present_at_human_gates_only(client, ctx, state):
 
     page = client.get("/ui/tasks/20260102-030405").text
 
-    assert ("needs you" in page) == (state in HUMAN_GATES)
+    assert ("Needs you" in page) == (state in HUMAN_GATES)

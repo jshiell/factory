@@ -157,9 +157,9 @@ def test_this_tasks_save_sends_the_new_state_as_the_next_event(client, ctx):
 
     _, (first, second) = read_events(client, EVENTS, count=2, after_first_event=lambda: add(ctx, state=TaskState.FAILED))
 
-    assert any("state: Queued" in line for line in first)
+    assert any("State: Queued" in line for line in first)
     assert second[0] == "event: task"
-    assert any("state: Failed" in line for line in second)
+    assert any("State: Failed" in line for line in second)
 
 
 def test_another_tasks_save_sends_no_event_and_the_next_frame_is_a_keepalive(client, ctx):
@@ -178,10 +178,10 @@ def test_a_clean_style_save_without_a_worktree_drops_the_worktree_section(client
     _, (first, second) = read_events(client, EVENTS, count=2,
                                      after_first_event=lambda: add(ctx, state=TaskState.FAILED, worktree=None))
 
-    assert "data: <p>worktree: /wt/20260102-030405</p>" in first
-    assert "data: <p>branch: factory/20260102-030405</p>" in first
+    assert "data: <p>Worktree: /wt/20260102-030405</p>" in first
+    assert "data: <p>Branch: factory/20260102-030405</p>" in first
     assert second[0] == "event: task"
-    assert not any("worktree" in line or "branch" in line for line in second)
+    assert not any("Worktree" in line or "Branch" in line for line in second)
 
 
 def test_a_write_landing_during_the_first_render_still_sends_the_new_state(client, ctx, monkeypatch):
@@ -199,8 +199,8 @@ def test_a_write_landing_during_the_first_render_still_sends_the_new_state(clien
 
     _, (first, second) = read_events(client, EVENTS, count=2)
 
-    assert any("state: Queued" in line for line in first)
-    assert any("state: Failed" in line for line in second)
+    assert any("State: Queued" in line for line in first)
+    assert any("State: Failed" in line for line in second)
 
 
 def test_a_row_corrupted_mid_stream_sends_the_unreadable_fragment_and_keeps_the_stream_open(client, ctx):
@@ -253,8 +253,8 @@ def test_a_job_state_write_wakes_the_task_stream(client, ctx):
 
     _, (first, second) = read_events(client, EVENTS, count=2, after_first_event=change_task_unannounced_then_fail_the_job)
 
-    assert any("state: Queued" in line for line in first)
-    assert any("state: Failed" in line for line in second)
+    assert any("State: Queued" in line for line in first)
+    assert any("State: Failed" in line for line in second)
 
 
 def test_a_refused_job_that_writes_no_task_re_renders_the_fragment_from_the_job_store(client, ctx, monkeypatch):

@@ -1,14 +1,14 @@
 <h2>{{ task.id }}</h2>
-<p>state: {{ task.state | humanise }}{% if task.needs_you %} <strong>needs you</strong>{% endif %}</p>
-<p>goal: {{ task.goal }}</p>
+<p>State: {{ task.state | humanise }}{% if task.needs_you %} (<strong>Needs you</strong>){% endif %}</p>
+<p>Goal: {{ task.goal }}</p>
 {% if job %}
 <section class="job">
-<p>job: {{ job.kind | humanise }}, {{ job.state | humanise }}</p>
+<p>Job: {{ job.kind | humanise }}, {{ job.state | humanise }}</p>
 {% if job.error %}
-<p>job error: {{ job.error }}</p>
+<p>Job error: {{ job.error }}</p>
 {% endif %}
 {% if job.stopped %}
-<p>stopped: {{ job.stopped }}</p>
+<p>Stopped: {{ job.stopped }}</p>
 {%- if job.stopped_description %}
 <p>{{ job.stopped_description }}</p>
 {%- endif %}
@@ -18,11 +18,11 @@
 {% if task.state in ("reviewed", "open_questions") or actions %}
 <nav class="actions">
 {% if task.state == "reviewed" %}
-<p><a href="/ui/tasks/{{ task.id | urlencode }}/approve">approve this plan</a></p>
-<p><a href="/ui/tasks/{{ task.id | urlencode }}/reject">reject this plan</a></p>
+<p><a href="/ui/tasks/{{ task.id | urlencode }}/approve">Approve this plan</a></p>
+<p><a href="/ui/tasks/{{ task.id | urlencode }}/reject">Reject this plan</a></p>
 {% endif %}
 {% if task.state == "open_questions" %}
-<p><a href="/ui/tasks/{{ task.id | urlencode }}/answer">answer these questions</a></p>
+<p><a href="/ui/tasks/{{ task.id | urlencode }}/answer">Answer these questions</a></p>
 {% endif %}
 {% for name, text in actions %}
 <p><a href="/ui/tasks/{{ task.id | urlencode }}/{{ name }}">{{ text }}</a></p>
@@ -32,21 +32,21 @@
 {% if task.failure_reason %}
 <div class="failure">
 {% if task.failure_explanation %}<p>{{ task.failure_explanation }}</p>
-{% endif %}<p>failure: {{ task.failure_reason }}</p>
+{% endif %}<p>Failure: {{ task.failure_reason }}</p>
 </div>
 {% endif %}
 {% for label, value in task.facts %}
 <p>{{ label }}: {{ value }}</p>
 {% endfor %}
 {% if task.open_questions %}
-<h3>open questions (round {{ task.grill_rounds }})</h3>
+<h3>Open questions (round {{ task.grill_rounds }})</h3>
 <ul>
   {% for question in task.open_questions %}<li>{{ question.number }}. {{ question.title }} (recommended: {{ question.recommended }})</li>
   {% endfor %}
 </ul>
 {% endif %}
 {% if task.plan %}
-<h3>plan</h3>
+<h3>Plan</h3>
 <div class="plan">{{ task.plan | markdown }}</div>
 {% endif %}
 {% for label, items in task.lists %}
