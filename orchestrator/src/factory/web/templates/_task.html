@@ -2,6 +2,7 @@
 <p>state: {{ task.state }}{% if task.needs_you %} <strong>needs you</strong>{% endif %}</p>
 <p>goal: {{ task.goal }}</p>
 {% if job %}
+<section class="job">
 <p>job: {{ job.kind }}, {{ job.state }}</p>
 {% if job.error %}
 <p>job error: {{ job.error }}</p>
@@ -9,6 +10,7 @@
 {% if job.stopped %}
 <p>stopped: {{ job.stopped }}</p>
 {% endif %}
+</section>
 {% endif %}
 {% if task.state in ("reviewed", "open_questions") or actions %}
 <nav class="actions">
@@ -25,7 +27,9 @@
 </nav>
 {% endif %}
 {% if task.failure_reason %}
+<div class="failure">
 <p>failure: {{ task.failure_reason }}</p>
+</div>
 {% endif %}
 {% for label, value in task.facts %}
 <p>{{ label }}: {{ value }}</p>
