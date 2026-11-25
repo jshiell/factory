@@ -31,8 +31,8 @@ def recorded_sha256(name: str) -> str:
     return re.search(r"`([0-9a-f]{64})`", row).group(1)
 
 
-@pytest.mark.parametrize("name", ["htmx.min.js", "sse.min.js"])
-def test_a_vendored_script_is_served_without_a_session_and_matches_its_recorded_hash(client, name):
+@pytest.mark.parametrize("name", ["htmx.min.js", "sse.min.js", "pico.classless.min.css"])
+def test_a_vendored_file_is_served_without_a_session_and_matches_its_recorded_hash(client, name):
     response = client.get(f"/ui/static/{name}")
 
     assert response.status_code == 200
