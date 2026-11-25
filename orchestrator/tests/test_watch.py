@@ -643,6 +643,17 @@ def test_a_known_failure_code_gets_an_unfenced_description_beside_its_fenced_raw
         assert f"```\n{TESTS_FAILED_SENTENCE}" not in body
 
 
+def test_a_no_progress_stop_gets_an_unfenced_description_of_its_stage_error(tmp_path):
+    stopped = {**REVIEWED, "stopped": "plan: no progress (plan_malformed)",
+               "stopped_error": {"field": "plan_error", "code": "plan_malformed"}}
+
+    github, _ = pass_over(tmp_path, [raw_issue(number=5)], server=FakeServer(advance_result=stopped))
+
+    [(_, body)] = github.comments_posted
+    assert "```\nplan: no progress (plan_malformed)\n```" in body
+    assert "**What it means**\n\nThe plan came back in a form that could not be read. Advance again to re-plan." in body
+
+
 def test_free_text_and_missing_reasons_get_no_description_section(tmp_path):
     github, _ = pass_over(tmp_path, [raw_issue(number=5)], server=FakeServer(advance_result=FAILED))
 

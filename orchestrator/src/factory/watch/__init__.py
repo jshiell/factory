@@ -209,6 +209,12 @@ def _failure_explanation(failed: dict) -> str | None:
     return explanation.text if explanation else None
 
 
+def _stop_explanation(result: dict) -> str | None:
+    error = result.get("stopped_error")
+    explanation = explain(error["field"], error["code"]) if error else None
+    return explanation.text if explanation else None
+
+
 def _log_failure(subject: str, text: str) -> None:
     """One escaped line on stderr: gh and server text is not trusted, and a newline would forge a second log line."""
     _log_line(f"{subject} left for the next pass", text)
@@ -269,7 +275,7 @@ def _handle_issue(github, server, state, state_dir, issue: Issue, options: Optio
     if result is None:
         return
     if result["stopped"]:
-        _post_final(thread, progress, Phase.STOPPED, "Stopped", strip_home(result["stopped"], options.home))
+        _post_final(thread, progress, Phase.STOPPED, "Stopped", strip_home(result["stopped"], options.home), _stop_explanation(result))
     elif result["state"] == "open_questions" and record.phase is Phase.NEW:
         _post_questions(thread, server, progress)
     elif result["state"] == "reviewed" and record.phase is Phase.NEW:

@@ -27,9 +27,10 @@ def _post_result(thread: IssueThread, progress: Progress, kind: str, phase: Phas
     progress.save()
 
 
-def _post_final(thread: IssueThread, progress: Progress, phase: Phase, heading: str, text: str) -> None:
+def _post_final(thread: IssueThread, progress: Progress, phase: Phase, heading: str, text: str, explanation: str | None = None) -> None:
     record = progress.record
-    body = render_comment(record.task_id, "result", [(heading, text, True)])
+    sections = [(heading, text, True)] + ([("What it means", explanation, False)] if explanation else [])
+    body = render_comment(record.task_id, "result", sections)
     _post_result(thread, progress, "result", phase, body)
 
 
