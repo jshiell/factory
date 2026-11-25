@@ -15,6 +15,23 @@ tr.needs-you td { background: #fff3cd; }
   background-position: 67% 43%, 28% 59%;
   background-repeat: no-repeat;
 }
+/* Action links look like buttons without role="button", which the tests' exact anchors forbid. */
+nav.actions { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: var(--pico-typography-spacing-vertical); }
+nav.actions p { margin: 0; }
+nav.actions a {
+  display: inline-block;
+  padding: var(--pico-form-element-spacing-vertical) var(--pico-form-element-spacing-horizontal);
+  border: var(--pico-border-width) solid var(--pico-primary-border);
+  border-radius: var(--pico-border-radius);
+  background: var(--pico-primary-background);
+  color: var(--pico-primary-inverse);
+  text-decoration: none;
+}
+nav.actions a:hover { background: var(--pico-primary-hover-background); }
+section.job { color: var(--pico-muted-color); }
+section.job p { margin-bottom: 0.25rem; }
+div.failure { border-inline-start: 0.25rem solid #c0392b; background: #f8d7da; padding: 0.5rem 0.8rem; margin-bottom: var(--pico-typography-spacing-vertical); }
+div.failure p { margin: 0; }
 .skipped { color: #666; }
 #disconnected { background: #f8d7da; padding: 0.5rem 0.8rem; }
 #disconnected[hidden] { display: none; }
