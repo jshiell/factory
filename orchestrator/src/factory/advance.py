@@ -35,10 +35,24 @@ class Step:
 
 
 @dataclass(frozen=True)
+class StageError:
+    field: str
+    code: str
+
+
+@dataclass(frozen=True)
 class AdvanceResult:
     task: Task
     steps: list[Step]
     stopped: str | None = None
+    stopped_error: StageError | None = None  # the recorded error behind a no-progress stop, kept raw for display
+
+
+def _recorded_error(task: Task) -> StageError | None:
+    for field in ("plan_error", "review_error", "audit_error"):
+        if code := getattr(task, field):
+            return StageError(field, code)
+    return None
 
 
 def advance(
@@ -64,7 +78,7 @@ def advance(
         except _KNOWN_ERRORS as error:
             return AdvanceResult(store.load(task_id), steps, f"{stage}: {type(error).__name__}: {error}")
         if after.state is task.state:
-            reason = after.plan_error or after.review_error or after.audit_error or "unknown"
-            return AdvanceResult(after, steps, f"{stage}: no progress ({reason})")
+            error = _recorded_error(after)
+            return AdvanceResult(after, steps, f"{stage}: no progress ({error.code if error else 'unknown'})", error)
         steps.append(Step(stage, after.state))
         task = after

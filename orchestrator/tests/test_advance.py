@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from factory.advance import ACTIONS, Step, advance
+from factory.advance import ACTIONS, StageError, Step, advance
 from factory.gate import ProjectSubdirEscapes
 from factory.run_task import WorktreeNotPristine
 from factory.step import BudgetCapReached, MissingBudget
@@ -103,6 +103,27 @@ def test_a_stage_that_leaves_the_state_unchanged_stops_the_loop_with_the_recorde
 
     assert result.stopped == "plan: no progress (timeout)"
     assert result.steps == []
+
+
+def test_a_no_progress_stop_carries_the_error_field_and_code_beside_its_text(store):
+    start(store, S.PLANNED)
+
+    def stuck(task_id):
+        task = replace(store.load(task_id), review_error="review_malformed")
+        store.save(task)
+        return task
+
+    result = advance("t1", store, {**pipeline(store, []), "review": stuck})
+
+    assert result.stopped_error == StageError("review_error", "review_malformed")
+
+
+def test_a_stop_that_is_not_a_recorded_error_carries_no_stage_error(store):
+    start(store, S.PROPOSED)
+
+    result = advance("t1", store, {**pipeline(store, []), "plan": lambda task_id: store.load(task_id)})
+
+    assert result.stopped == "plan: no progress (unknown)" and result.stopped_error is None
 
 
 def test_a_task_with_open_questions_has_no_stage_and_stops_without_a_reason(store):
