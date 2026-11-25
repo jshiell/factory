@@ -80,12 +80,13 @@ def check_gate(
         return GateResult(False, "outside_project")
     if not run_git(worktree, "diff", "--name-only", base_sha, "HEAD", "--", ":/"):  # anywhere in the repo
         return GateResult(False, "no_changes")
+    if _tests_tampered(worktree, base_sha, test_globs):
+        return GateResult(False, "tests_modified")
     if (
-        _tests_tampered(worktree, base_sha, test_globs)
-        or _protected_changed(worktree, base_sha, protected_names, allow_dependency_changes, test_globs)
+        _protected_changed(worktree, base_sha, protected_names, allow_dependency_changes, test_globs)
         or (not allow_dependency_changes and _dependency_file_changed(worktree, base_sha))
     ):
-        return GateResult(False, "tests_modified")
+        return GateResult(False, "protected_file_changed")
     if frozen_sha is not None:
         if not _is_ancestor(worktree, frozen_sha):
             return GateResult(False, "not_descendant")

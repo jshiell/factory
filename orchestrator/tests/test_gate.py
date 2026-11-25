@@ -217,38 +217,38 @@ PROTECTED = ["conftest.py", "pytest.ini", "tox.ini", "setup.cfg", "sub/conftest.
 
 
 @pytest.mark.parametrize("name", PROTECTED)
-def test_adding_a_protected_file_fails_tests_modified(repo, name):
+def test_adding_a_protected_file_fails_protected_file_changed(repo, name):
     base = repo_with_test_file(repo)
     (repo / "proj" / name).parent.mkdir(parents=True, exist_ok=True)
     (repo / "proj" / name).write_text("x\n")
     git(repo, "add", "-A")
     git(repo, "commit", "-q", "-m", "protected")
 
-    assert gate(repo, base).reason == "tests_modified"
+    assert gate(repo, base).reason == "protected_file_changed"
 
 
 @pytest.mark.parametrize("name", PROTECTED)
-def test_appending_to_a_protected_file_fails_tests_modified(repo, name):
+def test_appending_to_a_protected_file_fails_protected_file_changed(repo, name):
     (repo / "proj" / name).parent.mkdir(parents=True, exist_ok=True)
     (repo / "proj" / name).write_text("x\n")
     base = repo_with_test_file(repo)
     commit_project_edit(repo, name, "x\ny\n")
 
-    assert gate(repo, base).reason == "tests_modified"
+    assert gate(repo, base).reason == "protected_file_changed"
 
 
 @pytest.mark.parametrize("name", ["uv.toml", ".python-version", ".python-versions"])
-def test_adding_a_uv_config_file_beside_a_change_fails_tests_modified(repo, name):
+def test_adding_a_uv_config_file_beside_a_change_fails_protected_file_changed(repo, name):
     base = repo_with_test_file(repo)
     commit_project_edit(repo, name, "3.12\n")
 
-    assert gate(repo, base).reason == "tests_modified"
+    assert gate(repo, base).reason == "protected_file_changed"
 
 
 PYPROJECT = '[project]\nname = "p"\ndependencies = []\n\n[tool.pytest.ini_options]\naddopts = "-q"\n'
 
 
-def test_changing_the_pytest_table_of_pyproject_fails_tests_modified(repo):
+def test_changing_the_pytest_table_of_pyproject_fails_protected_file_changed(repo):
     base = repo_with_test_file(repo)
     (repo / "proj" / "pyproject.toml").write_text(PYPROJECT)
     git(repo, "add", "-A")
@@ -256,50 +256,50 @@ def test_changing_the_pytest_table_of_pyproject_fails_tests_modified(repo):
     mid = git(repo, "rev-parse", "HEAD")
     commit_project_edit(repo, "pyproject.toml", PYPROJECT.replace('"-q"', '"-q --deselect x"'))
 
-    assert gate(repo, base).reason == "tests_modified"
-    assert gate(repo, mid).reason == "tests_modified"
+    assert gate(repo, base).reason == "protected_file_changed"
+    assert gate(repo, mid).reason == "protected_file_changed"
 
 
-def test_adding_a_tool_uv_table_to_pyproject_fails_tests_modified(repo):
+def test_adding_a_tool_uv_table_to_pyproject_fails_protected_file_changed(repo):
     (repo / "proj").mkdir()
     (repo / "proj" / "pyproject.toml").write_text('[project]\nname = "p"\ndependencies = []\n')
     base = repo_with_test_file(repo)
     commit_project_edit(repo, "pyproject.toml", '[project]\nname = "p"\ndependencies = []\n\n[tool.uv]\nexclude-newer = "2000-01-01T00:00:00Z"\n')
 
-    assert gate(repo, base).reason == "tests_modified"
+    assert gate(repo, base).reason == "protected_file_changed"
 
 
 # Guards (start green): uv config files are protected wherever they sit under the repo.
 @pytest.mark.parametrize("name", ["uv.toml", ".python-version", ".python-versions"])
-def test_guard_editing_a_uv_config_file_fails_tests_modified(repo, name):
+def test_guard_editing_a_uv_config_file_fails_protected_file_changed(repo, name):
     (repo / "proj").mkdir()
     (repo / "proj" / name).write_text("3.12\n")
     base = repo_with_test_file(repo)
     commit_project_edit(repo, name, "3.13\n")
 
-    assert gate(repo, base).reason == "tests_modified"
+    assert gate(repo, base).reason == "protected_file_changed"
 
 
 @pytest.mark.parametrize("name", ["uv.toml", ".python-version", ".python-versions"])
-def test_guard_deleting_a_uv_config_file_fails_tests_modified(repo, name):
+def test_guard_deleting_a_uv_config_file_fails_protected_file_changed(repo, name):
     (repo / "proj").mkdir()
     (repo / "proj" / name).write_text("3.12\n")
     base = repo_with_test_file(repo)
     (repo / "proj" / name).unlink()
     commit_project_edit(repo, "code.py", "y")
 
-    assert gate(repo, base).reason == "tests_modified"
+    assert gate(repo, base).reason == "protected_file_changed"
 
 
-def test_guard_a_uv_toml_in_a_project_subdirectory_fails_tests_modified(repo):
+def test_guard_a_uv_toml_in_a_project_subdirectory_fails_protected_file_changed(repo):
     base = repo_with_test_file(repo)
     (repo / "proj" / "sub").mkdir()
     commit_project_edit(repo, "sub/uv.toml", "x\n")
 
-    assert gate(repo, base).reason == "tests_modified"
+    assert gate(repo, base).reason == "protected_file_changed"
 
 
-def test_guard_a_uv_toml_in_a_parent_of_a_nested_project_fails_tests_modified(repo):
+def test_guard_a_uv_toml_in_a_parent_of_a_nested_project_fails_protected_file_changed(repo):
     (repo / "a" / "b").mkdir(parents=True)
     (repo / "a" / "b" / "test_x.py").write_text("a\n")
     git(repo, "add", "-A")
@@ -310,7 +310,7 @@ def test_guard_a_uv_toml_in_a_parent_of_a_nested_project_fails_tests_modified(re
     git(repo, "add", "-A")
     git(repo, "commit", "-q", "-m", "code")
 
-    assert check_gate(repo, base, "a/b", ["true"], 5).reason == "tests_modified"
+    assert check_gate(repo, base, "a/b", ["true"], 5).reason == "protected_file_changed"
 
 
 BASE_WITH_UV = '[project]\nname = "p"\ndependencies = []\n\n[tool.ruff]\nline-length = 80\n\n[tool.uv]\nexclude-newer = "2000-01-01T00:00:00Z"\n'
@@ -323,26 +323,26 @@ def pyproject_base(repo, content):
 
 
 # Guards (start green): the [tool.uv] comparison.
-def test_guard_editing_the_tool_uv_table_fails_tests_modified(repo):
+def test_guard_editing_the_tool_uv_table_fails_protected_file_changed(repo):
     base = pyproject_base(repo, BASE_WITH_UV)
     commit_project_edit(repo, "pyproject.toml", BASE_WITH_UV.replace("2000", "1999"))
 
-    assert gate(repo, base).reason == "tests_modified"
+    assert gate(repo, base).reason == "protected_file_changed"
 
 
-def test_guard_removing_the_tool_uv_table_fails_tests_modified(repo):
+def test_guard_removing_the_tool_uv_table_fails_protected_file_changed(repo):
     base = pyproject_base(repo, BASE_WITH_UV)
     commit_project_edit(repo, "pyproject.toml", BASE_WITH_UV.split("[tool.uv]")[0])
 
-    assert gate(repo, base).reason == "tests_modified"
+    assert gate(repo, base).reason == "protected_file_changed"
 
 
-def test_guard_a_root_pyproject_gaining_tool_uv_fails_tests_modified(repo):
+def test_guard_a_root_pyproject_gaining_tool_uv_fails_protected_file_changed(repo):
     base = repo_with_test_file(repo)
     commit_root_file(repo, "pyproject.toml", '[tool.uv]\nexclude-newer = "2000-01-01T00:00:00Z"\n')
     commit_project_edit(repo, "code.py", "y")
 
-    assert gate(repo, base).reason == "tests_modified"
+    assert gate(repo, base).reason == "protected_file_changed"
 
 
 def test_guard_changes_beside_an_unchanged_tool_uv_table_pass(repo):
@@ -366,11 +366,11 @@ WATCHED_ADDITIONS = {
 
 # Guards (start green): cycle 1's comparison already covers each of these.
 @pytest.mark.parametrize("old,new", WATCHED_ADDITIONS.values(), ids=WATCHED_ADDITIONS.keys())
-def test_guard_a_watched_pyproject_addition_fails_tests_modified(repo, old, new):
+def test_guard_a_watched_pyproject_addition_fails_protected_file_changed(repo, old, new):
     base = pyproject_base(repo, BASE_WITH_UV)
     commit_project_edit(repo, "pyproject.toml", BASE_WITH_UV.replace(old, new))
 
-    assert gate(repo, base).reason == "tests_modified"
+    assert gate(repo, base).reason == "protected_file_changed"
 
 
 @pytest.mark.parametrize("old,new", [
@@ -385,38 +385,38 @@ def test_guard_an_inert_pyproject_change_passes(repo, old, new):
     assert gate(repo, base).passed is True
 
 
-def test_changing_a_non_table_project_value_fails_tests_modified(repo):
+def test_changing_a_non_table_project_value_fails_protected_file_changed(repo):
     base = pyproject_base(repo, 'project = "x"\n')
     commit_project_edit(repo, "pyproject.toml", 'project = "y"\n')
 
-    assert gate(repo, base).reason == "tests_modified"
+    assert gate(repo, base).reason == "protected_file_changed"
 
 
-def test_changing_a_non_table_build_system_value_fails_tests_modified(repo):
+def test_changing_a_non_table_build_system_value_fails_protected_file_changed(repo):
     base = pyproject_base(repo, 'build-system = "x"\n')
     commit_project_edit(repo, "pyproject.toml", 'build-system = "y"\n')
 
-    assert gate(repo, base).reason == "tests_modified"
+    assert gate(repo, base).reason == "protected_file_changed"
 
 
 @pytest.mark.parametrize("path", ["sub/pyproject.toml", "sub/deep/PyProject.toml"])
-def test_a_nested_pyproject_gaining_an_entry_point_fails_tests_modified(repo, path):
+def test_a_nested_pyproject_gaining_an_entry_point_fails_protected_file_changed(repo, path):
     (repo / "proj" / "sub" / "deep").mkdir(parents=True)
     (repo / "proj" / path).write_text('[project]\nname = "n"\n')
     base = repo_with_test_file(repo)
     commit_project_edit(repo, path, '[project]\nname = "n"\n[project.entry-points.pytest11]\nplug = "n.plug"\n')
 
-    assert gate(repo, base).reason == "tests_modified"
+    assert gate(repo, base).reason == "protected_file_changed"
 
 
 @pytest.mark.parametrize("path", ["setup.py", "hatch_build.py", "sub/Setup.py"])
-def test_editing_a_build_script_fails_tests_modified(repo, path):
+def test_editing_a_build_script_fails_protected_file_changed(repo, path):
     (repo / "proj" / "sub").mkdir(parents=True)
     (repo / "proj" / path).write_text("a = 1\n")
     base = repo_with_test_file(repo)
     commit_project_edit(repo, path, "a = 2\n")
 
-    assert gate(repo, base).reason == "tests_modified"
+    assert gate(repo, base).reason == "protected_file_changed"
 
 
 def gate_allowing_dependencies(repo, base_sha):
@@ -455,7 +455,7 @@ def test_allowing_dependency_changes_still_fails_a_pytest_or_uv_edit(repo, old, 
     base = pyproject_base(repo, BASE_WITH_UV)
     commit_project_edit(repo, "pyproject.toml", BASE_WITH_UV.replace(old, new))
 
-    assert gate_allowing_dependencies(repo, base).reason == "tests_modified"
+    assert gate_allowing_dependencies(repo, base).reason == "protected_file_changed"
 
 
 def nested_pyproject_base(repo, content, path="sub/pyproject.toml"):
@@ -488,7 +488,7 @@ def test_allowing_dependency_changes_still_fails_a_nested_pytest_or_uv_edit(repo
     base = nested_pyproject_base(repo, BASE_WITH_UV)
     commit_project_edit(repo, "sub/pyproject.toml", BASE_WITH_UV.replace(old, new))
 
-    assert gate_allowing_dependencies(repo, base).reason == "tests_modified"
+    assert gate_allowing_dependencies(repo, base).reason == "protected_file_changed"
 
 
 def test_allowing_dependency_changes_still_fails_a_root_tool_uv_edit(repo):
@@ -497,7 +497,7 @@ def test_allowing_dependency_changes_still_fails_a_root_tool_uv_edit(repo):
     commit_root_file(repo, "pyproject.toml", BASE_WITH_UV.replace("2000", "1999"))
     commit_project_edit(repo, "code.py", "y")
 
-    assert gate_allowing_dependencies(repo, base).reason == "tests_modified"
+    assert gate_allowing_dependencies(repo, base).reason == "protected_file_changed"
 
 
 # Guard (starts green): the flag never relaxes the protected file names.
@@ -506,7 +506,7 @@ def test_allowing_dependency_changes_still_fails_a_protected_name(repo, name):
     base = repo_with_test_file(repo)
     commit_project_edit(repo, name, "x\n")
 
-    assert gate_allowing_dependencies(repo, base).reason == "tests_modified"
+    assert gate_allowing_dependencies(repo, base).reason == "protected_file_changed"
 
 
 # Guard (starts green): the flag lets a lock be removed; uv re-resolves within the pyproject's ranges.
@@ -521,23 +521,23 @@ def test_allowing_dependency_changes_passes_a_deleted_uv_lock(repo):
     assert gate_allowing_dependencies(repo, base).passed is True
 
 
-def test_adding_a_dependency_fails_tests_modified(repo):
+def test_adding_a_dependency_fails_protected_file_changed(repo):
     base = pyproject_base(repo, BASE_WITH_UV)
     commit_project_edit(repo, "pyproject.toml", BASE_WITH_UV.replace("dependencies = []", 'dependencies = ["requests"]'))
 
-    assert gate(repo, base).reason == "tests_modified"
+    assert gate(repo, base).reason == "protected_file_changed"
 
 
-def test_changing_an_existing_uv_lock_fails_tests_modified(repo):
+def test_changing_an_existing_uv_lock_fails_protected_file_changed(repo):
     (repo / "proj").mkdir()
     (repo / "proj" / "uv.lock").write_text("a\n")
     base = repo_with_test_file(repo)
     commit_project_edit(repo, "uv.lock", "b\n")
 
-    assert gate(repo, base).reason == "tests_modified"
+    assert gate(repo, base).reason == "protected_file_changed"
 
 
-def test_deleting_an_existing_uv_lock_fails_tests_modified(repo):
+def test_deleting_an_existing_uv_lock_fails_protected_file_changed(repo):
     (repo / "proj").mkdir()
     (repo / "proj" / "uv.lock").write_text("a\n")
     base = repo_with_test_file(repo)
@@ -545,7 +545,7 @@ def test_deleting_an_existing_uv_lock_fails_tests_modified(repo):
     git(repo, "add", "-A")
     git(repo, "commit", "-q", "-m", "drop lock")
 
-    assert gate(repo, base).reason == "tests_modified"
+    assert gate(repo, base).reason == "protected_file_changed"
 
 
 # Guard (starts green): a lock that did not exist in the base only resolves the watched pyproject.
@@ -576,7 +576,7 @@ def test_test_globs_and_protected_names_can_be_overridden(repo):
 
     base = git(repo, "rev-parse", "HEAD")
     commit_project_edit(repo, "locked.cfg", "x")
-    assert check_gate(repo, base, "proj", ["true"], 10, **custom).reason == "tests_modified"
+    assert check_gate(repo, base, "proj", ["true"], 10, **custom).reason == "protected_file_changed"
     assert check_gate(repo, base, "proj", ["true"], 10).passed is True
 
 
@@ -719,36 +719,36 @@ MORE_PYTEST_CONFIG = [".pytest.ini", "pytest.toml", ".pytest.toml", "sub/pytest.
 
 
 @pytest.mark.parametrize("name", MORE_PYTEST_CONFIG)
-def test_adding_any_other_pytest_config_file_fails_tests_modified(repo, name):
+def test_adding_any_other_pytest_config_file_fails_protected_file_changed(repo, name):
     base = repo_with_test_file(repo)
     (repo / "proj" / name).parent.mkdir(parents=True, exist_ok=True)
     (repo / "proj" / name).write_text("[pytest]\n")
     git(repo, "add", "-A")
     git(repo, "commit", "-q", "-m", "config")
 
-    assert gate(repo, base).reason == "tests_modified"
+    assert gate(repo, base).reason == "protected_file_changed"
 
 
 NATIVE_TABLE = '[project]\nname = "p"\ndependencies = []\n\n[tool.pytest]\naddopts = ["-q"]\n'
 
 
-def test_changing_the_native_pytest_table_of_pyproject_fails_tests_modified(repo):
+def test_changing_the_native_pytest_table_of_pyproject_fails_protected_file_changed(repo):
     base = repo_with_test_file(repo)
     (repo / "proj" / "pyproject.toml").write_text(NATIVE_TABLE)
     git(repo, "add", "-A")
     git(repo, "commit", "-q", "-m", "add native table")
 
-    assert gate(repo, base).reason == "tests_modified"
+    assert gate(repo, base).reason == "protected_file_changed"
 
 
 @pytest.mark.parametrize("tool", ["tool = 1\n", "[tool]\npytest = 1\n"])
-def test_a_malformed_tool_table_in_pyproject_fails_tests_modified_without_crashing(repo, tool):
+def test_a_malformed_tool_table_in_pyproject_fails_protected_file_changed_without_crashing(repo, tool):
     (repo / "proj").mkdir()
     (repo / "proj" / "pyproject.toml").write_text(PYPROJECT)
     base = repo_with_test_file(repo)
     commit_project_edit(repo, "pyproject.toml", tool)
 
-    assert gate(repo, base).reason == "tests_modified"
+    assert gate(repo, base).reason == "protected_file_changed"
 
 
 def frozen_scenario(repo):
@@ -823,19 +823,19 @@ def commit_root_file(repo, name, content):
     git(repo, "commit", "-q", "-m", f"root {name}")
 
 
-def test_a_protected_change_only_outside_the_project_fails_tests_modified(repo):
+def test_a_protected_change_only_outside_the_project_fails_protected_file_changed(repo):
     base = repo_with_project_change(repo)
     git(repo, "reset", "-q", "--hard", base)
     commit_root_file(repo, "pytest.ini", "[pytest]\naddopts = --collect-only\n")
 
-    assert gate(repo, base).reason == "tests_modified"
+    assert gate(repo, base).reason == "protected_file_changed"
 
 
-def test_a_new_root_pytest_ini_fails_tests_modified(repo):
+def test_a_new_root_pytest_ini_fails_protected_file_changed(repo):
     base = repo_with_project_change(repo)
     commit_root_file(repo, "pytest.ini", "[pytest]\naddopts = --collect-only\n")
 
-    assert gate(repo, base).reason == "tests_modified"
+    assert gate(repo, base).reason == "protected_file_changed"
 
 
 # Guards: these start green once the pathspec is repo-wide; they pin the intended edges.
@@ -844,7 +844,7 @@ def test_guard_a_protected_file_at_the_root_or_beside_the_project_fails(repo, na
     base = repo_with_project_change(repo)
     commit_root_file(repo, name, "x\n")
 
-    assert gate(repo, base).reason == "tests_modified"
+    assert gate(repo, base).reason == "protected_file_changed"
 
 
 def test_guard_modifying_and_deleting_a_root_protected_file_fails(repo):
@@ -852,12 +852,12 @@ def test_guard_modifying_and_deleting_a_root_protected_file_fails(repo):
     base = repo_with_project_change(repo)
     changed = git(repo, "rev-parse", "HEAD")
     commit_root_file(repo, "pytest.ini", "[pytest]\naddopts = -q\n")
-    assert gate(repo, base).reason == "tests_modified"
+    assert gate(repo, base).reason == "protected_file_changed"
 
     git(repo, "reset", "-q", "--hard", changed)
     git(repo, "rm", "-q", "pytest.ini")
     git(repo, "commit", "-q", "-m", "delete")
-    assert gate(repo, base).reason == "tests_modified"
+    assert gate(repo, base).reason == "protected_file_changed"
 
 
 def test_guard_renaming_a_file_onto_a_protected_name_fails(repo):
@@ -866,7 +866,7 @@ def test_guard_renaming_a_file_onto_a_protected_name_fails(repo):
     git(repo, "mv", "settings.ini", "pytest.ini")
     git(repo, "commit", "-q", "-m", "rename")
 
-    assert gate(repo, base).reason == "tests_modified"
+    assert gate(repo, base).reason == "protected_file_changed"
 
 
 def test_guard_an_unrelated_root_change_beside_a_project_change_passes(repo):
@@ -880,7 +880,7 @@ def test_guard_the_protected_names_override_applies_repo_wide(repo):
     base = repo_with_project_change(repo)
     commit_root_file(repo, "locked.cfg", "x\n")
     custom = {"protected_names": ("locked.cfg",)}
-    assert check_gate(repo, base, "proj", ["true"], 5, **custom).reason == "tests_modified"
+    assert check_gate(repo, base, "proj", ["true"], 5, **custom).reason == "protected_file_changed"
 
     git(repo, "reset", "-q", "--hard", "HEAD~1")
     commit_root_file(repo, "pytest.ini", "x\n")
@@ -890,11 +890,11 @@ def test_guard_the_protected_names_override_applies_repo_wide(repo):
 ROOT_PYPROJECT = '[project]\nname = "r"\n\n[tool.pytest.ini_options]\naddopts = "-q"\n'
 
 
-def test_a_new_root_pyproject_pytest_table_fails_tests_modified(repo):
+def test_a_new_root_pyproject_pytest_table_fails_protected_file_changed(repo):
     base = repo_with_tests_and_project_change(repo)
     commit_root_file(repo, "pyproject.toml", ROOT_PYPROJECT)
 
-    assert gate(repo, base).reason == "tests_modified"
+    assert gate(repo, base).reason == "protected_file_changed"
 
 
 def test_a_new_pyproject_in_a_repo_without_tests_passes(repo):
@@ -904,11 +904,11 @@ def test_a_new_pyproject_in_a_repo_without_tests_passes(repo):
     assert gate(repo, base).passed is True
 
 
-def test_a_new_pyproject_in_a_repo_with_tests_fails_tests_modified(repo):
+def test_a_new_pyproject_in_a_repo_with_tests_fails_protected_file_changed(repo):
     base = repo_with_test_file(repo)
     commit_project_edit(repo, "pyproject.toml", PYPROJECT)
 
-    assert gate(repo, base).reason == "tests_modified"
+    assert gate(repo, base).reason == "protected_file_changed"
 
 
 def test_guard_a_root_pyproject_change_outside_the_pytest_table_passes(repo):
@@ -919,7 +919,7 @@ def test_guard_a_root_pyproject_change_outside_the_pytest_table_passes(repo):
     assert gate(repo, base).passed is True
 
 
-def test_a_pytest_table_change_in_a_parent_of_a_nested_project_fails_tests_modified(repo):
+def test_a_pytest_table_change_in_a_parent_of_a_nested_project_fails_protected_file_changed(repo):
     (repo / "a" / "b").mkdir(parents=True)
     (repo / "a" / "b" / "code.py").write_text("x")
     (repo / "a" / "b" / "test_x.py").write_text("t")
@@ -931,22 +931,22 @@ def test_a_pytest_table_change_in_a_parent_of_a_nested_project_fails_tests_modif
     git(repo, "add", "-A")
     git(repo, "commit", "-q", "-m", "change")
 
-    assert check_gate(repo, base, "a/b", ["true"], 5).reason == "tests_modified"
+    assert check_gate(repo, base, "a/b", ["true"], 5).reason == "protected_file_changed"
 
 
 def test_a_pytest_table_change_in_a_sibling_directory_fails(repo):
     base = repo_with_tests_and_project_change(repo)
     commit_root_file(repo, "c/pyproject.toml", ROOT_PYPROJECT)
 
-    assert gate(repo, base).reason == "tests_modified"
+    assert gate(repo, base).reason == "protected_file_changed"
 
 
-def test_a_dependency_added_to_a_sibling_path_dependency_fails_tests_modified(repo):
+def test_a_dependency_added_to_a_sibling_path_dependency_fails_protected_file_changed(repo):
     commit_root_file(repo, "lib/pyproject.toml", BASE_WITH_UV)
     base = repo_with_project_change(repo)
     commit_root_file(repo, "lib/pyproject.toml", BASE_WITH_UV.replace("dependencies = []", 'dependencies = ["requests"]'))
 
-    assert gate(repo, base).reason == "tests_modified"
+    assert gate(repo, base).reason == "protected_file_changed"
 
 
 @pytest.mark.parametrize("subdir", ["./proj", "proj/"])
@@ -954,7 +954,7 @@ def test_guard_an_unnormalised_project_subdir_still_watches_its_pyproject(repo, 
     base = repo_with_tests_and_project_change(repo)
     commit_root_file(repo, "proj/pyproject.toml", ROOT_PYPROJECT)
 
-    assert check_gate(repo, base, subdir, ["true"], 5).reason == "tests_modified"
+    assert check_gate(repo, base, subdir, ["true"], 5).reason == "protected_file_changed"
 
 
 def test_a_gitlink_added_outside_the_project_fails_outside_project(repo):
@@ -975,19 +975,19 @@ def test_guard_any_path_outside_the_project_passes(repo, path):
 
 
 @pytest.mark.parametrize("name", ["uv.toml", ".python-version", ".python-versions"])
-def test_a_root_uv_config_file_fails_tests_modified(repo, name):
+def test_a_root_uv_config_file_fails_protected_file_changed(repo, name):
     base = repo_with_project_change(repo)
     commit_root_file(repo, name, "x\n")
 
-    assert gate(repo, base).reason == "tests_modified"
+    assert gate(repo, base).reason == "protected_file_changed"
 
 
 @pytest.mark.parametrize("name", ["UV.toml", ".Python-Version", "Conftest.py", "PYTEST.INI"])
-def test_a_differently_cased_protected_name_fails_tests_modified(repo, name):
+def test_a_differently_cased_protected_name_fails_protected_file_changed(repo, name):
     base = repo_with_test_file(repo)
     commit_project_edit(repo, name, "x\n")
 
-    assert gate(repo, base).reason == "tests_modified"
+    assert gate(repo, base).reason == "protected_file_changed"
 
 
 def test_guard_moving_a_file_out_of_the_project_passes(repo):

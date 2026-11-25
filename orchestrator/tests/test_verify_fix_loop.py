@@ -433,12 +433,12 @@ def add_a_dependency(repo, store):
     pyproject.write_text('[project]\nname = "p"\ndependencies = ["requests"]\n')
 
 
-def test_a_dependency_change_fails_tests_modified_by_default(repo, store, ledger, task):
+def test_a_dependency_change_fails_protected_file_changed_by_default(repo, store, ledger, task):
     add_a_dependency(repo, store)
 
     result = verify_task("t1", store, project_subdir="proj", test_argv=["true"], gate_timeout_s=10, repo=None)
 
-    assert result.state is TaskState.FAILED and result.failure_reason == "tests_modified"
+    assert result.state is TaskState.FAILED and result.failure_reason == "protected_file_changed"
 
 
 def test_a_dependency_change_verifies_when_allowed(repo, store, ledger, task):
@@ -463,17 +463,17 @@ def test_a_dependency_change_fails_the_sandboxed_gate_by_default_and_passes_when
     allowed = verify_task("t1", store, project_subdir="proj", test_argv=["unused"], gate_timeout_s=10,
                           sandbox=sandbox, gate_allow_dependency_changes=True, repo=None)
 
-    assert refused.failure_reason == "tests_modified" and allowed.state is TaskState.VERIFIED
+    assert refused.failure_reason == "protected_file_changed" and allowed.state is TaskState.VERIFIED
 
 
-def test_a_uv_toml_beside_the_change_fails_tests_modified_without_a_fix_round(repo, store, ledger, task, tmp_path):
+def test_a_uv_toml_beside_the_change_fails_protected_file_changed_without_a_fix_round(repo, store, ledger, task, tmp_path):
     (repo / "proj" / "uv.toml").write_text("exclude-newer = '2000-01-01T00:00:00Z'\n")
     sentinel = tmp_path / "tests-ran"
     runner = FakeRunner(repo)
 
     result = verify(store, ledger, runner, rounds=1, test_argv=["touch", str(sentinel)])
 
-    assert result.state is TaskState.FAILED and result.failure_reason == "tests_modified"
+    assert result.state is TaskState.FAILED and result.failure_reason == "protected_file_changed"
     assert runner.calls == [] and result.fix_rounds_used == 0 and not sentinel.exists()
 
 

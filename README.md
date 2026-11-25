@@ -383,8 +383,8 @@ flowchart TB
   supported; a global `core.excludesFile` is not honoured (put ignores in the repo's `.gitignore`); a repo that needs a global
   `safe.directory` fails after the worktree is created; and git 2.32 or later is needed (older git ignores `GIT_CONFIG_GLOBAL`).
 - **Tamper checks.** Existing tests may be added to but not removed, shrunk, renamed or shadowed (a duplicate `def test_x` that
-  disables the first is caught). Protected config (`conftest.py`, `pytest.ini`, `tox.ini`, `setup.cfg`, `uv.toml`, `.python-version`, matched case-insensitively; the pytest and `[tool.uv]` tables of any
-  `pyproject.toml`; all at any depth in the repo) may not change (reason `tests_modified`). So may not anything that adds code or changes what is installed: `setup.py` and `hatch_build.py`
+  disables the first is caught; reason `tests_modified`, which also covers edits to a test the implementer added once a fix round has begun). Protected config (`conftest.py`, `pytest.ini`, `tox.ini`, `setup.cfg`, `uv.toml`, `.python-version`, matched case-insensitively; the pytest and `[tool.uv]` tables of any
+  `pyproject.toml`; all at any depth in the repo) may not change (reason `protected_file_changed`). A `pyproject.toml` that is new, in a repo with no test files at the base commit, is allowed: there is nothing for it to hide. So may not anything that adds code or changes what is installed: `setup.py` and `hatch_build.py`
   anywhere, a change to an existing `uv.lock` (a newly added one is fine), and every part of any `pyproject.toml` in the repo, except plain metadata
   (`name`, `version`, `description`, `readme`, `authors`, `maintainers`, `license`, `license-files`, `keywords`, `classifiers`, `urls`, `requires-python`; and the `ruff`, `mypy`,
   `black`, `isort`, `pyright` and `coverage` tool tables). That covers dependencies, dependency groups, entry points, scripts, `[build-system]` and any other `[tool.*]` table.

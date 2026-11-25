@@ -94,7 +94,7 @@ def test_the_gate_runs_its_tests_through_the_sandbox_when_one_is_given(repo, sto
     assert task.state is TaskState.VERIFIED and marker.exists()
 
 
-def test_a_root_pytest_config_written_by_the_agent_fails_tests_modified_without_running_the_tests(repo, store, tmp_path):
+def test_a_root_pytest_config_written_by_the_agent_fails_protected_file_changed_without_running_the_tests(repo, store, tmp_path):
     store.save(agent_done_task(repo))
     (repo / "proj" / "code.py").write_text("changed by agent")
     (repo / "pytest.ini").write_text("[pytest]\naddopts = --collect-only\n")
@@ -105,7 +105,7 @@ def test_a_root_pytest_config_written_by_the_agent_fails_tests_modified_without_
         test_argv=["touch", str(ran)], gate_timeout_s=10, repo=None,
     )
 
-    assert (task.state, task.failure_reason) == (TaskState.FAILED, "tests_modified")
+    assert (task.state, task.failure_reason) == (TaskState.FAILED, "protected_file_changed")
     assert not ran.exists()
 
 
