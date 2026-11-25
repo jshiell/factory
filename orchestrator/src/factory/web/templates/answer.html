@@ -5,7 +5,7 @@
 <input type="hidden" name="round" value="{{ task.grill_rounds }}">
 {% for question in task.open_questions %}
 <p>{{ question.number }}. {{ question.title }}</p>
-<p>{{ question.body }}</p>
+<div class="markdown">{{ question.body | markdown }}</div>
 <p><input type="text" name="q{{ loop.index0 }}" value="{{ question.default }}" aria-label="answer to question {{ question.number }}"></p>
 {% endfor %}
 <button type="submit">Send answers</button>

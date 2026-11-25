@@ -12,6 +12,15 @@ def _tags(form, name):
     return re.findall(rf"<{name}\b[^>]*>", form)
 
 
+def test_the_answer_page_renders_the_question_body_as_markdown(client, ctx):
+    questions = ({"number": 1, "title": "t", "body": "pick **one**", "recommended": "x"},)
+    add(ctx, TASK_ID, TaskState.OPEN_QUESTIONS, grill_rounds=1, open_questions=questions)
+
+    page = client.get(f"/ui/tasks/{TASK_ID}/answer").text
+
+    assert '<div class="markdown"><p>pick <strong>one</strong></p>' in page
+
+
 def test_the_answer_page_shows_the_questions_and_a_prefilled_form_that_posts_to_the_same_path(client, ctx):
     questions = ({"number": 1, "title": "which <i>database</i>", "body": "pick one\x1b[31m & stick", "recommended": "sqlite"},
                  {"number": 2, "title": "which port", "body": "any", "recommended": 'a "quoted"\x07 value\nsecond line'})
