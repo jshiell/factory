@@ -219,6 +219,15 @@ def test_a_round_that_changes_nothing_fails_fix_no_changes_without_burning_more_
     assert result.failure_reason == "fix_no_changes" and len(runner.calls) == 1
 
 
+def test_files_a_failing_gate_generated_do_not_count_as_a_fix_round_change(repo, store, ledger, task):
+    runner = FakeRunner(repo)
+
+    result = verify(store, ledger, runner, rounds=2, test_argv=["sh", "-c", "touch proj/uv.lock; exit 1"])
+
+    assert result.failure_reason == "fix_no_changes" and len(runner.calls) == 1
+    assert git(repo, "status", "--porcelain") == ""
+
+
 def test_the_counter_and_marker_are_saved_before_the_agent_runs(repo, store, ledger, task):
     seen = []
     runner = FakeRunner(repo, lambda: seen.append(store.load("t1")), write_fix(repo))
