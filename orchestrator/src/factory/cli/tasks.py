@@ -83,6 +83,9 @@ def _advance(args, io, ctx) -> int:
     print(f"state: {result['state']}" + (f" ({_coded('failure_reason', reason)})" if reason else ""), file=io.stdout)
     if result["stopped"]:
         print(f"stopped: {result['stopped']}", file=io.stdout)
+        if stopped_error := result.get("stopped_error"):
+            field, code = stopped_error["field"], stopped_error["code"]
+            print(f"{field}: {_coded(field, code)}", file=io.stdout)
         return 1
     if result["state"] == TaskState.REVIEWED.value:
         print(f"review passed; run: factory approve {args.task_id}", file=io.stdout)

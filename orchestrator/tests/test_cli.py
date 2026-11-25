@@ -325,6 +325,21 @@ def test_advance_describes_a_known_failure_reason_after_its_code(ctx):
     assert "state: failed (timeout - The agent ran out of time. Retry the task.)" in out
 
 
+def test_advance_describes_the_error_behind_a_no_progress_stop_after_its_code(ctx):
+    put(ctx)
+
+    def stuck(task_id):
+        task = replace(ctx.store.load(task_id), plan_error="plan_malformed")
+        ctx.store.save(task)
+        return task
+    ctx.stages.update({**all_stages(ctx), "plan": stuck})
+
+    _, out, _ = run(ctx, "advance", "t1")
+
+    assert "stopped: plan: no progress (plan_malformed)\n" in out
+    assert "plan_error: plan_malformed - The plan came back in a form that could not be read. Advance again to re-plan.\n" in out
+
+
 # --- reject / costs -----------------------------------------------------------
 
 def test_reject_fails_a_reviewed_task_without_needing_a_terminal(ctx):
