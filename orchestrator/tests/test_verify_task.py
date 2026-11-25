@@ -132,6 +132,16 @@ def test_the_gate_test_run_is_recorded_as_a_gate_process_while_it_runs_and_the_r
     assert load_records(state) == []
 
 
+def test_a_passing_gate_whose_tests_edit_a_tracked_file_fails_gate_modified_tracked_files(repo, store):
+    store.save(agent_done_task(repo))
+    (repo / "proj" / "code.py").write_text("changed by agent")
+
+    task = verify_task("t1", store, project_subdir="proj", test_argv=["sh", "-c", "echo edited > code.py"],
+                       gate_timeout_s=10, repo=None)
+
+    assert (task.state, task.failure_reason) == (TaskState.FAILED, "gate_modified_tracked_files")
+
+
 def test_tests_that_rewrite_dot_git_fail_the_gate_without_running_the_planted_repos_filter_in_the_cleanup(repo, store, tmp_path):
     (repo / "proj").mkdir()
     (repo / "proj" / "code.py").write_text("x")

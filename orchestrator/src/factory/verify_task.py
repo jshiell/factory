@@ -145,8 +145,12 @@ def _gate_once(
             allow_dependency_changes=allow_dependency_changes,
         )
     try:
-        worktree_git(worktree, task.id, repo)  # the tests may have rewritten `.git`: pin again before any git runs
+        tree = worktree_git(worktree, task.id, repo)  # the tests may have rewritten `.git`: pin again before any git runs
     except WorktreeMismatch:
         return GateResult(False, "worktree_mismatch")
     not_clean = clean_worktree(worktree, factory_paths)  # files the tests generated must not reach the next stage
-    return GateResult(False, not_clean) if not_clean else result
+    if not_clean:
+        return GateResult(False, not_clean)
+    if tree.git("status", "--porcelain"):  # `git clean` leaves tracked files alone
+        return GateResult(False, "gate_modified_tracked_files")
+    return result
