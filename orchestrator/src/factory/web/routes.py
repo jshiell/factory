@@ -54,7 +54,7 @@ def _truncated(text: str, limit: int = _GOAL_LIMIT) -> str:
 
 def _task_row(task) -> dict:
     return {"id": _safe(task.id), "state": task.state.value, "needs_you": task.state in _HUMAN_GATE_STATES,
-            "goal": _safe(_truncated(task.goal if task.goal is not None else task.prompt)), "failure_reason": _safe(task.failure_reason)}
+            "goal": _safe(_truncated(task.goal if task.goal is not None else task.prompt)), "failure_reason": _safe(_described("failure_reason", task.failure_reason))}
 
 
 def _tasks_context(store) -> dict:
