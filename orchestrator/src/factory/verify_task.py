@@ -131,15 +131,18 @@ def _gate_once(
     if not_clean:
         return GateResult(False, not_clean)
     if sandbox is None:
-        return check_gate(
+        result = check_gate(
             worktree, task.base_sha, project_subdir, test_argv, gate_timeout_s,
             capture_limit=capture_limit, frozen_sha=task.fix_frozen_sha, tracker=tracker,
             allow_dependency_changes=allow_dependency_changes,
         )
-    confined = sandbox(task)
-    return check_gate(
-        worktree, task.base_sha, project_subdir, list(confined.argv), gate_timeout_s,
-        env=confined.env, test_prefix=confined.prefix, capture_limit=capture_limit,
-        frozen_sha=task.fix_frozen_sha, tracker=tracker,
-        allow_dependency_changes=allow_dependency_changes,
-    )
+    else:
+        confined = sandbox(task)
+        result = check_gate(
+            worktree, task.base_sha, project_subdir, list(confined.argv), gate_timeout_s,
+            env=confined.env, test_prefix=confined.prefix, capture_limit=capture_limit,
+            frozen_sha=task.fix_frozen_sha, tracker=tracker,
+            allow_dependency_changes=allow_dependency_changes,
+        )
+    not_clean = clean_worktree(worktree, factory_paths)  # files the tests generated must not reach the next stage
+    return GateResult(False, not_clean) if not_clean else result
