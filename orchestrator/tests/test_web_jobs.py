@@ -14,7 +14,7 @@ def test_the_jobs_page_lists_jobs_newest_first_with_kind_state_and_task_link(cli
 
     page = client.get("/ui/jobs").text
 
-    assert page.index("clean, failed") < page.index("advance, succeeded")
+    assert page.index("Clean, Failed") < page.index("Advance, Succeeded")
     assert f'<a href="/ui/tasks/{TASK}">{TASK}</a>' in page
     assert "error: boom" in page
 
@@ -24,7 +24,7 @@ def test_the_jobs_page_shows_only_the_latest_fifty(client):
     for _ in range(55):
         jobs.create("clean", None)
 
-    assert client.get("/ui/jobs").text.count("clean, queued") == 50
+    assert client.get("/ui/jobs").text.count("Clean, Queued") == 50
 
 
 def test_a_job_error_is_capped_and_escaped(client):

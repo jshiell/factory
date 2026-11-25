@@ -49,7 +49,7 @@ def test_the_clean_page_lists_each_candidate_with_its_flags_and_asks_for_confirm
     page = client.get("/ui/clean").text
 
     assert '<a href="/ui/tasks/20260102-030405">20260102-030405</a>' in page
-    for text in ("failed", "dirty", "2 commits ahead", "Clean up"):
+    for text in ("Failed", "dirty", "2 commits ahead", "Clean up"):
         assert text in page
     assert 'method="post"' in page and 'action="/ui/clean"' in page
 

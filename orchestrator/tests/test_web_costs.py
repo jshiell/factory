@@ -16,8 +16,8 @@ def test_the_costs_page_shows_the_total_assumed_spend_and_each_stage_and_task(cl
 
     assert "total: $3.75" in page
     assert "assumed: $2.00" in page
-    assert "plan: $3.25" in page
-    assert "audit: $0.50" in page
+    assert "Plan: $3.25" in page
+    assert "Audit: $0.50" in page
     assert f'<a href="/ui/tasks/{TASK}">{TASK}</a>: $3.75' in page
 
 

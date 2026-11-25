@@ -5,7 +5,7 @@
 <p>assumed: ${{ "%.2f" | format(report.assumed) }}</p>
 <h3>by stage</h3>
 <ul>
-  {% for stage, cost in report.by_stage %}<li>{{ stage }}: ${{ "%.2f" | format(cost) }}</li>
+  {% for stage, cost in report.by_stage %}<li>{{ stage | humanise }}: ${{ "%.2f" | format(cost) }}</li>
   {% endfor %}
 </ul>
 <h3>by task</h3>

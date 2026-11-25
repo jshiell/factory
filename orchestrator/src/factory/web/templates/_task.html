@@ -1,9 +1,9 @@
 <h2>{{ task.id }}</h2>
-<p>state: {{ task.state }}{% if task.needs_you %} <strong>needs you</strong>{% endif %}</p>
+<p>state: {{ task.state | humanise }}{% if task.needs_you %} <strong>needs you</strong>{% endif %}</p>
 <p>goal: {{ task.goal }}</p>
 {% if job %}
 <section class="job">
-<p>job: {{ job.kind }}, {{ job.state }}</p>
+<p>job: {{ job.kind | humanise }}, {{ job.state | humanise }}</p>
 {% if job.error %}
 <p>job error: {{ job.error }}</p>
 {% endif %}

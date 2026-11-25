@@ -85,3 +85,16 @@ Dropped from the first draft: the fragment-versus-page guard (page and task temp
 ## Not verified
 - JSON/server tests asserting the `InvalidInput` texts (likely; the plan leaves those texts unchanged).
 - Web test files not opened by the review (the `*_states`, `*_guard`, `*_race`, `*_post_states` families) are assumed unaffected; step 0's grep settles it.
+
+## Deviations
+Step 2 (state, stage, job kind and job state humanised in output expressions). Each edit changes only the value wording that step 2 changes; label wording stays for step 4.
+- `test_web_task_events.py` (6 lines): `state: queued`/`state: failed` become `state: Queued`/`state: Failed`. Reason: state value is humanised.
+- `test_web_events.py:88-90`: `queued`/`failed` become `Queued`/`Failed`, including the negative at :90. Reason: state value is humanised; the negative would otherwise go vacuous.
+- `test_web_task_job.py:31,41,107`: `job: rebase, {state}` becomes `job: Rebase, {State}`; `job: merge, queued` and `job: advance` become `job: Merge, Queued` and `job: Advance` (keeps the negative guarding); `job: advance, failed` becomes `job: Advance, Failed`. Reason: job kind and state are humanised.
+- `test_web_task_failure_text.py:46`: `job: advance, succeeded` becomes `job: Advance, Succeeded`. Reason: same.
+- `test_web_task_groups.py:10`: `JOB_GROUP` `job: merge, failed` becomes `job: Merge, Failed`. Reason: same.
+- `test_web_jobs.py:17,27`: `clean, failed`/`advance, succeeded`/`clean, queued` become `Clean, Failed`/`Advance, Succeeded`/`Clean, Queued`. Reason: same.
+- `test_web_costs.py:19-20`: `plan: $3.25`/`audit: $0.50` become `Plan: $3.25`/`Audit: $0.50`. Reason: stage is humanised.
+- `test_web_clean.py:52`: `failed` becomes `Failed`. Reason: candidate state is humanised (`dirty` and `2 commits ahead` are flags, unchanged).
+- Not edited, left vacuous as step 0 recorded: `test_web_tasks_page.py:19`, `test_web_task_page.py:19` (pass through `gate failed`).
+- Step 2's red test: its raw-state link assertions passed from the start (guards); only the `Open questions` assertion was red.

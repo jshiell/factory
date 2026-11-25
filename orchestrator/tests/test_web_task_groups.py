@@ -7,7 +7,7 @@ from webhelpers import add
 
 pytest_plugins = ["webfixtures"]
 
-JOB_GROUP = re.compile(r'<section class="job">\s*<p>job: merge, failed</p>\s*<p>job error: refused</p>\s*</section>')
+JOB_GROUP = re.compile(r'<section class="job">\s*<p>job: Merge, Failed</p>\s*<p>job error: refused</p>\s*</section>')
 FAILURE_GROUP = re.compile(r'<div class="failure">\s*<p>failure: gate failed</p>\s*</div>')
 
 

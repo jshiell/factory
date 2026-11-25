@@ -43,7 +43,7 @@ def test_a_free_text_stop_renders_the_job_section_exactly_as_before_descriptions
 
     fragment = _task_fragment(ctx.store, client.app.state.jobs, TASK)
 
-    assert '<p>job: advance, succeeded</p>\n\n\n<p>stopped: step cap (10) reached</p>\n\n</section>\n' in fragment
+    assert '<p>job: Advance, Succeeded</p>\n\n\n<p>stopped: step cap (10) reached</p>\n\n</section>\n' in fragment
 
 
 def test_the_tasks_list_describes_a_known_failure_reason_and_leaves_free_text_alone(client, ctx):

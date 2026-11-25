@@ -28,7 +28,7 @@ def test_the_task_page_shows_the_latest_job_kind_and_state(client, ctx, state):
     add(ctx, TASK)
     job_in_state(client, state, kind="rebase")
 
-    assert f"<p>job: rebase, {state}</p>" in client.get(PAGE).text
+    assert f"<p>job: Rebase, {state.capitalize()}</p>" in client.get(PAGE).text
 
 
 def test_the_task_page_shows_the_newest_job_only(client, ctx):
@@ -38,7 +38,7 @@ def test_the_task_page_shows_the_newest_job_only(client, ctx):
 
     page = client.get(PAGE).text
 
-    assert "job: merge, queued" in page and "job: advance" not in page
+    assert "job: Merge, Queued" in page and "job: Advance" not in page
 
 
 def test_the_task_page_shows_no_job_when_the_task_has_none(client, ctx):
@@ -104,4 +104,4 @@ def test_the_live_fragment_shows_the_same_job_panel_as_the_page(client, ctx):
     page = client.get(PAGE).text
 
     assert fragment in page
-    assert "<p>job: advance, failed</p>" in fragment and "<p>job error: bad &lt;thing&gt;</p>" in fragment
+    assert "<p>job: Advance, Failed</p>" in fragment and "<p>job error: bad &lt;thing&gt;</p>" in fragment

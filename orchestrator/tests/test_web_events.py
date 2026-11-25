@@ -85,9 +85,9 @@ def test_a_store_save_sends_the_new_state_as_the_next_event(client, ctx):
     _, (first, second) = read_events(client, count=2, after_first_event=lambda: ctx.store.save(
         Task("20260102-030405", "p", state=TaskState.FAILED, goal="g")))
 
-    assert any("queued" in line for line in first)
-    assert any("failed" in line for line in second)
-    assert not any("failed" in line for line in first)
+    assert any("Queued" in line for line in first)
+    assert any("Failed" in line for line in second)
+    assert not any("Failed" in line for line in first)
 
 
 def test_an_idle_stream_sends_a_keepalive_comment_after_the_interval(client):
