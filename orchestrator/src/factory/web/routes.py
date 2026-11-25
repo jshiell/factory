@@ -28,7 +28,7 @@ from factory.task import InvalidTransition, Task, TaskState
 from factory.textsafe import escape_control
 from factory.waiver import InvalidWaiver, note_lines
 from factory.web.auth import session_cookie_name
-from factory.web.markdown import render_markdown
+from factory.web.markdown import render_markdown, render_markdown_with_urls
 from factory.web_actions import (
     CLEAN_CHECK_FAILED,
     MERGE_CHECK_FAILED,
@@ -40,6 +40,7 @@ from factory.web_actions import (
 
 _TEMPLATES = jinja2.Environment(loader=jinja2.FileSystemLoader(Path(__file__).parent / "templates"), autoescape=True)
 _TEMPLATES.filters["markdown"] = render_markdown
+_TEMPLATES.filters["markdown_with_urls"] = render_markdown_with_urls
 _GOAL_LIMIT = 120
 _ERROR_LIMIT = 500
 _HUMAN_GATE_STATES = {TaskState.OPEN_QUESTIONS, TaskState.REVIEWED, TaskState.AUDITED}

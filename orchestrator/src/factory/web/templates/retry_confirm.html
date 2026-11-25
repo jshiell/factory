@@ -8,7 +8,7 @@
 </form>
 {% if kept %}
 <p>Keeping the plan, the new task is queued with the plan below, already approved. Advancing it spends money.</p>
-<pre>{{ kept.plan }}</pre>
+<div class="plan">{{ kept.plan | markdown_with_urls }}</div>
 {% if kept.audit_findings %}
 <p>audit findings the new task is told about:</p>
 <ul>

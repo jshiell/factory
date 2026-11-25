@@ -16,6 +16,15 @@ def _reviewed(ctx, findings, **fields):
                plan_risks=("a <i>risky</i> step",), review_findings=findings, **fields)
 
 
+def test_the_approve_page_shows_where_each_plan_link_really_goes(client, ctx):
+    plan = "see [the docs](https://evil.test/x)"
+    add(ctx, TASK_ID, TaskState.REVIEWED, plan=plan, plan_digest=plan_digest(plan))
+
+    page = client.get(f"/ui/tasks/{TASK_ID}/approve").text
+
+    assert "the docs</a> (https://evil.test/x)" in page
+
+
 def test_the_approve_page_shows_what_the_cli_preview_shows_and_a_form_posting_the_digest_to_the_same_path(client, ctx):
     findings = ("Recommend (required): cover <em>edge</em> cases", "Recommend (optional): rename it", "Recommend (required): add a test")
     _reviewed(ctx, findings)
@@ -27,11 +36,11 @@ def test_the_approve_page_shows_what_the_cli_preview_shows_and_a_form_posting_th
     assert '<link rel="stylesheet" href="/ui/static/ui.css">' in response.text
     for shown in ("fix &lt;b&gt;the&lt;/b&gt; widget", "a &lt;i&gt;risky&lt;/i&gt; step"):
         assert shown in response.text
+    assert "<li>add &lt;script&gt;alert(1)&lt;/script&gt;\\x1b[31m &amp; test</li>" in response.text
     pre = re.findall(r"<pre>(.*?)</pre>", response.text, re.S)
-    assert "1. add &lt;script&gt;alert(1)&lt;/script&gt;\\x1b[31m &amp; test" in pre[0]
-    assert "[1] Recommend (required): cover &lt;em&gt;edge&lt;/em&gt; cases" in pre[1]
-    assert "  - Recommend (optional): rename it" in pre[1]
-    assert "[2] Recommend (required): add a test" in pre[1]
+    assert "[1] Recommend (required): cover &lt;em&gt;edge&lt;/em&gt; cases" in pre[0]
+    assert "  - Recommend (optional): rename it" in pre[0]
+    assert "[2] Recommend (required): add a test" in pre[0]
     assert "WARNING" not in response.text
     assert "kept in the agent prompt and the audit, except any listed as dropped" in response.text
     assert "factory approve" in response.text

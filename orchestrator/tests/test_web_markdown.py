@@ -1,7 +1,7 @@
 import pytest
 from markupsafe import Markup
 
-from factory.web.markdown import render_markdown
+from factory.web.markdown import render_markdown, render_markdown_with_urls
 
 
 def test_bold_text_renders_as_strong_in_a_paragraph():
@@ -59,6 +59,12 @@ def test_markup_in_image_alt_text_is_escaped():
 
     assert "<b>" not in html
     assert "&lt;b&gt;x&lt;/b&gt; &amp; y" in html
+
+
+def test_the_confirm_rendering_shows_each_link_target_after_its_text():
+    html = render_markdown_with_urls("[go](https://x.test/a?b=1&c=2)")
+
+    assert "go</a> (https://x.test/a?b=1&amp;c=2)" in html
 
 
 def test_raw_html_comes_out_as_escaped_text():

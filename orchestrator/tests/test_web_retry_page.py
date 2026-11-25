@@ -107,12 +107,22 @@ def test_the_retry_page_is_shown_while_the_task_has_an_unfinished_job(client, ct
     assert len(_forms(response.text)) == 2
 
 
+def test_the_keep_plan_retry_page_shows_where_each_plan_link_really_goes(client, ctx):
+    plan = "see [the docs](https://evil.test/x)"
+    keepable(ctx, plan=plan, plan_digest=plan_digest(plan))
+
+    text = client.get(f"/ui/tasks/{TASK_ID}/retry").text
+
+    assert "the docs</a> (https://evil.test/x)" in text
+
+
 def test_everything_on_the_keep_plan_retry_page_is_escaped(client, ctx):
     keepable(ctx, goal=HOSTILE, plan=HOSTILE, plan_digest=plan_digest(HOSTILE), audit_findings=(HOSTILE, "<b>bold</b>"))
 
     text = client.get(f"/ui/tasks/{TASK_ID}/retry").text
 
-    assert text.count(ESCAPED) == 3
+    assert text.count(ESCAPED) == 2
+    assert ESCAPED.replace("&#34;", "&quot;") in text  # the markdown-rendered plan
     assert "&lt;b&gt;bold&lt;/b&gt;" in text
     for raw in ("<script>", "\x1b", "<b>"):
         assert raw not in text

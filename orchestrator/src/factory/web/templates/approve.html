@@ -3,7 +3,7 @@
 <p>Approve this plan? The task is queued and the agents implement it; that spends money and the result is merged later.</p>
 <p>goal: {{ task.goal }}</p>
 <h3>plan</h3>
-<pre>{{ task.plan }}</pre>
+<div class="plan">{{ task.plan | markdown_with_urls }}</div>
 {% if task.risks %}
 <h3>risks</h3>
 <ul>
