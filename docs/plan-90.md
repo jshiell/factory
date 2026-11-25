@@ -1,6 +1,6 @@
 # Plan 90: plain-English failure descriptions (web, CLI, watch)
 
-Drafted 2026-11-25, revised the same day after plan review (`plan-reviewer`, opus). Awaiting approval, including the wording table below.
+Drafted 2026-11-25, revised the same day after plan review (`plan-reviewer`, opus). Approved (including the wording table below) and implemented on branch `plan-90-failure-text`.
 Source: `todo.md` open item "improve error messages" (untracked in git; edit the working tree only).
 Scope: Phase 1 only (static descriptions, no model call). A Claude-written diagnosis is deferred until this lands.
 Decisions (user): advice depends on the field; CLI shows code first; all surfaces in scope; codes move to shared constants; watch gets a separate unfenced section.
@@ -74,7 +74,12 @@ Emitters read from source on 2026-11-25; wording below is a proposal for you to 
 Field differences: `timeout` and the other infra codes as `plan_error`/`review_error`/`audit_error` say "the stage failed, the task kept its state: advance again"; as `failure_reason` they say "the task failed: retry". `prompt_too_large` is a task failure from implement, plan and review (stored in `failure_reason`) and a stage error only from audit.
 
 ## Tests (TDD: one test, one implementation, one commit per increment)
-Exact-string hits, from reading the tests before drafting (re-run this grep at the start of implementation and list every hit here): `failure: `, `FAILED BECAUSE: `, `plan_error: `, `review_error: `, `audit_error: `, `no progress (`, `state: failed (`, `plan error: `, `review error: `, `audit error: `. Free-text values (`gate failed`, `p broke`, `r broke`, `a broke`, `No reason recorded.`) are unaffected by the unknown-code fallback; fixtures using real codes (`test_cli.py:853` default `tests_failed`, `:1501/:1512/:1521`, `test_watch.py`, `test_verify_fix_loop.py`, `test_retry_task.py`) are checked individually. With code-first CLI format, prefix assertions should survive; any that do not are listed under Deviations, never silently edited.
+Exact-string hits, from reading the tests before drafting (re-run this grep at the start of implementation and list every hit here): `failure: `, `FAILED BECAUSE: `, `plan_error: `, `review_error: `, `audit_error: `, `no progress (`, `state: failed (`, `plan error: `, `review error: `, `audit error: `. Step-0 grep over the tests on `main` (re-run at implementation; each hit uses free text or a stop reason, so none needed editing):
+- `test_advance.py:104`: `result.stopped == "plan: no progress (timeout)"`
+- `test_web_task_groups.py:11`: `FAILURE_GROUP` matches `<p>failure: gate failed</p>`
+- `test_web_task_sections.py:52-54`: `plan error: p broke`, `review error: r broke`, `audit error: a broke`
+
+Free-text values (`gate failed`, `p broke`, `r broke`, `a broke`, `No reason recorded.`) are unaffected by the unknown-code fallback; fixtures using real codes (`test_cli.py:853` default `tests_failed`, `:1501/:1512/:1521`, `test_watch.py`, `test_verify_fix_loop.py`, `test_retry_task.py`) are checked individually. With code-first CLI format, prefix assertions should survive; any that do not are listed under Deviations, never silently edited.
 
 1. Red: `explain("failure_reason", "tests_failed")` returns a sentence and next step; unknown code and unknown field return `None`. Green: module with the one entry. Commit.
 2. Red: the field matters (`explain("plan_error", "timeout")` differs from `explain("failure_reason", "timeout")`); `fix_tests_failed`-style composition. Green. Commit.
@@ -109,3 +114,9 @@ Exact-string hits, from reading the tests before drafting (re-run this grep at t
 - Watch shows the description as an unfenced "What it means" section beside the fenced raw reason.
 - The `list` test was not observed red before its implementation.
 - No assertion on a known code was edited; only new tests were added.
+- `stopped_code` became `stopped_error {field, code}`, because the advice depends on the field.
+- Cycle 12 took two commits.
+- e6f37e4 edited the literal guard's filter (`test_failure_code_literals.py`) to ignore names starting with `_`.
+- Stage-error advice wording was derived from the field-differences paragraph, not listed in the table; `budget_exhausted` was then corrected to "Retry with a smaller goal or a higher budget", since advancing again cannot fix a budget problem.
+- The README references the catalogue module instead of listing the codes.
+- Follow-up fixes after the audit: the web `stopped:` output for free text is byte-identical to `main` again (whitespace control in `_task.html`, with a test comparing the exact output); the `budget_exhausted` stage-error advice; the README's description of the web format.
