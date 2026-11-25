@@ -1,6 +1,6 @@
 # Plan 91: sentence case in the web UI
 
-Drafted 2026-11-25, revised after plan review. Awaiting approval.
+Drafted 2026-11-25, revised after plan review. Approved and implemented; gate green (ruff clean, 3649 tests).
 Source: `todo.md` open item "use sentence case in ui".
 Base: `main` (plan 90 merged, unpushed). Branch `plan-91-sentence-case`.
 
@@ -96,7 +96,7 @@ Step 2 (state, stage, job kind and job state humanised in output expressions). E
 - `test_web_jobs.py:17,27`: `clean, failed`/`advance, succeeded`/`clean, queued` become `Clean, Failed`/`Advance, Succeeded`/`Clean, Queued`. Reason: same.
 - `test_web_costs.py:19-20`: `plan: $3.25`/`audit: $0.50` become `Plan: $3.25`/`Audit: $0.50`. Reason: stage is humanised.
 - `test_web_clean.py:52`: `failed` becomes `Failed`. Reason: candidate state is humanised (`dirty` and `2 commits ahead` are flags, unchanged).
-- Not edited, left vacuous as step 0 recorded: `test_web_tasks_page.py:19`, `test_web_task_page.py:19` (pass through `gate failed`).
+- Not edited, left vacuous as step 0 recorded: `test_web_tasks_page.py:41`, `test_web_task_page.py:19` (pass through `gate failed`).
 - Step 2's red test: its raw-state link assertions passed from the start (guards); only the `Open questions` assertion was red.
 
 Step 4a (base, page, `_tasks.html`). Badge renders as `Reviewed (<strong>Needs you</strong>)`.
@@ -121,7 +121,7 @@ Step 4c (jobs, costs, clean). The inline label on a job line becomes `Error: boo
 - `test_web_clean.py:44`: `nothing to clean` becomes `Nothing to clean`. Reason: message wording. No negative assertions were touched in these three files.
 - No existing test asserted the `Jobs`/`Costs`/`Clean` headings, `By stage`/`By task`, `Orphaned gate caches`, `Skipped` or the back link on these pages.
 
-Step 4d (approve, reject, answer, new task, retry, merge, action confirm). The retry page says "starts at" followed by the state through the humanise filter.
+Step 4d (approve, reject, answer, new task, retry, merge, action confirm). The retry page first used the humanise filter for the state in "starts at"; the docs commit (240f024) reverted that to plain "starts at proposed", because a capitalised state mid-sentence is not normal English. Not asserted by any test.
 - `test_web_merge_page.py:96,101`: `root tool config` becomes `Root tool config`. Reason: label wording; the negative at :101 is edited too so it keeps guarding.
 - No other existing test asserted the labels, headings, links or aria-label on these pages. The guard fixtures seed the question body as `zdata-` text because the body is agent-written markdown.
 
