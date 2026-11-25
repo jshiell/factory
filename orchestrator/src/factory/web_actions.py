@@ -42,8 +42,11 @@ def _refusal_as(prefix: str, refused: type[Exception] | tuple[type[Exception], .
 
 def _advance_result_json(result) -> dict:
     task = result.task
-    return {"steps": [{"stage": step.stage, "state": step.state.value} for step in result.steps],
-            "state": task.state.value, "failure_reason": task.failure_reason, "stopped": result.stopped}
+    payload = {"steps": [{"stage": step.stage, "state": step.state.value} for step in result.steps],
+               "state": task.state.value, "failure_reason": task.failure_reason, "stopped": result.stopped}
+    if result.stopped_error:  # present only when there is one, so payloads without it are unchanged
+        payload["stopped_error"] = {"field": result.stopped_error.field, "code": result.stopped_error.code}
+    return payload
 
 
 def _task_result_json(task) -> dict:

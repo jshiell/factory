@@ -179,6 +179,22 @@ def test_advance_returns_202_with_a_job_that_then_succeeds_with_the_steps(client
                              "failure_reason": None, "stopped": None}
 
 
+def test_a_no_progress_stop_reports_the_raw_stage_error_in_the_job_result(client, app, ctx):
+    def stuck(task_id):
+        stuck_task = replace(ctx.store.load(task_id), plan_error="plan_malformed")
+        ctx.store.save(stuck_task)
+        return stuck_task
+    ctx.stages["plan"] = stuck
+    ctx.store.save(Task(id="a", prompt="", state=TaskState.PROPOSED))
+
+    job_id = client.post("/tasks/a/advance").json()["job"]["id"]
+    app.state.runner.wait_idle()
+
+    result = client.get(f"/jobs/{job_id}").json()["result"]
+    assert result["stopped"] == "plan: no progress (plan_malformed)"
+    assert result["stopped_error"] == {"field": "plan_error", "code": "plan_malformed"}
+
+
 def test_advance_on_an_unknown_task_is_404_and_queues_nothing(client):
     assert client.post("/tasks/nope/advance").status_code == 404
     assert client.get("/jobs").json() == {"jobs": []}
