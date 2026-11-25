@@ -39,6 +39,28 @@ def test_allowlisted_links_render_as_anchors(target):
     assert f'href="{target}"' in render_markdown(f"[go]({target})")
 
 
+def test_links_open_in_a_new_tab_without_opener_or_referrer():
+    html = render_markdown("[go](https://x.test/a)")
+
+    assert 'target="_blank"' in html
+    assert 'rel="noopener noreferrer"' in html
+
+
+def test_an_image_renders_as_its_alt_text_only():
+    html = render_markdown("![the alt](https://x.test/y.png)")
+
+    assert "<img" not in html
+    assert "the alt" in html
+    assert "!" not in html
+
+
+def test_markup_in_image_alt_text_is_escaped():
+    html = render_markdown("![<b>x</b> & y](https://x.test/y.png)")
+
+    assert "<b>" not in html
+    assert "&lt;b&gt;x&lt;/b&gt; &amp; y" in html
+
+
 def test_raw_html_comes_out_as_escaped_text():
     html = render_markdown('<script>x()</script> <img src=x onerror=y()>')
 
