@@ -82,7 +82,7 @@ def test_a_goal_that_cannot_be_encoded_is_the_form_message_not_a_crash(client, c
     response = _post(client, "ignored")
 
     assert response.status_code == 422
-    assert "goal must be valid text" in response.text
+    assert "Goal must be valid text." in response.text
     assert ctx.store.list().tasks == []
 
 
@@ -98,6 +98,6 @@ def test_an_over_long_goal_shows_the_form_again_with_the_limit_escaped_and_creat
     response = _post(client, urlencode({"goal": goal}))
 
     assert response.status_code == 422
-    assert f"goal must be at most {service.MAX_GOAL_BYTES} bytes" in response.text
+    assert f"Goal must be at most {service.MAX_GOAL_BYTES} bytes." in response.text
     assert "<b>x</b>" not in response.text
     assert ctx.store.list().tasks == []

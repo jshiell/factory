@@ -496,11 +496,11 @@ def _host_name(host: str) -> str:
     return match["name"] if match else ""
 
 
-_NOT_SIGNED_IN = HTMLResponse("<!doctype html><title>factory</title><p>not signed in; run <code>factory ui</code></p>",
+_NOT_SIGNED_IN = HTMLResponse("<!doctype html><title>Factory</title><p>Not signed in. Run <code>factory ui</code>.</p>",
                               status_code=401)
 
 
-_FORBIDDEN_PAGE = HTMLResponse("<!doctype html><title>factory</title><p>forbidden: not a same-origin request</p>", status_code=403)
+_FORBIDDEN_PAGE = HTMLResponse("<!doctype html><title>Factory</title><p>Forbidden: not a same-origin request.</p>", status_code=403)
 
 
 _READ_METHODS = {"GET", "HEAD"}

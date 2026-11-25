@@ -12,6 +12,7 @@ from factory.sqlite_db import transaction
 from factory.task import Task, TaskState
 from webhelpers import add
 from webmerge import _audit_task
+from webposts import same_origin_headers
 from websentence import DATA_PREFIX, sentence_case_violations
 
 pytest_plugins = ["webfixtures", "webmerge"]
@@ -130,6 +131,40 @@ def merge_page(tool_config):
     return fetch
 
 
+def get_page(path, state=None):
+    def fetch(client, ctx):
+        if state:
+            add(ctx, TASK, state, goal=GOAL)
+        return client.get(path).text
+    return fetch
+
+
+def post_page(path, data, state=None):
+    def fetch(client, ctx):
+        if state:
+            add(ctx, TASK, state, goal=GOAL)
+        return client.post(path, data=data, headers=same_origin_headers()).text
+    return fetch
+
+
+def unreadable_task_page(client, ctx):
+    with transaction(ctx.settings.db_path) as conn:
+        conn.execute("INSERT INTO tasks (id, state, data) VALUES (?, 'queued', 'not json')", (TASK,))
+    return client.get(f"/ui/tasks/{TASK}").text
+
+
+def signed_out_page(path, **kwargs):
+    def fetch(client, ctx):
+        client.cookies.clear()
+        return client.get(path, **kwargs).text
+    return fetch
+
+
+def login_page(client, ctx):
+    client.cookies.clear()
+    return client.get("/ui/login", params={"code": client.app.state.login_codes.issue()}).text
+
+
 STOP_WITH_ERROR ={"stopped": STOPPED, "stopped_error": {"field": "plan_error", "code": "plan_malformed"}}
 
 # name -> (fetch(client, ctx) -> html, data values the page must show verbatim); a page group adds its pages here
@@ -153,6 +188,17 @@ PAGES: dict = {
     "merge": (merge_page(False), (GOAL, f"{DATA_PREFIX}audit")),
     "merge, tool config": (merge_page(True), (GOAL, ".claude/x.json")),
     "abandon": (confirm_page(TaskState.QUEUED, "abandon"), (GOAL,)),
+    "missing task": (get_page("/ui/tasks/20990101-000000"), ()),
+    "unreadable task": (unreadable_task_page, ()),
+    "wrong state": (get_page(f"/ui/tasks/{TASK}/abandon", TaskState.FAILED), ()),
+    "not reviewed": (get_page(f"/ui/tasks/{TASK}/reject", TaskState.QUEUED), ()),
+    "no open questions": (get_page(f"/ui/tasks/{TASK}/answer", TaskState.QUEUED), ()),
+    "form rejected": (post_page("/ui/tasks/new", {}), ()),
+    "new task, blank goal": (post_page("/ui/tasks/new", {"goal": "  "}), ()),
+    "login, bad code": (signed_out_page("/ui/login", params={"code": "bad"}), ()),
+    "login, signed in": (login_page, ()),
+    "not signed in": (signed_out_page("/ui/"), ()),
+    "forbidden": (signed_out_page("/ui/", headers={"Origin": "http://evil.example"}), ()),
 }
 
 

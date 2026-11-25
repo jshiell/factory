@@ -124,3 +124,9 @@ Step 4c (jobs, costs, clean). The inline label on a job line becomes `Error: boo
 Step 4d (approve, reject, answer, new task, retry, merge, action confirm). The retry page says "starts at" followed by the state through the humanise filter.
 - `test_web_merge_page.py:96,101`: `root tool config` becomes `Root tool config`. Reason: label wording; the negative at :101 is edited too so it keeps guarding.
 - No other existing test asserted the labels, headings, links or aria-label on these pages. The guard fixtures seed the question body as `zdata-` text because the body is agent-written markdown.
+
+Step 4e (error pages, messages, new-task InvalidInput display, login/401/403 HTML). The web route capitalises the shared text and adds a full stop unless it has one (`_as_sentence`); JSON and CLI text unchanged. Inline pages read "That login link is used or expired. Run `factory ui`.", "Not signed in. Run `factory ui`.", "Forbidden: not a same-origin request.", link "Open the Factory UI".
+- `test_web_new_task.py:85,101`: `goal must be valid text` / `goal must be at most N bytes` become `Goal must be valid text.` / `Goal must be at most N bytes.` (with the full stop). Reason: the web boundary adapts the shared text, as step 0 found.
+- `test_web_answer_post_states.py:21`, `test_web_answer_race.py:46` (`no open questions`): unedited and still passing; the message "That task has no open questions to answer." already holds the lower-case phrase mid-sentence, so step 0 over-predicted these.
+- `test_web_ui_guard.py:37` (`factory ui`): unedited; it matches the `<code>` command. The JSON tests asserting the `InvalidInput` texts are untouched and green.
+- Not caught by the guard and left: `_wrong_state_page` messages and the `Unreadable`/`missing`/`not reviewed`/form-rejected bodies were already sentences; only their back links changed (`Back to the task list`).

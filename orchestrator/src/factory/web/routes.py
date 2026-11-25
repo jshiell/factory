@@ -646,6 +646,12 @@ async def _new_task_page(request: Request) -> HTMLResponse:
     return _new_task_page_with(None, "", request.app.state.settings.grill)
 
 
+def _as_sentence(text: str) -> str:
+    """The shared InvalidInput text (also sent in JSON) as a capitalised sentence with a full stop."""
+    sentence = text[:1].upper() + text[1:]
+    return sentence if sentence.endswith(".") else sentence + "."
+
+
 async def _new_task(request: Request) -> RedirectResponse | HTMLResponse:
     try:
         form = await _read_form(request)
@@ -661,7 +667,7 @@ async def _new_task(request: Request) -> RedirectResponse | HTMLResponse:
         task_id = request.app.state.actions.create(goal, grill)
     except InvalidInput as error:
         shown_goal = goal.encode(errors="replace").decode()  # a lone surrogate cannot be written to the response
-        return _new_task_page_with(str(error), shown_goal, grill, status_code=422)
+        return _new_task_page_with(_as_sentence(str(error)), shown_goal, grill, status_code=422)
     return RedirectResponse(f"/ui/tasks/{quote(task_id, safe='')}", status_code=303)
 
 
@@ -763,9 +769,9 @@ async def _ui_without_slash(request: Request) -> RedirectResponse:
 async def _login(request: Request) -> HTMLResponse:
     state = request.app.state
     if not state.login_codes.redeem(request.query_params.get("code", "")):
-        return HTMLResponse("<!doctype html><title>factory</title><p>that login link is used or expired; run <code>factory ui</code></p>",
+        return HTMLResponse("<!doctype html><title>Factory</title><p>That login link is used or expired. Run <code>factory ui</code>.</p>",
                             status_code=401)
-    response = HTMLResponse('<!doctype html><title>factory</title><p><a href="/ui/">open the factory UI</a></p>')
+    response = HTMLResponse('<!doctype html><title>Factory</title><p><a href="/ui/">Open the Factory UI</a></p>')
     response.set_cookie(session_cookie_name(request.headers.get("host", "")), state.sessions.create(),
                         httponly=True, samesite="strict", path="/ui")
     return response
