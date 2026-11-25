@@ -80,7 +80,7 @@ def _advance(args, io, ctx) -> int:
     for step in result["steps"]:
         print(f"{step['stage']} -> {step['state']}", file=io.stdout)
     reason = result["failure_reason"]
-    print(f"state: {result['state']}" + (f" ({reason})" if reason else ""), file=io.stdout)
+    print(f"state: {result['state']}" + (f" ({_coded('failure_reason', reason)})" if reason else ""), file=io.stdout)
     if result["stopped"]:
         print(f"stopped: {result['stopped']}", file=io.stdout)
         return 1

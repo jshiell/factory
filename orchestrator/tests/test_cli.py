@@ -308,6 +308,15 @@ def test_advance_exits_1_when_the_task_fails_and_when_a_stage_stops(ctx):
     assert code == 1 and "plan: no progress" in out
 
 
+def test_advance_describes_a_known_failure_reason_after_its_code(ctx):
+    put(ctx, S.QUEUED)
+    ctx.stages.update({**all_stages(ctx), "implement": moving(ctx, S.FAILED, failure_reason="timeout")})
+
+    _, out, _ = run(ctx, "advance", "t1")
+
+    assert "state: failed (timeout - The agent ran out of time. Retry the task.)" in out
+
+
 # --- reject / costs -----------------------------------------------------------
 
 def test_reject_fails_a_reviewed_task_without_needing_a_terminal(ctx):
