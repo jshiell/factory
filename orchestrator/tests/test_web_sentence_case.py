@@ -5,13 +5,16 @@ lower-case `zdata-...` values: the guard skips them and the paired test checks t
 import pytest
 
 from factory.clean_tasks import Candidate
+from factory.digest import plan_digest
 from factory.gate_cache import OrphanCache, OrphanScan
+from factory.review_notes import MAX_ITEMS
 from factory.sqlite_db import transaction
 from factory.task import Task, TaskState
 from webhelpers import add
+from webmerge import _audit_task
 from websentence import DATA_PREFIX, sentence_case_violations
 
-pytest_plugins = ["webfixtures"]
+pytest_plugins = ["webfixtures", "webmerge"]
 
 GOAL = f"{DATA_PREFIX}goal"
 FAILURE = f"{DATA_PREFIX}failure"
@@ -99,6 +102,34 @@ def nothing_to_clean_page(client, ctx):
     return client.get("/ui/clean").text
 
 
+PLAN = f"{DATA_PREFIX}plan"
+REVIEWED_FIELDS = {"plan": PLAN, "plan_digest": plan_digest(PLAN), "plan_risks": (f"{DATA_PREFIX}risk",),
+                   "review_findings": tuple("Recommend (required): x" for _ in range(MAX_ITEMS + 1))}
+ANSWER_FIELDS = {"grill_rounds": 2, "open_questions": ({"number": 1, "title": f"{DATA_PREFIX}title", "body": f"{DATA_PREFIX}body",
+                                                        "recommended": f"{DATA_PREFIX}recommended"},)}
+RETRY_FIELDS = {"plan": PLAN, "plan_digest": plan_digest(PLAN), "failure_reason": "audit_rejected",
+                "audit_findings": (f"{DATA_PREFIX}audit",)}
+
+
+def confirm_page(state, path, **fields):
+    def fetch(client, ctx):
+        add(ctx, TASK, state, **{"goal": GOAL, **fields})
+        return client.get(f"/ui/tasks/{TASK}/{path}").text
+    return fetch
+
+
+def new_task_page(client, ctx):
+    return client.get("/ui/tasks/new").text
+
+
+def merge_page(tool_config):
+    def fetch(client, ctx):
+        _audit_task(ctx, ctx.settings.repo, ".claude/x.json" if tool_config else "b.txt", goal=GOAL,
+                    audit_findings=(f"{DATA_PREFIX}audit",))
+        return client.get(f"/ui/tasks/{TASK}/merge").text
+    return fetch
+
+
 STOP_WITH_ERROR ={"stopped": STOPPED, "stopped_error": {"field": "plan_error", "code": "plan_malformed"}}
 
 # name -> (fetch(client, ctx) -> html, data values the page must show verbatim); a page group adds its pages here
@@ -113,6 +144,15 @@ PAGES: dict = {
     "costs": (costs_page, ()),
     "clean": (clean_page, (f"{DATA_PREFIX}cache", f"{DATA_PREFIX}skipped")),
     "clean, nothing to clean": (nothing_to_clean_page, ()),
+    "approve": (confirm_page(TaskState.REVIEWED, "approve", **REVIEWED_FIELDS), (GOAL, f"{DATA_PREFIX}risk")),
+    "reject": (confirm_page(TaskState.REVIEWED, "reject"), (GOAL,)),
+    "answer": (confirm_page(TaskState.OPEN_QUESTIONS, "answer", **ANSWER_FIELDS), (GOAL, f"{DATA_PREFIX}title")),
+    "new task": (new_task_page, ()),
+    "retry, from scratch": (confirm_page(TaskState.FAILED, "retry"), (GOAL,)),
+    "retry, keeping the plan": (confirm_page(TaskState.FAILED, "retry", **RETRY_FIELDS), (GOAL, f"{DATA_PREFIX}audit")),
+    "merge": (merge_page(False), (GOAL, f"{DATA_PREFIX}audit")),
+    "merge, tool config": (merge_page(True), (GOAL, ".claude/x.json")),
+    "abandon": (confirm_page(TaskState.QUEUED, "abandon"), (GOAL,)),
 }
 
 

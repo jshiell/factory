@@ -1,18 +1,18 @@
 {% extends "base.html" %}
 {% block content %}
 <p>Approve this plan? The task is queued and the agents implement it; that spends money and the result is merged later.</p>
-<p>goal: {{ task.goal }}</p>
-<h3>plan</h3>
+<p>Goal: {{ task.goal }}</p>
+<h3>Plan</h3>
 <div class="plan">{{ task.plan | markdown_with_urls }}</div>
 {% if task.risks %}
-<h3>risks</h3>
+<h3>Risks</h3>
 <ul>
   {% for risk in task.risks %}<li>{{ risk }}</li>
   {% endfor %}
 </ul>
 {% endif %}
 {% if task.findings %}
-<h3>review findings</h3>
+<h3>Review findings</h3>
 <pre>{{ task.findings }}</pre>
 {% endif %}
 {% if task.warning %}
@@ -23,5 +23,5 @@
 <input type="hidden" name="plan_digest" value="{{ task.plan_digest }}">
 <button type="submit">Approve plan</button>
 </form>
-<p><a href="/ui/tasks/{{ task.id | urlencode }}">back to the task</a></p>
+<p><a href="/ui/tasks/{{ task.id | urlencode }}">Back to the task</a></p>
 {% endblock %}

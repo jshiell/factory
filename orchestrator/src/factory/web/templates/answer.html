@@ -1,14 +1,14 @@
 {% extends "base.html" %}
 {% block content %}
-<p>goal: {{ task.goal }}</p>
+<p>Goal: {{ task.goal }}</p>
 <form method="post" action="/ui/tasks/{{ task.id | urlencode }}/answer">
 <input type="hidden" name="round" value="{{ task.grill_rounds }}">
 {% for question in task.open_questions %}
 <p>{{ question.number }}. {{ question.title }}</p>
 <div class="markdown">{{ question.body | markdown }}</div>
-<p><input type="text" name="q{{ loop.index0 }}" value="{{ question.default }}" aria-label="answer to question {{ question.number }}"></p>
+<p><input type="text" name="q{{ loop.index0 }}" value="{{ question.default }}" aria-label="Answer to question {{ question.number }}"></p>
 {% endfor %}
 <button type="submit">Send answers</button>
 </form>
-<p><a href="/ui/tasks/{{ task.id | urlencode }}">back to the task</a></p>
+<p><a href="/ui/tasks/{{ task.id | urlencode }}">Back to the task</a></p>
 {% endblock %}

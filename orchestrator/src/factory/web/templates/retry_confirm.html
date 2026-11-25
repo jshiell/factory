@@ -1,8 +1,8 @@
 {% extends "base.html" %}
 {% block content %}
 <p>Retry this task? A new task is made with the same goal; this task is left as it is.</p>
-<p>goal: {{ task.goal }}</p>
-<p>From scratch, the new task starts at proposed and is planned again.</p>
+<p>Goal: {{ task.goal }}</p>
+<p>From scratch, the new task starts at {{ "proposed" | humanise }} and is planned again.</p>
 <form method="post" action="/ui/tasks/{{ task.id | urlencode }}/retry">
 <button type="submit">Retry from scratch</button>
 </form>
@@ -10,7 +10,7 @@
 <p>Keeping the plan, the new task is queued with the plan below, already approved. Advancing it spends money.</p>
 <div class="plan">{{ kept.plan | markdown_with_urls }}</div>
 {% if kept.audit_findings %}
-<p>audit findings the new task is told about:</p>
+<p>Audit findings the new task is told about:</p>
 <ul>
 {% for finding in kept.audit_findings %}<li>{{ finding }}</li>
 {% endfor %}</ul>
@@ -21,5 +21,5 @@
 <button type="submit">Retry keeping the plan</button>
 </form>
 {% endif %}
-<p><a href="/ui/tasks/{{ task.id | urlencode }}">back to the task</a></p>
+<p><a href="/ui/tasks/{{ task.id | urlencode }}">Back to the task</a></p>
 {% endblock %}

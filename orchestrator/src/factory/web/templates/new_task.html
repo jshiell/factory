@@ -4,8 +4,8 @@
 {% if message %}<p class="error">{{ message }}</p>{% endif %}
 <form method="post" action="/ui/tasks/new">
 <p><textarea name="goal" rows="8" cols="80" required>{{ goal }}</textarea></p>
-<p><label><input type="checkbox" name="grill" value="true"{% if grill %} checked{% endif %}> grill the goal first</label></p>
+<p><label><input type="checkbox" name="grill" value="true"{% if grill %} checked{% endif %}> Grill the goal first</label></p>
 <button type="submit">Create task</button>
 </form>
-<p><a href="/ui/">back to the task list</a></p>
+<p><a href="/ui/">Back to the task list</a></p>
 {% endblock %}

@@ -1,9 +1,9 @@
 {% extends "base.html" %}
 {% block content %}
 <p>Reject the plan for this task? It becomes failed and cannot be resumed; a retry starts a new task from the goal, with a fresh plan and review.</p>
-<p>goal: {{ task.goal }}</p>
+<p>Goal: {{ task.goal }}</p>
 <form method="post" action="/ui/tasks/{{ task.id | urlencode }}/reject">
 <button type="submit">Reject plan</button>
 </form>
-<p><a href="/ui/tasks/{{ task.id | urlencode }}">back to the task</a></p>
+<p><a href="/ui/tasks/{{ task.id | urlencode }}">Back to the task</a></p>
 {% endblock %}

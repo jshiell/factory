@@ -120,3 +120,7 @@ Step 4c (jobs, costs, clean). The inline label on a job line becomes `Error: boo
 - `test_web_costs.py:17,27`: `total:`/`assumed:` become `Total:`/`Assumed:` (the empty-ledger test too). Reason: label wording.
 - `test_web_clean.py:44`: `nothing to clean` becomes `Nothing to clean`. Reason: message wording. No negative assertions were touched in these three files.
 - No existing test asserted the `Jobs`/`Costs`/`Clean` headings, `By stage`/`By task`, `Orphaned gate caches`, `Skipped` or the back link on these pages.
+
+Step 4d (approve, reject, answer, new task, retry, merge, action confirm). The retry page says "starts at" followed by the state through the humanise filter.
+- `test_web_merge_page.py:96,101`: `root tool config` becomes `Root tool config`. Reason: label wording; the negative at :101 is edited too so it keeps guarding.
+- No other existing test asserted the labels, headings, links or aria-label on these pages. The guard fixtures seed the question body as `zdata-` text because the body is agent-written markdown.
