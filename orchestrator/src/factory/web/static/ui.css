@@ -1,7 +1,9 @@
-body { font-family: system-ui, sans-serif; margin: 1.5rem; }
-table { border-collapse: collapse; width: 100%; }
-th, td { text-align: left; padding: 0.3rem 0.6rem; border-bottom: 1px solid #ddd; }
-tr.needs-you { background: #fff3cd; }
+/* Pico caps body > main at 510-1450px and drops its side padding from 576px up;
+   the task table and plans need more room, and need the padding back. */
+body > main { max-width: 70rem; padding-inline: 1rem; }
+pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+/* Pico paints every cell, which would cover a row background. */
+tr.needs-you td { background: #fff3cd; }
 .skipped { color: #666; }
 #disconnected { background: #f8d7da; padding: 0.5rem 0.8rem; }
 #disconnected[hidden] { display: none; }
