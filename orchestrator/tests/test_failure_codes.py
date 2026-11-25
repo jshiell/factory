@@ -12,6 +12,14 @@ def test_unknown_code_has_no_explanation():
     assert explain("failure_reason", "no_such_code") is None
 
 
+def test_text_joins_sentence_and_next_step():
+    assert explain("failure_reason", "timeout").text == "The agent ran out of time. Retry the task."
+
+
+def test_text_is_just_the_sentence_without_a_next_step():
+    assert explain("failure_reason", "abandoned").text == "The task was abandoned."
+
+
 def test_advice_depends_on_the_field():
     as_failure = explain("failure_reason", "timeout")
     as_stage_error = explain("plan_error", "timeout")

@@ -51,6 +51,10 @@ class Explanation:
     sentence: str
     next_step: str = ""
 
+    @property
+    def text(self) -> str:
+        return f"{self.sentence} {self.next_step}".strip()
+
 
 _PROMPT_TOO_LARGE = Explanation(
     "The prompt for the agent was too large to send.",
