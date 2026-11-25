@@ -6,6 +6,15 @@ table { display: block; overflow-x: auto; }
 pre { white-space: pre-wrap; overflow-wrap: anywhere; }
 /* Pico paints every cell, which would cover a row background. */
 tr.needs-you td { background: #fff3cd; }
+/* Pico draws the tick with a data: SVG, which the CSP's img-src refuses; draw it from two gradient strokes. */
+[type=checkbox]:checked, [type=checkbox]:checked:active, [type=checkbox]:checked:focus {
+  background-image:
+    linear-gradient(to top right, transparent 30%, #fff 30%, #fff 70%, transparent 70%),
+    linear-gradient(to bottom right, transparent 30%, #fff 30%, #fff 70%, transparent 70%);
+  background-size: 34% 44%, 22% 22%;
+  background-position: 67% 43%, 28% 59%;
+  background-repeat: no-repeat;
+}
 .skipped { color: #666; }
 #disconnected { background: #f8d7da; padding: 0.5rem 0.8rem; }
 #disconnected[hidden] { display: none; }
