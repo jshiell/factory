@@ -4,6 +4,9 @@ body > main { max-width: 70rem; padding-inline: 1rem; }
 /* A narrow screen scrolls the table, not the page. */
 table { display: block; overflow-x: auto; }
 pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+/* Rendered markdown: long lines and code wrap rather than widen the page. */
+.plan, .markdown { overflow-wrap: anywhere; }
+.plan pre, .markdown pre { overflow-x: auto; }
 /* Pico paints every cell, which would cover a row background. */
 tr.needs-you td { background: #fff3cd; }
 /* Pico draws the tick with a data: SVG, which the CSP's img-src refuses; draw it from two gradient strokes. */
