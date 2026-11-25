@@ -1,3 +1,4 @@
+from factory import failure_codes
 from factory.task import Task, TaskState
 
 MAX_GAPS = 10
@@ -24,7 +25,7 @@ def gaps_to_carry(task: Task) -> tuple[str, ...]:
     """What a kept-plan retry of `task` tells the new attempt about the audit that rejected it."""
     if task.state is not TaskState.FAILED:
         return ()
-    fresh = _bounded(task.audit_findings) if task.failure_reason == "audit_rejected" else ()
+    fresh = _bounded(task.audit_findings) if task.failure_reason == failure_codes.AUDIT_REJECTED else ()
     return fresh or task.prior_audit_findings
 
 

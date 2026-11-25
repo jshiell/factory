@@ -2,6 +2,7 @@ import os
 from dataclasses import replace
 from pathlib import Path
 
+from factory import failure_codes
 from factory.command import MAX_PROMPT_BYTES, RunnerConfig
 from factory.ledger import Ledger
 from factory.readonly_stage import Infra, Modified, run_readonly_stage
@@ -63,25 +64,25 @@ def audit_task(
     try:
         tree = worktree_git(Path(task.worktree), task.id, repo)
     except WorktreeMismatch:
-        return _reject(store, task, "worktree_mismatch")
+        return _reject(store, task, failure_codes.WORKTREE_MISMATCH)
     diff = tree.git("diff", "--no-ext-diff", "--no-textconv", task.base_sha, "HEAD", "--", *AUDITED_PATHS)
     if len(diff.encode()) > min(MAX_DIFF_BYTES, _room_for_diff(task)):
-        return _reject(store, task, "diff_too_large")
+        return _reject(store, task, failure_codes.DIFF_TOO_LARGE)
     staged = run_readonly_stage(task, build_audit_prompt(task, diff), runner, config, ledger, "audit", repo)
     if isinstance(staged, Modified):
-        return _reject(store, task, "audit_modified_worktree")
+        return _reject(store, task, failure_codes.AUDIT_MODIFIED_WORKTREE)
     if isinstance(staged, Infra):
         return _finish(store, replace(task, audit_error=staged.reason))
     verdict = _parse_verdict(staged.structured_output)
     if verdict is None:
-        return _finish(store, replace(task, audit_error="audit_malformed"))
+        return _finish(store, replace(task, audit_error=failure_codes.AUDIT_MALFORMED))
     passed, findings = verdict
     if passed:
         audited = apply(task, Event.AUDIT_PASSED)
         return _finish(
             store, replace(audited, audit_findings=findings, audited_sha=staged.head, audit_error=None)
         )
-    return _reject(store, task, "audit_rejected", findings)
+    return _reject(store, task, failure_codes.AUDIT_REJECTED, findings)
 
 
 def _parse_verdict(output: dict | None) -> tuple[bool, tuple[str, ...]] | None:

@@ -7,6 +7,7 @@ import tempfile
 from collections.abc import Callable
 from pathlib import Path
 
+from factory import failure_codes
 from factory.approve_plan import build_implementation_prompt
 from factory.audit_corpus import (
     BASE_FILES,
@@ -58,7 +59,7 @@ def outcome_of(task: Task) -> str:
     if task.state is TaskState.AUDITED:
         return "pass"
     if task.state is TaskState.FAILED:
-        return "fail" if task.failure_reason == "audit_rejected" else str(task.failure_reason)
+        return "fail" if task.failure_reason == failure_codes.AUDIT_REJECTED else str(task.failure_reason)
     if task.state is TaskState.VERIFIED and task.audit_error:
         return f"infra:{task.audit_error}"
     return f"unexpected:{task.state.value}"
