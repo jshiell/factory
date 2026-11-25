@@ -38,6 +38,24 @@ Unaffected: `test_web_task_sections.py:30` (agent markdown), `test_web_retry_pag
 
 Rule: an existing assertion is edited only when it asserts the old lower-case wording or has gone vacuous; each edit is listed under Deviations with its reason.
 
+### Step 0 results (2026-11-25)
+Base gate on the branch (identical to `main`): `ruff check` clean, `pytest -q -n auto` 3556 passed. Grep over `tests/test_web_*.py`, `tests/web*.py` and `tests/serving.py` (the plan's `serving.py` is `tests/serving.py`; it holds only the `served` helper and asserts no text, so unaffected). Every starting-set hit was confirmed against the files; no new file turned up in the `*_states`, `*_guard`, `*_race`, `*_post_states` families.
+
+Confirmed fails (old wording asserted): all lines in the starting set. Additions and clarifications:
+- `test_web_task_events.py:160,162,202,203,256,257` assert `state: queued`/`state: failed` (state value changes in step 2, label in step 4b); `:181-182` assert `<p>worktree:`/`<p>branch:` labels (4b).
+- `test_web_costs.py:17-20,27`: `total:`/`assumed:` labels (4c), `plan: $3.25`/`audit: $0.50` stage values (step 2).
+- `test_web_jobs.py:17` `clean, failed`/`advance, succeeded` (step 2); `:19` `error: boom` and `:27` `clean, queued` (4c / step 2).
+- `test_web_clean.py:44` `nothing to clean` (4c); `:52` asserts `failed` for the candidate state (step 2); `dirty`, `2 commits ahead` are flags and stay.
+- `test_web_task_job.py:31,41,54,82,107`; `test_web_task_failure_text.py:19,20,36,37,46,69`; `test_web_task_groups.py:10-11`; `test_web_task_sections.py:14-15,21,41,47-54`; `test_web_tasks_page.py:72` (`needs you` count); `test_web_task_needs_you.py:17`; `test_web_task_list_link.py:7,15`; `test_web_task_actions.py:80`; `test_web_merge_page.py:96`; `test_web_events.py:88-89`: as in the starting set, step per label or value.
+- `test_web_tasks_page.py:19` and `test_web_task_page.py:19` assert `failed` for the state; they pass today only through `gate failed` (vacuous), and stay vacuous after step 2.
+
+Newly found, contradicts the plan: `test_web_new_task.py:85` (`goal must be valid text`) and `:101` (`goal must be at most ... bytes`) are positive, case-sensitive assertions on web response text. Decision 4 capitalises those texts at the web boundary (4e), so both will FAIL then, not stay unchanged. They are edited in 4e and listed under Deviations.
+Other `InvalidInput`-shaped hits (`test_web_answer_post_states.py:21`, `test_web_answer_race.py:46`: `no open questions`) are route messages and fail in 4e.
+
+Vacuous: as in the starting set; confirmed `test_web_task_sections.py:9-11` (lower-case labels such as `branch`, `failure`), `test_web_task_job.py:47,89,96`, `test_web_task_list_link.py:17`, `test_web_task_events.py:184`, `test_web_merge_page.py:101`, `test_web_events.py:90`.
+
+Unaffected: `test_web_task_sections.py:30`, `test_web_retry_page.py:43`, `test_web_new_task_link.py`, `test_web_approve_page.py:46`, `test_web_approve_waive_hint.py:17`, `test_web_page_wiring.py:35`, `test_web_ui_guard.py:37` (`factory ui`; revisit at 4a because the title becomes "Factory"), the `from factory...` import lines, and tests keyed on hrefs or ids.
+
 ## Increments (TDD: one test, one implementation, one commit each; suite green at every commit)
 0. Base gate on `main`; the exact-string grep; fill in the lists above.
 1. Humanise filter. Red: unit tests (`open_questions` becomes "Open questions"; unknown value gets only its first letter raised and underscores replaced; `CalledProcessError`-style input keeps its capitals; returns plain `str`, so a `<script>` stage is still escaped). Green: register it. Not `capitalize` (it lowercases the rest).
