@@ -1,6 +1,8 @@
 /* Pico caps body > main at 510-1450px and drops its side padding from 576px up;
    the task table and plans need more room, and need the padding back. */
 body > main { max-width: 70rem; padding-inline: 1rem; }
+/* A narrow screen scrolls the table, not the page. */
+table { display: block; overflow-x: auto; }
 pre { white-space: pre-wrap; overflow-wrap: anywhere; }
 /* Pico paints every cell, which would cover a row background. */
 tr.needs-you td { background: #fff3cd; }
