@@ -130,20 +130,34 @@ def _gate_once(
     not_clean = clean_worktree(worktree, factory_paths)  # the tests must see only what the tamper checks saw
     if not_clean:
         return GateResult(False, not_clean)
+    result = _run_gate(
+        task, worktree, project_subdir, test_argv, gate_timeout_s, sandbox, capture_limit, tracker,
+        allow_dependency_changes,
+    )
+    return _settled(task, worktree, factory_paths, repo) or result
+
+
+def _run_gate(
+    task: Task, worktree: Path, project_subdir: str, test_argv: list[str], gate_timeout_s: float,
+    sandbox: Callable[[Task], GateSandbox] | None, capture_limit: int | None, tracker, allow_dependency_changes: bool,
+) -> GateResult:
     if sandbox is None:
-        result = check_gate(
+        return check_gate(
             worktree, task.base_sha, project_subdir, test_argv, gate_timeout_s,
             capture_limit=capture_limit, frozen_sha=task.fix_frozen_sha, tracker=tracker,
             allow_dependency_changes=allow_dependency_changes,
         )
-    else:
-        confined = sandbox(task)
-        result = check_gate(
-            worktree, task.base_sha, project_subdir, list(confined.argv), gate_timeout_s,
-            env=confined.env, test_prefix=confined.prefix, capture_limit=capture_limit,
-            frozen_sha=task.fix_frozen_sha, tracker=tracker,
-            allow_dependency_changes=allow_dependency_changes,
-        )
+    confined = sandbox(task)
+    return check_gate(
+        worktree, task.base_sha, project_subdir, list(confined.argv), gate_timeout_s,
+        env=confined.env, test_prefix=confined.prefix, capture_limit=capture_limit,
+        frozen_sha=task.fix_frozen_sha, tracker=tracker,
+        allow_dependency_changes=allow_dependency_changes,
+    )
+
+
+def _settled(task: Task, worktree: Path, factory_paths: tuple[Path, ...], repo: Path | None) -> GateResult | None:
+    """A failure when the tests left the worktree unfit for the next stage, else None. It outranks the gate's own result."""
     try:
         tree = worktree_git(worktree, task.id, repo)  # the tests may have rewritten `.git`: pin again before any git runs
     except WorktreeMismatch:
@@ -153,4 +167,4 @@ def _gate_once(
         return GateResult(False, not_clean)
     if tree.git("status", "--porcelain"):  # `git clean` leaves tracked files alone
         return GateResult(False, "gate_modified_tracked_files")
-    return result
+    return None
