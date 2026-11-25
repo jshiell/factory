@@ -1,3 +1,4 @@
+import pytest
 from markupsafe import Markup
 
 from factory.web.markdown import render_markdown
@@ -21,6 +22,21 @@ def test_an_escape_character_in_the_input_reaches_the_output_as_literal_text():
 
     assert "\x1b" not in html
     assert "\\x1b" in html
+
+
+@pytest.mark.parametrize("target", [
+    "javascript:alert(1)", "vbscript:x", "data:image/png;base64,AAAA", "/relative", "//evil.test/x", "ftp://x.test/f",
+    "intent://x",
+])
+def test_links_outside_the_allowlist_render_as_text(target):
+    html = render_markdown(f"[go]({target})")
+
+    assert "<a" not in html
+
+
+@pytest.mark.parametrize("target", ["https://x.test/a", "http://x.test/a", "mailto:a@x.test"])
+def test_allowlisted_links_render_as_anchors(target):
+    assert f'href="{target}"' in render_markdown(f"[go]({target})")
 
 
 def test_raw_html_comes_out_as_escaped_text():
