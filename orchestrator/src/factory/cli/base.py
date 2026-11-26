@@ -10,7 +10,7 @@ from factory.client import ServerClient
 from factory.failure_codes import explain
 from factory.github import GitHub, origin_slug
 from factory.harness import harness_named, missing_capabilities
-from factory.ids import require_safe_id
+from factory.ids import InvalidTaskId, require_safe_id
 from factory.ledger import Ledger
 from factory.process import group_alive, kill_tree
 from factory.process_registry import (
@@ -18,6 +18,7 @@ from factory.process_registry import (
     ps_probe,
     reap_orphans,
 )
+from factory.repos import name_problem
 from factory.runner import SubprocessRunner
 from factory.sandbox import sandbox_named
 from factory.settings import Settings, SettingsError
@@ -126,6 +127,22 @@ class _StoppedWaiting(Exception):
     def __init__(self, job_id: str):
         super().__init__(job_id)
         self.job_id = job_id
+
+
+class NoRepo(Exception):
+    """A bare task id was given and the working directory is in no repo."""
+
+
+def task_client(server: ServerClient, default_repo: str | None, ref: str) -> tuple[ServerClient, str]:
+    """The client scoped to the repo of a task ref (<repo>/<id>, or a bare <id> in the default repo) and its bare id."""
+    repo, separator, task_id = ref.rpartition("/")
+    if separator and (name_problem(repo) or "/" in repo):
+        raise InvalidTaskId(ref)
+    if not separator:
+        if default_repo is None:
+            raise NoRepo("no repo for this task: run inside a repo under the factory home, pass --repo <name>, or use <repo>/<id>")
+        repo = default_repo
+    return server.for_repo(repo), require_safe_id(task_id)
 
 
 def _task_path(task_id: str, suffix: str = "") -> str:
