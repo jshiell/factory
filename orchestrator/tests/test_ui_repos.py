@@ -44,3 +44,14 @@ def test_a_repo_whose_store_cannot_be_read_is_named_and_the_others_still_show(cl
     assert page.status_code == 200
     assert "in-a" in page.text
     assert "b: unreadable" in page.text
+
+
+def test_a_task_page_shows_the_task_of_its_own_repo_and_links_to_its_events(client, contexts):
+    contexts["a"].store.save(Task(id="same", prompt="goal in a", state=TaskState.QUEUED))
+    contexts["b"].store.save(Task(id="same", prompt="goal in b", state=TaskState.QUEUED))
+
+    page = client.get("/ui/repos/a/tasks/same")
+
+    assert page.status_code == 200
+    assert "goal in a" in page.text and "goal in b" not in page.text
+    assert 'sse-connect="/ui/repos/a/tasks/same/events"' in page.text

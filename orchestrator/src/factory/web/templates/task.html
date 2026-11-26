@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% block content %}
-<div id="task" hx-ext="sse" sse-connect="/ui/tasks/{{ task.id | urlencode }}/events" sse-swap="task">
+<div id="task" hx-ext="sse" sse-connect="{{ base | default('/ui') }}/tasks/{{ task.id | urlencode }}/events" sse-swap="task">
 {% include "_task.html" %}
 </div>
 <p><a href="/ui/">Back to the task list</a></p>

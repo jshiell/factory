@@ -10,6 +10,7 @@ from contextlib import ExitStack, asynccontextmanager, contextmanager
 from dataclasses import asdict, dataclass
 from http.cookies import SimpleCookie
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 from starlette.applications import Starlette
@@ -484,17 +485,21 @@ def _build_repos_app(registry: RepoRegistry) -> Starlette:
     """One app serving every started repo under /repos/<name>, with one job worker for all of them."""
     changes, stopping, runner = TaskChanges(), StopRequest(), JobRunner()
     mounts = [Route("/repos", _list_repos, methods=["GET"])]
+    repos = {}
     for name in registry.started_names:
         ctx = registry.get(name)
         jobs = JobStore(ctx.settings.db_path, on_change=changes.notify)
         if hasattr(ctx.store, "subscribe"):
             ctx.store.subscribe(changes.notify)
-        mounts.append(Mount(f"/repos/{name}", routes=api_routes(ctx, jobs, _BoundRunner(runner, jobs)).routes))
+        api = api_routes(ctx, jobs, _BoundRunner(runner, jobs))
+        repos[name] = SimpleNamespace(store=ctx.store, ledger=ctx.ledger, jobs=jobs, actions=api.actions, settings=ctx.settings,
+                                      clean_preview=api.clean_preview, enqueue_clean=api.enqueue_clean)
+        mounts.append(Mount(f"/repos/{name}", routes=api.routes))
     mounts += [*repos_ui_routes(), Route("/repos/{repo}", _no_such_repo_route), Route("/repos/{repo}/{rest:path}", _no_such_repo_route)]
     app = Starlette(lifespan=_lifespan(changes, stopping, runner), routes=mounts,
                     exception_handlers={**_EXCEPTION_HANDLERS, UnknownRepo: _unknown_repo})
     app.state.runner, app.state.changes, app.state.stopping = runner, changes, stopping
-    app.state.registry = registry
+    app.state.registry, app.state.repos = registry, repos
     return app
 
 

@@ -200,10 +200,25 @@ def _unreadable_page() -> HTMLResponse:
     return HTMLResponse(_TEMPLATES.get_template("task_unreadable.html").render(), status_code=500)
 
 
+def _repo(request: Request):
+    """The stores and actions of the repo the request is for; the single-repo app keeps them on the app state."""
+    state = request.app.state
+    name = request.path_params.get("repo")
+    if name is None:
+        return state
+    state.registry.get(name)  # an unknown or skipped repo raises UnknownRepo
+    return state.repos[name]
+
+
+def _base(request: Request) -> str:
+    repo = request.path_params.get("repo")
+    return "/ui" if repo is None else f"/ui/repos/{quote(repo, safe='')}"
+
+
 def _load_task(request: Request):
     """The requested task, or the HTML page refusing it (missing, invalid or unreadable id), which never shows the id."""
     try:
-        return request.app.state.store.load(request.path_params["task_id"]), None
+        return _repo(request).store.load(request.path_params["task_id"]), None
     except (TaskNotFound, InvalidTaskId):
         return None, _missing_page()
     except _UNREADABLE:
@@ -214,9 +229,9 @@ async def _task_page(request: Request) -> HTMLResponse:
     task, refusal = _load_task(request)
     if refusal:
         return refusal
-    job = request.app.state.jobs.latest_for_task(task.id)
+    job = _repo(request).jobs.latest_for_task(task.id)
     return HTMLResponse(_TEMPLATES.get_template("task.html").render(
-        task=_task_detail(task), job=_job_view(job), actions=_offered_actions(task, job)))
+        task=_task_detail(task), job=_job_view(job), actions=_offered_actions(task, job), base=_base(request)))
 
 
 def _not_reviewed_page() -> HTMLResponse:
@@ -703,7 +718,8 @@ async def _repos_index(request: Request) -> HTMLResponse:
 
 def repos_ui_routes() -> list[Route | Mount]:
     """The UI of the multi-repo server."""
-    return [Route("/ui", _ui_without_slash, methods=["GET"]), Route("/ui/", _repos_index, methods=["GET"])]
+    return [Route("/ui", _ui_without_slash, methods=["GET"]), Route("/ui/", _repos_index, methods=["GET"]),
+            Route("/ui/repos/{repo}/tasks/{task_id}", _task_page, methods=["GET"])]
 
 
 def _event(name: str, fragment: str) -> str:
