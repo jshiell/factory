@@ -101,7 +101,9 @@ Rule: an existing assertion is edited only when it pins old wording, an old path
 - Sandbox spike (from the README and `sandbox.py`, not run live): an agent reads only what is granted. `<home>/_server` is unreadable by default; the exposure is a granted directory containing it (executable dir, uv dir), which `without_private` filters. Adding `<home>/_server` to `private_dirs` in increment 6 is defensive and correct. README line ~365 needs rewording in increment 36. Plugin dirs under `<home>/_shared/plugins/*` do not contain `_server`.
 
 ## Deviations
-(none yet)
+- Increment 1: `JobRunner.submit` takes `jobs` as an optional argument (the constructor store is the default), so the existing callers and tests stay unchanged. It becomes required when the registry replaces the constructor store (increment 32).
+- Increment 3: the `project` fixture in `test_cli_wiring.py` writes `server_port` to `<FACTORY_HOME>/factory.toml`; the two tests that expect no global config (`test_init_writes_the_global_template...`, `test_clone_refuses_a_non_github_repository...`) remove that file first. `test_settings_ipv4_hosts.py` `load_with` writes the global config. `test_serve_stopping.py` was fixed through the fixture.
+- Increment 4: tests pinning a per-repo `home` were removed or moved to the global config: deleted `test_a_relative_home_in_dot_factory_config_resolves_against_the_repo_root` (superseded by the refusal test), `test_a_home_in_the_config_is_relative_to_the_config_directory` (the global-config relative home is covered by the existing global tests) and `test_factory_home_beats_the_home_in_the_config` (duplicate of the global-config `FACTORY_HOME` test); moved the tilde and plugin-dir tests to the global config.
 
 ## Not verified
 - What the nono profile grants (step 0 spike); README line ~360 records a live check where other state and worktrees were denied.
