@@ -33,6 +33,7 @@ from factory.client import ServerClient, ServerRefused, ServerUnreachable
 from factory.gate import check_gate
 from factory.ids import InvalidTaskId
 from factory.init_config import init_global_config
+from factory.repos import name_problem
 from factory.settings import BIND_HOSTS, Settings, SettingsError, load_settings
 from factory.sqlite_ledger import SqliteLedger
 from factory.sqlite_process_records import SqliteProcessRecords
@@ -58,6 +59,20 @@ def _positive_int(text: str) -> int:
     if value <= 0:
         raise argparse.ArgumentTypeError("must be positive")
     return value
+
+
+def _repo_name(text: str) -> str:
+    if problem := name_problem(text):
+        raise argparse.ArgumentTypeError(problem)
+    return text
+
+
+def _preparser() -> argparse.ArgumentParser:
+    """The options every command shares and that can appear anywhere on the line."""
+    pre = argparse.ArgumentParser(add_help=False)
+    pre.add_argument("--config", type=Path)
+    pre.add_argument("--repo", type=_repo_name)
+    return pre
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -328,9 +343,7 @@ _NEEDS_NO_REPO = ("init", "clone", "eval-export")
 
 
 def run() -> None:
-    pre = argparse.ArgumentParser(add_help=False)
-    pre.add_argument("--config", type=Path)
-    known, rest = pre.parse_known_args(sys.argv[1:])
+    known, rest = _preparser().parse_known_args(sys.argv[1:])
     io = IO(sys.stdin, sys.stdout, sys.stderr)
     if rest[:1] and rest[0] in _NEEDS_NO_REPO:
         try:
