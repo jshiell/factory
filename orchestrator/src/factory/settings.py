@@ -52,6 +52,7 @@ class Settings:
     gate_allow_dependency_changes: bool = False
     main_branch: str | None = None
     warnings: tuple[str, ...] = ()
+    home: Path | None = None
 
     @property
     def ledger_path(self) -> Path:
@@ -68,6 +69,16 @@ class Settings:
     @property
     def tasks_dir(self) -> Path:
         return self.state_dir / "tasks"
+
+
+@dataclass(frozen=True)
+class GlobalSettings:
+    """What the one server needs before any repo is loaded."""
+
+    home: Path
+    server_port: int = 8765
+    server_host: str = "127.0.0.1"
+    server_allowed_hosts: tuple[str, ...] = ()
 
 
 BIND_HOSTS = ("127.0.0.1", "0.0.0.0")
@@ -112,17 +123,32 @@ def load_settings(path: Path | None, cwd: Path) -> Settings:
     }
     settings = replace(
         Settings(repo, state_dir, worktree_root), plugin_dirs=plugin_dirs, stage_plugin_dirs=stage_plugin_dirs,
-        warnings=_project_subdir_warnings(repo, typed), **typed,
+        warnings=_project_subdir_warnings(repo, typed), home=_usable_home(configured_home), **typed,
     )
     _check_project_subdir(settings.project_subdir)
     if settings.harness not in HARNESSES:
         raise SettingsError(f"harness {settings.harness!r} is unknown; known: {', '.join(sorted(HARNESSES))}")
     if settings.sandbox not in SANDBOXES:
         raise SettingsError(f"sandbox {settings.sandbox!r} is unknown; known: {', '.join(sorted(SANDBOXES))}")
-    if settings.server_host not in BIND_HOSTS:
-        raise SettingsError(f"server_host {settings.server_host!r} is unknown; known: {', '.join(BIND_HOSTS)}")
-    _check_allowed_hosts(settings.server_allowed_hosts)
+    _check_server(settings.server_host, settings.server_allowed_hosts)
     return settings
+
+
+def load_global_settings() -> GlobalSettings:
+    path = global_config_path()
+    layer = _global_layer(path) if path.exists() else {}
+    settings = GlobalSettings(
+        home=_harness_home(layer.get("home")),
+        **{key: layer[key] for key in ("server_port", "server_host", "server_allowed_hosts") if key in layer},
+    )
+    _check_server(settings.server_host, settings.server_allowed_hosts)
+    return settings
+
+
+def _check_server(host: str, allowed_hosts: tuple[str, ...]) -> None:
+    if host not in BIND_HOSTS:
+        raise SettingsError(f"server_host {host!r} is unknown; known: {', '.join(BIND_HOSTS)}")
+    _check_allowed_hosts(allowed_hosts)
 
 
 def _project_subdir_warnings(repo: Path, typed: dict) -> tuple[str, ...]:
@@ -276,6 +302,13 @@ def _default_home() -> Path:
 
 def _harness_home(configured_home: Path | None) -> Path:
     return _environment_home() or configured_home or _default_home()
+
+
+def _usable_home(configured_home: Path | None) -> Path | None:
+    try:
+        return _harness_home(configured_home)
+    except SettingsError:
+        return None  # an unusable home is reported only where the home is needed
 
 
 def harness_home() -> Path:
