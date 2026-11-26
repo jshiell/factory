@@ -4,6 +4,7 @@ import pytest
 from starlette.testclient import TestClient
 
 from factory.cli import Context
+from factory.repos import RepoRegistry
 from factory.server import _build_repos_app
 from factory.settings import Settings
 from factory.sqlite_ledger import SqliteLedger
@@ -25,7 +26,7 @@ def contexts(tmp_path):
 
 @pytest.fixture
 def client(contexts):
-    with TestClient(_build_repos_app(contexts), base_url="http://127.0.0.1:8765") as client:
+    with TestClient(_build_repos_app(RepoRegistry(contexts, {"busy": "another factory run holds the lock"})), base_url="http://127.0.0.1:8765") as client:
         yield client
 
 
@@ -45,3 +46,7 @@ def test_a_job_is_recorded_in_the_store_of_the_repo_it_was_queued_in(client):  #
 
     assert len(client.get("/repos/a/jobs").json()["jobs"]) == 1
     assert client.get("/repos/b/jobs").json()["jobs"] == []
+
+
+def test_the_repo_list_names_started_repos_and_says_why_others_were_skipped(client):
+    assert client.get("/repos").json() == {"repos": ["a", "b"], "skipped": {"busy": "another factory run holds the lock"}}

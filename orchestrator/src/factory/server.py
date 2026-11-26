@@ -465,17 +465,24 @@ def _lifespan(changes, stopping, runner):
     return lifespan
 
 
-def _build_repos_app(contexts: dict) -> Starlette:
-    """One app serving every context under /repos/<name>, with one job worker for all of them."""
+async def _list_repos(request: Request) -> AsciiJSONResponse:
+    registry = request.app.state.registry
+    return AsciiJSONResponse({"repos": list(registry.started_names), "skipped": registry.skipped})
+
+
+def _build_repos_app(registry: RepoRegistry) -> Starlette:
+    """One app serving every started repo under /repos/<name>, with one job worker for all of them."""
     changes, stopping, runner = TaskChanges(), StopRequest(), JobRunner()
-    mounts = []
-    for name, ctx in sorted(contexts.items()):
+    mounts = [Route("/repos", _list_repos, methods=["GET"])]
+    for name in registry.started_names:
+        ctx = registry.get(name)
         jobs = JobStore(ctx.settings.db_path, on_change=changes.notify)
         if hasattr(ctx.store, "subscribe"):
             ctx.store.subscribe(changes.notify)
         mounts.append(Mount(f"/repos/{name}", routes=api_routes(ctx, jobs, _BoundRunner(runner, jobs)).routes))
     app = Starlette(lifespan=_lifespan(changes, stopping, runner), routes=mounts, exception_handlers=_EXCEPTION_HANDLERS)
     app.state.runner, app.state.changes, app.state.stopping = runner, changes, stopping
+    app.state.registry = registry
     return app
 
 
