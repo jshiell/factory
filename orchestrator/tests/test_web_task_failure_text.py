@@ -14,7 +14,7 @@ ESCAPED_DESCRIPTION = DESCRIPTION.replace("'", "&#39;")
 def test_a_known_failure_reason_shows_its_description_beside_the_raw_code(client, ctx):
     add(ctx, TASK, TaskState.FAILED, failure_reason="tests_failed")
 
-    for page in (client.get(PAGE).text, _task_fragment(ctx.store, client.app.state.jobs, TASK)):
+    for page in (client.get(PAGE).text, _task_fragment(ctx.store, client.app.state.repos["proj"].jobs, TASK, "/ui/repos/proj")):
         assert f"<p>{ESCAPED_DESCRIPTION}</p>" in page
         assert "<p>Failure: tests_failed</p>" in page
         assert page.index(ESCAPED_DESCRIPTION) < page.index("Failure: tests_failed")
@@ -41,7 +41,7 @@ def test_a_free_text_stop_renders_the_job_section_exactly_as_before_descriptions
     add(ctx, TASK)
     job_in_state(client, "succeeded", result={"stopped": "step cap (10) reached"})
 
-    fragment = _task_fragment(ctx.store, client.app.state.jobs, TASK)
+    fragment = _task_fragment(ctx.store, client.app.state.repos["proj"].jobs, TASK, "/ui/repos/proj")
 
     assert '<p>Job: Advance, Succeeded</p>\n\n\n<p>Stopped: step cap (10) reached</p>\n\n</section>\n' in fragment
 

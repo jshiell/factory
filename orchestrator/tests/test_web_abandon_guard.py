@@ -8,7 +8,7 @@ from webposts import same_origin_headers
 pytest_plugins = ["webfixtures"]
 
 TASK_ID = "20260102-030405"
-ABANDON_PATH = f"/ui/tasks/{TASK_ID}/abandon"
+ABANDON_PATH = f"/ui/repos/proj/tasks/{TASK_ID}/abandon"
 
 
 @pytest.fixture
@@ -29,7 +29,7 @@ def test_the_abandon_page_and_post_without_a_session_are_401_and_queue_nothing(c
     assert [response.status_code for response in responses] == [401, 401]
     for response in responses:
         assert_ui_security_headers(response)
-    assert client.app.state.jobs.list() == []
+    assert client.app.state.repos["proj"].jobs.list() == []
     assert ctx.store.load(TASK_ID) == queued_task
 
 
@@ -45,7 +45,7 @@ def test_an_abandon_post_with_a_foreign_or_unvouched_origin_is_403_and_queues_no
 
     assert response.status_code == 403
     assert_ui_security_headers(response)
-    assert client.app.state.jobs.list() == []
+    assert client.app.state.repos["proj"].jobs.list() == []
     assert ctx.store.load(TASK_ID) == queued_task
 
 
@@ -60,8 +60,8 @@ def test_the_security_headers_are_on_the_page_the_redirect_and_every_refusal(cli
     add(ctx, TASK_ID, TaskState.QUEUED)
     add(ctx, "20260102-030406", TaskState.MERGED)
 
-    responses = [client.get(ABANDON_PATH), _post(client), _post(client), client.get("/ui/tasks/20260102-030406/abandon"),
-                 client.get("/ui/tasks/20260102-999999/abandon")]
+    responses = [client.get(ABANDON_PATH), _post(client), _post(client), client.get("/ui/repos/proj/tasks/20260102-030406/abandon"),
+                 client.get("/ui/repos/proj/tasks/20260102-999999/abandon")]
 
     assert [response.status_code for response in responses] == [200, 303, 409, 409, 404]
     for response in responses:

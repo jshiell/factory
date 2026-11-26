@@ -7,7 +7,7 @@ from webposts import same_origin_headers
 pytest_plugins = ["webfixtures"]
 
 TASK_ID = "20260102-030405"
-ANSWER_PATH = f"/ui/tasks/{TASK_ID}/answer"
+ANSWER_PATH = f"/ui/repos/proj/tasks/{TASK_ID}/answer"
 QUESTIONS = ({"number": 1, "title": "which database", "body": "pick one", "recommended": "sqlite"},)
 FORM = {"round": "1", "q0": "postgres"}
 
@@ -78,8 +78,8 @@ def test_the_security_headers_are_on_the_page_the_redirect_and_every_refusal(cli
         _post(client, data={"round": "9"}),
         _post(client, data={"round": "x"}),
         _post(client),
-        _post(client, path="/ui/tasks/20260102-030406/answer"),
-        _post(client, path="/ui/tasks/20260102-999999/answer"),
+        _post(client, path="/ui/repos/proj/tasks/20260102-030406/answer"),
+        _post(client, path="/ui/repos/proj/tasks/20260102-999999/answer"),
     ]
 
     assert [response.status_code for response in responses] == [200, 409, 422, 303, 409, 404]

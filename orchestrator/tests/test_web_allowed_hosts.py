@@ -5,11 +5,12 @@ import pytest
 from starlette.testclient import TestClient
 
 from factory.cli import Context
-from factory.server import create_secured_app, load_or_create_token
+from factory.server import load_or_create_token
 from factory.settings import Settings
 from factory.sqlite_ledger import SqliteLedger
 from factory.sqlite_store import SqliteTaskStore
 from factory.task import TaskState
+from serving import repos_app
 from webhelpers import add
 
 REMOTE = "http://nas.lan:8765"
@@ -26,7 +27,7 @@ def ctx(tmp_path):
 
 @pytest.fixture
 def client(ctx):
-    with TestClient(create_secured_app(ctx, load_or_create_token(ctx.settings.state_dir)), base_url=REMOTE) as client:
+    with TestClient(repos_app(ctx, load_or_create_token(ctx.settings.state_dir)), base_url=REMOTE) as client:
         yield client
 
 
@@ -56,7 +57,7 @@ def test_ui_responses_send_referrer_policy_same_origin_so_a_plain_http_form_post
 
 
 def reject(client, headers):
-    return client.post("/ui/tasks/20260102-030405/reject", headers=headers, follow_redirects=False)
+    return client.post("/ui/repos/proj/tasks/20260102-030405/reject", headers=headers, follow_redirects=False)
 
 
 def test_guard_a_reject_post_naming_its_own_origin_without_fetch_metadata_is_served(signed_in, ctx):

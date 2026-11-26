@@ -31,7 +31,7 @@ def client(ctx):
 def test_get_task_returns_a_surrogate_goal(client, ctx):
     ctx.store.save(Task(TASK_ID, "prompt", goal=SURROGATE_TEXT))
 
-    response = client.get(f"/tasks/{TASK_ID}")
+    response = client.get(f"/repos/proj/tasks/{TASK_ID}")
 
     assert response.status_code == 200
     assert response.json()["goal"] == SURROGATE_TEXT
@@ -40,7 +40,7 @@ def test_get_task_returns_a_surrogate_goal(client, ctx):
 def test_get_tasks_lists_a_task_with_a_surrogate_failure_reason(client, ctx):
     ctx.store.save(Task(TASK_ID, "prompt", failure_reason=SURROGATE_TEXT))
 
-    response = client.get("/tasks")
+    response = client.get("/repos/proj/tasks")
 
     assert response.status_code == 200
     assert response.json()["tasks"][0]["failure_reason"] == SURROGATE_TEXT

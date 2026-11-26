@@ -9,7 +9,7 @@ FORM = {"Content-Type": "application/x-www-form-urlencoded"}
 
 
 def _post(client, headers):
-    return client.post("/ui/tasks/new", content=b"goal=fix", headers={**FORM, **headers}, follow_redirects=False)
+    return client.post("/ui/tasks/new", content=b"repo=proj&goal=fix", headers={**FORM, **headers}, follow_redirects=False)
 
 
 def test_a_new_task_post_without_a_session_is_401_and_creates_nothing(client, ctx):

@@ -33,7 +33,7 @@ BAD_POSTS = {
 def test_a_bad_approve_form_is_a_422_page_that_changes_nothing_and_echoes_nothing(client, ctx, body, content_type):
     before = add(ctx, TASK_ID, TaskState.REVIEWED, goal="fix the widget", plan=PLAN, plan_digest=DIGEST)
 
-    response = client.post(f"/ui/tasks/{TASK_ID}/approve", content=body.encode(), follow_redirects=False,
+    response = client.post(f"/ui/repos/proj/tasks/{TASK_ID}/approve", content=body.encode(), follow_redirects=False,
                            headers={**same_origin_headers(), "Content-Type": content_type})
 
     assert response.status_code == 422

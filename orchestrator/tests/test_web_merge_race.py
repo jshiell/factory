@@ -24,14 +24,14 @@ def _while_the_body_is_read(monkeypatch, change):
 
 
 def _assert_nothing_merged(client, repo, audited, jobs=()):
-    assert [job.id for job in client.app.state.jobs.list()] == list(jobs)
+    assert [job.id for job in client.app.state.repos["proj"].jobs.list()] == list(jobs)
     client.app.state.runner.wait_idle()
     assert git(repo, "rev-parse", "HEAD") == audited.base_sha
 
 
 def test_a_job_queued_while_the_body_is_read_still_refuses_the_merge(client, audited, repo, monkeypatch):
     queued = []
-    _while_the_body_is_read(monkeypatch, lambda: queued.append(client.app.state.jobs.create("advance", TASK_ID)))
+    _while_the_body_is_read(monkeypatch, lambda: queued.append(client.app.state.repos["proj"].jobs.create("advance", TASK_ID)))
 
     response = post_merge(client, sha_form(audited.audited_sha))
 

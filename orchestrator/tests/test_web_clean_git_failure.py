@@ -25,10 +25,10 @@ def _assert_git_refusal(response):
 
 
 def test_the_clean_page_refuses_when_git_cannot_check_the_repository(client, git_fails):
-    _assert_git_refusal(client.get("/ui/clean"))
+    _assert_git_refusal(client.get("/ui/repos/proj/clean"))
 
 
 def test_posting_a_clean_refuses_when_git_cannot_check_the_repository_and_queues_no_job(client, git_fails):
     _assert_git_refusal(post(client, {"token": "0" * 64}))
 
-    assert client.app.state.jobs.list() == []
+    assert client.app.state.repos["proj"].jobs.list() == []

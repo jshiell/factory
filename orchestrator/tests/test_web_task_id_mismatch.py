@@ -29,7 +29,7 @@ def test_load_raises_for_a_row_whose_stored_id_differs_from_its_key(ctx, stored_
 def test_the_detail_page_of_such_a_row_is_the_unreadable_page_without_the_stored_id(client, ctx, stored_id):
     plant(ctx, stored_id)
 
-    response = client.get("/ui/tasks/ok")
+    response = client.get("/ui/repos/proj/tasks/ok")
 
     assert response.status_code == 500
     assert "That task is unreadable." in response.text

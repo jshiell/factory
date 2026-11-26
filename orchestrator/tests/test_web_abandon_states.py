@@ -15,7 +15,7 @@ ABANDONABLE = [state for state in TaskState if state not in (TaskState.MERGED, T
 def test_the_abandon_page_of_a_task_that_cannot_be_abandoned_is_a_409_without_form_or_id(client, ctx, fields):
     task = add(ctx, TASK_ID, goal="fix the widget", **fields)
 
-    response = client.get(f"/ui/tasks/{TASK_ID}/abandon")
+    response = client.get(f"/ui/repos/proj/tasks/{TASK_ID}/abandon")
 
     assert response.status_code == 409
     assert_ui_security_headers(response)
@@ -32,4 +32,4 @@ def test_the_abandon_page_of_a_task_that_cannot_be_abandoned_is_a_409_without_fo
 def test_the_abandon_page_of_every_other_state_is_served(client, ctx, state):
     add(ctx, TASK_ID, state, goal="fix the widget")
 
-    assert client.get(f"/ui/tasks/{TASK_ID}/abandon").status_code == 200
+    assert client.get(f"/ui/repos/proj/tasks/{TASK_ID}/abandon").status_code == 200

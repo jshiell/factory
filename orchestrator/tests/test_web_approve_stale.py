@@ -13,7 +13,7 @@ def test_posting_a_digest_that_is_not_the_plans_is_a_409_plan_changed_page_and_c
     reviewed = add(ctx, TASK_ID, TaskState.REVIEWED, goal="fix the widget", plan=PLAN, plan_digest=plan_digest(PLAN))
     stale = plan_digest("1. an older plan")
 
-    response = client.post(f"/ui/tasks/{TASK_ID}/approve", data={"plan_digest": stale},
+    response = client.post(f"/ui/repos/proj/tasks/{TASK_ID}/approve", data={"plan_digest": stale},
                            headers=same_origin_headers(), follow_redirects=False)
 
     assert response.status_code == 409

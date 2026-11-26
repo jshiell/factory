@@ -350,7 +350,7 @@ def build_context(settings: Settings, repo: str | None = None) -> Context:
     server = _server_client(settings)
     if repo is None:
         return Context(settings, store, ledger, stages, server=server)
-    return Context(settings, store, ledger, stages, server=server.for_repo(repo), repo=repo, repo_required=True)
+    return Context(settings, store, ledger, stages, server=server.for_repo(repo), repo=repo)
 
 
 def _exit_on_signal(signum, frame):

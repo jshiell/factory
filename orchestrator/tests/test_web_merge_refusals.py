@@ -18,7 +18,7 @@ TASK_ID = "20260102-030405"
 
 
 def _get(client):
-    return client.get(f"/ui/tasks/{TASK_ID}/merge")
+    return client.get(f"/ui/repos/proj/tasks/{TASK_ID}/merge")
 
 
 def _assert_html_refusal(response, status, *shown):
@@ -78,7 +78,7 @@ def test_a_missing_worktree_directory_gets_a_refusal_page_without_the_path(clien
 def test_a_preview_refusal_is_an_escaped_html_409(client, audited, monkeypatch, error, shown):
     def refuse(task_id):
         raise error
-    monkeypatch.setattr(client.app.state.actions, "merge_preview", refuse)
+    monkeypatch.setattr(client.app.state.repos["proj"].actions, "merge_preview", refuse)
 
     response = _get(client)
 
@@ -90,7 +90,7 @@ def test_a_preview_refusal_is_an_escaped_html_409(client, audited, monkeypatch, 
 def test_a_long_refusal_reason_is_capped(client, audited, monkeypatch):
     def refuse(task_id):
         raise MergeRefused("x" * 5000)
-    monkeypatch.setattr(client.app.state.actions, "merge_preview", refuse)
+    monkeypatch.setattr(client.app.state.repos["proj"].actions, "merge_preview", refuse)
 
     response = _get(client)
 
@@ -104,7 +104,7 @@ def test_a_task_that_goes_or_breaks_before_the_preview_loads_it_gets_the_task_re
         client, audited, monkeypatch, error, status):
     def fail(task_id):
         raise error
-    monkeypatch.setattr(client.app.state.actions, "merge_preview", fail)
+    monkeypatch.setattr(client.app.state.repos["proj"].actions, "merge_preview", fail)
 
     response = _get(client)
 
@@ -114,12 +114,12 @@ def test_a_task_that_goes_or_breaks_before_the_preview_loads_it_gets_the_task_re
 
 
 def test_a_fix_agent_starting_before_the_preview_loads_the_task_gets_the_wrong_state_page(client, audited, monkeypatch):
-    real_preview = client.app.state.actions.merge_preview
+    real_preview = client.app.state.repos["proj"].actions.merge_preview
 
     def preview_after_a_fix_started(task_id):
         preview = real_preview(task_id)
         return replace(preview, task=replace(preview.task, fix_in_flight=True))
-    monkeypatch.setattr(client.app.state.actions, "merge_preview", preview_after_a_fix_started)
+    monkeypatch.setattr(client.app.state.repos["proj"].actions, "merge_preview", preview_after_a_fix_started)
 
     response = _get(client)
 

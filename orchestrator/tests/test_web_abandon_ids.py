@@ -17,26 +17,26 @@ TASK_ID = "20260102-030405"
 
 @pytest.mark.parametrize("task_id", REFUSED_IDS)
 def test_the_abandon_page_of_a_missing_or_invalid_id_is_a_404_without_the_id(client, task_id):
-    _assert_refusal_without_the_id(client.get(f"/ui/tasks/{task_id}/abandon"), 404, task_id)
+    _assert_refusal_without_the_id(client.get(f"/ui/repos/proj/tasks/{task_id}/abandon"), 404, task_id)
 
 
 def test_the_abandon_page_of_an_unreadable_task_is_a_500_without_the_id(client, ctx):
     _plant_unreadable_task(ctx)
 
-    _assert_refusal_without_the_id(client.get("/ui/tasks/broken-one/abandon"), 500, "broken-one")
+    _assert_refusal_without_the_id(client.get("/ui/repos/proj/tasks/broken-one/abandon"), 500, "broken-one")
 
 
 @pytest.mark.parametrize("task_id", REFUSED_IDS)
 def test_posting_an_abandon_for_a_missing_or_invalid_id_is_a_404_without_the_id(client, task_id):
     _assert_refusal_without_the_id(_post_abandon(client, task_id), 404, task_id)
-    assert client.app.state.jobs.list() == []
+    assert client.app.state.repos["proj"].jobs.list() == []
 
 
 def test_posting_an_abandon_for_an_unreadable_task_is_a_500_without_the_id(client, ctx):
     _plant_unreadable_task(ctx)
 
     _assert_refusal_without_the_id(_post_abandon(client, "broken-one"), 500, "broken-one")
-    assert client.app.state.jobs.list() == []
+    assert client.app.state.repos["proj"].jobs.list() == []
 
 
 class _FailsOnSecondLoad:
@@ -60,9 +60,9 @@ class _FailsOnSecondLoad:
                                            (KeyError("broken"), 500)])
 def test_a_task_lost_after_the_first_load_gives_the_same_page_and_queues_no_job(client, ctx, error, status):
     add(ctx, TASK_ID, TaskState.QUEUED)
-    client.app.state.store = client.app.state.actions._ctx.store = store = _FailsOnSecondLoad(ctx.store, error)
+    client.app.state.repos["proj"].store = client.app.state.repos["proj"].actions._ctx.store = store = _FailsOnSecondLoad(ctx.store, error)
 
     _assert_refusal_without_the_id(_post_abandon(client, TASK_ID), status, TASK_ID)
 
     assert store.saved == []
-    assert client.app.state.jobs.list() == []
+    assert client.app.state.repos["proj"].jobs.list() == []

@@ -12,7 +12,7 @@ PLAN = "1. add the thing"
 
 
 def _post_approve(client, fields):
-    return client.post(f"/ui/tasks/{TASK_ID}/approve", data=fields, headers=same_origin_headers(), follow_redirects=False)
+    return client.post(f"/ui/repos/proj/tasks/{TASK_ID}/approve", data=fields, headers=same_origin_headers(), follow_redirects=False)
 
 
 def _assert_wrong_state_page(response):

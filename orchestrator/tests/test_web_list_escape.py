@@ -2,7 +2,7 @@
 from factory.sqlite_db import transaction
 from factory.store import Listing
 from factory.task import Task
-from factory.web.routes import _event, render_tasks
+from factory.web.routes import _event, render_repos
 from webhelpers import add
 
 pytest_plugins = ["webfixtures"]
@@ -11,7 +11,7 @@ pytest_plugins = ["webfixtures"]
 def test_a_goal_with_control_characters_is_shown_escaped_in_page_and_fragment(client, ctx):
     add(ctx, goal="ring\x07bell‮evil")
 
-    for html in (client.get("/ui/").text, render_tasks(ctx.store)):
+    for html in (client.get("/ui/").text, render_repos(client.app.state.registry)):
         assert "\x07" not in html
         assert "‮" not in html
         assert "ring\\x07bell\\u202eevil" in html
@@ -21,7 +21,7 @@ def test_a_failure_reason_with_control_characters_is_shown_escaped_and_a_missing
     add(ctx, "20260102-030405", goal="g", failure_reason="gate\x07failed‮")
     add(ctx, "20260102-030406", goal="g")
 
-    for html in (client.get("/ui/").text, render_tasks(ctx.store)):
+    for html in (client.get("/ui/").text, render_repos(client.app.state.registry)):
         assert "\x07" not in html
         assert "‮" not in html
         assert "gate\\x07failed\\u202e" in html
@@ -41,7 +41,7 @@ def test_a_skipped_name_with_control_characters_is_shown_escaped(client, ctx):
     with transaction(ctx.settings.db_path) as conn:
         conn.execute("INSERT INTO tasks (id, state, data) VALUES ('broken\x07one', 'queued', 'not json')")
 
-    for html in (client.get("/ui/").text, render_tasks(ctx.store)):
+    for html in (client.get("/ui/").text, render_repos(client.app.state.registry)):
         assert "\x07" not in html
         assert "broken\\x07one" in html
 
@@ -51,7 +51,7 @@ def test_a_task_id_with_control_characters_is_shown_escaped(client, ctx, monkeyp
     task = Task("a\x07b", "prompt", goal="g")
     monkeypatch.setattr(ctx.store, "list", lambda: Listing([task], []))
 
-    for html in (client.get("/ui/").text, render_tasks(ctx.store)):
+    for html in (client.get("/ui/").text, render_repos(client.app.state.registry)):
         assert "\x07" not in html
         assert "a\\x07b" in html
 

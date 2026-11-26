@@ -58,7 +58,7 @@ from factory.textsafe import log_failure
 from factory.waiver import InvalidWaiver, note_lines
 from factory.web.auth import LoginCodes, Sessions, session_cookie_name
 from factory.web.changes import TaskChanges
-from factory.web.routes import repos_ui_routes, ui_routes
+from factory.web.routes import repos_ui_routes
 from factory.web.stopping import StopRequest
 from factory.web_actions import (
     CLEAN_CHECK_FAILED,
@@ -507,39 +507,6 @@ def _build_repos_app(registry: RepoRegistry, clock=datetime.now) -> Starlette:
     return app
 
 
-def _build_app(ctx) -> Starlette:
-    changes = TaskChanges()
-    jobs = JobStore(ctx.settings.db_path, on_change=changes.notify)  # the worker thread writes: notify is thread-safe
-    runner = JobRunner(jobs)
-    stopping = StopRequest()
-    if hasattr(ctx.store, "subscribe"):  # the legacy JSON store cannot announce writes; its pages update on reload
-        ctx.store.subscribe(changes.notify)  # once per app, not per lifespan, so repeated lifespans do not stack
-
-    api = api_routes(ctx, jobs, runner)
-
-    app = Starlette(
-        lifespan=_lifespan(changes, stopping, runner),
-        # Bridge until increment 32: the CLI already speaks /repos/<name>, named after the checkout's project directory.
-        routes=[Mount(f"/repos/{ctx.settings.repo.parent.name}", routes=api.routes), *api.routes, Route("/ui-login-codes", _ui_login_code, methods=["POST"]), *ui_routes()],
-        exception_handlers=_EXCEPTION_HANDLERS,
-    )
-    app.state.runner = runner
-    app.state.jobs = jobs
-    app.state.actions = api.actions
-    app.state.login_codes = LoginCodes(ctx.clock)
-    app.state.sessions = Sessions()
-    app.state.store = ctx.store
-    app.state.ledger = ctx.ledger
-    app.state.clean_preview = api.clean_preview
-    app.state.enqueue_clean = api.enqueue_clean
-    app.state.settings = ctx.settings
-    app.state.changes = changes
-    app.state.keepalive_seconds = 15
-    app.state.stopping = stopping
-    app.state.request_stop = stopping.request
-    return app
-
-
 class TokenFileUnsafe(Exception):
     pass
 
@@ -676,14 +643,6 @@ class _Guard:
             return AsciiJSONResponse({"error": "unauthorized", "detail": "bearer token required"}, status_code=401,
                                 headers={"WWW-Authenticate": "Bearer"})
         return None
-
-
-def create_secured_app(ctx, token: str):
-    """The app `factory serve` runs: every request needs the token, a loopback or allowed Host and no Origin."""
-    app = _build_app(ctx)
-    guarded = _Guard(app, token, ctx.settings.server_allowed_hosts)
-    guarded.state = app.state
-    return guarded
 
 
 def create_secured_repos_app(registry: RepoRegistry, token: str, allowed_hosts, clock=datetime.now):

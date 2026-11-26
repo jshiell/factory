@@ -8,7 +8,7 @@ from webposts import same_origin_headers
 pytest_plugins = ["webfixtures"]
 
 TASK_ID = "20260102-030405"
-APPROVE_PATH = f"/ui/tasks/{TASK_ID}/approve"
+APPROVE_PATH = f"/ui/repos/proj/tasks/{TASK_ID}/approve"
 PLAN = "1. add the thing"
 FORM = {"plan_digest": plan_digest(PLAN)}
 
@@ -79,8 +79,8 @@ def test_the_security_headers_are_on_the_page_the_redirect_and_every_refusal(cli
         _post(client, data={"plan_digest": plan_digest("1. another plan")}),
         _post(client, data={}),
         _post(client),
-        _post(client, path="/ui/tasks/20260102-030406/approve"),
-        _post(client, path="/ui/tasks/20260102-999999/approve"),
+        _post(client, path="/ui/repos/proj/tasks/20260102-030406/approve"),
+        _post(client, path="/ui/repos/proj/tasks/20260102-999999/approve"),
     ]
 
     assert [response.status_code for response in responses] == [200, 409, 422, 303, 409, 404]

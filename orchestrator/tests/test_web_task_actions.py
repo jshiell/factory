@@ -14,13 +14,13 @@ from webhelpers import add
 pytest_plugins = ["webfixtures"]
 
 TASK = "20260102-030405"
-PAGE = f"/ui/tasks/{TASK}"
+PAGE = f"/ui/repos/proj/tasks/{TASK}"
 PREDICATES = {"abandon": can_abandon, "recover": can_recover, "advance": can_advance, "rebase": can_rebase,
               "merge": can_merge, "retry": can_retry}
 
 
 def link(action):
-    return f'<a href="/ui/tasks/{TASK}/{action}">'
+    return f'<a href="/ui/repos/proj/tasks/{TASK}/{action}">'
 
 
 def shown(html):
@@ -42,7 +42,7 @@ def test_the_task_page_links_exactly_the_actions_valid_for_its_state(client, ctx
 def test_the_task_fragment_links_exactly_the_actions_valid_for_its_state(client, ctx, state):
     task = add(ctx, TASK, state, goal="fix the widget")
 
-    assert shown(_task_fragment(ctx.store, client.app.state.jobs, TASK)) == expected(task)
+    assert shown(_task_fragment(ctx.store, client.app.state.repos["proj"].jobs, TASK, "/ui/repos/proj")) == expected(task)
 
 
 def test_abandon_is_hidden_while_a_fix_agent_is_in_flight(client, ctx):

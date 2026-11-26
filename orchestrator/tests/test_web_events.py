@@ -5,11 +5,12 @@ import pytest
 from starlette.testclient import TestClient
 
 from factory.cli import Context
-from factory.server import create_secured_app, load_or_create_token
+from factory.server import load_or_create_token
 from factory.settings import Settings
 from factory.sqlite_ledger import SqliteLedger
 from factory.sqlite_store import SqliteTaskStore
 from factory.task import Task, TaskState
+from serving import repos_app
 
 TIMEOUT = 5
 
@@ -25,7 +26,7 @@ def ctx(tmp_path):
 @pytest.fixture
 def client(ctx):
     token = load_or_create_token(ctx.settings.state_dir)
-    with TestClient(create_secured_app(ctx, token), base_url="http://127.0.0.1:8765") as client:
+    with TestClient(repos_app(ctx, token), base_url="http://127.0.0.1:8765") as client:
         client.get("/ui/login", params={"code": client.app.state.login_codes.issue()})
         yield client
 
@@ -65,7 +66,7 @@ def test_events_answers_an_event_stream_whose_first_event_is_the_task_table(clie
 
     assert status == 200
     assert content_type.startswith("text/event-stream")
-    assert event[0] == "event: tasks"
+    assert event[0] == "event: repos"
     assert all(line.startswith("data: ") for line in event[1:])
     assert any("first goal" in line for line in event[1:])
 
@@ -75,7 +76,7 @@ def test_carriage_returns_in_task_text_neither_add_nor_end_an_event(client, ctx)
 
     _, (event, *_) = read_events(client)
 
-    assert event[0] == "event: tasks"
+    assert event[0] == "event: repos"
     assert all(line.startswith("data: ") for line in event[1:])
 
 
@@ -95,18 +96,18 @@ def test_an_idle_stream_sends_a_keepalive_comment_after_the_interval(client):
 
     _, (first, second) = read_events(client, count=2)
 
-    assert first[0] == "event: tasks"
+    assert first[0] == "event: repos"
     assert second == [": keepalive"]
 
 
 def test_a_job_write_that_leaves_the_table_unchanged_sends_no_event(client, ctx):
     ctx.store.save(Task("20260102-030405", "p", state=TaskState.QUEUED, goal="g"))
     client.app.state.keepalive_seconds = 0.2
-    jobs = client.app.state.jobs
+    jobs = client.app.state.repos["proj"].jobs
 
     _, (first, second) = read_events(client, count=2, after_first_event=lambda: jobs.create("abandon", "20260102-030405"))
 
-    assert first[0] == "event: tasks"
+    assert first[0] == "event: repos"
     assert second == [": keepalive"]
 
 
@@ -140,7 +141,7 @@ def read_until_end(client, stop_after=None):
 def test_requesting_a_stop_ends_an_open_stream(client):
     events = read_until_end(client, stop_after=1)
 
-    assert [event[0] for event in events] == ["event: tasks"]
+    assert [event[0] for event in events] == ["event: repos"]
 
 
 def test_a_stream_opened_after_a_stop_ends_at_once(client):
@@ -154,13 +155,13 @@ def test_a_stop_ends_a_stream_that_is_sending_keepalives(client):
 
     events = read_until_end(client, stop_after=3)
 
-    assert events[0][0] == "event: tasks"
+    assert events[0][0] == "event: repos"
     assert events[1:3] == [[": keepalive"], [": keepalive"]]
     assert all(event == [": keepalive"] for event in events[3:])
 
 
 def test_a_stop_requested_before_a_lifespan_starts_still_ends_its_streams(ctx):
-    app = create_secured_app(ctx, load_or_create_token(ctx.settings.state_dir))
+    app = repos_app(ctx, load_or_create_token(ctx.settings.state_dir))
     app.state.request_stop()
 
     with TestClient(app, base_url="http://127.0.0.1:8765") as client:

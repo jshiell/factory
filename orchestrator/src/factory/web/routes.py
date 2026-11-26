@@ -140,11 +140,6 @@ def _costs_view(store, ledger) -> dict:
             "by_task": [(_safe(task_id), cost) for task_id, cost in sorted(report.by_task.items())]}
 
 
-async def _costs_page(request: Request) -> HTMLResponse:
-    report = _costs_view(request.app.state.store, request.app.state.ledger)
-    return HTMLResponse(_TEMPLATES.get_template("costs.html").render(report=report))
-
-
 def _repo_costs_section(state, name: str) -> dict:
     section = {"name": name, "base": f"/ui/repos/{quote(name, safe='')}"}
     try:
@@ -208,10 +203,6 @@ def _jobs_view(jobs) -> list[dict]:
     newest = jobs.list()[-_JOBS_SHOWN:][::-1]
     return [{"kind": _safe(job.kind), "state": job.state, "task_id": _safe(job.task_id),
              "error": _safe(_truncated(job.error, _ERROR_LIMIT)) if job.error else None} for job in newest]
-
-
-async def _jobs_page(request: Request) -> HTMLResponse:
-    return HTMLResponse(_TEMPLATES.get_template("jobs.html").render(jobs=_jobs_view(request.app.state.jobs)))
 
 
 def _repo_jobs_section(state, name: str) -> dict:
@@ -752,10 +743,6 @@ def render_tasks(store) -> str:
     return _TEMPLATES.get_template("_tasks.html").render(_tasks_context(store))
 
 
-async def _ui_page(request: Request) -> HTMLResponse:
-    return HTMLResponse(_TEMPLATES.get_template("page.html").render(_tasks_context(request.app.state.store)))
-
-
 def _repo_section(registry, name: str) -> dict:
     section = {"name": name, "base": f"/ui/repos/{name}"}
     try:
@@ -848,11 +835,6 @@ def _stream(request: Request, render) -> StreamingResponse:
     return StreamingResponse(stream(), media_type="text/event-stream")
 
 
-async def _events(request: Request) -> StreamingResponse:
-    store = request.app.state.store
-    return _stream(request, _unless_unchanged(lambda: _event("tasks", render_tasks(store))))
-
-
 async def _task_events(request: Request) -> StreamingResponse | HTMLResponse:
     _, refusal = _load_task(request)  # before the stream exists, so a refusal still has its real status
     if refusal:
@@ -904,12 +886,3 @@ async def _login(request: Request) -> HTMLResponse:
 STATIC_DIR = Path(__file__).parent / "static"
 
 
-def ui_routes() -> list[Route | Mount]:
-    return [Route("/ui", _ui_without_slash, methods=["GET"]), Route("/ui/", _ui_page, methods=["GET"]),
-            Route("/ui/events", _events, methods=["GET"]), Route("/ui/costs", _costs_page, methods=["GET"]),
-            Route("/ui/jobs", _jobs_page, methods=["GET"]),
-            Route("/ui/clean", _clean_page, methods=["GET"]), Route("/ui/clean", _clean, methods=["POST"]),
-            Route("/ui/tasks/new", _new_task_page, methods=["GET"]),
-            Route("/ui/tasks/new", _new_task, methods=["POST"]),
-            *_task_routes("/ui"),
-            Route("/ui/login", _login, methods=["GET"]), Mount("/ui/static", StaticFiles(directory=STATIC_DIR))]

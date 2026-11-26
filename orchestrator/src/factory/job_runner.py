@@ -13,8 +13,7 @@ JOB_ERROR_SENTENCE = "The job failed unexpectedly. The server log has the detail
 class JobRunner:
     """One worker thread running submitted jobs one at a time, in submission order."""
 
-    def __init__(self, jobs: JobStore | None = None):
-        self._jobs = jobs
+    def __init__(self):
         self._queue: queue.Queue = queue.Queue()
         self._thread = threading.Thread(target=self._work, name="factory-jobs", daemon=True)
 
@@ -25,10 +24,9 @@ class JobRunner:
         self._queue.put(None)
         self._thread.join(timeout=5)
 
-    def submit(self, kind: str, task_id: str | None, run: Callable[[], dict], jobs: JobStore | None = None) -> Job:
-        store = jobs or self._jobs
-        job = store.create(kind, task_id)
-        self._queue.put((store, job.id, run))
+    def submit(self, kind: str, task_id: str | None, run: Callable[[], dict], jobs: JobStore) -> Job:
+        job = jobs.create(kind, task_id)
+        self._queue.put((jobs, job.id, run))
         return job
 
     def wait_idle(self) -> None:

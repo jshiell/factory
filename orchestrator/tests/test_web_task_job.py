@@ -6,11 +6,11 @@ from webhelpers import add
 pytest_plugins = ["webfixtures"]
 
 TASK = "20260102-030405"
-PAGE = f"/ui/tasks/{TASK}"
+PAGE = f"/ui/repos/proj/tasks/{TASK}"
 
 
 def job_in_state(client, state, kind="advance", result=None, error=None):
-    jobs = client.app.state.jobs
+    jobs = client.app.state.repos["proj"].jobs
     job = jobs.create(kind, TASK)
     if state == "running":
         jobs.mark_running(job.id)
@@ -100,7 +100,7 @@ def test_the_live_fragment_shows_the_same_job_panel_as_the_page(client, ctx):
     add(ctx, TASK)
     job_in_state(client, "failed", error="bad <thing>")
 
-    fragment = _task_fragment(client.app.state.store, client.app.state.jobs, TASK)
+    fragment = _task_fragment(client.app.state.repos["proj"].store, client.app.state.repos["proj"].jobs, TASK, "/ui/repos/proj")
     page = client.get(PAGE).text
 
     assert fragment in page

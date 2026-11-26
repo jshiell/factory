@@ -23,17 +23,17 @@ def test_posting_an_abandon_for_a_task_that_cannot_be_abandoned_is_a_409_and_que
     assert "<form" not in response.text
     for echoed in (TASK_ID, "fix the widget"):
         assert echoed not in response.text
-    assert client.app.state.jobs.list() == []
+    assert client.app.state.repos["proj"].jobs.list() == []
     assert ctx.store.load(TASK_ID) == task
 
 
 def test_posting_an_abandon_for_a_task_with_an_unfinished_job_is_a_409_busy_page_and_queues_no_second_job(client, ctx):
     task = add(ctx, TASK_ID, TaskState.QUEUED, goal="fix the widget")
-    first = client.app.state.jobs.create("advance", TASK_ID)
+    first = client.app.state.repos["proj"].jobs.create("advance", TASK_ID)
 
     _assert_busy_page(_post_abandon(client))
 
-    assert client.app.state.jobs.list() == [first]
+    assert client.app.state.repos["proj"].jobs.list() == [first]
     assert ctx.store.load(TASK_ID) == task
 
 
@@ -44,4 +44,4 @@ def test_a_second_abandon_after_the_first_is_a_409_and_queues_no_second_job(clie
     response = _post_abandon(client)
 
     assert response.status_code == 409
-    assert [job.kind for job in client.app.state.jobs.list()] == ["abandon"]
+    assert [job.kind for job in client.app.state.repos["proj"].jobs.list()] == ["abandon"]

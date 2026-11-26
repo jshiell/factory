@@ -35,9 +35,9 @@ class _MovesOnSecondLoad:
 
 def test_a_task_that_left_open_questions_after_the_first_load_gives_the_409_page_and_saves_nothing(client, ctx):
     add(ctx, TASK_ID, TaskState.OPEN_QUESTIONS, goal="fix the widget", grill_rounds=1, open_questions=QUESTIONS)
-    client.app.state.store = store = _MovesOnSecondLoad(ctx.store, TaskState.PROPOSED)
+    client.app.state.repos["proj"].store = store = _MovesOnSecondLoad(ctx.store, TaskState.PROPOSED)
 
-    response = client.post(f"/ui/tasks/{TASK_ID}/answer", data={"round": "1", "q0": "postgres"},
+    response = client.post(f"/ui/repos/proj/tasks/{TASK_ID}/answer", data={"round": "1", "q0": "postgres"},
                            headers=same_origin_headers(), follow_redirects=False)
 
     assert response.status_code == 409

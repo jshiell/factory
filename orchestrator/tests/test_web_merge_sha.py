@@ -26,7 +26,7 @@ STALE_SHAS = {
 
 
 def _assert_nothing_queued_or_merged(client, ctx, audited, repo):
-    assert client.app.state.jobs.list() == []
+    assert client.app.state.repos["proj"].jobs.list() == []
     assert ctx.store.load(TASK_ID) == audited
     assert git(repo, "rev-parse", "HEAD") == audited.base_sha
 

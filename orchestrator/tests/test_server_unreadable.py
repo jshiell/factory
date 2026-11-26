@@ -44,19 +44,19 @@ def _assert_unreadable_and_logged_once(response, capsys):
 
 
 def test_showing_an_unreadable_task_answers_a_fixed_500_and_logs_the_error(client, broken_id, capsys):
-    _assert_unreadable_and_logged_once(client.get(f"/tasks/{broken_id}"), capsys)
+    _assert_unreadable_and_logged_once(client.get(f"/repos/proj/tasks/{broken_id}"), capsys)
 
 
 def test_rejecting_an_unreadable_task_answers_a_fixed_500_and_logs_the_error(client, broken_id, capsys):
-    _assert_unreadable_and_logged_once(client.post(f"/tasks/{broken_id}/reject"), capsys)
+    _assert_unreadable_and_logged_once(client.post(f"/repos/proj/tasks/{broken_id}/reject"), capsys)
 
 
 LOADING_ROUTES = [
-    ("GET", "/tasks/{id}/approval"), ("POST", "/tasks/{id}/approve"), ("GET", "/tasks/{id}/questions"),
-    ("POST", "/tasks/{id}/answer"), ("GET", "/tasks/{id}/merge-preview"), ("POST", "/tasks/{id}/merge"),
-    ("GET", "/tasks/{id}/retry-preview"), ("POST", "/tasks/{id}/retry"), ("POST", "/tasks/{id}/advance"),
-    ("POST", "/tasks/{id}/abandon"), ("POST", "/tasks/{id}/recover"), ("POST", "/tasks/{id}/rebase"),
-    ("GET", "/costs?task_id={id}"),
+    ("GET", "/repos/proj/tasks/{id}/approval"), ("POST", "/repos/proj/tasks/{id}/approve"), ("GET", "/repos/proj/tasks/{id}/questions"),
+    ("POST", "/repos/proj/tasks/{id}/answer"), ("GET", "/repos/proj/tasks/{id}/merge-preview"), ("POST", "/repos/proj/tasks/{id}/merge"),
+    ("GET", "/repos/proj/tasks/{id}/retry-preview"), ("POST", "/repos/proj/tasks/{id}/retry"), ("POST", "/repos/proj/tasks/{id}/advance"),
+    ("POST", "/repos/proj/tasks/{id}/abandon"), ("POST", "/repos/proj/tasks/{id}/recover"), ("POST", "/repos/proj/tasks/{id}/rebase"),
+    ("GET", "/repos/proj/costs?task_id={id}"),
 ]
 
 
@@ -76,4 +76,4 @@ def test_a_failure_after_the_task_loaded_is_not_reported_as_an_unreadable_task(c
     broken = replace(ctx, ledger=_BrokenLedger())
 
     with served(broken) as client, pytest.raises(KeyError, match="cost_usd"):
-        client.get("/costs?task_id=fine")
+        client.get("/repos/proj/costs?task_id=fine")

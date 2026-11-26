@@ -7,12 +7,12 @@ from webhelpers import add
 pytest_plugins = ["webfixtures"]
 
 TASK_ID = "20260102-030405"
-ANSWER_LINK = f'<a href="/ui/tasks/{TASK_ID}/answer">'
+ANSWER_LINK = f'<a href="/ui/repos/proj/tasks/{TASK_ID}/answer">'
 
 
 def _fragment(ctx, state):
     add(ctx, TASK_ID, state, goal="fix the widget")
-    return _render_task(ctx.store.load(TASK_ID))
+    return _render_task(ctx.store.load(TASK_ID), base="/ui/repos/proj")
 
 
 def test_an_open_questions_fragment_links_to_the_answer_page(ctx):

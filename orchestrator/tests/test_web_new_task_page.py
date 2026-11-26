@@ -17,7 +17,7 @@ def test_the_new_task_form_has_a_goal_textarea_and_a_grill_checkbox_checked_by_d
 
 
 def test_the_grill_checkbox_is_unchecked_when_the_setting_is_off(client):
-    client.app.state.settings = replace(client.app.state.settings, grill=False)
+    client.app.state.repos["proj"].settings = replace(client.app.state.repos["proj"].settings, grill=False)
 
     response = client.get("/ui/tasks/new")
 

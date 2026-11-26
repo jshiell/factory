@@ -28,7 +28,7 @@ def test_a_json_reject_that_loses_the_race_to_an_approve_is_409_and_keeps_the_ta
     store.save(Task(id="a", prompt="", state=TaskState.REVIEWED, goal="g", plan="p"))
 
     with served(ctx) as client:
-        response = client.post("/tasks/a/reject")
+        response = client.post("/repos/proj/tasks/a/reject")
 
     assert response.status_code == 409
     assert SqliteTaskStore(settings.db_path).load("a").state is TaskState.QUEUED

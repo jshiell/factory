@@ -36,14 +36,14 @@ class _FailsOnSecondLoad:
 
 
 def _post_answer(client):
-    return client.post(f"/ui/tasks/{TASK_ID}/answer", data={"round": "1", "q0": "postgres"},
+    return client.post(f"/ui/repos/proj/tasks/{TASK_ID}/answer", data={"round": "1", "q0": "postgres"},
                        headers=same_origin_headers(), follow_redirects=False)
 
 
 @pytest.mark.parametrize("error, status", [(TaskNotFound(TASK_ID), 404), (ValueError(f"{TASK_ID} broken"), 500)])
 def test_a_task_lost_after_the_first_load_gives_the_404_or_500_page_and_saves_nothing(client, ctx, error, status):
     add(ctx, TASK_ID, TaskState.OPEN_QUESTIONS, goal="fix the widget", grill_rounds=1, open_questions=QUESTIONS)
-    client.app.state.store = store = _FailsOnSecondLoad(ctx.store, error)
+    client.app.state.repos["proj"].store = store = _FailsOnSecondLoad(ctx.store, error)
 
     response = _post_answer(client)
 

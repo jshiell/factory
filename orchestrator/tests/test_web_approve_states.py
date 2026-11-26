@@ -10,7 +10,7 @@ pytest_plugins = ["webfixtures"]
 def test_the_approve_page_of_a_task_not_waiting_for_review_is_a_409_without_form_or_id(client, ctx, state):
     add(ctx, "20260102-030405", state, goal="fix the widget")
 
-    response = client.get("/ui/tasks/20260102-030405/approve")
+    response = client.get("/ui/repos/proj/tasks/20260102-030405/approve")
 
     assert response.status_code == 409
     assert_ui_security_headers(response)

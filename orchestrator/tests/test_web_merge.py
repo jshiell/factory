@@ -15,7 +15,7 @@ FORM = "application/x-www-form-urlencoded"
 
 def post_merge(client, body=b"", task_id=TASK_ID, content_type=FORM, headers=None):
     base = same_origin_headers() if headers is None else headers
-    return client.post(f"/ui/tasks/{task_id}/merge", content=body, follow_redirects=False,
+    return client.post(f"/ui/repos/proj/tasks/{task_id}/merge", content=body, follow_redirects=False,
                        headers={**base, "Content-Type": content_type})
 
 
@@ -27,11 +27,11 @@ def test_posting_the_shown_sha_queues_a_merge_job_redirects_and_the_job_fast_for
     response = post_merge(client, sha_form(audited.audited_sha))
 
     assert response.status_code == 303
-    assert response.headers["location"] == f"/ui/tasks/{TASK_ID}"
-    job = client.app.state.jobs.latest_for_task(TASK_ID)
+    assert response.headers["location"] == f"/ui/repos/proj/tasks/{TASK_ID}"
+    job = client.app.state.repos["proj"].jobs.latest_for_task(TASK_ID)
     assert job.kind == "merge"
     client.app.state.runner.wait_idle()
-    assert client.app.state.jobs.get(job.id).state == "succeeded"
+    assert client.app.state.repos["proj"].jobs.get(job.id).state == "succeeded"
     assert ctx.store.load(TASK_ID).state is TaskState.MERGED
     assert git(repo, "rev-parse", "HEAD") == audited.audited_sha
 
@@ -48,7 +48,7 @@ def test_posting_the_audited_sha_for_a_task_that_is_not_audited_is_a_409_and_que
 
     assert response.status_code == 409
     assert "cannot be merged" in response.text
-    assert client.app.state.jobs.list() == []
+    assert client.app.state.repos["proj"].jobs.list() == []
     assert ctx.store.load(TASK_ID) == task
     assert git(repo, "rev-parse", "HEAD") == audited.base_sha
 
@@ -60,7 +60,7 @@ def test_posting_the_audited_sha_for_a_task_with_a_fix_agent_in_flight_is_a_409_
 
     assert response.status_code == 409
     assert "cannot be merged in its current state" in response.text
-    assert client.app.state.jobs.list() == []
+    assert client.app.state.repos["proj"].jobs.list() == []
 
 
 def test_a_bad_form_posted_for_a_task_that_is_not_audited_gets_the_wrong_state_409(client, ctx, audited):
@@ -74,12 +74,12 @@ def test_a_bad_form_posted_for_a_task_that_is_not_audited_gets_the_wrong_state_4
 
 @pytest.mark.parametrize("started", [False, True], ids=["queued", "running"])
 def test_posting_a_merge_for_a_task_with_an_unfinished_job_is_a_409_and_queues_no_second_job(client, audited, started):
-    first = client.app.state.jobs.create("merge", TASK_ID)
+    first = client.app.state.repos["proj"].jobs.create("merge", TASK_ID)
     if started:
-        client.app.state.jobs.mark_running(first.id)
+        client.app.state.repos["proj"].jobs.mark_running(first.id)
 
     response = post_merge(client, sha_form(audited.audited_sha))
 
     assert response.status_code == 409
     assert "already has a job queued or running" in response.text
-    assert [job.id for job in client.app.state.jobs.list()] == [first.id]
+    assert [job.id for job in client.app.state.repos["proj"].jobs.list()] == [first.id]

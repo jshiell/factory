@@ -10,7 +10,7 @@ pytest_plugins = ["webfixtures"]
 def test_the_answer_page_of_a_task_without_open_questions_is_a_409_without_form_or_id(client, ctx, state):
     add(ctx, "20260102-030405", state, goal="fix the widget")
 
-    response = client.get("/ui/tasks/20260102-030405/answer")
+    response = client.get("/ui/repos/proj/tasks/20260102-030405/answer")
 
     assert response.status_code == 409
     assert_ui_security_headers(response)

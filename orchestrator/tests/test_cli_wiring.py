@@ -86,10 +86,7 @@ def _serving(repo: Path, env) -> None:
     """Start the project's server on first use, so it reads the config the test finished writing."""
     if repo in _SERVERS:
         return
-    project = repo.parent  # until the server serves the whole home, it is told where this repo's state lives
-    serve_config = project.parent.parent / "server.toml"
-    serve_config.write_text(config_path(repo).read_text() + f'state_dir = "{project / "state"}"\nworktree_root = "{project / "worktrees"}"\n')
-    server = subprocess.Popen(["uv", "run", "--project", str(ORCHESTRATOR), "factory", "--config", str(serve_config), "serve"], cwd=repo, env=env,
+    server = subprocess.Popen(["uv", "run", "--project", str(ORCHESTRATOR), "factory", "serve"], cwd=repo, env=env,
                               stdout=subprocess.PIPE, stderr=subprocess.PIPE, stdin=subprocess.DEVNULL, text=True)
     _SERVERS[repo] = server
     announced = server.stdout.readline()

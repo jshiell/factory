@@ -20,7 +20,7 @@ def test_the_approve_page_shows_where_each_plan_link_really_goes(client, ctx):
     plan = "see [the docs](https://evil.test/x)"
     add(ctx, TASK_ID, TaskState.REVIEWED, plan=plan, plan_digest=plan_digest(plan))
 
-    page = client.get(f"/ui/tasks/{TASK_ID}/approve").text
+    page = client.get(f"/ui/repos/proj/tasks/{TASK_ID}/approve").text
 
     assert "the docs</a> (https://evil.test/x)" in page
 
@@ -29,7 +29,7 @@ def test_the_approve_page_shows_what_the_cli_preview_shows_and_a_form_posting_th
     findings = ("Recommend (required): cover <em>edge</em> cases", "Recommend (optional): rename it", "Recommend (required): add a test")
     _reviewed(ctx, findings)
 
-    response = client.get(f"/ui/tasks/{TASK_ID}/approve")
+    response = client.get(f"/ui/repos/proj/tasks/{TASK_ID}/approve")
 
     assert response.status_code == 200
     assert_ui_security_headers(response)
@@ -49,12 +49,12 @@ def test_the_approve_page_shows_what_the_cli_preview_shows_and_a_form_posting_th
     assert len(forms) == 1
     form = forms[0]
     assert re.search(r'<form[^>]*method="post"', form)
-    assert f'action="/ui/tasks/{TASK_ID}/approve"' in form
+    assert f'action="/ui/repos/proj/tasks/{TASK_ID}/approve"' in form
     (hidden,) = re.findall(r"<input\b[^>]*>", form)
     assert 'type="hidden"' in hidden and 'name="plan_digest"' in hidden and f'value="{plan_digest(PLAN)}"' in hidden
     assert len(re.findall(r"<(?:input|button|select|textarea)\b", form)) == 2
     assert re.search(r'<button[^>]*type="submit"', form)
-    assert f'<a href="/ui/tasks/{TASK_ID}">' in response.text
+    assert f'<a href="/ui/repos/proj/tasks/{TASK_ID}">' in response.text
     assert "<style" not in response.text and "style=" not in response.text
     assert not re.search(r"<script(?![^>]*\bsrc=)", response.text)
 
@@ -62,7 +62,7 @@ def test_the_approve_page_shows_what_the_cli_preview_shows_and_a_form_posting_th
 def test_the_approve_page_warns_when_the_cap_drops_required_notes(client, ctx):
     _reviewed(ctx, tuple(f"Recommend (required): note {i}" for i in range(MAX_ITEMS + 2)))
 
-    response = client.get(f"/ui/tasks/{TASK_ID}/approve")
+    response = client.get(f"/ui/repos/proj/tasks/{TASK_ID}/approve")
 
     assert f"WARNING: 2 required note(s) beyond the first {MAX_ITEMS} were dropped" in response.text
     assert f"[{MAX_ITEMS}] Recommend (required): note {MAX_ITEMS - 1}" in response.text

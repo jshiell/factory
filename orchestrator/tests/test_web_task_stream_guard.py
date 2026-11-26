@@ -4,7 +4,7 @@ from webhelpers import add, assert_ui_security_headers
 
 pytest_plugins = ["webfixtures"]
 
-EVENTS = "/ui/tasks/20260102-030405/events"
+EVENTS = "/ui/repos/proj/tasks/20260102-030405/events"
 
 
 @pytest.fixture

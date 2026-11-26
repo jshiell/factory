@@ -23,11 +23,11 @@ def _assert_busy_page(response):
 @pytest.mark.parametrize("started", [False, True], ids=["queued", "running"])
 def test_the_abandon_page_of_a_task_with_an_unfinished_job_is_a_409_busy_page(client, ctx, started):
     task = add(ctx, TASK_ID, TaskState.QUEUED, goal="fix the widget")
-    job = client.app.state.jobs.create("advance", TASK_ID)
+    job = client.app.state.repos["proj"].jobs.create("advance", TASK_ID)
     if started:
-        client.app.state.jobs.mark_running(job.id)
+        client.app.state.repos["proj"].jobs.mark_running(job.id)
 
-    _assert_busy_page(client.get(f"/ui/tasks/{TASK_ID}/abandon"))
+    _assert_busy_page(client.get(f"/ui/repos/proj/tasks/{TASK_ID}/abandon"))
 
     assert ctx.store.load(TASK_ID) == task
 
@@ -35,7 +35,7 @@ def test_the_abandon_page_of_a_task_with_an_unfinished_job_is_a_409_busy_page(cl
 @pytest.mark.parametrize("finish", ["mark_succeeded", "mark_failed", "interrupted"])
 def test_a_finished_job_does_not_block_the_abandon_page(client, ctx, finish):
     add(ctx, TASK_ID, TaskState.QUEUED, goal="fix the widget")
-    jobs = client.app.state.jobs
+    jobs = client.app.state.repos["proj"].jobs
     job = jobs.create("advance", TASK_ID)
     jobs.mark_running(job.id)
     if finish == "mark_succeeded":
@@ -45,4 +45,4 @@ def test_a_finished_job_does_not_block_the_abandon_page(client, ctx, finish):
     else:
         jobs.interrupt_unfinished()
 
-    assert client.get(f"/ui/tasks/{TASK_ID}/abandon").status_code == 200
+    assert client.get(f"/ui/repos/proj/tasks/{TASK_ID}/abandon").status_code == 200

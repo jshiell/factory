@@ -19,14 +19,14 @@ def test_a_job_queued_while_the_body_is_read_still_refuses_the_abandon(client, c
 
     async def read_form_while_another_request_queues_a_job(request):
         nonlocal first
-        first = client.app.state.jobs.create("advance", TASK_ID)
+        first = client.app.state.repos["proj"].jobs.create("advance", TASK_ID)
         return await real_read_form(request)
 
     monkeypatch.setattr(routes, "_read_form", read_form_while_another_request_queues_a_job)
 
     _assert_busy_page(_post_abandon(client))
 
-    assert client.app.state.jobs.list() == [first]
+    assert client.app.state.repos["proj"].jobs.list() == [first]
     assert ctx.store.load(TASK_ID) == task
 
 
@@ -44,4 +44,4 @@ def test_a_task_that_leaves_its_state_while_the_body_is_read_gets_the_wrong_stat
 
     assert response.status_code == 409
     assert "cannot be abandoned" in response.text
-    assert client.app.state.jobs.list() == []
+    assert client.app.state.repos["proj"].jobs.list() == []

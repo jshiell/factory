@@ -5,10 +5,11 @@ import pytest
 from starlette.testclient import TestClient
 
 from factory.cli import Context
-from factory.server import create_secured_app, load_or_create_token
+from factory.server import load_or_create_token
 from factory.settings import Settings
 from factory.sqlite_ledger import SqliteLedger
 from factory.sqlite_store import SqliteTaskStore
+from serving import repos_app
 
 
 @pytest.fixture
@@ -22,6 +23,6 @@ def ctx(tmp_path):
 @pytest.fixture
 def client(ctx):
     token = load_or_create_token(ctx.settings.state_dir)
-    with TestClient(create_secured_app(ctx, token), base_url="http://127.0.0.1:8765") as client:
+    with TestClient(repos_app(ctx, token), base_url="http://127.0.0.1:8765") as client:
         client.get("/ui/login", params={"code": client.app.state.login_codes.issue()})
         yield client

@@ -23,7 +23,7 @@ BAD_POSTS = {
 
 def _post(client, body, content_type):
     headers = same_origin_headers() if content_type is None else {**same_origin_headers(), "Content-Type": content_type}
-    return client.post(f"/ui/tasks/{TASK_ID}/abandon", content=body.encode(), headers=headers, follow_redirects=False)
+    return client.post(f"/ui/repos/proj/tasks/{TASK_ID}/abandon", content=body.encode(), headers=headers, follow_redirects=False)
 
 
 @pytest.mark.parametrize("body, content_type", BAD_POSTS.values(), ids=BAD_POSTS.keys())
@@ -39,7 +39,7 @@ def test_a_bad_abandon_form_is_a_422_page_that_changes_nothing_and_echoes_nothin
     assert "<form" not in response.text
     for echoed in (TASK_ID, MARKER, "fix the widget", "Traceback"):
         assert echoed not in response.text
-    assert client.app.state.jobs.list() == []
+    assert client.app.state.repos["proj"].jobs.list() == []
     assert ctx.store.load(TASK_ID) == before
 
 

@@ -58,7 +58,7 @@ def _open(ctx):
 
 
 def _post(client, body, headers):
-    return client.post(f"/ui/tasks/{TASK_ID}/answer", content=body, headers={**same_origin_headers(), **headers},
+    return client.post(f"/ui/repos/proj/tasks/{TASK_ID}/answer", content=body, headers={**same_origin_headers(), **headers},
                        follow_redirects=False)
 
 

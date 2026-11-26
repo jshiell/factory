@@ -7,7 +7,7 @@ from webposts import same_origin_headers
 pytest_plugins = ["webfixtures"]
 
 TASK_ID = "20260102-030405"
-REJECT_PATH = f"/ui/tasks/{TASK_ID}/reject"
+REJECT_PATH = f"/ui/repos/proj/tasks/{TASK_ID}/reject"
 
 
 @pytest.fixture
@@ -64,8 +64,8 @@ def test_the_security_headers_are_on_the_confirm_page_the_redirect_and_the_refus
     responses = [
         client.get(REJECT_PATH),
         _post(client),
-        _post(client, path="/ui/tasks/20260102-030406/reject"),
-        _post(client, path="/ui/tasks/20260102-999999/reject"),
+        _post(client, path="/ui/repos/proj/tasks/20260102-030406/reject"),
+        _post(client, path="/ui/repos/proj/tasks/20260102-999999/reject"),
     ]
 
     assert [response.status_code for response in responses] == [200, 303, 409, 404]

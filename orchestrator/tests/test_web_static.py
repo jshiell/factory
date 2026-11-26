@@ -8,10 +8,11 @@ from starlette.testclient import TestClient
 
 import factory.web
 from factory.cli import Context
-from factory.server import create_secured_app, load_or_create_token
+from factory.server import load_or_create_token
 from factory.settings import Settings
 from factory.sqlite_ledger import SqliteLedger
 from factory.sqlite_store import SqliteTaskStore
+from serving import repos_app
 
 static_dir = Path(factory.web.__file__).parent / "static"
 
@@ -22,7 +23,7 @@ def client(tmp_path):
     settings.state_dir.mkdir()
     ctx = Context(settings, SqliteTaskStore(settings.db_path), SqliteLedger(settings.db_path), stages={},
                   clock=lambda: datetime(2026, 1, 2, 3, 4, 5))
-    with TestClient(create_secured_app(ctx, load_or_create_token(settings.state_dir)), base_url="http://127.0.0.1:8765") as client:
+    with TestClient(repos_app(ctx, load_or_create_token(settings.state_dir)), base_url="http://127.0.0.1:8765") as client:
         yield client
 
 

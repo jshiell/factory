@@ -19,7 +19,7 @@ NOT_RETRYABLE = [state for state in TaskState if state not in RETRYABLE]
 
 def post_retry(client, body=b"", task_id=TASK_ID, content_type=FORM, headers=None):
     base = same_origin_headers() if headers is None else headers
-    return client.post(f"/ui/tasks/{task_id}/retry", content=body, follow_redirects=False,
+    return client.post(f"/ui/repos/proj/tasks/{task_id}/retry", content=body, follow_redirects=False,
                        headers={**base, "Content-Type": content_type})
 
 
@@ -43,9 +43,9 @@ def test_posting_a_plain_retry_creates_a_proposed_task_and_redirects_to_it(clien
 
     assert response.status_code == 303
     new = new_task(ctx)
-    assert response.headers["location"] == f"/ui/tasks/{new.id}"
+    assert response.headers["location"] == f"/ui/repos/proj/tasks/{new.id}"
     assert (new.state, new.goal, new.retry_of, new.plan) == (TaskState.PROPOSED, "fix the widget", TASK_ID, None)
-    assert client.app.state.jobs.list() == []
+    assert client.app.state.repos["proj"].jobs.list() == []
 
 
 @pytest.mark.parametrize("state, carried", [(TaskState.FAILED, ("gap one",)), (TaskState.AUDITED, ())])
@@ -57,10 +57,10 @@ def test_posting_a_keep_plan_retry_with_the_shown_digest_queues_a_task_with_the_
 
     assert response.status_code == 303
     new = new_task(ctx)
-    assert response.headers["location"] == f"/ui/tasks/{new.id}"
+    assert response.headers["location"] == f"/ui/repos/proj/tasks/{new.id}"
     assert (new.state, new.plan, new.retry_of) == (TaskState.QUEUED, "the plan", TASK_ID)
     assert new.prior_audit_findings == carried and new.waived_findings == ()
-    assert client.app.state.jobs.list() == []
+    assert client.app.state.repos["proj"].jobs.list() == []
 
 
 def _assert_refused_and_nothing_created(response, ctx, before, status, *shown):
@@ -118,7 +118,7 @@ def test_posting_a_keep_plan_retry_for_a_plan_that_cannot_be_kept_is_a_409_that_
 def _retry_raising(client, monkeypatch, error):
     def refuse(task_id, plan_digest=None, waive=(), reinstate=()):
         raise error
-    monkeypatch.setattr(client.app.state.actions, "retry", refuse)
+    monkeypatch.setattr(client.app.state.repos["proj"].actions, "retry", refuse)
 
 
 @pytest.mark.parametrize("body, error, status, shown", [

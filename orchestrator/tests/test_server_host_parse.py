@@ -2,7 +2,8 @@
 import pytest
 from starlette.testclient import TestClient
 
-from factory.server import create_secured_app, load_or_create_token
+from factory.server import load_or_create_token
+from serving import repos_app
 from test_server_allowed_hosts import auth, make_ctx
 
 
@@ -10,7 +11,7 @@ from test_server_allowed_hosts import auth, make_ctx
 def served_client(tmp_path):
     ctx = make_ctx(tmp_path, ("nas.lan",))
     token = load_or_create_token(ctx.settings.state_dir)
-    with TestClient(create_secured_app(ctx, token), base_url="http://127.0.0.1:8765") as client:
+    with TestClient(repos_app(ctx, token), base_url="http://127.0.0.1:8765") as client:
         yield client, token
 
 
@@ -18,10 +19,10 @@ def served_client(tmp_path):
                                   "[::1]x", "[::1]:x:y", "[::1]:", "[::1]:²", "[::1", "127.0.0.1:"])
 def test_a_host_with_anything_but_digits_after_the_port_colon_is_403(served_client, host):
     client, token = served_client
-    assert client.get("/tasks", headers={**auth(token), "Host": host.encode("latin-1")}).status_code == 403
+    assert client.get("/repos/proj/tasks", headers={**auth(token), "Host": host.encode("latin-1")}).status_code == 403
 
 
 @pytest.mark.parametrize("host", ["[::1]", "[::1]:8765", "nas.lan:8765", "127.0.0.1:8765", "localhost"])
 def test_a_well_formed_host_is_served(served_client, host):
     client, token = served_client
-    assert client.get("/tasks", headers={**auth(token), "Host": host}).status_code == 200
+    assert client.get("/repos/proj/tasks", headers={**auth(token), "Host": host}).status_code == 200

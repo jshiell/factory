@@ -13,7 +13,7 @@ def test_the_list_shows_a_state_humanised_while_the_task_page_still_links_by_raw
 
     assert "Open questions" in client.get("/ui/").text
     assert "open_questions" not in client.get("/ui/").text
-    answer = client.get(f"/ui/tasks/{TASK}").text
-    assert "Open questions" in answer and f'href="/ui/tasks/{TASK}/answer"' in answer
-    reviewed = client.get(f"/ui/tasks/{OTHER}").text
-    assert f'href="/ui/tasks/{OTHER}/approve"' in reviewed and f'href="/ui/tasks/{OTHER}/reject"' in reviewed
+    answer = client.get(f"/ui/repos/proj/tasks/{TASK}").text
+    assert "Open questions" in answer and f'href="/ui/repos/proj/tasks/{TASK}/answer"' in answer
+    reviewed = client.get(f"/ui/repos/proj/tasks/{OTHER}").text
+    assert f'href="/ui/repos/proj/tasks/{OTHER}/approve"' in reviewed and f'href="/ui/repos/proj/tasks/{OTHER}/reject"' in reviewed

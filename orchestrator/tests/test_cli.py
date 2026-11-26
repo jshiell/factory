@@ -13,10 +13,11 @@ from factory.client import ServerClient
 from factory.digest import plan_digest
 from factory.ledger import Ledger
 from factory.merge_task import MergeRefused
-from factory.server import create_secured_app, load_or_create_token
+from factory.server import load_or_create_token
 from factory.settings import Settings
 from factory.store import TaskStore, task_to_dict
 from factory.task import Task, TaskState
+from serving import repos_app
 
 S = TaskState
 
@@ -37,8 +38,9 @@ def ctx(tmp_path):
     context = Context(settings, store, Ledger(settings.ledger_path), stages={}, clock=lambda: datetime(2026, 1, 2, 3, 4, 5))
     settings.tasks_dir.mkdir(parents=True)
     token = load_or_create_token(settings.state_dir)
-    with TestClient(create_secured_app(context, token), base_url="http://127.0.0.1:8765") as http:
-        context.server = ServerClient(http, token, sleep=lambda seconds: None)
+    with TestClient(repos_app(context, token), base_url="http://127.0.0.1:8765") as http:
+        context.server = ServerClient(http, token, sleep=lambda seconds: None).for_repo("proj")
+        context.repo = "proj"
         yield context
 
 
@@ -228,7 +230,7 @@ def test_advance_prints_steps_and_exits_0_at_reviewed_pointing_at_approve(ctx):
     code, out, _ = run(ctx, "advance", "t1")
 
     assert code == 0
-    assert "plan -> planned" in out and "review -> reviewed" in out and "factory approve t1" in out
+    assert "plan -> planned" in out and "review -> reviewed" in out and "factory approve proj/t1" in out
 
 
 def test_advance_exits_0_at_audited(ctx):
@@ -245,7 +247,7 @@ def test_advance_exits_0_at_open_questions_pointing_at_answer(ctx):
     code, out, _ = run(ctx, "advance", "t1")
 
     assert code == 0
-    assert "plan -> open_questions" in out and "open questions; run: factory answer t1" in out
+    assert "plan -> open_questions" in out and "open questions; run: factory answer proj/t1" in out
     assert "no progress" not in out
 
 
@@ -985,7 +987,7 @@ def test_keeping_the_plan_shows_the_plan_and_context_then_creates_a_queued_task_
         assert text in out
     new = ctx.store.load("20260102-030405")
     assert new.state is S.QUEUED and new.retry_of == "t1" and new.plan == KEPT
-    assert "20260102-030405" in out and "factory advance 20260102-030405" in out
+    assert "20260102-030405" in out and "factory advance proj/20260102-030405" in out
 
 
 @pytest.mark.parametrize("answer", ["n\n", "\n", "yes\n", "", "Y y\n"])
@@ -1434,7 +1436,7 @@ def test_a_hint_names_the_task_with_its_repo_when_the_command_runs_in_one(ctx):
 
 
 def test_list_outside_any_repo_is_a_usage_error_naming_the_repo_option(ctx):
-    ctx.repo_required = True
+    ctx.repo = None
 
     code, out, err = run(ctx, "list")
 
@@ -1461,7 +1463,7 @@ def test_the_approve_line_names_how_many_required_notes_were_waived(ctx, approve
 
     _, out, _ = run(ctx, "approve", "t1", stdin="w 1 2\ny\n")
 
-    assert "approved and queued (2 required notes waived); run: factory advance t1" in out
+    assert "approved and queued (2 required notes waived); run: factory advance proj/t1" in out
 
 
 # --- waiving required notes at retry --keep-plan ---------------------------------

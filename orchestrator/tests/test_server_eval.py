@@ -37,11 +37,11 @@ def client(ctx):
 
 def _wait(client, job_id):
     client.app.state.runner.wait_idle()
-    return client.get(f"/jobs/{job_id}").json()
+    return client.get(f"/repos/proj/jobs/{job_id}").json()
 
 
 def test_eval_audit_runs_a_job_in_its_own_directory_and_reaps_only_that_directory(client, ctx):
-    response = client.post("/eval-audit", json={"runs": 1, "only": ["case-01"]})
+    response = client.post("/repos/proj/eval-audit", json={"runs": 1, "only": ["case-01"]})
 
     assert response.status_code == 202
     body = response.json()
@@ -56,7 +56,7 @@ def test_eval_audit_runs_a_job_in_its_own_directory_and_reaps_only_that_director
 
 @pytest.mark.parametrize("body", [{"runs": 0}, {"runs": "x"}, {"max_usd": 0}, {"only": ["nope"]}, {"only": "case-01"}])
 def test_eval_audit_with_bad_input_is_422_and_starts_nothing(client, ctx, body):
-    response = client.post("/eval-audit", json=body)
+    response = client.post("/repos/proj/eval-audit", json=body)
 
     assert response.status_code == 422
     assert not (ctx.settings.state_dir / "evals").exists()
@@ -78,7 +78,7 @@ def test_eval_audit_with_stage_config_runs_the_audit_stage_config(client, ctx):
             return super().run(task, config)
     ctx.eval_runner = lambda settings, eval_dir: ConfigSpy()
 
-    queued = client.post("/eval-audit", json={"runs": 1, "only": ["case-01"], "stage_config": True}).json()
+    queued = client.post("/repos/proj/eval-audit", json={"runs": 1, "only": ["case-01"], "stage_config": True}).json()
 
     assert _wait(client, queued["job"]["id"])["state"] == "succeeded"
     assert configs == [stage_config(AUDIT_CONFIG, ctx.settings, "audit")]
@@ -94,7 +94,7 @@ def test_eval_audit_without_stage_config_keeps_the_built_in_config(client, ctx):
     from factory.audit_task import AUDIT_CONFIG
     ctx.settings = replace(ctx.settings, stage_prompts={"audit": "Strict."})
 
-    queued = client.post("/eval-audit", json={"runs": 1, "only": ["case-01"]}).json()
+    queued = client.post("/repos/proj/eval-audit", json={"runs": 1, "only": ["case-01"]}).json()
 
     _wait(client, queued["job"]["id"])
     meta = json.loads((Path(queued["eval_dir"]) / "meta.json").read_text())
@@ -105,7 +105,7 @@ def test_eval_audit_records_the_configured_harness_in_the_meta(client, ctx):
     from dataclasses import replace
     ctx.settings = replace(ctx.settings, harness="other")
 
-    queued = client.post("/eval-audit", json={"runs": 1, "only": ["case-01"]}).json()
+    queued = client.post("/repos/proj/eval-audit", json={"runs": 1, "only": ["case-01"]}).json()
 
     _wait(client, queued["job"]["id"])
     assert json.loads((Path(queued["eval_dir"]) / "meta.json").read_text())["harness"] == "other"
@@ -115,7 +115,7 @@ def test_eval_audit_records_the_configured_sandbox_in_the_meta(client, ctx):
     from dataclasses import replace
     ctx.settings = replace(ctx.settings, sandbox="other")
 
-    queued = client.post("/eval-audit", json={"runs": 1, "only": ["case-01"]}).json()
+    queued = client.post("/repos/proj/eval-audit", json={"runs": 1, "only": ["case-01"]}).json()
 
     _wait(client, queued["job"]["id"])
     assert json.loads((Path(queued["eval_dir"]) / "meta.json").read_text())["sandbox"] == "other"
@@ -123,14 +123,14 @@ def test_eval_audit_records_the_configured_sandbox_in_the_meta(client, ctx):
 
 @pytest.mark.parametrize("value", ["yes", 1, None, []])
 def test_eval_audit_with_a_non_boolean_stage_config_is_422_and_starts_nothing(client, ctx, value):
-    response = client.post("/eval-audit", json={"stage_config": value})
+    response = client.post("/repos/proj/eval-audit", json={"stage_config": value})
 
     assert response.status_code == 422 and "stage_config" in response.json()["detail"]
     assert not (ctx.settings.state_dir / "evals").exists()
 
 
 def _first_eval(client):
-    queued = client.post("/eval-audit", json={"runs": 1, "only": ["case-01"]}).json()
+    queued = client.post("/repos/proj/eval-audit", json={"runs": 1, "only": ["case-01"]}).json()
     _wait(client, queued["job"]["id"])
     return queued["eval_dir"]
 
@@ -140,7 +140,7 @@ def test_resuming_under_a_different_sandbox_fails_the_job_and_names_the_sandbox(
     eval_dir = _first_eval(client)
     ctx.settings = replace(ctx.settings, sandbox="other")
 
-    response = client.post("/eval-audit", json={"runs": 1, "only": ["case-01"], "resume": Path(eval_dir).name})
+    response = client.post("/repos/proj/eval-audit", json={"runs": 1, "only": ["case-01"], "resume": Path(eval_dir).name})
 
     job = _wait(client, response.json()["job"]["id"])
     assert job["state"] == "failed" and "sandbox" in job["error"] and Path(eval_dir).name in job["error"]
@@ -151,7 +151,7 @@ def test_resuming_reuses_the_earlier_directory_and_reruns_nothing_valid(client, 
     ctx.built.clear()
     ctx.reap.calls.clear()
 
-    response = client.post("/eval-audit", json={"runs": 1, "only": ["case-01"], "resume": Path(eval_dir).name})
+    response = client.post("/repos/proj/eval-audit", json={"runs": 1, "only": ["case-01"], "resume": Path(eval_dir).name})
 
     assert response.status_code == 202 and response.json()["eval_dir"] == eval_dir
     job = _wait(client, response.json()["job"]["id"])
@@ -167,7 +167,7 @@ def test_resuming_something_that_is_not_an_earlier_eval_is_422_and_runs_nothing(
     ctx.built.clear()
     ctx.reap.calls.clear()
 
-    response = client.post("/eval-audit", json={"runs": 1, "resume": resume})
+    response = client.post("/repos/proj/eval-audit", json={"runs": 1, "resume": resume})
 
     assert response.status_code == 422 and "resume" in response.json()["detail"]
     assert ctx.built == [] and ctx.reap.calls == []
@@ -179,7 +179,7 @@ def test_resuming_against_a_changed_corpus_fails_the_job_with_a_message_and_runs
     meta.write_text(meta.read_text().replace('"corpus_hash": "', '"corpus_hash": "x'))
     ctx.built.clear()
 
-    response = client.post("/eval-audit", json={"runs": 1, "only": ["case-01"], "resume": FIRST_EVAL})
+    response = client.post("/repos/proj/eval-audit", json={"runs": 1, "only": ["case-01"], "resume": FIRST_EVAL})
 
     job = _wait(client, response.json()["job"]["id"])
     assert job["state"] == "failed" and "corpus" in job["error"].lower()
@@ -191,7 +191,7 @@ def test_resuming_against_a_changed_config_fails_the_job_with_a_message_and_runs
     meta.write_text(meta.read_text().replace('"model": "sonnet"', '"model": "opus"'))
     ctx.built.clear()
 
-    response = client.post("/eval-audit", json={"runs": 1, "only": ["case-01"], "resume": FIRST_EVAL})
+    response = client.post("/repos/proj/eval-audit", json={"runs": 1, "only": ["case-01"], "resume": FIRST_EVAL})
 
     job = _wait(client, response.json()["job"]["id"])
     assert job["state"] == "failed" and "config" in job["error"].lower() and FIRST_EVAL in job["error"]
@@ -205,7 +205,7 @@ def test_resuming_after_a_plugin_file_changed_fails_the_job_naming_the_plugins(c
     meta_file.write_text(json.dumps(meta))
     ctx.built.clear()
 
-    response = client.post("/eval-audit", json={"runs": 1, "only": ["case-01"], "resume": FIRST_EVAL})
+    response = client.post("/repos/proj/eval-audit", json={"runs": 1, "only": ["case-01"], "resume": FIRST_EVAL})
 
     job = _wait(client, response.json()["job"]["id"])
     assert job["state"] == "failed" and "plugin" in job["error"].lower() and FIRST_EVAL in job["error"]
@@ -218,7 +218,7 @@ def test_an_eval_whose_plugin_directory_holds_a_symlink_fails_the_job_without_na
     (plugin / "link").symlink_to(tmp_path)
     ctx.settings = replace(ctx.settings, stage_plugin_dirs={"audit": (plugin,)})
 
-    queued = client.post("/eval-audit", json={"runs": 1, "only": ["case-01"], "stage_config": True}).json()
+    queued = client.post("/repos/proj/eval-audit", json={"runs": 1, "only": ["case-01"], "stage_config": True}).json()
 
     job = _wait(client, queued["job"]["id"])
     assert (job["state"], job["error"]) == ("failed", "The job failed unexpectedly. The server log has the details.")
@@ -234,7 +234,7 @@ def test_resuming_through_a_symlink_is_422_and_runs_nothing(client, ctx, tmp_pat
     ctx.built.clear()
     ctx.reap.calls.clear()
 
-    response = client.post("/eval-audit", json={"runs": 1, "resume": "link"})
+    response = client.post("/repos/proj/eval-audit", json={"runs": 1, "resume": "link"})
 
     assert response.status_code == 422 and "resume" in response.json()["detail"]
     assert ctx.built == [] and ctx.reap.calls == []
@@ -246,7 +246,7 @@ def test_resuming_a_directory_another_run_holds_fails_the_job_naming_it(client, 
     ctx.built.clear()
 
     with state_lock(ctx.settings.state_dir / "evals" / FIRST_EVAL):
-        response = client.post("/eval-audit", json={"runs": 1, "only": ["case-01"], "resume": FIRST_EVAL})
+        response = client.post("/repos/proj/eval-audit", json={"runs": 1, "only": ["case-01"], "resume": FIRST_EVAL})
         job = _wait(client, response.json()["job"]["id"])
 
     assert job["state"] == "failed" and FIRST_EVAL in job["error"] and "already" in job["error"]
@@ -257,7 +257,7 @@ def test_resuming_with_different_runs_fails_the_job_with_a_message_and_runs_noth
     _first_eval(client)
     ctx.built.clear()
 
-    response = client.post("/eval-audit", json={"runs": 2, "only": ["case-01"], "resume": FIRST_EVAL})
+    response = client.post("/repos/proj/eval-audit", json={"runs": 2, "only": ["case-01"], "resume": FIRST_EVAL})
 
     job = _wait(client, response.json()["job"]["id"])
     assert job["state"] == "failed" and "runs=2" in job["error"] and "runs=1" in job["error"]

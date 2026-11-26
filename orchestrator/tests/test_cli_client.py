@@ -20,7 +20,7 @@ def ctx(tmp_path):
     settings = Settings(repo=tmp_path, state_dir=tmp_path / "state", worktree_root=tmp_path / "wt", home=tmp_path / "home")
     http = httpx2.Client(transport=httpx2.MockTransport(nobody_listening), base_url="http://127.0.0.1:8765")
     return Context(settings, TaskStore(settings.tasks_dir), Ledger(settings.ledger_path), stages={},
-                   clock=lambda: datetime(2026, 1, 2, 3, 4, 5), server=ServerClient(http, "tok"))
+                   clock=lambda: datetime(2026, 1, 2, 3, 4, 5), server=ServerClient(http, "tok"), repo="proj")
 
 
 def run(ctx, *argv):

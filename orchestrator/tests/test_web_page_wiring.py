@@ -4,10 +4,11 @@ import pytest
 from starlette.testclient import TestClient
 
 from factory.cli import Context
-from factory.server import create_secured_app, load_or_create_token
+from factory.server import load_or_create_token
 from factory.settings import Settings
 from factory.sqlite_ledger import SqliteLedger
 from factory.sqlite_store import SqliteTaskStore
+from serving import repos_app
 
 
 @pytest.fixture
@@ -16,15 +17,15 @@ def client(tmp_path):
     settings.state_dir.mkdir()
     ctx = Context(settings, SqliteTaskStore(settings.db_path), SqliteLedger(settings.db_path), stages={},
                   clock=lambda: datetime(2026, 1, 2, 3, 4, 5))
-    with TestClient(create_secured_app(ctx, load_or_create_token(settings.state_dir)), base_url="http://127.0.0.1:8765") as client:
+    with TestClient(repos_app(ctx, load_or_create_token(settings.state_dir)), base_url="http://127.0.0.1:8765") as client:
         client.get("/ui/login", params={"code": client.app.state.login_codes.issue()})
         yield client
 
 
-def test_the_table_is_wrapped_in_an_sse_subscription_to_the_tasks_event(client):
+def test_the_table_is_wrapped_in_an_sse_subscription_to_the_repos_event(client):
     page = client.get("/ui/").text
 
-    assert '<div id="tasks" hx-ext="sse" sse-connect="/ui/events" sse-swap="tasks">' in page
+    assert '<div id="repos" hx-ext="sse" sse-connect="/ui/events" sse-swap="repos">' in page
 
 
 def test_the_page_has_a_hidden_disconnected_banner_and_loads_ui_js(client):

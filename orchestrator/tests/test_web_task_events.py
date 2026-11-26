@@ -11,7 +11,7 @@ from webhelpers import add, assert_ui_security_headers
 pytest_plugins = ["webfixtures"]
 
 TIMEOUT = 5
-EVENTS = "/ui/tasks/20260102-030405/events"
+EVENTS = "/ui/repos/proj/tasks/20260102-030405/events"
 
 
 def read_events(client, path, count=1, after_first_event=None):
@@ -95,7 +95,7 @@ def broken(ctx):
     ("nothing-here", 404, "does not exist"), ("a.b", 404, "does not exist"), ("a%20b", 404, "does not exist"),
     ("%3Cscript%3E", 404, "does not exist"), ("broken-one", 500, "unreadable")])
 def test_the_task_stream_refuses_a_missing_invalid_or_unreadable_id_with_an_html_page(client, broken, task_id, status, text):
-    response = fetch_whole(client, f"/ui/tasks/{task_id}/events")
+    response = fetch_whole(client, f"/ui/repos/proj/tasks/{task_id}/events")
 
     assert response.status_code == status
     assert response.headers["content-type"].startswith("text/html")
@@ -136,7 +136,7 @@ def test_guard_the_task_stream_without_a_session_is_401(client, ctx):
     client.cookies.clear()
 
     assert fetch_whole(client, EVENTS).status_code == 401
-    assert fetch_whole(client, "/ui/tasks/nothing-here/events").status_code == 401
+    assert fetch_whole(client, "/ui/repos/proj/tasks/nothing-here/events").status_code == 401
 
 
 def test_the_task_stream_first_event_is_the_task_fragment(client, ctx):
@@ -244,7 +244,7 @@ def _save_silently(ctx, task):
 
 def test_a_job_state_write_wakes_the_task_stream(client, ctx):
     add(ctx, state=TaskState.QUEUED)
-    jobs = client.app.state.jobs
+    jobs = client.app.state.repos["proj"].jobs
     job = jobs.create("abandon", "20260102-030405")
 
     def change_task_unannounced_then_fail_the_job():
@@ -260,7 +260,8 @@ def test_a_job_state_write_wakes_the_task_stream(client, ctx):
 def test_a_refused_job_that_writes_no_task_re_renders_the_fragment_from_the_job_store(client, ctx, monkeypatch):
     add(ctx, state=TaskState.MERGED)
     state = client.app.state
-    latest, saw_failed_job = state.jobs.latest_for_task, threading.Event()
+    repo = state.repos["proj"]
+    latest, saw_failed_job = repo.jobs.latest_for_task, threading.Event()
 
     def latest_watched(task_id):
         job = latest(task_id)
@@ -268,7 +269,7 @@ def test_a_refused_job_that_writes_no_task_re_renders_the_fragment_from_the_job_
             saw_failed_job.set()
         return job
 
-    monkeypatch.setattr(state.jobs, "latest_for_task", latest_watched)
+    monkeypatch.setattr(repo.jobs, "latest_for_task", latest_watched)
     first_event = threading.Event()
 
     def read():
@@ -280,7 +281,7 @@ def test_a_refused_job_that_writes_no_task_re_renders_the_fragment_from_the_job_
     reader = threading.Thread(target=read, daemon=True)
     reader.start()
     assert first_event.wait(TIMEOUT), "no first event"
-    state.actions.enqueue_abandon("20260102-030405")  # a merged task cannot be abandoned: the job fails, no task write
+    repo.actions.enqueue_abandon("20260102-030405")  # a merged task cannot be abandoned: the job fails, no task write
 
     rendered = saw_failed_job.wait(TIMEOUT)
     state.request_stop()
@@ -288,14 +289,14 @@ def test_a_refused_job_that_writes_no_task_re_renders_the_fragment_from_the_job_
     state.runner.wait_idle()
 
     assert rendered, "the stream did not re-render after the refused job failed"
-    assert state.jobs.latest_for_task("20260102-030405").state == "failed"
+    assert repo.jobs.latest_for_task("20260102-030405").state == "failed"
     assert ctx.store.load("20260102-030405").state is TaskState.MERGED
 
 
 def test_guard_a_job_write_that_changes_nothing_shown_sends_no_event(client, ctx):
     add(ctx)
     client.app.state.keepalive_seconds = 0.2
-    jobs = client.app.state.jobs
+    jobs = client.app.state.repos["proj"].jobs
     job = jobs.create("abandon", "20260102-999999")
 
     _, (first, second) = read_events(client, EVENTS, count=2, after_first_event=lambda: jobs.mark_failed(job.id, "x"))

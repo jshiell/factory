@@ -14,8 +14,8 @@ QUESTIONS = ({"number": 1, "title": "t", "body": "b", "recommended": "plain"},
 
 def _grill_log_after_posting(client, ctx, task_id, fields_of):
     add(ctx, task_id, TaskState.OPEN_QUESTIONS, grill_rounds=1, open_questions=QUESTIONS)
-    fields = fields_of(client.get(f"/ui/tasks/{task_id}/answer").text)
-    response = client.post(f"/ui/tasks/{task_id}/answer", data=fields, headers=same_origin_headers(), follow_redirects=False)
+    fields = fields_of(client.get(f"/ui/repos/proj/tasks/{task_id}/answer").text)
+    response = client.post(f"/ui/repos/proj/tasks/{task_id}/answer", data=fields, headers=same_origin_headers(), follow_redirects=False)
     assert response.status_code == 303
     return ctx.store.load(task_id).grill_log
 

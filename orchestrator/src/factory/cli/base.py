@@ -107,7 +107,6 @@ class Context:
     serve: Callable[[object, str, int], None] = _serve_with_uvicorn
     server: ServerClient | None = None
     repo: str | None = None  # the repo this command runs in; qualifies the task ids it prints
-    repo_required: bool = False  # commands that act on a repo refuse to run when none was resolved
     probe: Callable[[int], float | None] = field(default_factory=ps_probe)
     group_alive: Callable[[int], bool] = group_alive
     watch_pass: Callable[..., None] = run_pass
@@ -165,7 +164,7 @@ def task_client(server: ServerClient, default_repo: str | None, ref: str) -> tup
 
 
 def _require_repo(ctx: Context) -> None:
-    if ctx.repo_required and ctx.repo is None:
+    if ctx.repo is None:
         raise NoRepo(NO_REPO_MESSAGE)
 
 

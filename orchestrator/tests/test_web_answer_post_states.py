@@ -14,7 +14,7 @@ TASK_ID = "20260102-030405"
 def test_posting_an_answer_for_a_task_without_open_questions_is_a_409_and_saves_nothing(client, ctx, state, fields):
     task = add(ctx, TASK_ID, state, goal="fix the widget")
 
-    response = client.post(f"/ui/tasks/{TASK_ID}/answer", data=fields, headers=same_origin_headers(), follow_redirects=False)
+    response = client.post(f"/ui/repos/proj/tasks/{TASK_ID}/answer", data=fields, headers=same_origin_headers(), follow_redirects=False)
 
     assert response.status_code == 409
     assert_ui_security_headers(response)

@@ -13,17 +13,17 @@ def test_the_page_shows_id_state_goal_or_prompt_and_failure_reason(client, ctx):
     add(ctx, "20260102-030405", TaskState.FAILED, goal="fix the widget", failure_reason="gate failed")
     add(ctx, "20260102-030406", goal=None, prompt="the raw prompt")
 
-    response = client.get("/ui/tasks/20260102-030405")
+    response = client.get("/ui/repos/proj/tasks/20260102-030405")
 
     assert response.status_code == 200
     for shown in ("20260102-030405", "failed", "fix the widget", "gate failed"):
         assert shown in response.text
-    assert "the raw prompt" in client.get("/ui/tasks/20260102-030406").text
+    assert "the raw prompt" in client.get("/ui/repos/proj/tasks/20260102-030406").text
 
 
 @pytest.mark.parametrize("task_id", ["20260102-999999", "a.b", "a%20b", "%3Cscript%3E"])
 def test_a_missing_or_invalid_id_gives_a_404_in_the_layout_without_the_id(client, task_id):
-    response = client.get(f"/ui/tasks/{task_id}")
+    response = client.get(f"/ui/repos/proj/tasks/{task_id}")
 
     assert response.status_code == 404
     assert '<link rel="stylesheet" href="/ui/static/ui.css">' in response.text
@@ -36,7 +36,7 @@ def test_an_unreadable_task_gives_an_html_unreadable_page_without_traceback_id_o
     with transaction(ctx.settings.db_path) as conn:
         conn.execute("INSERT INTO tasks (id, state, data) VALUES ('broken-one', 'queued', 'not json')")
 
-    response = client.get("/ui/tasks/broken-one")
+    response = client.get("/ui/repos/proj/tasks/broken-one")
 
     assert response.status_code == 500
     assert response.headers["content-type"].startswith("text/html")
@@ -48,7 +48,7 @@ def test_an_unreadable_task_gives_an_html_unreadable_page_without_traceback_id_o
 
 @pytest.mark.parametrize("task_id", ["a%2fb", "..%2fsecret", "a%2Fb"])
 def test_guard_an_encoded_slash_id_gives_a_404_without_the_id_and_with_the_security_headers(client, task_id):
-    response = client.get(f"/ui/tasks/{task_id}")
+    response = client.get(f"/ui/repos/proj/tasks/{task_id}")
 
     assert response.status_code == 404
     assert "secret" not in response.text and "a/b" not in response.text and "%2" not in response.text

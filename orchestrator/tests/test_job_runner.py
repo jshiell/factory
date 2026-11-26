@@ -16,14 +16,14 @@ def jobs(tmp_path):
 
 @pytest.fixture
 def runner(jobs):
-    runner = JobRunner(jobs)
+    runner = JobRunner()
     runner.start()
     yield runner
     runner.stop()
 
 
 def test_a_submitted_job_runs_and_records_its_result(runner, jobs):
-    job = runner.submit("advance", "t1", lambda: {"steps": 2})
+    job = runner.submit("advance", "t1", lambda: {"steps": 2}, jobs)
 
     runner.wait_idle()
 
@@ -35,8 +35,8 @@ def test_a_job_that_raises_is_failed_with_the_message_and_the_worker_survives(ru
     def boom():
         raise RuntimeError("kaboom")
 
-    bad = runner.submit("advance", "t1", boom)
-    good = runner.submit("advance", "t2", lambda: {"ok": True})
+    bad = runner.submit("advance", "t1", boom, jobs)
+    good = runner.submit("advance", "t2", lambda: {"ok": True}, jobs)
 
     runner.wait_idle()
 
@@ -46,8 +46,8 @@ def test_a_job_that_raises_is_failed_with_the_message_and_the_worker_survives(ru
 
 def test_jobs_run_one_at_a_time_in_submission_order(runner, jobs):
     release, order = threading.Event(), []
-    first = runner.submit("advance", "a", lambda: (release.wait(5), order.append("a"), {})[2])
-    second = runner.submit("merge", "b", lambda: (order.append("b"), {})[1])
+    first = runner.submit("advance", "a", lambda: (release.wait(5), order.append("a"), {})[2], jobs)
+    second = runner.submit("merge", "b", lambda: (order.append("b"), {})[1], jobs)
 
     assert jobs.get(second.id).state == "queued"
     release.set()
@@ -61,8 +61,8 @@ def test_a_job_error_with_a_lone_surrogate_is_still_recorded_and_the_worker_surv
     def boom():
         raise RuntimeError("bad \ud800 text")
 
-    bad = runner.submit("advance", "t1", boom)
-    good = runner.submit("advance", "t2", lambda: {"ok": True})
+    bad = runner.submit("advance", "t1", boom, jobs)
+    good = runner.submit("advance", "t2", lambda: {"ok": True}, jobs)
 
     deadline = time.monotonic() + 5  # no wait_idle: a dead worker would block it forever
     while jobs.get(good.id).state != "succeeded" and time.monotonic() < deadline:
@@ -85,8 +85,8 @@ def test_a_git_or_system_failure_is_failed_with_a_fixed_sentence_and_logged_esca
     def fail():
         raise error
 
-    bad = runner.submit("merge", "t1", fail)
-    good = runner.submit("advance", "t2", lambda: {"ok": True})
+    bad = runner.submit("merge", "t1", fail, jobs)
+    good = runner.submit("advance", "t2", lambda: {"ok": True}, jobs)
     runner.wait_idle()
 
     assert (jobs.get(bad.id).state, jobs.get(bad.id).error) == ("failed", JOB_FAILED_SENTENCE)
@@ -102,8 +102,8 @@ def test_an_unexpected_exception_is_failed_with_a_fixed_sentence_and_logged(runn
     def fail():
         raise ValueError("plugin /secret/path contains a symlink")
 
-    bad = runner.submit("eval", None, fail)
-    good = runner.submit("advance", "t2", lambda: {"ok": True})
+    bad = runner.submit("eval", None, fail, jobs)
+    good = runner.submit("advance", "t2", lambda: {"ok": True}, jobs)
     runner.wait_idle()
 
     assert (jobs.get(bad.id).state, jobs.get(bad.id).error) == ("failed", JOB_ERROR_SENTENCE)
@@ -119,11 +119,11 @@ class _FailsToRecordSuccess(JobStore):
 
 def test_a_failed_result_write_is_failed_with_the_fixed_sentence_logged_and_the_worker_survives(tmp_path, capsys):
     jobs = _FailsToRecordSuccess(tmp_path / "factory.db")
-    runner = JobRunner(jobs)
+    runner = JobRunner()
     runner.start()
     try:
-        first = runner.submit("advance", "t1", lambda: {"ok": True})
-        second = runner.submit("advance", "t2", lambda: {"ok": True})
+        first = runner.submit("advance", "t1", lambda: {"ok": True}, jobs)
+        second = runner.submit("advance", "t2", lambda: {"ok": True}, jobs)
         runner.wait_idle()
     finally:
         runner.stop()
@@ -153,11 +153,11 @@ def _raises(error):
 ], ids=["os error", "refusal", "unexpected"])
 def test_a_job_whose_failure_cannot_be_recorded_is_logged_and_the_worker_survives(tmp_path, capsys, error):
     jobs = _FailsToRecordFailure(tmp_path / "factory.db")
-    runner = JobRunner(jobs)
+    runner = JobRunner()
     runner.start()
     try:
-        bad = runner.submit("advance", "bad", _raises(error))
-        good = runner.submit("advance", "t2", lambda: {"ok": True})
+        bad = runner.submit("advance", "bad", _raises(error), jobs)
+        good = runner.submit("advance", "t2", lambda: {"ok": True}, jobs)
         deadline = time.monotonic() + 5  # no wait_idle: a dead worker would block it forever
         while jobs.get(good.id).state != "succeeded" and time.monotonic() < deadline:
             time.sleep(0.01)
@@ -184,10 +184,10 @@ class _FailsToRecordFailureOnce(JobStore):
 
 def test_a_system_failure_whose_first_recording_fails_is_failed_by_the_second_chance(tmp_path):
     jobs = _FailsToRecordFailureOnce(tmp_path / "factory.db")
-    runner = JobRunner(jobs)
+    runner = JobRunner()
     runner.start()
     try:
-        bad = runner.submit("advance", "t1", _raises(OSError("disk")))
+        bad = runner.submit("advance", "t1", _raises(OSError("disk")), jobs)
         runner.wait_idle()
     finally:
         runner.stop()
@@ -198,7 +198,7 @@ def test_a_system_failure_whose_first_recording_fails_is_failed_by_the_second_ch
 def test_a_job_submitted_with_its_own_store_is_recorded_and_finished_there(runner, jobs, tmp_path):
     other = JobStore(tmp_path / "other.db")
 
-    job = runner.submit("advance", "t1", lambda: {"steps": 1}, jobs=other)
+    job = runner.submit("advance", "t1", lambda: {"steps": 1}, other)
 
     runner.wait_idle()
 

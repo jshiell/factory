@@ -43,7 +43,7 @@ def client(ctx):
 
 
 def test_merge_preview_shows_branch_diffstat_findings_and_the_audited_sha(client, audited):
-    response = client.get("/tasks/t1/merge-preview")
+    response = client.get("/repos/proj/tasks/t1/merge-preview")
 
     body = response.json()
     assert response.status_code == 200
@@ -62,13 +62,13 @@ def test_merge_preview_lists_the_root_tool_config_the_merge_touches(client, ctx,
     ctx.store.save(Task(id="t2", prompt="p", state=TaskState.AUDITED, worktree=str(worktree), base_sha=base,
                         audited_sha=git(worktree, "rev-parse", "HEAD")))
 
-    assert client.get("/tasks/t2/merge-preview").json()["tool_config"] == [".mcp.json"]
+    assert client.get("/repos/proj/tasks/t2/merge-preview").json()["tool_config"] == [".mcp.json"]
 
 
 def test_merge_preview_of_a_task_that_is_not_audited_is_409(client, ctx, audited):
     ctx.store.save(replace(audited, state=TaskState.VERIFIED))
 
-    response = client.get("/tasks/t1/merge-preview")
+    response = client.get("/repos/proj/tasks/t1/merge-preview")
 
     assert response.status_code == 409
     assert response.json()["error"] == "merge refused"
@@ -78,7 +78,7 @@ def test_merge_preview_on_another_branch_than_main_branch_is_409(client, ctx, au
     ctx.settings = replace(ctx.settings, main_branch="main")
     git(repo, "checkout", "-q", "-b", "other")
 
-    response = client.get("/tasks/t1/merge-preview")
+    response = client.get("/repos/proj/tasks/t1/merge-preview")
 
     assert response.status_code == 409
     assert response.json()["error"] == "merge refused"
@@ -92,7 +92,7 @@ def test_a_git_failure_in_merge_preview_is_409_with_a_fixed_sentence_and_no_git_
     ctx.store.save(Task(id="t2", prompt="p", state=TaskState.AUDITED, worktree=str(tmp_path),
                         base_sha="0" * 40, audited_sha="1" * 40))  # no factory/t2 branch: rev-parse fails
 
-    response = client.get("/tasks/t2/merge-preview")
+    response = client.get("/repos/proj/tasks/t2/merge-preview")
 
     assert response.status_code == 409
     assert response.json() == {"error": "merge check failed", "detail": MERGE_CHECK_SENTENCE}
@@ -102,7 +102,7 @@ def test_a_git_failure_in_merge_preview_is_409_with_a_fixed_sentence_and_no_git_
 def test_a_missing_worktree_in_merge_preview_is_409_with_a_fixed_sentence_and_no_path(client, audited):
     shutil.rmtree(audited.worktree)
 
-    response = client.get("/tasks/t1/merge-preview")
+    response = client.get("/repos/proj/tasks/t1/merge-preview")
 
     assert response.status_code == 409
     assert response.json() == {"error": "merge check failed", "detail": MERGE_CHECK_SENTENCE}
@@ -112,7 +112,7 @@ def test_a_missing_worktree_in_merge_preview_is_409_with_a_fixed_sentence_and_no
 def test_an_audited_task_with_no_worktree_in_merge_preview_is_409_merge_check_failed(client, ctx, audited):
     ctx.store.save(replace(audited, worktree=None))
 
-    response = client.get("/tasks/t1/merge-preview")
+    response = client.get("/repos/proj/tasks/t1/merge-preview")
 
     assert response.status_code == 409
     assert response.json() == {"error": "merge check failed", "detail": MERGE_CHECK_SENTENCE}
@@ -121,22 +121,22 @@ def test_an_audited_task_with_no_worktree_in_merge_preview_is_409_merge_check_fa
 def test_a_verified_task_with_no_worktree_in_merge_preview_is_still_409_merge_refused(client, ctx, audited):
     ctx.store.save(replace(audited, state=TaskState.VERIFIED, worktree=None))
 
-    response = client.get("/tasks/t1/merge-preview")
+    response = client.get("/repos/proj/tasks/t1/merge-preview")
 
     assert (response.status_code, response.json()["error"]) == (409, "merge refused")
 
 
 def test_merge_preview_of_an_unknown_task_is_404(client):
-    assert client.get("/tasks/nope/merge-preview").status_code == 404
+    assert client.get("/repos/proj/tasks/nope/merge-preview").status_code == 404
 
 
 def _wait(client, job_id):
     client.app.state.runner.wait_idle()
-    return client.get(f"/jobs/{job_id}").json()
+    return client.get(f"/repos/proj/jobs/{job_id}").json()
 
 
 def test_merge_with_the_shown_sha_fast_forwards_main_and_records_merged(client, ctx, audited, repo):
-    response = client.post("/tasks/t1/merge", json={"audited_sha": audited.audited_sha})
+    response = client.post("/repos/proj/tasks/t1/merge", json={"audited_sha": audited.audited_sha})
 
     assert response.status_code == 202
     job = _wait(client, response.json()["job"]["id"])
@@ -148,8 +148,8 @@ def test_merge_with_the_shown_sha_fast_forwards_main_and_records_merged(client, 
 def test_a_merge_that_crashed_after_the_fast_forward_can_be_previewed_and_finished(client, ctx, audited, repo):
     git(repo, "merge", "-q", "--ff-only", audited.audited_sha)
 
-    assert client.get("/tasks/t1/merge-preview").status_code == 200
-    response = client.post("/tasks/t1/merge", json={"audited_sha": audited.audited_sha})
+    assert client.get("/repos/proj/tasks/t1/merge-preview").status_code == 200
+    response = client.post("/repos/proj/tasks/t1/merge", json={"audited_sha": audited.audited_sha})
 
     job = _wait(client, response.json()["job"]["id"])
     assert job["state"] == "succeeded"
@@ -157,7 +157,7 @@ def test_a_merge_that_crashed_after_the_fast_forward_can_be_previewed_and_finish
 
 
 def test_merge_with_a_stale_sha_is_409_and_changes_nothing(client, ctx, audited, repo):
-    response = client.post("/tasks/t1/merge", json={"audited_sha": "0" * 40})
+    response = client.post("/repos/proj/tasks/t1/merge", json={"audited_sha": "0" * 40})
 
     assert response.status_code == 409
     assert response.json()["error"] == "merge refused"
@@ -166,11 +166,11 @@ def test_merge_with_a_stale_sha_is_409_and_changes_nothing(client, ctx, audited,
 
 
 def test_merge_without_audited_sha_is_422(client, audited):
-    assert client.post("/tasks/t1/merge", json={}).status_code == 422
+    assert client.post("/repos/proj/tasks/t1/merge", json={}).status_code == 422
 
 
 def test_merge_of_an_unknown_task_is_404(client):
-    assert client.post("/tasks/nope/merge", json={"audited_sha": "x"}).status_code == 404
+    assert client.post("/repos/proj/tasks/nope/merge", json={"audited_sha": "x"}).status_code == 404
 
 
 def test_a_merge_that_main_outran_ends_the_job_failed_and_changes_nothing(client, ctx, audited, repo):
@@ -178,7 +178,7 @@ def test_a_merge_that_main_outran_ends_the_job_failed_and_changes_nothing(client
     git(repo, "add", "-A")
     git(repo, "commit", "-q", "-m", "main moved")
 
-    job = _wait(client, client.post("/tasks/t1/merge", json={"audited_sha": audited.audited_sha}).json()["job"]["id"])
+    job = _wait(client, client.post("/repos/proj/tasks/t1/merge", json={"audited_sha": audited.audited_sha}).json()["job"]["id"])
 
     assert job["state"] == "failed"
     assert job["error"].startswith("merge refused: ")
@@ -189,7 +189,7 @@ def test_a_merge_on_another_branch_than_main_branch_ends_the_job_failed_and_chan
     ctx.settings = replace(ctx.settings, main_branch="main")
     git(repo, "checkout", "-q", "-b", "other")
 
-    job = _wait(client, client.post("/tasks/t1/merge", json={"audited_sha": audited.audited_sha}).json()["job"]["id"])
+    job = _wait(client, client.post("/repos/proj/tasks/t1/merge", json={"audited_sha": audited.audited_sha}).json()["job"]["id"])
 
     assert job["state"] == "failed"
     assert job["error"] == "merge refused: main is on branch other, not main (main_branch in .factory/factory.toml)"
@@ -204,7 +204,7 @@ def test_a_rebase_on_another_branch_than_main_branch_ends_the_job_failed_and_cha
     git(repo, "commit", "-q", "-m", "main moved")
     git(repo, "checkout", "-q", "-b", "other")
 
-    job = _wait(client, client.post("/tasks/t1/rebase").json()["job"]["id"])
+    job = _wait(client, client.post("/repos/proj/tasks/t1/rebase").json()["job"]["id"])
 
     assert job["state"] == "failed"
     assert job["error"] == "rebase refused: main is on branch other, not main (main_branch in .factory/factory.toml)"
@@ -220,7 +220,7 @@ def test_a_git_failure_in_a_merge_job_stores_the_fixed_sentence_not_the_command(
 
     monkeypatch.setattr("factory.server.merge_task", fail)
 
-    job = _wait(client, client.post("/tasks/t1/merge", json={"audited_sha": audited.audited_sha}).json()["job"]["id"])
+    job = _wait(client, client.post("/repos/proj/tasks/t1/merge", json={"audited_sha": audited.audited_sha}).json()["job"]["id"])
 
     assert (job["state"], job["error"]) == ("failed", JOB_FAILED_SENTENCE)
 
@@ -231,7 +231,7 @@ def test_a_git_failure_in_a_rebase_job_stores_the_fixed_sentence_not_the_command
 
     monkeypatch.setattr("factory.server.rebase_task", fail)
 
-    job = _wait(client, client.post("/tasks/t1/rebase").json()["job"]["id"])
+    job = _wait(client, client.post("/repos/proj/tasks/t1/rebase").json()["job"]["id"])
 
     assert (job["state"], job["error"]) == ("failed", JOB_FAILED_SENTENCE)
 
@@ -251,7 +251,7 @@ def _another_failed_task(ctx, repo):
 
 
 def test_clean_preview_lists_what_would_be_removed_with_a_token(client, failed):
-    body = client.get("/clean-preview").json()
+    body = client.get("/repos/proj/clean-preview").json()
 
     assert [(c["id"], c["state"], c["dirty"], c["directory_exists"]) for c in body["candidates"]] == [("f1", "failed", True, True)]
     assert body["orphans"] == [] and body["skipped"] == []
@@ -259,17 +259,17 @@ def test_clean_preview_lists_what_would_be_removed_with_a_token(client, failed):
 
 
 def test_clean_preview_token_is_stable_until_something_changes(client, ctx, repo, failed):
-    first = client.get("/clean-preview").json()["token"]
-    assert client.get("/clean-preview").json()["token"] == first
+    first = client.get("/repos/proj/clean-preview").json()["token"]
+    assert client.get("/repos/proj/clean-preview").json()["token"] == first
     _another_failed_task(ctx, repo)
 
-    assert client.get("/clean-preview").json()["token"] != first
+    assert client.get("/repos/proj/clean-preview").json()["token"] != first
 
 
 def test_clean_with_the_shown_token_removes_the_worktree(client, ctx, failed):
-    token = client.get("/clean-preview").json()["token"]
+    token = client.get("/repos/proj/clean-preview").json()["token"]
 
-    response = client.post("/clean", json={"token": token})
+    response = client.post("/repos/proj/clean", json={"token": token})
 
     assert response.status_code == 202
     job = _wait(client, response.json()["job"]["id"])
@@ -279,10 +279,10 @@ def test_clean_with_the_shown_token_removes_the_worktree(client, ctx, failed):
 
 
 def test_clean_with_a_stale_token_is_409_and_removes_nothing(client, ctx, repo, failed):
-    token = client.get("/clean-preview").json()["token"]
+    token = client.get("/repos/proj/clean-preview").json()["token"]
     _another_failed_task(ctx, repo)
 
-    response = client.post("/clean", json={"token": token})
+    response = client.post("/repos/proj/clean", json={"token": token})
 
     assert response.status_code == 409
     assert response.json()["error"] == "clean refused"
@@ -290,7 +290,7 @@ def test_clean_with_a_stale_token_is_409_and_removes_nothing(client, ctx, repo, 
 
 
 def test_clean_without_a_token_is_422(client):
-    assert client.post("/clean", json={}).status_code == 422
+    assert client.post("/repos/proj/clean", json={}).status_code == 422
 
 
 CLEAN_CHECK_SENTENCE = "Git could not check the repository, so nothing can be cleaned."
@@ -318,12 +318,12 @@ def _assert_clean_check_refusal(response):
 def test_a_failed_check_in_clean_preview_is_409_with_a_fixed_sentence(client, monkeypatch, error):
     _failing_clean_candidates(monkeypatch, error)
 
-    _assert_clean_check_refusal(client.get("/clean-preview"))
+    _assert_clean_check_refusal(client.get("/repos/proj/clean-preview"))
 
 
 @pytest.mark.parametrize("error", CHECK_FAILURES, ids=["git failure", "os error"])
 def test_a_failed_check_in_clean_is_409_with_a_fixed_sentence_and_queues_nothing(client, monkeypatch, error):
     _failing_clean_candidates(monkeypatch, error)
 
-    _assert_clean_check_refusal(client.post("/clean", json={"token": "0" * 64}))
-    assert client.app.state.jobs.list() == []
+    _assert_clean_check_refusal(client.post("/repos/proj/clean", json={"token": "0" * 64}))
+    assert client.app.state.repos["proj"].jobs.list() == []

@@ -18,7 +18,7 @@ def _reviewed(ctx, **fields):
 
 
 def _post_approve(client, fields):
-    return client.post(f"/ui/tasks/{TASK_ID}/approve", data=fields, headers=same_origin_headers(), follow_redirects=False)
+    return client.post(f"/ui/repos/proj/tasks/{TASK_ID}/approve", data=fields, headers=same_origin_headers(), follow_redirects=False)
 
 
 def test_posting_the_shown_digest_queues_the_task_without_waivers_and_redirects_to_the_task_page(client, ctx):
@@ -27,7 +27,7 @@ def test_posting_the_shown_digest_queues_the_task_without_waivers_and_redirects_
     response = _post_approve(client, {"plan_digest": plan_digest(PLAN)})
 
     assert response.status_code == 303
-    assert response.headers["location"] == f"/ui/tasks/{TASK_ID}"
+    assert response.headers["location"] == f"/ui/repos/proj/tasks/{TASK_ID}"
     task = ctx.store.load(TASK_ID)
     assert task.state is TaskState.QUEUED
     assert task.waived_findings == ()

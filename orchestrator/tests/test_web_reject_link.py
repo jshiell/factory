@@ -7,12 +7,12 @@ from webhelpers import add
 pytest_plugins = ["webfixtures"]
 
 TASK_ID = "20260102-030405"
-REJECT_LINK = f'<a href="/ui/tasks/{TASK_ID}/reject">'
+REJECT_LINK = f'<a href="/ui/repos/proj/tasks/{TASK_ID}/reject">'
 
 
 def _fragment(ctx, state):
     add(ctx, TASK_ID, state, goal="fix the widget")
-    return _render_task(ctx.store.load(TASK_ID))
+    return _render_task(ctx.store.load(TASK_ID), base="/ui/repos/proj")
 
 
 def test_a_reviewed_tasks_fragment_links_to_the_reject_confirm_page(ctx):

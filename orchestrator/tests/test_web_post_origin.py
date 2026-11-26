@@ -6,7 +6,7 @@ from webposts import same_origin_headers
 pytest_plugins = ["webfixtures"]
 
 WRITE_METHODS = ["POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
-UI_PATHS = ["/ui", "/ui/", "/ui/login", "/ui/static/ui.js", "/ui/tasks/20260102-030405"]
+UI_PATHS = ["/ui", "/ui/", "/ui/login", "/ui/static/ui.js", "/ui/repos/proj/tasks/20260102-030405"]
 
 
 @pytest.mark.parametrize("path", UI_PATHS)

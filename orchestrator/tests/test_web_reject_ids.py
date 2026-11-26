@@ -29,17 +29,17 @@ def _assert_refusal_without_the_id(response, status, task_id):
 
 @pytest.mark.parametrize("task_id", REFUSED_IDS)
 def test_the_confirm_page_of_a_missing_or_invalid_id_is_a_404_without_the_id(client, task_id):
-    _assert_refusal_without_the_id(client.get(f"/ui/tasks/{task_id}/reject"), 404, task_id)
+    _assert_refusal_without_the_id(client.get(f"/ui/repos/proj/tasks/{task_id}/reject"), 404, task_id)
 
 
 def test_the_confirm_page_of_an_unreadable_task_is_a_500_without_the_id(client, ctx):
     _plant_unreadable_task(ctx)
 
-    _assert_refusal_without_the_id(client.get("/ui/tasks/broken-one/reject"), 500, "broken-one")
+    _assert_refusal_without_the_id(client.get("/ui/repos/proj/tasks/broken-one/reject"), 500, "broken-one")
 
 
 def _post_reject(client, task_id):
-    return client.post(f"/ui/tasks/{task_id}/reject", headers=same_origin_headers(), follow_redirects=False)
+    return client.post(f"/ui/repos/proj/tasks/{task_id}/reject", headers=same_origin_headers(), follow_redirects=False)
 
 
 @pytest.mark.parametrize("task_id", REFUSED_IDS)
@@ -78,7 +78,7 @@ class _FailsOnSecondLoad:
 @pytest.mark.parametrize("error, status", [(TaskNotFound("20260102-030405"), 404), (ValueError("20260102-030405 broken"), 500)])
 def test_a_task_lost_after_the_first_load_gives_the_same_page_and_saves_nothing(client, ctx, error, status):
     add(ctx, "20260102-030405", TaskState.REVIEWED)
-    client.app.state.store = store = _FailsOnSecondLoad(ctx.store, error)
+    client.app.state.repos["proj"].store = store = _FailsOnSecondLoad(ctx.store, error)
 
     _assert_refusal_without_the_id(_post_reject(client, "20260102-030405"), status, "20260102-030405")
 

@@ -16,7 +16,7 @@ ABSENT_FOR_A_BARE_TASK = ["Failure", "Risks", "Review findings", "Audit findings
 def test_a_list_section_appears_with_its_items(client, ctx, label, field):
     add(ctx, **{field: ("first item", "second item")})
 
-    page = client.get("/ui/tasks/20260102-030405").text
+    page = client.get("/ui/repos/proj/tasks/20260102-030405").text
 
     assert label in page
     assert "<li>first item</li>" in page and "<li>second item</li>" in page
@@ -25,7 +25,7 @@ def test_a_list_section_appears_with_its_items(client, ctx, label, field):
 def test_the_plan_is_rendered_as_markdown(client, ctx):
     add(ctx, plan="## step one\n\n- **bold** item")
 
-    page = client.get("/ui/tasks/20260102-030405").text
+    page = client.get("/ui/repos/proj/tasks/20260102-030405").text
 
     assert '<div class="plan"><h2>step one</h2>' in page
     assert "<li><strong>bold</strong> item</li>" in page
@@ -36,7 +36,7 @@ def test_open_questions_show_the_round_titles_and_recommended_answers(client, ct
                  {"number": 2, "title": "which port", "recommended": "8765"})
     add(ctx, state=TaskState.OPEN_QUESTIONS, grill_rounds=2, open_questions=questions)
 
-    page = client.get("/ui/tasks/20260102-030405").text
+    page = client.get("/ui/repos/proj/tasks/20260102-030405").text
 
     assert "Open questions (round 2)" in page
     for shown in ("1. which database", "recommended: sqlite", "2. which port", "recommended: 8765"):
@@ -56,7 +56,7 @@ def test_open_questions_show_the_round_titles_and_recommended_answers(client, ct
 def test_a_scalar_field_appears_when_set(client, ctx, fields, shown):
     add(ctx, **fields)
 
-    page = client.get("/ui/tasks/20260102-030405").text
+    page = client.get("/ui/repos/proj/tasks/20260102-030405").text
 
     for text in shown:
         assert text in page
@@ -76,7 +76,7 @@ FREE_TEXT_FIELDS = {
 def test_guard_markup_in_a_free_text_field_is_escaped(client, ctx, field):
     add(ctx, **{field: FREE_TEXT_FIELDS[field]})
 
-    page = client.get("/ui/tasks/20260102-030405").text
+    page = client.get("/ui/repos/proj/tasks/20260102-030405").text
 
     assert MARKUP not in page
     assert ESCAPED_MARKUP in page
@@ -92,7 +92,7 @@ def test_control_and_bidi_characters_in_a_free_text_field_are_escaped(client, ct
     fields = {"goal": None, "prompt": CONTROL} if field == "prompt" else {field: CONTROL_FIELDS[field]}
     add(ctx, **fields)
 
-    page = client.get("/ui/tasks/20260102-030405").text
+    page = client.get("/ui/repos/proj/tasks/20260102-030405").text
 
     assert not any(char in page for char in "\x1b\u202e\u200b")
     assert escape_control(CONTROL) in page
@@ -102,4 +102,4 @@ def test_control_and_bidi_characters_in_a_free_text_field_are_escaped(client, ct
 def test_guard_an_optional_section_is_absent_for_a_bare_task(client, ctx, label):
     add(ctx)
 
-    assert label not in client.get("/ui/tasks/20260102-030405").text
+    assert label not in client.get("/ui/repos/proj/tasks/20260102-030405").text

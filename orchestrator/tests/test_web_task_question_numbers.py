@@ -4,7 +4,7 @@ from webhelpers import add
 
 pytest_plugins = ["webfixtures"]
 
-PAGE = "/ui/tasks/20260102-030405"
+PAGE = "/ui/repos/proj/tasks/20260102-030405"
 CONTROL_CHARS = "\x1b\u202e\u200b"
 
 

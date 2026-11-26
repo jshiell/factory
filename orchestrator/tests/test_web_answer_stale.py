@@ -11,7 +11,7 @@ QUESTIONS = ({"number": 1, "title": "which database", "body": "pick one", "recom
 def test_posting_an_answer_for_an_old_round_is_a_409_questions_changed_page_and_changes_nothing(client, ctx):
     open_task = add(ctx, TASK_ID, TaskState.OPEN_QUESTIONS, goal="fix the widget", grill_rounds=3, open_questions=QUESTIONS)
 
-    response = client.post(f"/ui/tasks/{TASK_ID}/answer", data={"round": "2", "q0": "postgres"},
+    response = client.post(f"/ui/repos/proj/tasks/{TASK_ID}/answer", data={"round": "2", "q0": "postgres"},
                            headers=same_origin_headers(), follow_redirects=False)
 
     assert response.status_code == 409

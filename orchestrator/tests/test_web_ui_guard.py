@@ -4,10 +4,11 @@ import pytest
 from starlette.testclient import TestClient
 
 from factory.cli import Context
-from factory.server import create_secured_app, load_or_create_token
+from factory.server import load_or_create_token
 from factory.settings import Settings
 from factory.sqlite_ledger import SqliteLedger
 from factory.sqlite_store import SqliteTaskStore
+from serving import repos_app
 
 
 @pytest.fixture
@@ -25,7 +26,7 @@ def token(ctx):
 
 @pytest.fixture
 def client(ctx, token):
-    with TestClient(create_secured_app(ctx, token), base_url="http://127.0.0.1:8765") as client:
+    with TestClient(repos_app(ctx, token), base_url="http://127.0.0.1:8765") as client:
         yield client
 
 
@@ -44,7 +45,7 @@ def test_the_ui_with_only_the_bearer_token_is_401(client, token):
 def test_guard_the_api_is_not_opened_by_a_same_origin_origin(client, token):
     headers = {"Authorization": f"Bearer {token}", "Origin": "http://127.0.0.1:8765"}
 
-    assert client.get("/tasks", headers=headers).status_code == 403
+    assert client.get("/repos/proj/tasks", headers=headers).status_code == 403
 
 
 def test_guard_a_path_that_only_starts_with_ui_is_the_api(client):
@@ -134,7 +135,7 @@ def test_the_slashless_redirect_carries_the_security_headers(signed_in):
 
 
 def test_api_responses_do_not_get_the_ui_headers(client, token):
-    response = client.get("/tasks", headers={"Authorization": f"Bearer {token}"})
+    response = client.get("/repos/proj/tasks", headers={"Authorization": f"Bearer {token}"})
 
     assert "content-security-policy" not in response.headers
     assert "cache-control" not in response.headers

@@ -36,7 +36,7 @@ def app(client):
 
 @pytest.mark.smoke
 def test_post_tasks_creates_a_proposed_task_and_returns_its_id(client, ctx):
-    response = client.post("/tasks", json={"goal": "add multiply"})
+    response = client.post("/repos/proj/tasks", json={"goal": "add multiply"})
 
     assert response.status_code == 201
     assert response.json() == {"id": "20260102-030405"}
@@ -44,8 +44,8 @@ def test_post_tasks_creates_a_proposed_task_and_returns_its_id(client, ctx):
 
 
 def test_post_tasks_stores_the_grill_choice(client, ctx):
-    asked = client.post("/tasks", json={"goal": "g", "grill": True}).json()["id"]
-    plain = client.post("/tasks", json={"goal": "g", "grill": False}).json()["id"]
+    asked = client.post("/repos/proj/tasks", json={"goal": "g", "grill": True}).json()["id"]
+    plain = client.post("/repos/proj/tasks", json={"goal": "g", "grill": False}).json()["id"]
 
     assert (ctx.store.load(asked).grill, ctx.store.load(plain).grill) == (True, False)
 
@@ -54,21 +54,21 @@ def test_post_tasks_stores_the_grill_choice(client, ctx):
 def test_post_tasks_without_a_grill_follows_the_grill_setting(ctx, setting):
     ctx.settings = replace(ctx.settings, grill=setting)
     with served(ctx) as client:
-        task_id = client.post("/tasks", json={"goal": "g"}).json()["id"]
+        task_id = client.post("/repos/proj/tasks", json={"goal": "g"}).json()["id"]
 
     assert ctx.store.load(task_id).grill is setting
 
 
 @pytest.mark.parametrize("grill", ["yes", 1, None])
 def test_post_tasks_with_a_grill_that_is_not_a_bool_is_422_and_creates_nothing(client, ctx, grill):
-    response = client.post("/tasks", json={"goal": "g", "grill": grill})
+    response = client.post("/repos/proj/tasks", json={"goal": "g", "grill": grill})
 
     assert response.status_code == 422 and ctx.store.list().tasks == []
 
 
 @pytest.mark.parametrize("body", [{}, {"goal": ""}, {"goal": 5}, [], "text"])
 def test_post_tasks_without_a_goal_string_is_422_and_creates_nothing(client, ctx, body):
-    response = client.post("/tasks", json=body)
+    response = client.post("/repos/proj/tasks", json=body)
 
     assert response.status_code == 422
     assert response.json()["error"] == "invalid input"
@@ -76,7 +76,7 @@ def test_post_tasks_without_a_goal_string_is_422_and_creates_nothing(client, ctx
 
 
 def test_post_tasks_with_a_lone_surrogate_in_the_goal_is_422_and_creates_nothing(client, ctx):
-    response = client.post("/tasks", content=b'{"goal": "a\\ud800"}', headers={"content-type": "application/json"})
+    response = client.post("/repos/proj/tasks", content=b'{"goal": "a\\ud800"}', headers={"content-type": "application/json"})
 
     assert response.status_code == 422
     assert response.json()["error"] == "invalid input"
@@ -86,7 +86,7 @@ def test_post_tasks_with_a_lone_surrogate_in_the_goal_is_422_and_creates_nothing
 def test_post_tasks_with_a_goal_over_the_byte_limit_is_422_even_with_fewer_characters(client, ctx):
     goal = "é" * (MAX_GOAL_BYTES // 2) + "a"
 
-    response = client.post("/tasks", json={"goal": goal})
+    response = client.post("/repos/proj/tasks", json={"goal": goal})
 
     assert len(goal) < MAX_GOAL_BYTES
     assert response.status_code == 422
@@ -98,11 +98,11 @@ def test_post_tasks_accepts_a_goal_of_exactly_the_byte_limit(client):
     # guard: the limit is inclusive
     goal = "é" * (MAX_GOAL_BYTES // 2)
 
-    assert client.post("/tasks", json={"goal": goal}).status_code == 201
+    assert client.post("/repos/proj/tasks", json={"goal": goal}).status_code == 201
 
 
 def test_post_tasks_with_a_body_that_is_not_json_is_422(client):
-    response = client.post("/tasks", content=b"{nope", headers={"content-type": "application/json"})
+    response = client.post("/repos/proj/tasks", content=b"{nope", headers={"content-type": "application/json"})
 
     assert response.status_code == 422
 
@@ -111,7 +111,7 @@ def test_get_tasks_lists_ids_states_and_unreadable_rows(client, ctx):
     ctx.store.save(Task(id="a", prompt="", state=TaskState.PROPOSED))
     ctx.store.save(Task(id="b", prompt="", state=TaskState.FAILED, failure_reason="gate_failed"))
 
-    response = client.get("/tasks")
+    response = client.get("/repos/proj/tasks")
 
     assert response.status_code == 200
     assert response.json() == {
@@ -124,14 +124,14 @@ def test_get_tasks_lists_ids_states_and_unreadable_rows(client, ctx):
 def test_get_task_returns_every_field_of_the_task(client, ctx):
     ctx.store.save(Task(id="a", prompt="", state=TaskState.REVIEWED, goal="g", plan="p", plan_risks=("r",)))
 
-    response = client.get("/tasks/a")
+    response = client.get("/repos/proj/tasks/a")
 
     assert response.status_code == 200
     body = response.json()
     assert (body["id"], body["state"], body["goal"], body["plan"], body["plan_risks"]) == ("a", "reviewed", "g", "p", ["r"])
 
 
-@pytest.mark.parametrize("path", ["/tasks/nope", "/tasks/a.b"])
+@pytest.mark.parametrize("path", ["/repos/proj/tasks/nope", "/repos/proj/tasks/a.b"])
 def test_get_unknown_or_unsafe_task_id_is_404_with_the_error_shape(client, path):
     response = client.get(path)
 
@@ -143,7 +143,7 @@ def test_get_costs_reports_spend_by_stage_and_task(client, ctx):
     ctx.ledger.append("a", 0.25, stage="plan")
     ctx.ledger.append("a", 0.5, assumed=True, stage="implement")
 
-    response = client.get("/costs")
+    response = client.get("/repos/proj/costs")
 
     assert response.status_code == 200
     assert response.json() == {"by_stage": {"plan": 0.25, "implement": 0.5}, "by_task": {"a": 0.75},
@@ -151,7 +151,7 @@ def test_get_costs_reports_spend_by_stage_and_task(client, ctx):
 
 
 def test_get_costs_for_an_unknown_task_is_404(client):
-    assert client.get("/costs", params={"task_id": "nope"}).status_code == 404
+    assert client.get("/repos/proj/costs", params={"task_id": "nope"}).status_code == 404
 
 
 def stage_to(ctx, state):
@@ -167,12 +167,12 @@ def test_advance_returns_202_with_a_job_that_then_succeeds_with_the_steps(client
     ctx.stages["review"] = stage_to(ctx, TaskState.REVIEWED)
     ctx.store.save(Task(id="a", prompt="", state=TaskState.PROPOSED))
 
-    response = client.post("/tasks/a/advance")
+    response = client.post("/repos/proj/tasks/a/advance")
 
     assert response.status_code == 202
     job_id = response.json()["job"]["id"]
     app.state.runner.wait_idle()
-    job = client.get(f"/jobs/{job_id}").json()
+    job = client.get(f"/repos/proj/jobs/{job_id}").json()
     assert (job["state"], job["kind"], job["task_id"]) == ("succeeded", "advance", "a")
     assert job["result"] == {"steps": [{"stage": "plan", "state": "planned"}, {"stage": "review", "state": "reviewed"}],
                              "state": "reviewed",
@@ -187,21 +187,21 @@ def test_a_no_progress_stop_reports_the_raw_stage_error_in_the_job_result(client
     ctx.stages["plan"] = stuck
     ctx.store.save(Task(id="a", prompt="", state=TaskState.PROPOSED))
 
-    job_id = client.post("/tasks/a/advance").json()["job"]["id"]
+    job_id = client.post("/repos/proj/tasks/a/advance").json()["job"]["id"]
     app.state.runner.wait_idle()
 
-    result = client.get(f"/jobs/{job_id}").json()["result"]
+    result = client.get(f"/repos/proj/jobs/{job_id}").json()["result"]
     assert result["stopped"] == "plan: no progress (plan_malformed)"
     assert result["stopped_error"] == {"field": "plan_error", "code": "plan_malformed"}
 
 
 def test_advance_on_an_unknown_task_is_404_and_queues_nothing(client):
-    assert client.post("/tasks/nope/advance").status_code == 404
-    assert client.get("/jobs").json() == {"jobs": []}
+    assert client.post("/repos/proj/tasks/nope/advance").status_code == 404
+    assert client.get("/repos/proj/jobs").json() == {"jobs": []}
 
 
 def test_get_unknown_job_is_404_with_the_error_shape(client):
-    response = client.get("/jobs/nope")
+    response = client.get("/repos/proj/jobs/nope")
 
     assert response.status_code == 404
     assert response.json()["error"] == "unknown job"
@@ -210,11 +210,11 @@ def test_get_unknown_job_is_404_with_the_error_shape(client):
 def test_abandon_runs_as_a_job_and_fails_the_task_as_abandoned(client, app, ctx):
     ctx.store.save(Task(id="a", prompt="", state=TaskState.PLANNED))
 
-    response = client.post("/tasks/a/abandon")
+    response = client.post("/repos/proj/tasks/a/abandon")
 
     assert response.status_code == 202
     app.state.runner.wait_idle()
-    job = client.get(f"/jobs/{response.json()['job']['id']}").json()
+    job = client.get(f"/repos/proj/jobs/{response.json()['job']['id']}").json()
     assert (job["state"], job["kind"], job["result"]) == ("succeeded", "abandon", {"state": "failed", "failure_reason": "abandoned"})
     assert ctx.store.load("a").state is TaskState.FAILED
 
@@ -222,20 +222,20 @@ def test_abandon_runs_as_a_job_and_fails_the_task_as_abandoned(client, app, ctx)
 def test_an_abandon_the_domain_refuses_ends_as_a_failed_job_with_the_reason(client, app, ctx):
     ctx.store.save(Task(id="a", prompt="", state=TaskState.FAILED))
 
-    response = client.post("/tasks/a/abandon")
+    response = client.post("/repos/proj/tasks/a/abandon")
 
     app.state.runner.wait_idle()
-    job = client.get(f"/jobs/{response.json()['job']['id']}").json()
+    job = client.get(f"/repos/proj/jobs/{response.json()['job']['id']}").json()
     assert (job["state"], job["error"]) == ("failed", "abandon refused: a is failed, already finished")
 
 
 def test_recover_marks_a_running_task_interrupted_and_records_the_assumed_cost(client, app, ctx):
     ctx.store.save(Task(id="a", prompt="", state=TaskState.RUNNING))
 
-    response = client.post("/tasks/a/recover")
+    response = client.post("/repos/proj/tasks/a/recover")
 
     app.state.runner.wait_idle()
-    job = client.get(f"/jobs/{response.json()['job']['id']}").json()
+    job = client.get(f"/repos/proj/jobs/{response.json()['job']['id']}").json()
     assert (job["state"], job["result"]) == ("succeeded", {"state": "failed", "failure_reason": "interrupted"})
     assert ctx.ledger.entries()[0]["assumed"] is True
 
@@ -243,20 +243,20 @@ def test_recover_marks_a_running_task_interrupted_and_records_the_assumed_cost(c
 def test_a_recover_the_domain_refuses_ends_as_a_failed_job_with_the_reason(client, app, ctx):
     ctx.store.save(Task(id="a", prompt="", state=TaskState.PLANNED))
 
-    response = client.post("/tasks/a/recover")
+    response = client.post("/repos/proj/tasks/a/recover")
 
     app.state.runner.wait_idle()
-    job = client.get(f"/jobs/{response.json()['job']['id']}").json()
+    job = client.get(f"/repos/proj/jobs/{response.json()['job']['id']}").json()
     assert (job["state"], job["error"]) == ("failed", "recover refused: a is planned, not running")
 
 
 def test_rebase_on_a_task_in_the_wrong_state_ends_as_a_failed_job_with_the_reason(client, app, ctx):
     ctx.store.save(Task(id="a", prompt="", state=TaskState.PLANNED))
 
-    response = client.post("/tasks/a/rebase")
+    response = client.post("/repos/proj/tasks/a/rebase")
 
     app.state.runner.wait_idle()
-    job = client.get(f"/jobs/{response.json()['job']['id']}").json()
+    job = client.get(f"/repos/proj/jobs/{response.json()['job']['id']}").json()
     assert job["state"] == "failed"
     assert job["error"].startswith("rebase refused: ")
 
@@ -266,10 +266,10 @@ def test_rebase_reports_the_new_state_and_the_old_audited_commit(client, app, ct
     ctx.store.save(task)
     monkeypatch.setattr("factory.server.rebase_task", lambda *args: Rebased(task, "abc123"))
 
-    response = client.post("/tasks/a/rebase")
+    response = client.post("/repos/proj/tasks/a/rebase")
 
     app.state.runner.wait_idle()
-    job = client.get(f"/jobs/{response.json()['job']['id']}").json()
+    job = client.get(f"/repos/proj/jobs/{response.json()['job']['id']}").json()
     assert job["result"] == {"state": "agent_done", "failure_reason": None, "old_audited_sha": "abc123"}
 
 
@@ -283,7 +283,7 @@ def reviewed(ctx, plan="1. do it", findings=("[required] add a test", "nice to h
 def test_approval_preview_shows_the_plan_notes_and_the_digest_to_echo_back(client, ctx):
     task = reviewed(ctx)
 
-    response = client.get("/tasks/a/approval")
+    response = client.get("/repos/proj/tasks/a/approval")
 
     assert response.status_code == 200
     body = response.json()
@@ -295,13 +295,13 @@ def test_approval_preview_shows_the_plan_notes_and_the_digest_to_echo_back(clien
 def test_approval_preview_of_a_task_not_reviewed_is_409(client, ctx):
     ctx.store.save(Task(id="a", prompt="", state=TaskState.PLANNED))
 
-    assert client.get("/tasks/a/approval").status_code == 409
+    assert client.get("/repos/proj/tasks/a/approval").status_code == 409
 
 
 def test_approve_with_the_shown_digest_queues_the_task(client, ctx):
     task = reviewed(ctx)
 
-    response = client.post("/tasks/a/approve", json={"plan_digest": plan_digest(task.plan)})
+    response = client.post("/repos/proj/tasks/a/approve", json={"plan_digest": plan_digest(task.plan)})
 
     assert response.status_code == 200
     assert response.json() == {"id": "a", "state": "queued"}
@@ -311,7 +311,7 @@ def test_approve_with_the_shown_digest_queues_the_task(client, ctx):
 def test_approve_with_a_stale_digest_is_409_and_approves_nothing(client, ctx):
     reviewed(ctx)
 
-    response = client.post("/tasks/a/approve", json={"plan_digest": plan_digest("another plan")})
+    response = client.post("/repos/proj/tasks/a/approve", json={"plan_digest": plan_digest("another plan")})
 
     assert response.status_code == 409
     assert response.json()["error"] == "plan changed"
@@ -322,7 +322,7 @@ def test_approve_with_findings_that_differ_from_the_current_ones_is_409_and_appr
     task = reviewed(ctx)
 
     response = client.post(
-        "/tasks/a/approve", json={"plan_digest": plan_digest(task.plan), "review_findings": ["an older note"]})
+        "/repos/proj/tasks/a/approve", json={"plan_digest": plan_digest(task.plan), "review_findings": ["an older note"]})
 
     assert response.status_code == 409
     assert response.json()["error"] == "plan changed"
@@ -331,9 +331,9 @@ def test_approve_with_findings_that_differ_from_the_current_ones_is_409_and_appr
 
 def test_approve_with_the_findings_it_was_shown_queues_the_task(client, ctx):
     task = reviewed(ctx)
-    shown = client.get("/tasks/a/approval").json()["review_findings"]
+    shown = client.get("/repos/proj/tasks/a/approval").json()["review_findings"]
 
-    response = client.post("/tasks/a/approve", json={"plan_digest": plan_digest(task.plan), "review_findings": shown})
+    response = client.post("/repos/proj/tasks/a/approve", json={"plan_digest": plan_digest(task.plan), "review_findings": shown})
 
     assert response.status_code == 200
     assert ctx.store.load("a").state is TaskState.QUEUED
@@ -342,7 +342,7 @@ def test_approve_with_the_findings_it_was_shown_queues_the_task(client, ctx):
 def test_approve_with_review_findings_that_are_not_a_list_of_strings_is_422(client, ctx):
     task = reviewed(ctx)
 
-    response = client.post("/tasks/a/approve", json={"plan_digest": plan_digest(task.plan), "review_findings": [1]})
+    response = client.post("/repos/proj/tasks/a/approve", json={"plan_digest": plan_digest(task.plan), "review_findings": [1]})
 
     assert response.status_code == 422
     assert ctx.store.load("a").state is TaskState.REVIEWED
@@ -351,13 +351,13 @@ def test_approve_with_review_findings_that_are_not_a_list_of_strings_is_422(clie
 def test_approve_without_a_digest_is_422(client, ctx):
     reviewed(ctx)
 
-    assert client.post("/tasks/a/approve", json={}).status_code == 422
+    assert client.post("/repos/proj/tasks/a/approve", json={}).status_code == 422
 
 
 def test_approve_waiving_a_note_that_is_not_required_is_422_and_approves_nothing(client, ctx):
     task = reviewed(ctx)
 
-    response = client.post("/tasks/a/approve", json={"plan_digest": plan_digest(task.plan), "waive": ["nice to have"]})
+    response = client.post("/repos/proj/tasks/a/approve", json={"plan_digest": plan_digest(task.plan), "waive": ["nice to have"]})
 
     assert response.status_code == 422
     assert ctx.store.load("a").state is TaskState.REVIEWED
@@ -366,9 +366,9 @@ def test_approve_waiving_a_note_that_is_not_required_is_422_and_approves_nothing
 def test_reject_fails_a_reviewed_task_and_a_task_not_reviewed_is_409(client, ctx):
     reviewed(ctx)
 
-    assert client.post("/tasks/a/reject").status_code == 200
+    assert client.post("/repos/proj/tasks/a/reject").status_code == 200
     assert ctx.store.load("a").failure_reason == "plan_rejected_by_human"
-    assert client.post("/tasks/a/reject").status_code == 409
+    assert client.post("/repos/proj/tasks/a/reject").status_code == 409
 
 
 QUESTION = {"number": 1, "title": "Scope", "body": "Which module?", "recommended": "calc.py"}
@@ -382,7 +382,7 @@ def asking(ctx, task_id="a"):
 def test_answer_records_the_round_and_returns_the_task_to_proposed(client, ctx):
     asking(ctx)
 
-    response = client.post("/tasks/a/answer", json={"round": 1, "answers": "use calc.py"})
+    response = client.post("/repos/proj/tasks/a/answer", json={"round": 1, "answers": "use calc.py"})
 
     assert response.status_code == 200
     assert response.json() == {"id": "a", "state": "proposed"}
@@ -393,7 +393,7 @@ def test_answer_records_the_round_and_returns_the_task_to_proposed(client, ctx):
 def test_answer_to_a_task_that_is_not_asking_is_409_wrong_state(client, ctx):
     ctx.store.save(Task(id="a", prompt="", state=TaskState.PROPOSED, goal="g"))
 
-    response = client.post("/tasks/a/answer", json={"round": 0, "answers": "x"})
+    response = client.post("/repos/proj/tasks/a/answer", json={"round": 0, "answers": "x"})
 
     assert (response.status_code, response.json()["error"]) == (409, "wrong state")
 
@@ -401,7 +401,7 @@ def test_answer_to_a_task_that_is_not_asking_is_409_wrong_state(client, ctx):
 def test_answer_for_a_round_that_has_moved_on_is_409_round_changed(client, ctx):
     asking(ctx)
 
-    response = client.post("/tasks/a/answer", json={"round": 2, "answers": "x"})
+    response = client.post("/repos/proj/tasks/a/answer", json={"round": 2, "answers": "x"})
 
     assert (response.status_code, response.json()["error"]) == (409, "round changed")
     assert ctx.store.load("a").state is TaskState.OPEN_QUESTIONS
@@ -414,7 +414,7 @@ def test_answer_for_a_round_that_has_moved_on_is_409_round_changed(client, ctx):
 def test_bad_answers_are_422_and_change_nothing(client, ctx, body):
     asking(ctx)
 
-    response = client.post("/tasks/a/answer", json=body)
+    response = client.post("/repos/proj/tasks/a/answer", json=body)
 
     assert (response.status_code, response.json()["error"]) == (422, "invalid input")
     assert ctx.store.load("a").state is TaskState.OPEN_QUESTIONS
@@ -423,7 +423,7 @@ def test_bad_answers_are_422_and_change_nothing(client, ctx, body):
 def test_questions_returns_the_round_and_the_open_questions(client, ctx):
     asking(ctx)
 
-    response = client.get("/tasks/a/questions")
+    response = client.get("/repos/proj/tasks/a/questions")
 
     assert response.status_code == 200
     assert response.json() == {"round": 1, "questions": [QUESTION]}
@@ -432,23 +432,23 @@ def test_questions_returns_the_round_and_the_open_questions(client, ctx):
 def test_questions_of_a_task_that_is_not_asking_is_409_wrong_state(client, ctx):
     ctx.store.save(Task(id="a", prompt="", state=TaskState.PROPOSED, goal="g"))
 
-    response = client.get("/tasks/a/questions")
+    response = client.get("/repos/proj/tasks/a/questions")
 
     assert (response.status_code, response.json()["error"]) == (409, "wrong state")
 
 
 def test_questions_of_an_unknown_task_is_404(client):
-    assert client.get("/tasks/nope/questions").status_code == 404
+    assert client.get("/repos/proj/tasks/nope/questions").status_code == 404
 
 
 def test_answer_to_an_unknown_task_is_404(client):
-    assert client.post("/tasks/nope/answer", json={"round": 1, "answers": "x"}).status_code == 404
+    assert client.post("/repos/proj/tasks/nope/answer", json={"round": 1, "answers": "x"}).status_code == 404
 
 
 def test_retry_of_a_failed_task_creates_a_new_proposed_task_with_its_goal(client, ctx):
     ctx.store.save(Task(id="old", prompt="", state=TaskState.FAILED, goal="add multiply"))
 
-    response = client.post("/tasks/old/retry")
+    response = client.post("/repos/proj/tasks/old/retry")
 
     assert response.status_code == 201
     new = ctx.store.load(response.json()["id"])
@@ -458,7 +458,7 @@ def test_retry_of_a_failed_task_creates_a_new_proposed_task_with_its_goal(client
 def test_retry_of_a_task_that_is_not_failed_or_audited_is_409_and_creates_nothing(client, ctx):
     ctx.store.save(Task(id="old", prompt="", state=TaskState.PROPOSED, goal="g"))
 
-    response = client.post("/tasks/old/retry")
+    response = client.post("/repos/proj/tasks/old/retry")
 
     assert response.status_code == 409
     assert response.json()["error"] == "retry refused"
@@ -466,7 +466,7 @@ def test_retry_of_a_task_that_is_not_failed_or_audited_is_409_and_creates_nothin
 
 
 def test_retry_of_an_unknown_task_is_404(client):
-    assert client.post("/tasks/nope/retry").status_code == 404
+    assert client.post("/repos/proj/tasks/nope/retry").status_code == 404
 
 
 def _keepable(ctx, **changes):
@@ -481,7 +481,7 @@ def _keepable(ctx, **changes):
 def test_retry_preview_shows_what_a_kept_plan_retry_would_send(client, ctx):
     _keepable(ctx)
 
-    body = client.get("/tasks/old/retry-preview").json()
+    body = client.get("/repos/proj/tasks/old/retry-preview").json()
 
     assert body["goal"] == "g" and body["plan"] == "the plan" and body["risks"] == ["r1"]
     assert body["plan_digest"] == plan_digest("the plan")
@@ -493,13 +493,13 @@ def test_retry_preview_shows_what_a_kept_plan_retry_would_send(client, ctx):
 def test_retry_preview_of_a_task_with_no_plan_is_409(client, ctx):
     _keepable(ctx, plan=None, plan_digest=None)
 
-    assert client.get("/tasks/old/retry-preview").status_code == 409
+    assert client.get("/repos/proj/tasks/old/retry-preview").status_code == 409
 
 
 def test_retry_keeping_the_plan_queues_a_new_task_with_that_plan(client, ctx):
     _keepable(ctx)
 
-    response = client.post("/tasks/old/retry", json={"keep_plan": True, "plan_digest": plan_digest("the plan")})
+    response = client.post("/repos/proj/tasks/old/retry", json={"keep_plan": True, "plan_digest": plan_digest("the plan")})
 
     assert response.status_code == 201
     new = ctx.store.load(response.json()["id"])
@@ -510,7 +510,7 @@ def test_retry_keeping_the_plan_queues_a_new_task_with_that_plan(client, ctx):
 def test_retry_keeping_the_plan_with_a_stale_digest_is_409_and_creates_nothing(client, ctx):
     _keepable(ctx)
 
-    response = client.post("/tasks/old/retry", json={"keep_plan": True, "plan_digest": "stale"})
+    response = client.post("/repos/proj/tasks/old/retry", json={"keep_plan": True, "plan_digest": "stale"})
 
     assert response.status_code == 409 and response.json()["error"] == "retry refused"
     assert [t.id for t in ctx.store.list().tasks] == ["old"]
@@ -519,7 +519,7 @@ def test_retry_keeping_the_plan_with_a_stale_digest_is_409_and_creates_nothing(c
 def test_retry_keeping_the_plan_can_waive_a_required_note(client, ctx):
     _keepable(ctx)
 
-    response = client.post("/tasks/old/retry", json={
+    response = client.post("/repos/proj/tasks/old/retry", json={
         "keep_plan": True, "plan_digest": plan_digest("the plan"), "waive": ["RECOMMEND (required): fix x"]})
 
     new = ctx.store.load(response.json()["id"])
@@ -529,7 +529,7 @@ def test_retry_keeping_the_plan_can_waive_a_required_note(client, ctx):
 def test_retry_keeping_the_plan_with_an_invalid_waiver_is_422(client, ctx):
     _keepable(ctx)
 
-    response = client.post("/tasks/old/retry", json={
+    response = client.post("/repos/proj/tasks/old/retry", json={
         "keep_plan": True, "plan_digest": plan_digest("the plan"), "waive": ["not a note"]})
 
     assert response.status_code == 422 and response.json()["error"] == "invalid waiver"
@@ -539,7 +539,7 @@ def test_retry_keeping_the_plan_with_an_invalid_waiver_is_422(client, ctx):
 def test_retry_keeping_the_plan_can_reinstate_a_waived_note(client, ctx):
     _keepable(ctx, review_findings=("nit",), waived_findings=("RECOMMEND (required): fix x",))
 
-    response = client.post("/tasks/old/retry", json={
+    response = client.post("/repos/proj/tasks/old/retry", json={
         "keep_plan": True, "plan_digest": plan_digest("the plan"), "reinstate": ["RECOMMEND (required): fix x"]})
 
     new = ctx.store.load(response.json()["id"])
@@ -560,7 +560,7 @@ def blocked(client):
         release.wait(5)
         return {}
 
-    client.app.state.runner.submit("advance", None, hold)
+    client.app.state.runner.submit("advance", None, hold, client.app.state.repos["proj"].jobs)
     assert started.wait(5)
     yield release
     release.set()
@@ -568,23 +568,23 @@ def blocked(client):
 
 
 def test_quick_endpoints_answer_while_a_job_is_running(client, ctx, blocked):
-    assert client.post("/tasks", json={"goal": "g"}).status_code == 201
-    assert client.get("/tasks").status_code == 200
-    assert client.get("/jobs").status_code == 200
+    assert client.post("/repos/proj/tasks", json={"goal": "g"}).status_code == 201
+    assert client.get("/repos/proj/tasks").status_code == 200
+    assert client.get("/repos/proj/jobs").status_code == 200
     ctx.store.save(Task(id="r", prompt="", state=TaskState.REVIEWED, goal="g", plan="p", plan_digest=plan_digest("p")))
-    assert client.post("/tasks/r/reject").status_code == 200
+    assert client.post("/repos/proj/tasks/r/reject").status_code == 200
 
 
 def test_a_queued_job_whose_task_changed_meanwhile_ends_failed_and_changes_nothing(client, ctx, blocked):
     ctx.store.save(Task(id="t", prompt="", state=TaskState.RUNNING, worktree="w"))
-    job_id = client.post("/tasks/t/recover").json()["job"]["id"]
+    job_id = client.post("/repos/proj/tasks/t/recover").json()["job"]["id"]
     merged = Task(id="t", prompt="", state=TaskState.MERGED)
     ctx.store.save(merged)
 
     blocked.set()
     client.app.state.runner.wait_idle()
 
-    job = client.get(f"/jobs/{job_id}").json()
+    job = client.get(f"/repos/proj/jobs/{job_id}").json()
     assert job["state"] == "failed" and job["error"] == "recover refused: t is merged, not running"
     assert ctx.store.load("t") == merged
 
@@ -593,6 +593,6 @@ def test_approval_preview_warns_how_many_required_notes_the_cap_dropped(client, 
     from factory.review_notes import MAX_ITEMS
     reviewed(ctx, findings=tuple(f"gap {i}. Recommend (required): handle it" for i in range(MAX_ITEMS + 3)))
 
-    warning = client.get("/tasks/a/approval").json()["warning"]
+    warning = client.get("/repos/proj/tasks/a/approval").json()["warning"]
 
     assert warning.startswith(f"WARNING: 3 required note(s) beyond the first {MAX_ITEMS} were dropped")

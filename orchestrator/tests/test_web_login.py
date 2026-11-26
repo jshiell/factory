@@ -4,10 +4,11 @@ import pytest
 from starlette.testclient import TestClient
 
 from factory.cli import Context
-from factory.server import create_secured_app, load_or_create_token
+from factory.server import load_or_create_token
 from factory.settings import Settings
 from factory.sqlite_ledger import SqliteLedger
 from factory.sqlite_store import SqliteTaskStore
+from serving import repos_app
 
 COOKIE = "factory_session_8765"
 
@@ -27,7 +28,7 @@ def token(ctx):
 
 @pytest.fixture
 def client(ctx, token):
-    with TestClient(create_secured_app(ctx, token), base_url="http://127.0.0.1:8765") as client:
+    with TestClient(repos_app(ctx, token), base_url="http://127.0.0.1:8765") as client:
         yield client
 
 
@@ -79,7 +80,7 @@ def test_an_unknown_session_cookie_is_401(client):
 def test_guard_a_session_cookie_does_not_open_the_api(client):
     login(client)
 
-    assert client.get("/tasks").status_code == 401
+    assert client.get("/repos/proj/tasks").status_code == 401
 
 
 def test_the_slashless_ui_redirects_to_the_canonical_page(client):

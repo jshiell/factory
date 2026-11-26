@@ -2,7 +2,8 @@
 import pytest
 from starlette.testclient import TestClient
 
-from factory.server import create_secured_app, load_or_create_token
+from factory.server import load_or_create_token
+from serving import repos_app
 from test_server_allowed_hosts import make_ctx
 
 OWN = "127.0.0.1:8765"
@@ -12,7 +13,7 @@ OWN = "127.0.0.1:8765"
 def served_client(tmp_path):
     ctx = make_ctx(tmp_path, ())
     token = load_or_create_token(ctx.settings.state_dir)
-    with TestClient(create_secured_app(ctx, token), base_url=f"http://{OWN}") as client:
+    with TestClient(repos_app(ctx, token), base_url=f"http://{OWN}") as client:
         yield client, token
 
 
@@ -22,7 +23,7 @@ def get(client, path, *headers):
 
 def test_a_repeated_host_is_403_even_when_both_copies_are_loopback(served_client):
     client, token = served_client
-    assert get(client, "/tasks", ("Authorization", f"Bearer {token}"), ("Host", OWN), ("Host", OWN)) == 403
+    assert get(client, "/repos/proj/tasks", ("Authorization", f"Bearer {token}"), ("Host", OWN), ("Host", OWN)) == 403
 
 
 @pytest.mark.parametrize("name, value", [("Origin", f"http://{OWN}"), ("Sec-Fetch-Site", "same-origin")])
@@ -33,5 +34,5 @@ def test_a_repeated_ui_header_is_403(served_client, name, value):
 
 def test_a_single_copy_of_each_header_is_not_refused(served_client):
     client, token = served_client
-    assert get(client, "/tasks", ("Authorization", f"Bearer {token}"), ("Host", OWN)) == 200
+    assert get(client, "/repos/proj/tasks", ("Authorization", f"Bearer {token}"), ("Host", OWN)) == 200
     assert get(client, "/ui/login", ("Host", OWN), ("Origin", f"http://{OWN}"), ("Sec-Fetch-Site", "same-origin")) != 403

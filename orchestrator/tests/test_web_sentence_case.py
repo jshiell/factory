@@ -3,13 +3,16 @@
 The guard reads rendered pages with the stdlib HTML parser. Data (ids, goal and plan text, codes) is seeded as
 lower-case `zdata-...` values: the guard skips them and the paired test checks they are shown verbatim."""
 import pytest
+from starlette.testclient import TestClient
 
 from factory.clean_tasks import Candidate
 from factory.digest import plan_digest
 from factory.gate_cache import OrphanCache, OrphanScan
 from factory.review_notes import MAX_ITEMS
+from factory.server import load_or_create_token
 from factory.sqlite_db import transaction
 from factory.task import Task, TaskState
+from serving import repos_app
 from webhelpers import add
 from webmerge import _audit_task
 from webposts import same_origin_headers
@@ -17,9 +20,18 @@ from websentence import DATA_PREFIX, sentence_case_violations
 
 pytest_plugins = ["webfixtures", "webmerge"]
 
+REPO = f"{DATA_PREFIX}proj"  # a repo name is data too: shown as stored
 GOAL = f"{DATA_PREFIX}goal"
 FAILURE = f"{DATA_PREFIX}failure"
 BROKEN = f"{DATA_PREFIX}broken"
+
+
+@pytest.fixture
+def client(ctx):
+    token = load_or_create_token(ctx.settings.state_dir)
+    with TestClient(repos_app(ctx, token, REPO), base_url="http://127.0.0.1:8765") as client:
+        client.get("/ui/login", params={"code": client.app.state.login_codes.issue()})
+        yield client
 
 
 def seed_every_state(ctx):
@@ -50,14 +62,14 @@ STOPPED = f"{DATA_PREFIX}stopped"
 def task_page_in_state(state):
     def fetch(client, ctx):
         add(ctx, TASK, state, **FULL_TASK)
-        return client.get(f"/ui/tasks/{TASK}").text
+        return client.get(f"/ui/repos/{REPO}/tasks/{TASK}").text
     return fetch
 
 
 def task_page_with_job(job_state, result=None):
     def fetch(client, ctx):
         add(ctx, TASK, TaskState.FAILED, **FULL_TASK)
-        jobs = client.app.state.jobs
+        jobs = client.app.state.repos[REPO].jobs
         job = jobs.create("advance", TASK)
         if job_state == "running":
             jobs.mark_running(job.id)
@@ -67,13 +79,13 @@ def task_page_with_job(job_state, result=None):
             jobs.mark_failed(job.id, JOB_ERROR)
         elif job_state == "interrupted":
             jobs.interrupt_unfinished()
-        return client.get(f"/ui/tasks/{TASK}").text
+        return client.get(f"/ui/repos/{REPO}/tasks/{TASK}").text
     return fetch
 
 
 def jobs_page(client, ctx):
     add(ctx, TASK, TaskState.QUEUED)
-    jobs = client.app.state.jobs
+    jobs = client.app.state.repos[REPO].jobs
     jobs.create("advance", TASK)
     jobs.mark_running(jobs.create("rebase", TASK).id)
     jobs.mark_succeeded(jobs.create("merge", TASK).id, {})
@@ -96,11 +108,11 @@ def clean_page(client, ctx):
     with pytest.MonkeyPatch.context() as patch:
         patch.setattr("factory.server.clean_candidates", lambda *a, **k: found)
         patch.setattr("factory.server.orphan_caches", lambda *a, **k: orphans)
-        return client.get("/ui/clean").text
+        return client.get(f"/ui/repos/{REPO}/clean").text
 
 
 def nothing_to_clean_page(client, ctx):
-    return client.get("/ui/clean").text
+    return client.get(f"/ui/repos/{REPO}/clean").text
 
 
 PLAN = f"{DATA_PREFIX}plan"
@@ -115,7 +127,7 @@ RETRY_FIELDS = {"plan": PLAN, "plan_digest": plan_digest(PLAN), "failure_reason"
 def confirm_page(state, path, **fields):
     def fetch(client, ctx):
         add(ctx, TASK, state, **{"goal": GOAL, **fields})
-        return client.get(f"/ui/tasks/{TASK}/{path}").text
+        return client.get(f"/ui/repos/{REPO}/tasks/{TASK}/{path}").text
     return fetch
 
 
@@ -127,7 +139,7 @@ def merge_page(tool_config):
     def fetch(client, ctx):
         _audit_task(ctx, ctx.settings.repo, ".claude/x.json" if tool_config else "b.txt", goal=GOAL,
                     audit_findings=(f"{DATA_PREFIX}audit",))
-        return client.get(f"/ui/tasks/{TASK}/merge").text
+        return client.get(f"/ui/repos/{REPO}/tasks/{TASK}/merge").text
     return fetch
 
 
@@ -150,7 +162,7 @@ def post_page(path, data, state=None):
 def unreadable_task_page(client, ctx):
     with transaction(ctx.settings.db_path) as conn:
         conn.execute("INSERT INTO tasks (id, state, data) VALUES (?, 'queued', 'not json')", (TASK,))
-    return client.get(f"/ui/tasks/{TASK}").text
+    return client.get(f"/ui/repos/{REPO}/tasks/{TASK}").text
 
 
 def signed_out_page(path, **kwargs):
@@ -169,7 +181,7 @@ STOP_WITH_ERROR ={"stopped": STOPPED, "stopped_error": {"field": "plan_error", "
 
 # name -> (fetch(client, ctx) -> html, data values the page must show verbatim); a page group adds its pages here
 PAGES: dict = {
-    "tasks list": (tasks_list, (GOAL, FAILURE, BROKEN)),
+    "tasks list": (tasks_list, (REPO, GOAL, FAILURE, BROKEN)),
     **{f"task page {state.value}": (task_page_in_state(state), FULL_TASK_DATA) for state in TaskState},
     **{f"task page, job {job_state}": (task_page_with_job(job_state), FULL_TASK_DATA)
        for job_state in ("queued", "running", "succeeded", "interrupted")},
@@ -188,13 +200,13 @@ PAGES: dict = {
     "merge": (merge_page(False), (GOAL, f"{DATA_PREFIX}audit")),
     "merge, tool config": (merge_page(True), (GOAL, ".claude/x.json")),
     "abandon": (confirm_page(TaskState.QUEUED, "abandon"), (GOAL,)),
-    "missing task": (get_page("/ui/tasks/20990101-000000"), ()),
+    "missing task": (get_page(f"/ui/repos/{REPO}/tasks/20990101-000000"), ()),
     "unreadable task": (unreadable_task_page, ()),
-    "wrong state": (get_page(f"/ui/tasks/{TASK}/abandon", TaskState.FAILED), ()),
-    "not reviewed": (get_page(f"/ui/tasks/{TASK}/reject", TaskState.QUEUED), ()),
-    "no open questions": (get_page(f"/ui/tasks/{TASK}/answer", TaskState.QUEUED), ()),
+    "wrong state": (get_page(f"/ui/repos/{REPO}/tasks/{TASK}/abandon", TaskState.FAILED), ()),
+    "not reviewed": (get_page(f"/ui/repos/{REPO}/tasks/{TASK}/reject", TaskState.QUEUED), ()),
+    "no open questions": (get_page(f"/ui/repos/{REPO}/tasks/{TASK}/answer", TaskState.QUEUED), ()),
     "form rejected": (post_page("/ui/tasks/new", {}), ()),
-    "new task, blank goal": (post_page("/ui/tasks/new", {"goal": "  "}), ()),
+    "new task, blank goal": (post_page("/ui/tasks/new", {"repo": REPO, "goal": "  "}), ()),
     "login, bad code": (signed_out_page("/ui/login", params={"code": "bad"}), ()),
     "login, signed in": (login_page, ()),
     "not signed in": (signed_out_page("/ui/"), ()),

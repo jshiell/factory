@@ -18,7 +18,7 @@ def test_the_costs_page_shows_the_total_assumed_spend_and_each_stage_and_task(cl
     assert "Assumed: $2.00" in page
     assert "Plan: $3.25" in page
     assert "Audit: $0.50" in page
-    assert f'<a href="/ui/tasks/{TASK}">{TASK}</a>: $3.75' in page
+    assert f'<a href="/ui/repos/proj/tasks/{TASK}">{TASK}</a>: $3.75' in page
 
 
 def test_the_costs_page_of_an_empty_ledger_shows_zero(client):

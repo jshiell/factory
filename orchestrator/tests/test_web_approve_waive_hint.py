@@ -12,7 +12,7 @@ def test_the_approve_page_tells_the_reader_the_terminal_command_that_waives_a_no
     add(ctx, TASK_ID, TaskState.REVIEWED, goal="fix the widget", plan=PLAN, plan_digest=plan_digest(PLAN),
         review_findings=("Recommend (required): cover edge cases",))
 
-    page = client.get(f"/ui/tasks/{TASK_ID}/approve").text
+    page = client.get(f"/ui/repos/proj/tasks/{TASK_ID}/approve").text
 
     assert f"To waive a note, run <code>factory approve {TASK_ID}</code> in a terminal instead." in page
     assert "needs the CLI" not in page

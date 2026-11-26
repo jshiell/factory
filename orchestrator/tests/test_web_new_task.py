@@ -12,6 +12,7 @@ FORM = "application/x-www-form-urlencoded"
 
 
 def _post(client, body: str, content_type: str = FORM):
+    body = f"repo=proj&{body}" if body and content_type == FORM else body
     return client.post("/ui/tasks/new", content=body.encode(), follow_redirects=False,
                        headers={**same_origin_headers(), "Content-Type": content_type})
 
@@ -26,11 +27,11 @@ def test_posting_a_goal_creates_a_proposed_task_without_starting_it_and_redirect
 
     task = _only_task(ctx)
     assert response.status_code == 303
-    assert response.headers["location"] == f"/ui/tasks/{task.id}"
+    assert response.headers["location"] == f"/ui/repos/proj/tasks/{task.id}"
     assert task.state is TaskState.PROPOSED
     assert (task.goal, task.grill) == ("fix the widget", True)
     client.app.state.runner.wait_idle()
-    assert client.app.state.jobs.latest_for_task(task.id) is None
+    assert client.app.state.repos["proj"].jobs.latest_for_task(task.id) is None
 
 
 def test_a_form_without_the_grill_box_ticked_creates_a_task_with_grill_off(client, ctx):
@@ -77,7 +78,7 @@ def test_a_lone_surrogate_goal_cannot_crash_the_route_or_reach_the_store(client,
 
 
 def test_a_goal_that_cannot_be_encoded_is_the_form_message_not_a_crash(client, ctx, monkeypatch):
-    monkeypatch.setattr("factory.web.routes._read_form", _async_form({"goal": ["\ud800"]}))
+    monkeypatch.setattr("factory.web.routes._read_form", _async_form({"goal": ["\ud800"], "repo": ["proj"]}))
 
     response = _post(client, "ignored")
 

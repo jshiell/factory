@@ -36,9 +36,9 @@ class _MovesOnSecondLoad:
 
 def test_a_task_that_left_reviewed_after_the_first_load_gives_the_409_page_and_saves_nothing(client, ctx):
     add(ctx, TASK_ID, TaskState.REVIEWED, goal="fix the widget", plan=PLAN, plan_digest=plan_digest(PLAN))
-    client.app.state.store = store = _MovesOnSecondLoad(ctx.store, TaskState.FAILED)
+    client.app.state.repos["proj"].store = store = _MovesOnSecondLoad(ctx.store, TaskState.FAILED)
 
-    response = client.post(f"/ui/tasks/{TASK_ID}/approve", data={"plan_digest": plan_digest(PLAN)},
+    response = client.post(f"/ui/repos/proj/tasks/{TASK_ID}/approve", data={"plan_digest": plan_digest(PLAN)},
                            headers=same_origin_headers(), follow_redirects=False)
 
     assert response.status_code == 409
