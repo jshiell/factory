@@ -1,7 +1,7 @@
 from types import SimpleNamespace
 from urllib.parse import urlsplit, urlunsplit
 
-from factory.cli.base import _ask_with_waiver, _coded, _run_job, _task_path
+from factory.cli.base import _ask_with_waiver, _coded, _ref, _run_job, _task_path
 from factory.client import ServerRefused
 from factory.ids import require_safe_id
 from factory.question_text import questions_text
@@ -88,9 +88,9 @@ def _advance(args, io, ctx) -> int:
             print(f"{field}: {_coded(field, code)}", file=io.stdout)
         return 1
     if result["state"] == TaskState.REVIEWED.value:
-        print(f"review passed; run: factory approve {args.task_id}", file=io.stdout)
+        print(f"review passed; run: factory approve {_ref(ctx, args.task_id)}", file=io.stdout)
     if result["state"] == TaskState.OPEN_QUESTIONS.value:
-        print(f"open questions; run: factory answer {args.task_id}", file=io.stdout)
+        print(f"open questions; run: factory answer {_ref(ctx, args.task_id)}", file=io.stdout)
     return 1 if result["state"] == TaskState.FAILED.value else 0
 
 
@@ -125,7 +125,7 @@ def _answer(args, io, ctx) -> int:
         else:
             raise
         return 1
-    print(f"{args.task_id}: answered; run: factory advance {args.task_id}", file=io.stdout)
+    print(f"{_ref(ctx, args.task_id)}: answered; run: factory advance {_ref(ctx, args.task_id)}", file=io.stdout)
     return 0
 
 
@@ -187,7 +187,7 @@ def _approve(args, io, ctx) -> int:
             raise
         return 1
     waived_note = f" ({len(waived)} required note{'s' if len(waived) != 1 else ''} waived)" if waived else ""
-    print(f"{args.task_id}: approved and queued{waived_note}; run: factory advance {args.task_id}", file=io.stdout)
+    print(f"{_ref(ctx, args.task_id)}: approved and queued{waived_note}; run: factory advance {_ref(ctx, args.task_id)}", file=io.stdout)
     return 0
 
 

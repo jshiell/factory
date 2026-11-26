@@ -106,6 +106,7 @@ class Context:
     eval_runner: Callable[[Settings, Path], Runner] = _real_eval_runner
     serve: Callable[[object, str, int], None] = _serve_with_uvicorn
     server: ServerClient | None = None
+    repo: str | None = None  # the repo this command runs in; qualifies the task ids it prints
     probe: Callable[[int], float | None] = field(default_factory=ps_probe)
     group_alive: Callable[[int], bool] = group_alive
     watch_pass: Callable[..., None] = run_pass
@@ -143,6 +144,11 @@ def task_client(server: ServerClient, default_repo: str | None, ref: str) -> tup
             raise NoRepo("no repo for this task: run inside a repo under the factory home, pass --repo <name>, or use <repo>/<id>")
         repo = default_repo
     return server.for_repo(repo), require_safe_id(task_id)
+
+
+def _ref(ctx: Context, task_id: str) -> str:
+    """How to name the task on a command line: <repo>/<id> in a repo, else the bare id."""
+    return f"{ctx.repo}/{task_id}" if ctx.repo else task_id
 
 
 def _task_path(task_id: str, suffix: str = "") -> str:

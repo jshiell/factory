@@ -1423,6 +1423,16 @@ def test_w_when_no_note_is_required_approves_nothing(ctx, approve_kwargs):
     assert code == 1 and approve_kwargs == [] and err.strip()
 
 
+def test_a_hint_names_the_task_with_its_repo_when_the_command_runs_in_one(ctx):
+    ctx.repo = "proj"
+    put(ctx, goal="g", grill=True)
+    ctx.stages.update({"plan": moving(ctx, S.OPEN_QUESTIONS, grill_rounds=1)})
+
+    _, out, _ = run(ctx, "advance", "t1")
+
+    assert "open questions; run: factory answer proj/t1" in out
+
+
 def test_an_invalid_waiver_from_approve_is_reported_as_such_not_as_a_changed_plan(ctx, monkeypatch):
     from factory.waiver import InvalidWaiver
 

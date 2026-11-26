@@ -1,7 +1,7 @@
 from types import SimpleNamespace
 
 from factory.audit_gaps import split_quoting_waived
-from factory.cli.base import _ask_with_waiver, _coded, _run_job, _task_path
+from factory.cli.base import _ask_with_waiver, _coded, _ref, _run_job, _task_path
 from factory.client import ServerRefused
 from factory.store import task_from_dict
 from factory.task import TaskState
@@ -75,7 +75,7 @@ def _retry_keeping_plan(task_id: str, io, ctx) -> int:
         else:
             raise
         return 1
-    print(f"{new['id']}: queued with the approved plan; run: factory advance {new['id']}", file=io.stdout)
+    print(f"{_ref(ctx, new['id'])}: queued with the approved plan; run: factory advance {_ref(ctx, new['id'])}", file=io.stdout)
     return 0
 
 
@@ -100,7 +100,7 @@ def _rebase(args, io, ctx) -> int:
     rebased = _run_job(ctx, io, _task_path(args.task_id, "/rebase"))
     if rebased is None:
         return 1
-    print(f"{args.task_id}: rebased onto main, back to agent_done; run `factory advance {args.task_id}` to re-verify and re-audit", file=io.stdout)
+    print(f"{_ref(ctx, args.task_id)}: rebased onto main, back to agent_done; run `factory advance {_ref(ctx, args.task_id)}` to re-verify and re-audit", file=io.stdout)
     print(f"the previously audited commit was {rebased['old_audited_sha']}; it is unreachable once the branch is cleaned", file=io.stdout)
     return 0
 
