@@ -193,3 +193,14 @@ def test_a_system_failure_whose_first_recording_fails_is_failed_by_the_second_ch
         runner.stop()
 
     assert (jobs.get(bad.id).state, jobs.get(bad.id).error) == ("failed", JOB_ERROR_SENTENCE)
+
+
+def test_a_job_submitted_with_its_own_store_is_recorded_and_finished_there(runner, jobs, tmp_path):
+    other = JobStore(tmp_path / "other.db")
+
+    job = runner.submit("advance", "t1", lambda: {"steps": 1}, jobs=other)
+
+    runner.wait_idle()
+
+    assert (other.get(job.id).state, other.get(job.id).result) == ("succeeded", {"steps": 1})
+    assert jobs.list() == []
