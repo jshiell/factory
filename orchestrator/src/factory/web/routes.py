@@ -1,4 +1,5 @@
 import asyncio
+import sqlite3
 import subprocess
 from collections.abc import Callable
 from contextlib import aclosing
@@ -684,9 +685,16 @@ async def _ui_page(request: Request) -> HTMLResponse:
     return HTMLResponse(_TEMPLATES.get_template("page.html").render(_tasks_context(request.app.state.store)))
 
 
+def _repo_section(registry, name: str) -> dict:
+    section = {"name": name, "base": f"/ui/repos/{name}"}
+    try:
+        return {**section, **_tasks_context(registry.get(name).store)}
+    except (sqlite3.Error, OSError):  # one repo's broken database must not take the index down
+        return {**section, "unreadable": True}
+
+
 def _repos_context(registry) -> dict:
-    return {"repos": [{"name": name, "base": f"/ui/repos/{name}", **_tasks_context(registry.get(name).store)}
-                      for name in registry.started_names]}
+    return {"repos": [_repo_section(registry, name) for name in registry.started_names]}
 
 
 async def _repos_index(request: Request) -> HTMLResponse:
