@@ -39,11 +39,10 @@ def test_server_allowed_hosts_defaults_to_empty_and_comes_from_the_repo_config(r
     assert load_settings(None, cwd=repo_dir).server_allowed_hosts == ("nas.lan", "192.168.1.5")
 
 
-def test_server_allowed_hosts_is_rejected_in_the_global_config(repo_dir, global_config):
+def test_server_allowed_hosts_is_read_from_the_global_config(repo_dir, global_config):
     global_config.write_text('server_allowed_hosts = ["nas.lan"]\n')
 
-    with pytest.raises(SettingsError, match=r"server_allowed_hosts.*global|global.*server_allowed_hosts"):
-        load_settings(None, cwd=repo_dir)
+    assert load_settings(None, cwd=repo_dir).server_allowed_hosts == ("nas.lan",)
 
 
 @pytest.mark.parametrize("value", ['"nas.lan"', "3", "[]"])

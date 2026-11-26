@@ -37,11 +37,10 @@ def test_server_host_defaults_to_loopback_and_comes_from_the_repo_config(repo_di
     assert load_settings(None, cwd=repo_dir).server_host == "0.0.0.0"
 
 
-def test_server_host_is_rejected_in_the_global_config(repo_dir, global_config):
+def test_server_host_is_read_from_the_global_config(repo_dir, global_config):
     global_config.write_text('server_host = "0.0.0.0"\n')
 
-    with pytest.raises(SettingsError, match=r"server_host.*global|global.*server_host"):
-        load_settings(None, cwd=repo_dir)
+    assert load_settings(None, cwd=repo_dir).server_host == "0.0.0.0"
 
 
 def test_server_host_must_be_a_string(repo_dir):

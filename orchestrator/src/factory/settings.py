@@ -201,8 +201,6 @@ def _global_layer(path: Path) -> dict:
 _PER_REPO_KEYS = (
     "repo", "state_dir", "worktree_root", "watch_approvers", "watch_merge", "watch_retry", "main_branch",
     "gate_allow_dependency_changes",  # a standing opt-out of a security check: never global
-    "server_host",  # a global 0.0.0.0 would open every project's server
-    "server_allowed_hosts",  # a global list would let every project's server answer to those names
 )
 
 
