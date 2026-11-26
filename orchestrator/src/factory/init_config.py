@@ -1,9 +1,10 @@
 from factory.settings import global_config_path
 
 TEMPLATE = '''\
-# Global factory settings, applied to every project.
-# A project's own .factory/factory.toml (or --config) overrides these key by key.
-# Per-repo paths (repo, state_dir, worktree_root) are not allowed here.
+# Global factory settings, applied to every repo under this home.
+# A repo's own .factory/factory.toml overrides these key by key.
+# Per-repo keys (watch_approvers, watch_merge, watch_retry, main_branch, gate_allow_dependency_changes) are not allowed here.
+# The server's keys (server_port, server_host, server_allowed_hosts) are allowed only here.
 # Uncomment and edit what you want to change.
 
 # harness = "claude"
@@ -13,6 +14,9 @@ TEMPLATE = '''\
 # cap_usd = 5.0
 # max_turns = 30
 # fix_rounds = 2
+# server_port = 8765
+# server_host = "127.0.0.1"
+# server_allowed_hosts = ["nas.lan"]
 # allowed_tools = ["Read", "Grep"]
 # append_system_prompt = "Text appended to every stage's system prompt."
 
