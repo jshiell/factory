@@ -149,11 +149,16 @@ def load_settings(path: Path | None, cwd: Path) -> Settings:
 _FIXED_LAYOUT_KEYS = ("repo", "state_dir", "worktree_root")
 
 
-def load_repo_settings(home: Path, name: str) -> Settings:
-    """Settings for the repo at `<home>/<name>/repo`: the global config under the repo's own, in a fixed layout."""
+def load_repo_settings(home: Path, name: str, config: Path | None = None) -> Settings:
+    """Settings for the repo at `<home>/<name>/repo`: the global config under the repo's own, in a fixed layout.
+
+    `config` only moves the repo's own config file; it cannot move the layout.
+    """
     project = home / name
     repo = project / "repo"
-    path = repo / PROJECT_CONFIG
+    path = config or repo / PROJECT_CONFIG
+    if config:
+        _check_config_outside_editable_area(config, {repo})
     global_path = home / "factory.toml"
     global_layer = _global_layer(global_path) if global_path.exists() else {}
     if path.exists() and (moved := sorted(set(_read(path)) & set(_FIXED_LAYOUT_KEYS))):

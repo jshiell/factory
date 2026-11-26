@@ -510,7 +510,8 @@ def _build_app(ctx) -> Starlette:
 
     app = Starlette(
         lifespan=_lifespan(changes, stopping, runner),
-        routes=[*api.routes, Route("/ui-login-codes", _ui_login_code, methods=["POST"]), *ui_routes()],
+        # Bridge until increment 32: the CLI already speaks /repos/<name>, named after the checkout's project directory.
+        routes=[Mount(f"/repos/{ctx.settings.repo.parent.name}", routes=api.routes), *api.routes, Route("/ui-login-codes", _ui_login_code, methods=["POST"]), *ui_routes()],
         exception_handlers=_EXCEPTION_HANDLERS,
     )
     app.state.runner = runner

@@ -55,22 +55,21 @@ def _free_port() -> int:
 
 @pytest.fixture
 def project(tmp_path):
-    repo = tmp_path / "repo"
+    home = tmp_path / "factory-home"
+    repo = home / "proj" / "repo"
     (repo / "target").mkdir(parents=True)
     (repo / "target" / "code.py").write_text("x")
     env = {**os.environ, "GIT_CONFIG_GLOBAL": "/dev/null", "GIT_CONFIG_SYSTEM": "/dev/null",
            "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t", "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t",
-           "FACTORY_HOME": str(tmp_path / "factory-home"), "FAKE_CLAUDE_LOG": str(tmp_path / "argv.log"), "FAKE_NONO_LOG": str(tmp_path / "nono.log")}
+           "FACTORY_HOME": str(home), "FAKE_CLAUDE_LOG": str(tmp_path / "argv.log"), "FAKE_NONO_LOG": str(tmp_path / "nono.log")}
     fake = tmp_path / "fake-claude"
     fake.write_text(FAKE_CLAUDE)
     fake.chmod(fake.stat().st_mode | stat.S_IEXEC)
     nono = tmp_path / "fake-nono"
     nono.write_text(FAKE_NONO)
     nono.chmod(nono.stat().st_mode | stat.S_IEXEC)
-    write_config(repo, f'claude_executable = "{fake}"\nsandbox_executable = "{nono}"\nstate_dir = "{tmp_path / "state"}"\n'
-                       f'worktree_root = "{tmp_path / "wt"}"\n')
-    (tmp_path / "factory-home").mkdir()
-    (tmp_path / "factory-home" / "factory.toml").write_text(f"server_port = {_free_port()}\n")
+    write_config(repo, f'claude_executable = "{fake}"\nsandbox_executable = "{nono}"\n')
+    (home / "factory.toml").write_text(f"server_port = {_free_port()}\n")
     sh("git", "init", "-q", "-b", "main", cwd=repo, env=env)
     sh("git", "add", "-A", cwd=repo, env=env)
     sh("git", "commit", "-q", "-m", "init", cwd=repo, env=env)
@@ -87,7 +86,10 @@ def _serving(repo: Path, env) -> None:
     """Start the project's server on first use, so it reads the config the test finished writing."""
     if repo in _SERVERS:
         return
-    server = subprocess.Popen(["uv", "run", "--project", str(ORCHESTRATOR), "factory", "serve"], cwd=repo, env=env,
+    project = repo.parent  # until the server serves the whole home, it is told where this repo's state lives
+    serve_config = project.parent.parent / "server.toml"
+    serve_config.write_text(config_path(repo).read_text() + f'state_dir = "{project / "state"}"\nworktree_root = "{project / "worktrees"}"\n')
+    server = subprocess.Popen(["uv", "run", "--project", str(ORCHESTRATOR), "factory", "--config", str(serve_config), "serve"], cwd=repo, env=env,
                               stdout=subprocess.PIPE, stderr=subprocess.PIPE, stdin=subprocess.DEVNULL, text=True)
     _SERVERS[repo] = server
     announced = server.stdout.readline()
@@ -169,6 +171,19 @@ def test_new_list_show_work_against_a_fresh_state_directory(project):
     assert "add multiply" in factory(project, "show", task_id).stdout
 
 
+def test_the_repo_option_names_the_repo_when_the_command_runs_elsewhere(project):
+    repo, env, tmp_path = project
+    task_id = factory(project, "new", "add multiply").stdout.strip()
+
+    named = sh("uv", "run", "--project", str(ORCHESTRATOR), "factory", "--repo", "proj", "list", cwd=tmp_path, env=env,
+               stdin=subprocess.DEVNULL)
+    unnamed = sh("uv", "run", "--project", str(ORCHESTRATOR), "factory", "list", cwd=tmp_path, env=env,
+                 stdin=subprocess.DEVNULL)
+
+    assert named.returncode == 0 and task_id in named.stdout, named.stderr
+    assert unnamed.returncode == 2 and "no repo" in unnamed.stderr
+
+
 def test_advance_plans_and_reviews_with_read_only_tools_and_stops_at_reviewed(project):
     _, _, tmp_path = project
     task_id = factory(project, "new", "add multiply").stdout.strip()
@@ -177,10 +192,10 @@ def test_advance_plans_and_reviews_with_read_only_tools_and_stops_at_reviewed(pr
 
     assert result.returncode == 0, result.stderr
     assert "plan -> planned" in result.stdout and "review -> reviewed" in result.stdout
-    assert f"factory approve {task_id}" in result.stdout
+    assert f"factory approve proj/{task_id}" in result.stdout
     calls = [json.loads(line) for line in (tmp_path / "argv.log").read_text().splitlines()]
     assert len(calls) == 2
-    (worktree,) = (tmp_path / "wt").iterdir()
+    (worktree,) = (tmp_path / "factory-home" / "proj" / "worktrees").iterdir()
     worktree = worktree.resolve()
     for argv in calls:
         assert "--allowedTools" not in argv
@@ -227,13 +242,13 @@ def test_the_implement_stage_runs_confined_with_no_shell_in_its_worktree(project
     from factory.sqlite_store import SqliteTaskStore
     from factory.task import Task, TaskState
     repo, _, tmp_path = project
-    (tmp_path / "state").mkdir(parents=True, exist_ok=True)
-    SqliteTaskStore(tmp_path / "state" / "factory.db").save(Task(id="t9", prompt="implement it", state=TaskState.QUEUED))
+    (tmp_path / "factory-home" / "proj" / "state").mkdir(parents=True, exist_ok=True)
+    SqliteTaskStore((tmp_path / "factory-home" / "proj" / "state") / "factory.db").save(Task(id="t9", prompt="implement it", state=TaskState.QUEUED))
 
     factory(project, "advance", "t9")
 
     (argv,) = [json.loads(line) for line in (tmp_path / "argv.log").read_text().splitlines()]
-    (worktree,) = (tmp_path / "wt").iterdir()
+    (worktree,) = (tmp_path / "factory-home" / "proj" / "worktrees").iterdir()
     assert "--allowedTools" not in argv
     disallowed = argv[argv.index("--disallowedTools") + 1]
     assert disallowed == "Bash Bash(git *) Glob NotebookEdit"
@@ -246,12 +261,12 @@ def test_the_agent_is_not_granted_a_directory_that_holds_the_server_state(projec
     from factory.sqlite_store import SqliteTaskStore
     from factory.task import Task, TaskState
     _, _, tmp_path = project  # the fake claude sits in tmp_path, which contains the state directory
-    (tmp_path / "state").mkdir(parents=True, exist_ok=True)
-    SqliteTaskStore(tmp_path / "state" / "factory.db").save(Task(id="t8", prompt="implement it", state=TaskState.QUEUED))
+    (tmp_path / "factory-home" / "proj" / "state").mkdir(parents=True, exist_ok=True)
+    SqliteTaskStore((tmp_path / "factory-home" / "proj" / "state") / "factory.db").save(Task(id="t8", prompt="implement it", state=TaskState.QUEUED))
 
     factory(project, "advance", "t8")
 
-    (worktree,) = (tmp_path / "wt").iterdir()
+    (worktree,) = (tmp_path / "factory-home" / "proj" / "worktrees").iterdir()
     (sandbox_argv,) = [json.loads(line) for line in (tmp_path / "nono.log").read_text().splitlines()]
     reads = [sandbox_argv[i + 1] for i, arg in enumerate(sandbox_argv) if arg == "--read"]
     assert reads == [str(worktree.resolve())]
@@ -267,10 +282,10 @@ def test_a_failing_gate_runs_one_confined_fix_round_and_the_tests_then_pass(proj
     config = config_path(repo)
     config.write_text(config.read_text() + 'test_argv = ["sh", "-c", "echo NEEDS-FIX; test -f fixed"]\n')
     sh("git", "commit", "-q", "-am", "test_argv", cwd=repo, env=env)
-    worktree, base = WorktreeManager(repo, tmp_path / "wt").create("t9")
+    worktree, base = WorktreeManager(repo, (tmp_path / "factory-home" / "proj" / "worktrees")).create("t9")
     (worktree / "target" / "code.py").write_text("changed by the implementer")
-    (tmp_path / "state").mkdir(parents=True, exist_ok=True)
-    SqliteTaskStore(tmp_path / "state" / "factory.db").save(
+    (tmp_path / "factory-home" / "proj" / "state").mkdir(parents=True, exist_ok=True)
+    SqliteTaskStore((tmp_path / "factory-home" / "proj" / "state") / "factory.db").save(
         Task(id="t9", prompt="stored", state=TaskState.AGENT_DONE, worktree=str(worktree), base_sha=base, goal="g", plan="p"))
 
     result = factory(project, "advance", "t9")
@@ -296,8 +311,8 @@ def test_a_task_that_kept_its_plan_is_implemented_with_the_approved_prompt_in_a_
     from factory.sqlite_store import SqliteTaskStore
     from factory.task import Task, TaskState
     _, _, tmp_path = project
-    (tmp_path / "state").mkdir(parents=True, exist_ok=True)
-    store = SqliteTaskStore(tmp_path / "state" / "factory.db")
+    (tmp_path / "factory-home" / "proj" / "state").mkdir(parents=True, exist_ok=True)
+    store = SqliteTaskStore((tmp_path / "factory-home" / "proj" / "state") / "factory.db")
     plan = "1. add multiply\n2. test it"
     store.save(Task(id="t1", prompt=build_implementation_prompt("add multiply", plan), state=TaskState.FAILED,
                     goal="add multiply", plan=plan, plan_digest=plan_digest(plan), failure_reason="tests_failed"))
@@ -307,7 +322,7 @@ def test_a_task_that_kept_its_plan_is_implemented_with_the_approved_prompt_in_a_
 
     (argv, *_) = [json.loads(line) for line in (tmp_path / "argv.log").read_text().splitlines()]
     assert argv[argv.index("-p") + 1] == build_implementation_prompt("add multiply", plan)
-    (worktree,) = (tmp_path / "wt").iterdir()
+    (worktree,) = (tmp_path / "factory-home" / "proj" / "worktrees").iterdir()
     assert worktree.name == child.id
 
 
@@ -333,17 +348,17 @@ def test_an_agent_launched_by_the_real_cli_is_recorded_while_it_runs(project):
     repo, _, tmp_path = project
     seen = tmp_path / "seen-records"
     spy = tmp_path / "spy-claude"
-    spy.write_text(f'#!/bin/sh\n"{query_records_script(tmp_path)}" "{tmp_path}/state/factory.db" "{seen}"\n')
+    spy.write_text(f'#!/bin/sh\n"{query_records_script(tmp_path)}" "{tmp_path}/factory-home/proj/state/factory.db" "{seen}"\n')
     spy.chmod(spy.stat().st_mode | stat.S_IEXEC)
     config = config_path(repo)
     config.write_text(config.read_text().replace("fake-claude", "spy-claude"))
-    (tmp_path / "state").mkdir(parents=True, exist_ok=True)
-    SqliteTaskStore(tmp_path / "state" / "factory.db").save(Task(id="t9", prompt="implement it", state=TaskState.QUEUED))
+    (tmp_path / "factory-home" / "proj" / "state").mkdir(parents=True, exist_ok=True)
+    SqliteTaskStore((tmp_path / "factory-home" / "proj" / "state") / "factory.db").save(Task(id="t9", prompt="implement it", state=TaskState.QUEUED))
 
     factory(project, "advance", "t9")
 
     assert seen.read_text() == "t9,running\n"
-    assert SqliteProcessRecords(tmp_path / "state" / "factory.db").load() == []
+    assert SqliteProcessRecords((tmp_path / "factory-home" / "proj" / "state") / "factory.db").load() == []
 
 
 def test_a_gate_run_launched_by_the_real_cli_is_recorded_while_it_runs(project):
@@ -354,18 +369,18 @@ def test_a_gate_run_launched_by_the_real_cli_is_recorded_while_it_runs(project):
     repo, env, tmp_path = project
     seen = tmp_path / "seen-gate-records"
     config = config_path(repo)
-    config.write_text(config.read_text() + f'test_argv = ["{query_records_script(tmp_path)}", "{tmp_path}/state/factory.db", "{seen}"]\n')
+    config.write_text(config.read_text() + f'test_argv = ["{query_records_script(tmp_path)}", "{tmp_path}/factory-home/proj/state/factory.db", "{seen}"]\n')
     sh("git", "commit", "-q", "-am", "test_argv", cwd=repo, env=env)
-    worktree, base = WorktreeManager(repo, tmp_path / "wt").create("t9")
+    worktree, base = WorktreeManager(repo, (tmp_path / "factory-home" / "proj" / "worktrees")).create("t9")
     (worktree / "target" / "code.py").write_text("changed by the implementer")
-    (tmp_path / "state").mkdir(parents=True, exist_ok=True)
-    SqliteTaskStore(tmp_path / "state" / "factory.db").save(
+    (tmp_path / "factory-home" / "proj" / "state").mkdir(parents=True, exist_ok=True)
+    SqliteTaskStore((tmp_path / "factory-home" / "proj" / "state") / "factory.db").save(
         Task(id="t9", prompt="stored", state=TaskState.AGENT_DONE, worktree=str(worktree), base_sha=base, goal="g", plan="p"))
 
     factory(project, "advance", "t9")
 
     assert seen.read_text() == "t9,gate\n"
-    assert SqliteProcessRecords(tmp_path / "state" / "factory.db").load() == []
+    assert SqliteProcessRecords((tmp_path / "factory-home" / "proj" / "state") / "factory.db").load() == []
 
 
 FAKE_AUDITOR = r'''#!/usr/bin/env python3
@@ -390,21 +405,21 @@ def test_eval_audit_runs_the_real_runner_in_the_corpus_project_and_records_under
     config = config_path(repo).read_text().replace(next(line for line in config_path(repo).read_text().splitlines()
                                                         if line.startswith("claude_executable")), f'claude_executable = "{auditor}"')
     write_config(repo, config + 'project_subdir = "elsewhere"\n')
-    env["FAKE_STATE_DIR"] = str(tmp_path / "state")
+    env["FAKE_STATE_DIR"] = str(tmp_path / "factory-home" / "proj" / "state")
     project = (repo, env, tmp_path)
 
     result = factory(project, "eval-audit", "--runs", "1", "--only", "case-01")
 
     assert result.returncode == 0, result.stdout + result.stderr
     (call,) = [json.loads(line) for line in (tmp_path / "argv.log").read_text().splitlines()]
-    (eval_dir,) = (tmp_path / "state" / "evals").iterdir()
+    (eval_dir,) = ((tmp_path / "factory-home" / "proj" / "state") / "evals").iterdir()
     assert Path(call["cwd"]).parts[-2:] == ("a1-case-01", "target") or call["cwd"].endswith("/target")
     assert "elsewhere" not in call["cwd"] and "--json-schema" in call["argv"] and "--disallowedTools" in call["argv"]
     assert [Path(p).parent.parent for p in call["eval_records"]] == [eval_dir] and call["real_records"] == []
     nono = [json.loads(line) for line in (tmp_path / "nono.log").read_text().splitlines()]
     assert nono and nono[0][:2] == ["run", "-s"] and "--allow-cwd" in nono[0]
-    assert not (tmp_path / "state" / "ledger.jsonl").exists()
-    assert list((tmp_path / "state" / "tasks").glob("*.json")) == []
+    assert not ((tmp_path / "factory-home" / "proj" / "state") / "ledger.jsonl").exists()
+    assert list(((tmp_path / "factory-home" / "proj" / "state") / "tasks").glob("*.json")) == []
     assert list((eval_dir / "procs").glob("*.json")) == [] and (eval_dir / "case-01-r1.json").is_file()
     assert not (eval_dir / "factory.db").exists()
 

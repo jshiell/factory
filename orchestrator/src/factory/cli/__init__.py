@@ -12,7 +12,14 @@ from factory.audit_corpus import PROJECT_SUBDIR
 from factory.audit_eval import check_corpus
 from factory.audit_share import build_bundle, write_bundle
 from factory.cli.admin import _clone, _migrate, _serve, _watch
-from factory.cli.base import IO, Context, NoRepo, _StoppedWaiting, agent_runner
+from factory.cli.base import (
+    IO,
+    NO_REPO_MESSAGE,
+    Context,
+    NoRepo,
+    _StoppedWaiting,
+    agent_runner,
+)
 from factory.cli.base import (
     _reap_with_the_real_process_table as _reap_with_the_real_process_table,
 )
@@ -33,8 +40,15 @@ from factory.client import ServerClient, ServerRefused, ServerUnreachable
 from factory.gate import check_gate
 from factory.ids import InvalidTaskId
 from factory.init_config import init_global_config
-from factory.repos import name_problem
-from factory.settings import BIND_HOSTS, Settings, SettingsError, load_settings
+from factory.repos import name_problem, repo_name_from_cwd
+from factory.settings import (
+    BIND_HOSTS,
+    Settings,
+    SettingsError,
+    load_global_settings,
+    load_repo_settings,
+    load_settings,
+)
 from factory.sqlite_ledger import SqliteLedger
 from factory.sqlite_process_records import SqliteProcessRecords
 from factory.sqlite_store import SqliteTaskStore
@@ -327,13 +341,16 @@ def _server_client(settings: Settings) -> ServerClient:
     return ServerClient(http, token)
 
 
-def build_context(settings: Settings) -> Context:
+def build_context(settings: Settings, repo: str | None = None) -> Context:
     settings.state_dir.mkdir(parents=True, exist_ok=True)
     store, ledger = SqliteTaskStore(settings.db_path), SqliteLedger(settings.db_path)
     runner = agent_runner(settings, settings.project_subdir, records=SqliteProcessRecords(settings.db_path))
     worktrees = WorktreeManager(settings.repo, settings.worktree_root)
     stages = build_stages(settings, Deps(store, ledger, runner, worktrees))
-    return Context(settings, store, ledger, stages, server=_server_client(settings))
+    server = _server_client(settings)
+    if repo is None:
+        return Context(settings, store, ledger, stages, server=server)
+    return Context(settings, store, ledger, stages, server=server.for_repo(repo), repo=repo, repo_required=True)
 
 
 def _exit_on_signal(signum, frame):
@@ -343,24 +360,42 @@ def _exit_on_signal(signum, frame):
 
 
 _NEEDS_NO_REPO = ("init", "clone", "eval-export")
+_STILL_SINGLE_REPO = ("serve", "ui")  # until increment 32 they read the repo's own config
+
+
+def _repo_context(config: Path | None, repo_option: str | None) -> Context:
+    home = load_global_settings().home
+    name = repo_option or repo_name_from_cwd(home, Path.cwd())
+    if name is None:
+        raise NoRepo(NO_REPO_MESSAGE)
+    settings = load_repo_settings(home, name, config)
+    for warning in settings.warnings:
+        print(f"settings warning: {warning}", file=sys.stderr)
+    return build_context(settings, name)
 
 
 def run() -> None:
     known, rest = _preparser().parse_known_args(sys.argv[1:])
     io = IO(sys.stdin, sys.stdout, sys.stderr)
-    if rest[:1] and rest[0] in _NEEDS_NO_REPO:
+    if (rest[:1] and rest[0] in _NEEDS_NO_REPO) or {"-h", "--help"} & set(rest):
         try:
             sys.exit(main(rest, io, None))
         except SettingsError as error:
             print(f"settings error: {error}", file=sys.stderr)
             sys.exit(2)
     try:
-        settings = load_settings(known.config, cwd=Path.cwd())
-        for warning in settings.warnings:
-            print(f"settings warning: {warning}", file=sys.stderr)
-        ctx = build_context(settings)
+        if rest[:1] and rest[0] in _STILL_SINGLE_REPO:
+            settings = load_settings(known.config, cwd=Path.cwd())
+            for warning in settings.warnings:
+                print(f"settings warning: {warning}", file=sys.stderr)
+            ctx = build_context(settings)
+        else:
+            ctx = _repo_context(known.config, known.repo)
     except SettingsError as error:
         print(f"settings error: {error}", file=sys.stderr)
+        sys.exit(2)
+    except NoRepo as error:
+        print(error, file=sys.stderr)
         sys.exit(2)
     for signum in (signal.SIGTERM, signal.SIGHUP):
         signal.signal(signum, _exit_on_signal)

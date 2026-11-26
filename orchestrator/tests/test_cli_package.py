@@ -22,13 +22,13 @@ def test_the_cli_runs_as_a_module():
 
 
 def test_the_cli_prints_settings_warnings_to_stderr(tmp_path):
-    repo = tmp_path / "repo"
+    home = tmp_path / "home"
+    repo = home / "proj" / "repo"
     (repo / "target").mkdir(parents=True)
     subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
-    env = {key: value for key, value in os.environ.items() if key != "FACTORY_HOME"} | {"HOME": str(tmp_path)}
+    env = {key: value for key, value in os.environ.items() if key != "FACTORY_HOME"} | {"FACTORY_HOME": str(home)}
 
-    result = _in_a_fresh_interpreter("-m", "factory.cli", "--help", cwd=repo, env=env)
+    result = _in_a_fresh_interpreter("-m", "factory.cli", "list", cwd=repo, env=env)  # no server runs, so it stops there
 
-    assert result.returncode == 0, result.stderr
     assert result.stderr.startswith("settings warning: project_subdir is unset")
     assert "target/" not in result.stdout

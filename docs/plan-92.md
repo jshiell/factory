@@ -111,6 +111,7 @@ Rule: an existing assertion is edited only when it pins old wording, an old path
 - Increment 17: the catch-all also answers a known repo's unknown path with a JSON 404; a known repo's own unmatched paths inside its mount still get Starlette's default 404 (as the root routes do today).
 - Increment 18: `ServerClient.unscoped()` returns a prefix-free view; `for_repo(name)` (increment 21) returns a scoped one.
 - Increments 22–23: `Context` gains `repo` (qualifies printed ids) and `repo_required` (set only by the real CLI path in increment 24, so the single-repo adapter tests keep working until increment 34). A malformed task ref raises `InvalidTaskId`; `NoRepo` exits 2.
+- Increment 24: `serve` and `ui` still load the single repo config (`_STILL_SINGLE_REPO`) until increment 32. The legacy app also mounts its routes under `/repos/<project dir name>` as a bridge so the scoped client works against it; the bridge goes in 32/34. `--help` anywhere on the line skips building the context, so it works outside a repo. `--config` moves only the repo's own config file (`load_repo_settings(..., config=)`). `test_cli_wiring` keeps its legacy server by giving `serve` a `--config` that holds the state and worktree paths; the settings-warnings test in `test_cli_package` now runs `list` from a repo under the home.
 
 ## Not verified
 - What the nono profile grants (step 0 spike); README line ~360 records a live check where other state and worktrees were denied.
