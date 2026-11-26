@@ -12,6 +12,31 @@ class Discovery:
     problems: dict[str, str]  # directory name -> why it is not served
 
 
+class UnknownRepo(KeyError):
+    def __str__(self) -> str:
+        return self.args[0]
+
+
+class RepoRegistry:
+    """The repos a server started (name -> its context) and those it skipped (name -> why)."""
+
+    def __init__(self, started: dict, skipped: dict[str, str]):
+        self._started = dict(started)
+        self.skipped = dict(skipped)
+
+    @property
+    def started_names(self) -> tuple[str, ...]:
+        return tuple(sorted(self._started))
+
+    def get(self, name: str):
+        if name in self._started:
+            return self._started[name]
+        if name in self.skipped:
+            raise UnknownRepo(f"repo {name} was skipped: {self.skipped[name]}")
+        known = f"known: {', '.join(self.started_names)}" if self._started else "no repos"
+        raise UnknownRepo(f"unknown repo {name}; {known}")
+
+
 def name_problem(name: str) -> str | None:
     """Why `name` cannot be a repo name, or None."""
     if name.casefold() in RESERVED_NAMES:
