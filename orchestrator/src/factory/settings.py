@@ -204,7 +204,7 @@ _PER_REPO_KEYS = (
 )
 
 
-_GLOBAL_ONLY_KEYS = ("server_port", "server_host", "server_allowed_hosts")  # one server serves every repo
+_GLOBAL_ONLY_KEYS = ("home", "server_port", "server_host", "server_allowed_hosts")  # one server serves every repo
 
 
 def _layer(path: Path, per_repo_allowed: bool = True) -> dict:

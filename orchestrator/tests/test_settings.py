@@ -115,12 +115,11 @@ def test_relative_paths_in_dot_factory_config_resolve_against_the_repo_root(repo
     assert settings.worktree_root == repo_dir / ".." / "wt"
 
 
-def test_a_relative_home_in_dot_factory_config_resolves_against_the_repo_root(repo_dir):
+def test_home_is_refused_in_the_repo_config_naming_the_file(repo_dir):
     write_config(repo_dir, 'home = "h"\n')
 
-    settings = load_settings(None, cwd=repo_dir)
-
-    assert settings.state_dir == repo_dir / "h" / "repo" / "state"
+    with pytest.raises(SettingsError, match=rf"home is global-only.*{repo_dir}.*factory\.toml"):
+        load_settings(None, cwd=repo_dir)
 
 
 def test_an_explicit_config_inside_the_repo_but_outside_dot_factory_is_refused(repo_dir):
@@ -311,16 +310,6 @@ def test_a_repo_with_no_usable_name_is_rejected_naming_repo(tmp_path):
         load_settings(config, cwd=tmp_path)
 
 
-def test_a_home_in_the_config_is_relative_to_the_config_directory(tmp_path, repo_dir):
-    config = tmp_path / "factory.toml"
-    config.write_text(f'repo = "{repo_dir}"\nhome = "h"\n')
-
-    settings = load_settings(config, cwd=tmp_path)
-
-    assert settings.state_dir == tmp_path / "h" / "repo" / "state"
-    assert settings.worktree_root == tmp_path / "h" / "repo" / "worktrees"
-
-
 def test_a_non_string_home_is_rejected_naming_the_key(repo_dir):
     write_config(repo_dir, "home = 3\n")
 
@@ -328,11 +317,11 @@ def test_a_non_string_home_is_rejected_naming_the_key(repo_dir):
         load_settings(None, cwd=repo_dir)
 
 
-def test_a_tilde_in_home_expands_before_joining_the_config_directory(tmp_path, repo_dir, isolated_home):
-    config = tmp_path / "factory.toml"
-    config.write_text(f'repo = "{repo_dir}"\nhome = "~/x"\n')
+def test_a_tilde_in_the_global_home_expands_before_joining_the_config_directory(repo_dir, isolated_home):
+    (isolated_home / ".harness").mkdir()
+    (isolated_home / ".harness" / "factory.toml").write_text('home = "~/x"\n')
 
-    settings = load_settings(config, cwd=tmp_path)
+    settings = load_settings(None, cwd=repo_dir)
 
     assert settings.state_dir == isolated_home / "x" / "repo" / "state"
 
@@ -344,17 +333,6 @@ def test_a_tilde_in_state_dir_and_worktree_root_expands(tmp_path, repo_dir, isol
     settings = load_settings(config, cwd=tmp_path)
 
     assert (settings.state_dir, settings.worktree_root) == (isolated_home / "s", isolated_home / "w")
-
-
-def test_factory_home_beats_the_home_in_the_config(tmp_path, repo_dir, monkeypatch):
-    env_home = tmp_path / "env-home"
-    monkeypatch.setenv("FACTORY_HOME", str(env_home))
-    config = tmp_path / "factory.toml"
-    config.write_text(f'repo = "{repo_dir}"\nhome = "h"\n')
-
-    settings = load_settings(config, cwd=tmp_path)
-
-    assert settings.state_dir == env_home / "repo" / "state"
 
 
 def test_an_empty_factory_home_is_ignored(repo_dir, isolated_home, monkeypatch):
@@ -595,10 +573,12 @@ def test_plugin_names_resolve_to_directories_under_the_shared_plugins_dir(repo_d
     assert load_settings(None, cwd=repo_dir).plugin_dirs == (shared / "a", shared / "b")
 
 
-def test_plugin_dirs_follow_a_configured_home(repo_dir, tmp_path):
+def test_plugin_dirs_follow_a_configured_home(repo_dir, tmp_path, isolated_home):
     shared = tmp_path / "myhome" / "_shared" / "plugins"
     (shared / "a").mkdir(parents=True)
-    write_config(repo_dir, f'home = "{tmp_path / "myhome"}"\nplugins = ["a"]\n')
+    (isolated_home / ".harness").mkdir()
+    (isolated_home / ".harness" / "factory.toml").write_text(f'home = "{tmp_path / "myhome"}"\n')
+    write_config(repo_dir, 'plugins = ["a"]\n')
 
     assert load_settings(None, cwd=repo_dir).plugin_dirs == (shared / "a",)
 
