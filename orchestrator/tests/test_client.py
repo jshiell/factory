@@ -4,9 +4,9 @@ import pytest
 from factory.client import ServerClient, ServerRefused, ServerUnreachable
 
 
-def client_over(handler, token="tok"):
+def client_over(handler, token="tok", prefix=""):
     return ServerClient(httpx2.Client(transport=httpx2.MockTransport(handler), base_url="http://127.0.0.1:8765"), token,
-                        sleep=lambda seconds: None)
+                        sleep=lambda seconds: None, prefix=prefix)
 
 
 def test_every_request_carries_the_bearer_token():
@@ -56,3 +56,30 @@ def test_waiting_for_a_job_polls_until_it_finishes_and_returns_it():
     job = client_over(handler).wait("j1")
 
     assert (job["state"], job["result"]) == ("succeeded", {"ok": 1})
+
+
+def test_a_prefixed_client_scopes_gets_posts_and_job_polls_to_its_repo():
+    seen = []
+
+    def handler(request):
+        seen.append((request.method, request.url.path))
+        return httpx2.Response(200, json={"state": "succeeded"})
+
+    client = client_over(handler, prefix="/repos/proj")
+    client.get("/tasks")
+    client.post("/tasks", {})
+    client.wait("j1")
+
+    assert seen == [("GET", "/repos/proj/tasks"), ("POST", "/repos/proj/tasks"), ("GET", "/repos/proj/jobs/j1")]
+
+
+def test_the_unscoped_view_of_a_prefixed_client_skips_the_prefix_but_keeps_the_token():
+    seen = []
+
+    def handler(request):
+        seen.append((request.url.path, request.headers["authorization"]))
+        return httpx2.Response(200, json={})
+
+    client_over(handler, "secret", prefix="/repos/proj").unscoped().get("/repos")
+
+    assert seen == [("/repos", "Bearer secret")]

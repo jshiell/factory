@@ -18,8 +18,12 @@ class ServerRefused(Exception):
 
 
 class ServerClient:
-    def __init__(self, http: httpx2.Client, token: str, sleep: Callable[[float], None] = time.sleep):
-        self._http, self._headers, self._sleep = http, {"Authorization": f"Bearer {token}"}, sleep
+    def __init__(self, http: httpx2.Client, token: str, sleep: Callable[[float], None] = time.sleep, prefix: str = ""):
+        self._http, self._headers, self._sleep, self._prefix = http, {"Authorization": f"Bearer {token}"}, sleep, prefix
+
+    def unscoped(self) -> ServerClient:
+        """The same connection and token without the repo prefix, for the server-level calls."""
+        return ServerClient(self._http, self._headers["Authorization"].removeprefix("Bearer "), self._sleep)
 
     def get(self, path: str, **params) -> dict:
         return self._send("GET", path, params=params)
@@ -36,7 +40,7 @@ class ServerClient:
 
     def _send(self, method: str, path: str, **kwargs) -> dict:
         try:
-            response = self._http.request(method, path, headers=self._headers, **kwargs)
+            response = self._http.request(method, self._prefix + path, headers=self._headers, **kwargs)
         except httpx2.TransportError as error:
             raise ServerUnreachable(str(error)) from None
         body = response.json()
