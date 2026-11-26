@@ -1,0 +1,12 @@
+<p>Total: ${{ "%.2f" | format(report.total) }}</p>
+<p>Assumed: ${{ "%.2f" | format(report.assumed) }}</p>
+<h3>By stage</h3>
+<ul>
+  {% for stage, cost in report.by_stage %}<li>{{ stage | humanise }}: ${{ "%.2f" | format(cost) }}</li>
+  {% endfor %}
+</ul>
+<h3>By task</h3>
+<ul>
+  {% for task_id, cost in report.by_task %}<li><a href="{{ base | default('/ui') }}/tasks/{{ task_id | urlencode }}">{{ task_id }}</a>: ${{ "%.2f" | format(cost) }}</li>
+  {% endfor %}
+</ul>

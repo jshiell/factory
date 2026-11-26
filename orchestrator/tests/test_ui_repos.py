@@ -181,6 +181,33 @@ def test_the_index_links_each_repos_clean_page(client):
     assert 'href="/ui/repos/a/clean"' in page.text and 'href="/ui/repos/b/clean"' in page.text
 
 
+def test_the_costs_page_reports_each_repo_apart_with_task_links_under_its_repo(client, contexts):
+    contexts["a"].ledger.append("in-a", 1.25, stage="plan")
+    contexts["b"].ledger.append("in-b", 2.5, stage="build")
+
+    page = client.get("/ui/costs")
+
+    assert page.status_code == 200
+    assert "<h2>a</h2>" in page.text and "<h2>b</h2>" in page.text
+    assert "Total: $1.25" in page.text and "Total: $2.50" in page.text
+    assert 'href="/ui/repos/a/tasks/in-a"' in page.text and 'href="/ui/repos/b/tasks/in-b"' in page.text
+
+
+def test_a_repo_whose_ledger_cannot_be_read_is_named_and_the_others_still_show(client, contexts, monkeypatch):
+    contexts["a"].ledger.append("in-a", 1.25, stage="plan")
+
+    def unreadable():
+        raise sqlite3.DatabaseError("file is not a database")
+
+    monkeypatch.setattr(contexts["b"].ledger, "entries", unreadable)
+
+    page = client.get("/ui/costs")
+
+    assert page.status_code == 200
+    assert "in-a" in page.text
+    assert "b: unreadable" in page.text
+
+
 def test_rejecting_a_plan_acts_on_the_repo_in_the_url_and_returns_to_its_task_page(client, contexts):
     contexts["a"].store.save(_reviewed("same", "goal in a"))
     contexts["b"].store.save(_reviewed("same", "goal in b"))

@@ -133,12 +133,31 @@ def _offered_actions(task, job) -> list[tuple[str, str]]:
     return links
 
 
+def _costs_view(store, ledger) -> dict:
+    report = service.cost_report(store, ledger)
+    return {"total": report.total, "assumed": report.assumed,
+            "by_stage": [(_safe(stage), cost) for stage, cost in sorted(report.by_stage.items())],
+            "by_task": [(_safe(task_id), cost) for task_id, cost in sorted(report.by_task.items())]}
+
+
 async def _costs_page(request: Request) -> HTMLResponse:
-    report = service.cost_report(request.app.state.store, request.app.state.ledger)
-    shown = {"total": report.total, "assumed": report.assumed,
-             "by_stage": [(_safe(stage), cost) for stage, cost in sorted(report.by_stage.items())],
-             "by_task": [(_safe(task_id), cost) for task_id, cost in sorted(report.by_task.items())]}
-    return HTMLResponse(_TEMPLATES.get_template("costs.html").render(report=shown))
+    report = _costs_view(request.app.state.store, request.app.state.ledger)
+    return HTMLResponse(_TEMPLATES.get_template("costs.html").render(report=report))
+
+
+def _repo_costs_section(state, name: str) -> dict:
+    section = {"name": name, "base": f"/ui/repos/{quote(name, safe='')}"}
+    try:
+        repo = state.repos[name]
+        return {**section, "report": _costs_view(repo.store, repo.ledger)}
+    except (sqlite3.Error, OSError):  # one repo's broken database must not take the page down
+        return {**section, "unreadable": True}
+
+
+async def _repos_costs_page(request: Request) -> HTMLResponse:
+    state = request.app.state
+    sections = [_repo_costs_section(state, name) for name in state.registry.started_names]
+    return HTMLResponse(_TEMPLATES.get_template("repos_costs.html").render(repos=sections))
 
 
 def _clean_flags(candidate: dict) -> list[str]:
@@ -772,7 +791,7 @@ def repos_ui_routes() -> list[Route | Mount]:
     """The UI of the multi-repo server."""
     return [Route("/ui", _ui_without_slash, methods=["GET"]), Route("/ui/", _repos_index, methods=["GET"]),
             Route("/ui/tasks/new", _new_task_page, methods=["GET"]), Route("/ui/tasks/new", _new_task, methods=["POST"]),
-            Route("/ui/jobs", _repos_jobs_page, methods=["GET"]),
+            Route("/ui/jobs", _repos_jobs_page, methods=["GET"]), Route("/ui/costs", _repos_costs_page, methods=["GET"]),
             Route("/ui/repos/{repo}/clean", _clean_page, methods=["GET"]),
             Route("/ui/repos/{repo}/clean", _clean, methods=["POST"]),
             *_task_routes("/ui/repos/{repo}")]
