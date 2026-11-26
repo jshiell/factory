@@ -1,14 +1,7 @@
 {% extends "base.html" %}
 {% block content %}
-<div id="repos">
-{% for repo in repos %}
-<h2>{{ repo.name }}</h2>
-<p><a href="{{ repo.base }}/clean">Clean</a></p>
-{% if repo.unreadable %}
-<p class="skipped">{{ repo.name }}: unreadable</p>
-{% else %}
-{% with tasks=repo.tasks, skipped=repo.skipped, base=repo.base %}{% include "_tasks.html" %}{% endwith %}
-{% endif %}
-{% endfor %}
+<p><a href="/ui/tasks/new">New task</a> · <a href="/ui/costs">Costs</a> · <a href="/ui/jobs">Jobs</a></p>
+<div id="repos" hx-ext="sse" sse-connect="/ui/events" sse-swap="repos">
+{% include "_repos.html" %}
 </div>
 {% endblock %}

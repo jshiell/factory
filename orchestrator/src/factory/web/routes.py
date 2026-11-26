@@ -772,6 +772,15 @@ async def _repos_index(request: Request) -> HTMLResponse:
     return HTMLResponse(_TEMPLATES.get_template("repos_page.html").render(_repos_context(request.app.state.registry)))
 
 
+def render_repos(registry) -> str:
+    return _TEMPLATES.get_template("_repos.html").render(_repos_context(registry))
+
+
+async def _repos_events(request: Request) -> StreamingResponse:
+    registry = request.app.state.registry
+    return _stream(request, _unless_unchanged(lambda: _event("repos", render_repos(registry))))
+
+
 def _task_routes(prefix: str) -> list[Route]:
     """The pages of one task, under `prefix` (`/ui`, or `/ui/repos/{repo}`)."""
     task = f"{prefix}/tasks/{{task_id}}"
@@ -791,6 +800,7 @@ def repos_ui_routes() -> list[Route | Mount]:
     """The UI of the multi-repo server."""
     return [Route("/ui", _ui_without_slash, methods=["GET"]), Route("/ui/", _repos_index, methods=["GET"]),
             Route("/ui/tasks/new", _new_task_page, methods=["GET"]), Route("/ui/tasks/new", _new_task, methods=["POST"]),
+            Route("/ui/events", _repos_events, methods=["GET"]),
             Route("/ui/jobs", _repos_jobs_page, methods=["GET"]), Route("/ui/costs", _repos_costs_page, methods=["GET"]),
             Route("/ui/repos/{repo}/clean", _clean_page, methods=["GET"]),
             Route("/ui/repos/{repo}/clean", _clean, methods=["POST"]),

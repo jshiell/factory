@@ -208,6 +208,38 @@ def test_a_repo_whose_ledger_cannot_be_read_is_named_and_the_others_still_show(c
     assert "b: unreadable" in page.text
 
 
+def test_the_index_streams_the_tasks_of_every_repo_and_again_when_any_repo_changes(client, contexts):
+    contexts["a"].store.save(Task(id="in-a", prompt="goal a", state=TaskState.QUEUED))
+    events: list[str] = []
+    first, changed = threading.Event(), threading.Event()
+
+    def read():
+        block: list[str] = []
+        with client.stream("GET", "/ui/events") as response:
+            for line in response.iter_lines():
+                if line:
+                    block.append(line)
+                    continue
+                events.append("\n".join(block))
+                block = []
+                first.set()
+                if "in-b" in events[-1]:
+                    changed.set()
+                    return
+
+    threading.Thread(target=read, daemon=True).start()
+    assert first.wait(10), "no event within 10s"
+    contexts["b"].store.save(Task(id="in-b", prompt="goal b", state=TaskState.QUEUED))
+
+    assert changed.wait(10), "no event after a task was saved in the other repo"
+    assert events[0].startswith("event: repos") and "in-a" in events[0] and "in-b" not in events[0]
+    assert 'href="/ui/repos/b/tasks/in-b"' in events[-1] and 'href="/ui/repos/a/tasks/in-a"' in events[-1]
+
+
+def test_the_index_page_connects_to_the_stream(client):
+    assert 'sse-connect="/ui/events"' in client.get("/ui/").text
+
+
 def test_rejecting_a_plan_acts_on_the_repo_in_the_url_and_returns_to_its_task_page(client, contexts):
     contexts["a"].store.save(_reviewed("same", "goal in a"))
     contexts["b"].store.save(_reviewed("same", "goal in b"))

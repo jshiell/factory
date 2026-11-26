@@ -1,0 +1,9 @@
+{% for repo in repos %}
+<h2>{{ repo.name }}</h2>
+<p><a href="{{ repo.base }}/clean">Clean</a></p>
+{% if repo.unreadable %}
+<p class="skipped">{{ repo.name }}: unreadable</p>
+{% else %}
+{% with tasks=repo.tasks, skipped=repo.skipped, base=repo.base %}{% include "_tasks.html" %}{% endwith %}
+{% endif %}
+{% endfor %}
