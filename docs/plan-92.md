@@ -1,6 +1,6 @@
 # Plan 92: multiple repositories in one server
 
-Drafted 2026-11-26, revised after two plan reviews (2026-11-26). Approved 2026-11-26; implementation under way.
+Drafted 2026-11-26, revised after two plan reviews (2026-11-26). Approved 2026-11-26; implemented (increments 1-36); see Deviations.
 Source: `todo.md` open items "support working on multiple projects" and "server_allowed_hosts should be global".
 Base: `main`.
 
@@ -124,6 +124,10 @@ Rule: an existing assertion is edited only when it pins old wording, an old path
 - Increment 34: tests migrated to one repo named `proj` via a `repos_app` helper; `_require_repo` is unconditional (`repo_required` removed); `test_web_sentence_case` uses `zdata-proj`; the `test_cli_wiring` hack was removed.
 - Increment 35: `load_settings` was deleted outright (`init` and `eval-export` did not need it); about 20 old-layout tests were deleted (cwd and git-toplevel discovery, `state_dir`/`worktree_root`/`repo`/`home` keys, `_project_dir` keying); an explicit `--config` that does not exist is now an error (c8366a8); the `FACTORY_HOME` rules are guarded on the global loader (db4c141).
 - Increment 36: `factory-sample` does not exist in the repo, so there was nothing to move. `todo.md` is untracked; its two items were removed in the working copy only.
+- Decision 14 (pure client commands load global settings only) was not implemented: every repo command goes through `load_repo_settings` and `build_context`, so a repo command reads the repo's config and creates its state dir. Not checked: `factory --repo <typo> list` may create `<home>/<typo>/state`.
+- Increment 32: `test_the_app_it_serves_requires_the_token` was deleted; its check lives in `test_serve_serves_every_repo...` (`test_cli_serve.py`).
+- Increment 35: also deleted `test_an_explicit_config_inside_the_configured_repo_is_refused_from_any_cwd` (a cwd variant; the refusal stays pinned by `test_an_explicit_config_inside_the_repo_but_outside_dot_factory_is_refused`), `test_a_relative_path_in_the_global_config_resolves_against_its_own_directory` and `test_plugin_dirs_follow_a_configured_home`.
+- Increment 36: the README sandbox text now names `<home>/_server` beside the state dir.
 
 ## Not verified
 - What the nono profile grants (step 0 spike); README line ~360 records a live check where other state and worktrees were denied.
