@@ -38,6 +38,20 @@ def test_serve_listens_on_loopback_port_8765_by_default_and_says_where(ctx):
     assert token_file.read_text().strip() not in out
 
 
+def test_serve_warns_that_an_old_token_in_the_state_dir_is_unused(ctx):
+    old_token = ctx.settings.state_dir / "token"
+    old_token.write_text("old")
+
+    code, _, err = serve(ctx)
+
+    assert code == 0
+    assert err.splitlines() == [f"warning: {old_token} is unused; the token is now in {ctx.settings.token_path}"]
+
+
+def test_serve_does_not_warn_without_an_old_token(ctx):
+    assert serve(ctx)[2] == ""
+
+
 def test_serve_takes_a_port(ctx):
     serve(ctx, "--port", "0")
 

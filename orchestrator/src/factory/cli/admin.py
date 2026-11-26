@@ -76,6 +76,9 @@ def _serve(args, io, ctx) -> int:
             _print_reaped(reaped.killed, reaped.discarded, io)
             print(f"serving on http://127.0.0.1:{port}; token in {ctx.settings.token_path}", file=io.stdout)
             io.stdout.flush()
+            old_token = ctx.settings.state_dir / "token"
+            if old_token.exists():
+                print(f"warning: {old_token} is unused; the token is now in {ctx.settings.token_path}", file=io.stderr)
             warning = _bind_warning(host, port, ctx.settings.server_allowed_hosts)
             if warning:
                 print(warning, file=io.stderr)
