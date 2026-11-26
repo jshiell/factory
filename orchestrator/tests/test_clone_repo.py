@@ -133,6 +133,18 @@ def test_the_success_line_falls_back_to_what_gh_was_given_when_the_origin_cannot
     assert out == f"cloned github.com/o/r into {harness / 'r' / 'repo'}\n"
 
 
+def test_a_successful_clone_says_a_running_server_must_be_restarted_to_see_it(harness):
+    _, _, err = run_clone("o/r", FakeGh())
+
+    assert err == "restart the server (factory serve) to pick up the new repo\n"
+
+
+def test_a_failed_clone_does_not_ask_for_a_restart(harness):
+    _, _, err = run_clone("o/r", FakeGh(returncode=1))
+
+    assert "restart" not in err
+
+
 def test_the_global_configs_home_is_used_when_factory_home_is_unset(tmp_path, monkeypatch):
     monkeypatch.delenv("FACTORY_HOME", raising=False)
     monkeypatch.setenv("HOME", str(tmp_path / "user"))

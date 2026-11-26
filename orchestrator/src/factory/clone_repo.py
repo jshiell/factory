@@ -71,6 +71,7 @@ def clone_repository(spec: str, io, run=_run) -> int:
                  stdin=subprocess.DEVNULL, capture_output=True, text=True)
     cloned = origin.stdout.strip() if origin.returncode == 0 else target
     print(f"cloned {cloned} into {destination}", file=io.stdout)
+    print("restart the server (factory serve) to pick up the new repo", file=io.stderr)
     return 0
 
 
