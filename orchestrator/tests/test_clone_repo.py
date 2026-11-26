@@ -172,7 +172,7 @@ def test_an_existing_target_is_refused_and_left_untouched(harness):
     assert gh.calls == []
 
 
-@pytest.mark.parametrize("spec", ["-owner/r", "owner/-r", "o/_shared", "https://gitlab.com/o/r"])
+@pytest.mark.parametrize("spec", ["-owner/r", "owner/-r", "o/_shared", "o/.hidden", "https://gitlab.com/o/r"])
 def test_a_refused_spec_never_reaches_gh(harness, spec):
     gh = FakeGh()
 

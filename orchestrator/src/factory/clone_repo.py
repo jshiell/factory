@@ -24,7 +24,7 @@ def github_slug(spec: str) -> tuple[str, str]:
         raise RepositoryError(f"not a GitHub repository: {spec}")
     owner, name = match["owner"], match["name"]
     for part in (owner, name):
-        if part in (".", "..", ".git") or part.startswith("-"):
+        if part.startswith((".", "-")):
             raise RepositoryError(f"not a usable repository name: {part}")
     if name.casefold() in _RESERVED:
         raise RepositoryError(f"{name} is reserved in the harness home")
