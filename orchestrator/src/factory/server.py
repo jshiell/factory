@@ -42,7 +42,7 @@ from factory.lock import AlreadyRunning, state_lock
 from factory.merge_task import MergeRefused, merge_preview, merge_task
 from factory.process_registry import ReapUncertain, leftover_file_records
 from factory.rebase_task import rebase_task
-from factory.repos import RepoRegistry
+from factory.repos import RepoRegistry, UnknownRepo
 from factory.retry_task import (
     RetryRefused,
     retry_with_plan,
@@ -470,6 +470,16 @@ async def _list_repos(request: Request) -> AsciiJSONResponse:
     return AsciiJSONResponse({"repos": list(registry.started_names), "skipped": registry.skipped})
 
 
+def _unknown_repo(request: Request, error: Exception) -> AsciiJSONResponse:
+    return AsciiJSONResponse({"error": "unknown repo", "detail": str(error)}, status_code=404)
+
+
+async def _no_such_repo_route(request: Request) -> AsciiJSONResponse:
+    """Where no mounted repo matched: an unknown or skipped repo, answered in JSON like every other API error."""
+    request.app.state.registry.get(request.path_params["repo"])
+    raise ApiError(404, "not found", "no such route")
+
+
 def _build_repos_app(registry: RepoRegistry) -> Starlette:
     """One app serving every started repo under /repos/<name>, with one job worker for all of them."""
     changes, stopping, runner = TaskChanges(), StopRequest(), JobRunner()
@@ -480,7 +490,9 @@ def _build_repos_app(registry: RepoRegistry) -> Starlette:
         if hasattr(ctx.store, "subscribe"):
             ctx.store.subscribe(changes.notify)
         mounts.append(Mount(f"/repos/{name}", routes=api_routes(ctx, jobs, _BoundRunner(runner, jobs)).routes))
-    app = Starlette(lifespan=_lifespan(changes, stopping, runner), routes=mounts, exception_handlers=_EXCEPTION_HANDLERS)
+    mounts += [Route("/repos/{repo}", _no_such_repo_route), Route("/repos/{repo}/{rest:path}", _no_such_repo_route)]
+    app = Starlette(lifespan=_lifespan(changes, stopping, runner), routes=mounts,
+                    exception_handlers={**_EXCEPTION_HANDLERS, UnknownRepo: _unknown_repo})
     app.state.runner, app.state.changes, app.state.stopping = runner, changes, stopping
     app.state.registry = registry
     return app

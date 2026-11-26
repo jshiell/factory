@@ -50,3 +50,18 @@ def test_a_job_is_recorded_in_the_store_of_the_repo_it_was_queued_in(client):  #
 
 def test_the_repo_list_names_started_repos_and_says_why_others_were_skipped(client):
     assert client.get("/repos").json() == {"repos": ["a", "b"], "skipped": {"busy": "another factory run holds the lock"}}
+
+
+@pytest.mark.parametrize("path", ["/repos/nope/tasks", "/repos/nope/tasks/x/advance", "/repos/nope"])
+def test_an_unknown_repo_gets_a_json_404_naming_the_known_repos(client, path):
+    response = client.get(path)
+
+    assert response.status_code == 404
+    assert response.json() == {"error": "unknown repo", "detail": "unknown repo nope; known: a, b"}
+
+
+def test_a_skipped_repo_gets_a_json_404_saying_why(client):
+    response = client.get("/repos/busy/tasks")
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "repo busy was skipped: another factory run holds the lock"
