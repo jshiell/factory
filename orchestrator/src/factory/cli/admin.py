@@ -22,7 +22,7 @@ def _migrate(args, io, ctx) -> int:
         print(f"old process records remain: {blocked}; nothing changed", file=io.stderr)
         return 1
     except AlreadyRunning:
-        print("another factory run holds the lock; nothing changed", file=io.stderr)
+        print("another factory run holds the lock (a running `factory serve` holds every repo it serves); nothing changed", file=io.stderr)
         return 1
 
 

@@ -6,8 +6,8 @@ import re
 import secrets
 import stat
 import subprocess
-from contextlib import asynccontextmanager, contextmanager
-from dataclasses import asdict
+from contextlib import ExitStack, asynccontextmanager, contextmanager
+from dataclasses import asdict, dataclass
 from http.cookies import SimpleCookie
 from pathlib import Path
 from typing import Any
@@ -42,6 +42,7 @@ from factory.lock import AlreadyRunning, state_lock
 from factory.merge_task import MergeRefused, merge_preview, merge_task
 from factory.process_registry import ReapUncertain, leftover_file_records
 from factory.rebase_task import rebase_task
+from factory.repos import RepoRegistry
 from factory.retry_task import (
     RetryRefused,
     retry_with_plan,
@@ -633,3 +634,28 @@ def claim_state_dir(ctx):
             yield reaped
     except AlreadyRunning:
         raise StartRefused("another factory run holds the lock") from None
+
+
+@dataclass(frozen=True)
+class Claimed:
+    registry: RepoRegistry
+    reaped: dict
+
+
+@contextmanager
+def claim_server(server_dir, contexts: dict, skipped: dict[str, str]):
+    """Own the server directory and every repo's state dir for the whole serve. A repo that cannot be claimed
+    is skipped with its reason; the others start."""
+    try:
+        with state_lock(server_dir), ExitStack() as stack:
+            started, reaped, skipped = {}, {}, dict(skipped)
+            for name, context in sorted(contexts.items()):
+                try:
+                    reaped[name] = stack.enter_context(claim_state_dir(context))
+                except StartRefused as refused:
+                    skipped[name] = str(refused)
+                else:
+                    started[name] = context
+            yield Claimed(RepoRegistry(started, skipped), reaped)
+    except AlreadyRunning:
+        raise StartRefused("another factory server holds the lock; nothing changed") from None
