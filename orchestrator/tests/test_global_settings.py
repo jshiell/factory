@@ -68,3 +68,29 @@ def test_settings_without_a_home_have_no_token_path_and_only_the_state_dir_priva
     assert settings.private_dirs == (str(tmp_path / "state"),)
     with pytest.raises(SettingsError):
         _ = settings.token_path
+
+
+def test_an_empty_factory_home_is_ignored(isolated_home, monkeypatch):  # guard: the rule predates load_global_settings
+    monkeypatch.setenv("FACTORY_HOME", "")
+
+    assert load_global_settings().home == isolated_home / ".harness"
+
+
+def test_a_relative_factory_home_is_rejected_naming_the_variable(monkeypatch):  # guard
+    monkeypatch.setenv("FACTORY_HOME", "relative/dir")
+
+    with pytest.raises(SettingsError, match="FACTORY_HOME"):
+        load_global_settings()
+
+
+def test_a_tilde_in_factory_home_expands(isolated_home, monkeypatch):  # guard
+    monkeypatch.setenv("FACTORY_HOME", "~/fh")
+
+    assert load_global_settings().home == isolated_home / "fh"
+
+
+def test_an_empty_HOME_is_rejected_instead_of_writing_under_root(monkeypatch):  # guard
+    monkeypatch.setenv("HOME", "")
+
+    with pytest.raises(SettingsError, match="HOME is empty"):
+        load_global_settings()
