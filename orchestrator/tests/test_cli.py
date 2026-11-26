@@ -1433,6 +1433,15 @@ def test_a_hint_names_the_task_with_its_repo_when_the_command_runs_in_one(ctx):
     assert "open questions; run: factory answer proj/t1" in out
 
 
+def test_list_outside_any_repo_is_a_usage_error_naming_the_repo_option(ctx):
+    ctx.repo_required = True
+
+    code, out, err = run(ctx, "list")
+
+    assert (code, out) == (2, "")
+    assert "--repo" in err
+
+
 def test_an_invalid_waiver_from_approve_is_reported_as_such_not_as_a_changed_plan(ctx, monkeypatch):
     from factory.waiver import InvalidWaiver
 

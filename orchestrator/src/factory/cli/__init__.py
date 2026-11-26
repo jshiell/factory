@@ -12,7 +12,7 @@ from factory.audit_corpus import PROJECT_SUBDIR
 from factory.audit_eval import check_corpus
 from factory.audit_share import build_bundle, write_bundle
 from factory.cli.admin import _clone, _migrate, _serve, _watch
-from factory.cli.base import IO, Context, _StoppedWaiting, agent_runner
+from factory.cli.base import IO, Context, NoRepo, _StoppedWaiting, agent_runner
 from factory.cli.base import (
     _reap_with_the_real_process_table as _reap_with_the_real_process_table,
 )
@@ -129,6 +129,9 @@ def main(argv: list[str], io: IO, ctx: Context) -> int:
         return handler(args, io, ctx)
     except (TaskNotFound, InvalidTaskId) as error:
         print(f"unknown task: {error}", file=io.stderr)
+        return 2
+    except NoRepo as error:
+        print(error, file=io.stderr)
         return 2
     except _StoppedWaiting as stopped:
         print(f"stopped waiting; job {stopped.job_id} is still running on the server", file=io.stderr)

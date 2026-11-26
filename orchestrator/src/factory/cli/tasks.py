@@ -1,7 +1,14 @@
 from types import SimpleNamespace
 from urllib.parse import urlsplit, urlunsplit
 
-from factory.cli.base import _ask_with_waiver, _coded, _ref, _run_job, _task_path
+from factory.cli.base import (
+    _ask_with_waiver,
+    _coded,
+    _ref,
+    _require_repo,
+    _run_job,
+    _task_path,
+)
 from factory.client import ServerRefused
 from factory.ids import require_safe_id
 from factory.question_text import questions_text
@@ -34,6 +41,7 @@ def _with_host(url: str, host: str) -> str:
 
 
 def _list(args, io, ctx) -> int:
+    _require_repo(ctx)
     listing = ctx.server.get("/tasks")
     for task in listing["tasks"]:
         reason = f"  {_coded('failure_reason', task['failure_reason'])}" if task["failure_reason"] else ""

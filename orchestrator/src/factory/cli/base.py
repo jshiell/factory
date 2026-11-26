@@ -107,6 +107,7 @@ class Context:
     serve: Callable[[object, str, int], None] = _serve_with_uvicorn
     server: ServerClient | None = None
     repo: str | None = None  # the repo this command runs in; qualifies the task ids it prints
+    repo_required: bool = False  # commands that act on a repo refuse to run when none was resolved
     probe: Callable[[int], float | None] = field(default_factory=ps_probe)
     group_alive: Callable[[int], bool] = group_alive
     watch_pass: Callable[..., None] = run_pass
@@ -130,6 +131,9 @@ class _StoppedWaiting(Exception):
         self.job_id = job_id
 
 
+NO_REPO_MESSAGE = "no repo: run inside a repo under the factory home, or pass --repo <name>"
+
+
 class NoRepo(Exception):
     """A bare task id was given and the working directory is in no repo."""
 
@@ -141,9 +145,14 @@ def task_client(server: ServerClient, default_repo: str | None, ref: str) -> tup
         raise InvalidTaskId(ref)
     if not separator:
         if default_repo is None:
-            raise NoRepo("no repo for this task: run inside a repo under the factory home, pass --repo <name>, or use <repo>/<id>")
+            raise NoRepo(f"{NO_REPO_MESSAGE}, or name the task as <repo>/<id>")
         repo = default_repo
     return server.for_repo(repo), require_safe_id(task_id)
+
+
+def _require_repo(ctx: Context) -> None:
+    if ctx.repo_required and ctx.repo is None:
+        raise NoRepo(NO_REPO_MESSAGE)
 
 
 def _ref(ctx: Context, task_id: str) -> str:
