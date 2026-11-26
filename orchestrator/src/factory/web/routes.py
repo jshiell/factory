@@ -804,7 +804,8 @@ def repos_ui_routes() -> list[Route | Mount]:
             Route("/ui/jobs", _repos_jobs_page, methods=["GET"]), Route("/ui/costs", _repos_costs_page, methods=["GET"]),
             Route("/ui/repos/{repo}/clean", _clean_page, methods=["GET"]),
             Route("/ui/repos/{repo}/clean", _clean, methods=["POST"]),
-            *_task_routes("/ui/repos/{repo}")]
+            *_task_routes("/ui/repos/{repo}"),
+            Route("/ui/login", _login, methods=["GET"]), Mount("/ui/static", StaticFiles(directory=STATIC_DIR))]
 
 
 def _event(name: str, fragment: str) -> str:

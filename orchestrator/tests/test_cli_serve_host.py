@@ -3,22 +3,14 @@ from dataclasses import replace
 
 import pytest
 
-from factory.cli import IO, Context, main
-from factory.process_registry import ReapResult
-from factory.settings import Settings
-from factory.sqlite_ledger import SqliteLedger
-from factory.sqlite_store import SqliteTaskStore
+from factory.cli import IO, main
+from factory.lock import state_lock
+from servecli import make_server
 
 
 @pytest.fixture
 def ctx(tmp_path):
-    settings = Settings(repo=tmp_path, state_dir=tmp_path / "state", worktree_root=tmp_path / "wt", home=tmp_path / "home")
-    settings.state_dir.mkdir()
-    context = Context(settings, SqliteTaskStore(settings.db_path), SqliteLedger(settings.db_path), stages={})
-    context.reap = lambda directory: ReapResult([], [])
-    context.served = []
-    context.serve = lambda app, host, port: context.served.append((app, host, port))
-    return context
+    return make_server(tmp_path)
 
 
 def serve(ctx, *argv):
@@ -70,11 +62,10 @@ def test_a_loopback_bind_writes_nothing_to_stderr(ctx):
 
 
 def test_a_refused_wide_bind_does_not_warn(ctx):
-    from factory.lock import state_lock
-    with state_lock(ctx.settings.state_dir):
+    with state_lock(ctx.settings.server_dir):
         code, _, err = serve(ctx, "--host", "0.0.0.0")
 
-    assert code == 1 and "another factory run holds the lock" in err and "warning" not in err
+    assert code == 1 and "another factory server holds the lock" in err and "warning" not in err
 
 
 def test_the_host_flag_refuses_any_other_value_and_serves_nothing(ctx):

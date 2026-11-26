@@ -4,11 +4,8 @@ from dataclasses import replace
 
 import pytest
 
-from factory.cli import IO, Context, main
-from factory.process_registry import ReapResult
-from factory.settings import Settings
-from factory.sqlite_ledger import SqliteLedger
-from factory.sqlite_store import SqliteTaskStore
+from factory.cli import IO, main
+from servecli import make_server
 
 PLAIN_HTTP = ("the connection is plain HTTP, so the token, login code and session cookie can be read on the way: "
               "use a VPN or SSH tunnel")
@@ -23,12 +20,7 @@ WARNINGS = {
 
 @pytest.fixture
 def ctx(tmp_path):
-    settings = Settings(repo=tmp_path, state_dir=tmp_path / "state", worktree_root=tmp_path / "wt", home=tmp_path / "home",
-                        server_allowed_hosts=("nas.lan", "192.168.1.5"))
-    settings.state_dir.mkdir()
-    context = Context(settings, SqliteTaskStore(settings.db_path), SqliteLedger(settings.db_path), stages={})
-    context.reap = lambda directory: ReapResult([], [])
-    return context
+    return make_server(tmp_path, server_allowed_hosts=("nas.lan", "192.168.1.5"))
 
 
 @pytest.mark.parametrize("bind", ["0.0.0.0", "127.0.0.1"])

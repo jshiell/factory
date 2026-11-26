@@ -252,3 +252,13 @@ def test_rejecting_a_plan_acts_on_the_repo_in_the_url_and_returns_to_its_task_pa
     assert done.status_code == 303 and done.headers["location"] == "/ui/repos/a/tasks/same"
     assert contexts["a"].store.load("same").state is not TaskState.REVIEWED
     assert contexts["b"].store.load("same").state is TaskState.REVIEWED
+
+
+def test_a_login_code_gives_a_session_and_the_static_files_are_served(client):
+    code = client.app.state.login_codes.issue()
+
+    done = client.get(f"/ui/login?code={code}")
+
+    assert done.status_code == 200 and "set-cookie" in done.headers
+    assert client.get("/ui/login?code=used").status_code == 401
+    assert client.get("/ui/static/ui.css").status_code == 200

@@ -21,7 +21,7 @@ from factory.process_registry import (
 from factory.repos import name_problem
 from factory.runner import SubprocessRunner
 from factory.sandbox import sandbox_named
-from factory.settings import Settings, SettingsError
+from factory.settings import GlobalSettings, Settings, SettingsError
 from factory.sqlite_ledger import SqliteLedger
 from factory.sqlite_process_records import SqliteProcessRecords
 from factory.sqlite_store import SqliteTaskStore
@@ -116,11 +116,25 @@ class Context:
     sleep: Callable[[float], None] = time.sleep
 
 
-def _print_reaped(killed, discarded, io) -> None:
+@dataclass
+class ServerContext:
+    """What `serve` and `ui` run with: the global settings, and a loader of the repos under the home.
+
+    `load_repos` returns the contexts to start and, for each directory that cannot be one, why not."""
+
+    settings: GlobalSettings
+    load_repos: Callable[[], tuple[dict[str, Context], dict[str, str]]]
+    serve: Callable[[object, str, int], None] = _serve_with_uvicorn
+    server: ServerClient | None = None
+    clock: Callable[[], datetime] = datetime.now
+
+
+def _print_reaped(killed, discarded, io, repo: str | None = None) -> None:
+    where = f"{repo}: " if repo else ""
     for record in killed:
-        print(f"killed orphan of {record.task_id} ({record.stage}), pid {record.pid}", file=io.stdout)
+        print(f"{where}killed orphan of {record.task_id} ({record.stage}), pid {record.pid}", file=io.stdout)
     for record in discarded:
-        print(f"discarded invalid process record {record.path.name}: {record.reason}", file=io.stdout)
+        print(f"{where}discarded invalid process record {record.path.name}: {record.reason}", file=io.stdout)
 
 
 class _StoppedWaiting(Exception):

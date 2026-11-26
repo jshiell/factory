@@ -8,6 +8,7 @@ import stat
 import subprocess
 from contextlib import ExitStack, asynccontextmanager, contextmanager
 from dataclasses import asdict, dataclass
+from datetime import datetime
 from http.cookies import SimpleCookie
 from pathlib import Path
 from types import SimpleNamespace
@@ -481,10 +482,10 @@ async def _no_such_repo_route(request: Request) -> AsciiJSONResponse:
     raise ApiError(404, "not found", "no such route")
 
 
-def _build_repos_app(registry: RepoRegistry) -> Starlette:
+def _build_repos_app(registry: RepoRegistry, clock=datetime.now) -> Starlette:
     """One app serving every started repo under /repos/<name>, with one job worker for all of them."""
     changes, stopping, runner = TaskChanges(), StopRequest(), JobRunner()
-    mounts = [Route("/repos", _list_repos, methods=["GET"])]
+    mounts = [Route("/repos", _list_repos, methods=["GET"]), Route("/ui-login-codes", _ui_login_code, methods=["POST"])]
     repos = {}
     for name in registry.started_names:
         ctx = registry.get(name)
@@ -500,7 +501,9 @@ def _build_repos_app(registry: RepoRegistry) -> Starlette:
                     exception_handlers={**_EXCEPTION_HANDLERS, UnknownRepo: _unknown_repo})
     app.state.runner, app.state.changes, app.state.stopping = runner, changes, stopping
     app.state.registry, app.state.repos = registry, repos
+    app.state.login_codes, app.state.sessions = LoginCodes(clock), Sessions()
     app.state.keepalive_seconds = 15
+    app.state.request_stop = stopping.request
     return app
 
 
@@ -679,6 +682,14 @@ def create_secured_app(ctx, token: str):
     """The app `factory serve` runs: every request needs the token, a loopback or allowed Host and no Origin."""
     app = _build_app(ctx)
     guarded = _Guard(app, token, ctx.settings.server_allowed_hosts)
+    guarded.state = app.state
+    return guarded
+
+
+def create_secured_repos_app(registry: RepoRegistry, token: str, allowed_hosts, clock=datetime.now):
+    """The app `factory serve` runs: every repo behind one guard."""
+    app = _build_repos_app(registry, clock)
+    guarded = _Guard(app, token, allowed_hosts)
     guarded.state = app.state
     return guarded
 

@@ -60,7 +60,7 @@ def test_a_signal_stops_serve_with_an_event_stream_open_and_releases_the_lock(pr
             _log_in(client, (tmp_path / "factory-home" / "_server" / "token").read_text().strip())
             with client.stream("GET", "/ui/events") as stream:
                 lines = stream.iter_lines()  # held: a discarded iterator closes the stream when collected
-                assert _first_event(lines)[0] == "event: tasks"
+                assert _first_event(lines)[0] == "event: repos"
 
                 server.send_signal(signum)
                 # a clean end of the chunked body, not the backstop cancelling the stream mid-response

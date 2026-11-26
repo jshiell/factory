@@ -96,6 +96,14 @@ class GlobalSettings:
     server_host: str = "127.0.0.1"
     server_allowed_hosts: tuple[str, ...] = ()
 
+    @property
+    def server_dir(self) -> Path:
+        return self.home / "_server"
+
+    @property
+    def token_path(self) -> Path:
+        return self.server_dir / "token"
+
 
 BIND_HOSTS = ("127.0.0.1", "0.0.0.0")
 _ALWAYS_ALLOWED_HOSTS = ("127.0.0.1", "localhost", "0.0.0.0")

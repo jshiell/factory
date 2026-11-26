@@ -17,6 +17,7 @@ from factory.cli.base import (
     NO_REPO_MESSAGE,
     Context,
     NoRepo,
+    ServerContext,
     _StoppedWaiting,
     agent_runner,
 )
@@ -40,14 +41,13 @@ from factory.client import ServerClient, ServerRefused, ServerUnreachable
 from factory.gate import check_gate
 from factory.ids import InvalidTaskId
 from factory.init_config import init_global_config
-from factory.repos import name_problem, repo_name_from_cwd
+from factory.repos import discover_repos, name_problem, repo_name_from_cwd
 from factory.settings import (
     BIND_HOSTS,
     Settings,
     SettingsError,
     load_global_settings,
     load_repo_settings,
-    load_settings,
 )
 from factory.sqlite_ledger import SqliteLedger
 from factory.sqlite_process_records import SqliteProcessRecords
@@ -360,7 +360,7 @@ def _exit_on_signal(signum, frame):
 
 
 _NEEDS_NO_REPO = ("init", "clone", "eval-export")
-_STILL_SINGLE_REPO = ("serve", "ui")  # until increment 32 they read the repo's own config
+_SERVER_COMMANDS = ("serve", "ui")  # they act on the factory home, not on one repo
 
 
 def _repo_context(config: Path | None, repo_option: str | None) -> Context:
@@ -374,6 +374,25 @@ def _repo_context(config: Path | None, repo_option: str | None) -> Context:
     return build_context(settings, name)
 
 
+def _load_repos(home: Path) -> tuple[dict[str, Context], dict[str, str]]:
+    found = discover_repos(home)
+    contexts, skipped = {}, dict(found.problems)
+    for name in found.names:
+        try:
+            settings = load_repo_settings(home, name)
+            for warning in settings.warnings:
+                print(f"settings warning ({name}): {warning}", file=sys.stderr)
+            contexts[name] = build_context(settings, name)
+        except SettingsError as error:
+            skipped[name] = f"settings error: {error}"
+    return contexts, skipped
+
+
+def _server_context() -> ServerContext:
+    settings = load_global_settings()
+    return ServerContext(settings, lambda: _load_repos(settings.home), server=_server_client(settings))
+
+
 def run() -> None:
     known, rest = _preparser().parse_known_args(sys.argv[1:])
     io = IO(sys.stdin, sys.stdout, sys.stderr)
@@ -384,11 +403,8 @@ def run() -> None:
             print(f"settings error: {error}", file=sys.stderr)
             sys.exit(2)
     try:
-        if rest[:1] and rest[0] in _STILL_SINGLE_REPO:
-            settings = load_settings(known.config, cwd=Path.cwd())
-            for warning in settings.warnings:
-                print(f"settings warning: {warning}", file=sys.stderr)
-            ctx = build_context(settings)
+        if rest[:1] and rest[0] in _SERVER_COMMANDS:
+            ctx = _server_context()
         else:
             ctx = _repo_context(known.config, known.repo)
     except SettingsError as error:

@@ -64,25 +64,31 @@ def _serve(args, io, ctx) -> int:
     from factory.server import (
         StartRefused,
         TokenFileUnsafe,
-        claim_state_dir,
-        create_secured_app,
+        claim_server,
+        create_secured_repos_app,
         load_or_create_token,
     )
-    port = args.port if args.port is not None else ctx.settings.server_port
-    host = args.host or ctx.settings.server_host
+    settings = ctx.settings
+    port = args.port if args.port is not None else settings.server_port
+    host = args.host or settings.server_host
     try:
-        token = load_or_create_token(ctx.settings.server_dir)
-        with claim_state_dir(ctx) as reaped:
-            _print_reaped(reaped.killed, reaped.discarded, io)
-            print(f"serving on http://127.0.0.1:{port}; token in {ctx.settings.token_path}", file=io.stdout)
+        token = load_or_create_token(settings.server_dir)
+        contexts, skipped = ctx.load_repos()
+        with claim_server(settings.server_dir, contexts, skipped) as claimed:
+            for name, reaped in claimed.reaped.items():
+                _print_reaped(reaped.killed, reaped.discarded, io, repo=name)
+            for name, why in sorted(claimed.registry.skipped.items()):
+                print(escape_control(f"skipped repo {name}: {why}"), file=io.stderr)
+            print(f"serving on http://127.0.0.1:{port}; token in {settings.token_path}", file=io.stdout)
             io.stdout.flush()
-            old_token = ctx.settings.state_dir / "token"
-            if old_token.exists():
-                print(f"warning: {old_token} is unused; the token is now in {ctx.settings.token_path}", file=io.stderr)
-            warning = _bind_warning(host, port, ctx.settings.server_allowed_hosts)
+            for name in claimed.registry.started_names:
+                old_token = claimed.registry.get(name).settings.state_dir / "token"
+                if old_token.exists():
+                    print(f"warning: {old_token} is unused; the token is now in {settings.token_path}", file=io.stderr)
+            warning = _bind_warning(host, port, settings.server_allowed_hosts)
             if warning:
                 print(warning, file=io.stderr)
-            ctx.serve(create_secured_app(ctx, token), host, port)
+            ctx.serve(create_secured_repos_app(claimed.registry, token, settings.server_allowed_hosts, ctx.clock), host, port)
     except (StartRefused, TokenFileUnsafe) as refused:
         print(escape_control(str(refused)), file=io.stderr)
         return 1
