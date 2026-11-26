@@ -136,6 +136,8 @@ def load_repo_settings(home: Path, name: str, config: Path | None = None) -> Set
     path = config or repo / PROJECT_CONFIG
     if config:
         _check_config_outside_editable_area(config, {repo})
+        if not config.exists():
+            raise SettingsError(f"config file not found: {config}")
     global_path = home / "factory.toml"
     global_layer = _global_layer(global_path) if global_path.exists() else {}
     if path.exists() and (moved := sorted(set(_read(path)) & set(_FIXED_LAYOUT_KEYS))):

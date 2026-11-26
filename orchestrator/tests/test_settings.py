@@ -111,6 +111,11 @@ def test_an_explicit_config_inside_the_repo_but_outside_dot_factory_is_refused(r
         load(repo_dir, repo_dir / "conf" / "f.toml")
 
 
+def test_an_explicit_config_that_does_not_exist_is_an_error(repo_dir, tmp_path):
+    with pytest.raises(SettingsError, match='config file not found'):
+        load(repo_dir, tmp_path / 'missing.toml')
+
+
 def test_an_explicit_config_inside_dot_factory_is_accepted(repo_dir):
     (repo_dir / ".factory").mkdir()
     (repo_dir / ".factory" / "other.toml").write_text("cap_usd = 7\n")
