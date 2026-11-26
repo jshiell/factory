@@ -138,28 +138,20 @@ def _resumed_eval_dir(evals_root, name) -> Path:
     return directory
 
 
-def _build_app(ctx) -> Starlette:
-    changes = TaskChanges()
-    jobs = JobStore(ctx.settings.db_path, on_change=changes.notify)  # the worker thread writes: notify is thread-safe
-    runner = JobRunner(jobs)
+@dataclass(frozen=True)
+class Api:
+    """The task, job and clean routes of one repo, with what the app state needs from them."""
+    routes: list
+    actions: WebActions
+    clean_preview: object
+    enqueue_clean: object
+
+
+def api_routes(ctx, jobs, runner) -> Api:
     actions = WebActions(  # looked up at call time: this module is where these are wired
         ctx, runner, merge=lambda *args, **kwargs: merge_task(*args, **kwargs),
         rebase=lambda *args, **kwargs: rebase_task(*args, **kwargs),
         retry_with_plan=lambda *args, **kwargs: retry_with_plan(*args, **kwargs))
-    stopping = StopRequest()
-    if hasattr(ctx.store, "subscribe"):  # the legacy JSON store cannot announce writes; its pages update on reload
-        ctx.store.subscribe(changes.notify)  # once per app, not per lifespan, so repeated lifespans do not stack
-
-    @asynccontextmanager
-    async def lifespan(app):
-        changes.attach(asyncio.get_running_loop())
-        stopping.attach(asyncio.get_running_loop())
-        runner.start()
-        try:
-            yield
-        finally:
-            runner.stop()
-
     async def create_task(request: Request) -> AsciiJSONResponse:
         body = await _json_object(request)
         goal = _required_string(body, "goal")
@@ -424,40 +416,64 @@ def _build_app(ctx) -> Starlette:
         code = request.app.state.login_codes.issue()
         return AsciiJSONResponse({"url": f"http://{request.headers['host']}/ui/login?code={code}"})
 
+    routes = [Route("/eval-audit", eval_audit, methods=["POST"]),
+            Route("/clean-preview", clean_preview, methods=["GET"]), Route("/clean", clean, methods=["POST"]),
+            Route("/tasks/{task_id}/retry-preview", retry_preview, methods=["GET"]),
+            Route("/tasks/{task_id}/retry", retry, methods=["POST"]),
+            Route("/tasks/{task_id}/merge", merge, methods=["POST"]),
+            Route("/tasks/{task_id}/merge-preview", merge_preview_view, methods=["GET"]),
+            Route("/tasks/{task_id}/approval", approval_preview, methods=["GET"]),
+            Route("/tasks/{task_id}/approve", approve, methods=["POST"]),
+            Route("/tasks/{task_id}/answer", answer, methods=["POST"]),
+            Route("/tasks/{task_id}/questions", questions, methods=["GET"]),
+            Route("/tasks/{task_id}/reject", reject, methods=["POST"]),
+            Route("/tasks/{task_id}/rebase", rebase, methods=["POST"]),
+            Route("/tasks/{task_id}/recover", recover, methods=["POST"]),
+            Route("/tasks/{task_id}/abandon", abandon, methods=["POST"]),
+            Route("/tasks/{task_id}/advance", advance_task, methods=["POST"]),
+            Route("/ui-login-codes", ui_login_code, methods=["POST"]),
+            Route("/jobs", list_jobs, methods=["GET"]), Route("/jobs/{job_id}", show_job, methods=["GET"]),
+            Route("/costs", costs, methods=["GET"]), Route("/tasks", create_task, methods=["POST"]), Route("/tasks", list_tasks, methods=["GET"]),
+            Route("/tasks/{task_id}", show_task, methods=["GET"]),]
+    return Api(routes, actions, clean_preview_now, enqueue_clean)
+
+
+def _build_app(ctx) -> Starlette:
+    changes = TaskChanges()
+    jobs = JobStore(ctx.settings.db_path, on_change=changes.notify)  # the worker thread writes: notify is thread-safe
+    runner = JobRunner(jobs)
+    stopping = StopRequest()
+    if hasattr(ctx.store, "subscribe"):  # the legacy JSON store cannot announce writes; its pages update on reload
+        ctx.store.subscribe(changes.notify)  # once per app, not per lifespan, so repeated lifespans do not stack
+
+    @asynccontextmanager
+    async def lifespan(app):
+        changes.attach(asyncio.get_running_loop())
+        stopping.attach(asyncio.get_running_loop())
+        runner.start()
+        try:
+            yield
+        finally:
+            runner.stop()
+
+    api = api_routes(ctx, jobs, runner)
+
     app = Starlette(
         lifespan=lifespan,
-        routes=[Route("/eval-audit", eval_audit, methods=["POST"]),
-                Route("/clean-preview", clean_preview, methods=["GET"]), Route("/clean", clean, methods=["POST"]),
-                Route("/tasks/{task_id}/retry-preview", retry_preview, methods=["GET"]),
-                Route("/tasks/{task_id}/retry", retry, methods=["POST"]),
-                Route("/tasks/{task_id}/merge", merge, methods=["POST"]),
-                Route("/tasks/{task_id}/merge-preview", merge_preview_view, methods=["GET"]),
-                Route("/tasks/{task_id}/approval", approval_preview, methods=["GET"]),
-                Route("/tasks/{task_id}/approve", approve, methods=["POST"]),
-                Route("/tasks/{task_id}/answer", answer, methods=["POST"]),
-                Route("/tasks/{task_id}/questions", questions, methods=["GET"]),
-                Route("/tasks/{task_id}/reject", reject, methods=["POST"]),
-                Route("/tasks/{task_id}/rebase", rebase, methods=["POST"]),
-                Route("/tasks/{task_id}/recover", recover, methods=["POST"]),
-                Route("/tasks/{task_id}/abandon", abandon, methods=["POST"]),
-                Route("/tasks/{task_id}/advance", advance_task, methods=["POST"]),
-                Route("/ui-login-codes", ui_login_code, methods=["POST"]),
-                Route("/jobs", list_jobs, methods=["GET"]), Route("/jobs/{job_id}", show_job, methods=["GET"]),
-                Route("/costs", costs, methods=["GET"]), Route("/tasks", create_task, methods=["POST"]), Route("/tasks", list_tasks, methods=["GET"]),
-                Route("/tasks/{task_id}", show_task, methods=["GET"]), *ui_routes()],
+        routes=[*api.routes, *ui_routes()],
         exception_handlers={ApiError: _error_response, TaskNotFound: _unknown_task, InvalidTaskId: _unknown_task,
                            JobNotFound: _unknown_job,
                            service.NotReviewed: _not_reviewed},
     )
     app.state.runner = runner
     app.state.jobs = jobs
-    app.state.actions = actions
+    app.state.actions = api.actions
     app.state.login_codes = LoginCodes(ctx.clock)
     app.state.sessions = Sessions()
     app.state.store = ctx.store
     app.state.ledger = ctx.ledger
-    app.state.clean_preview = clean_preview_now
-    app.state.enqueue_clean = enqueue_clean
+    app.state.clean_preview = api.clean_preview
+    app.state.enqueue_clean = api.enqueue_clean
     app.state.settings = ctx.settings
     app.state.changes = changes
     app.state.keepalive_seconds = 15
