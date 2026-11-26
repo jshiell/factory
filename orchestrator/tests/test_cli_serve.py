@@ -12,7 +12,7 @@ from factory.sqlite_store import SqliteTaskStore
 
 @pytest.fixture
 def ctx(tmp_path):
-    settings = Settings(repo=tmp_path, state_dir=tmp_path / "state", worktree_root=tmp_path / "wt")
+    settings = Settings(repo=tmp_path, state_dir=tmp_path / "state", worktree_root=tmp_path / "wt", home=tmp_path / "home")
     settings.state_dir.mkdir()
     context = Context(settings, SqliteTaskStore(settings.db_path), SqliteLedger(settings.db_path), stages={})
     context.reap = lambda directory: ReapResult([], [])
@@ -33,7 +33,7 @@ def test_serve_listens_on_loopback_port_8765_by_default_and_says_where(ctx):
     assert code == 0
     (_, host, port), = ctx.served
     assert (host, port) == ("127.0.0.1", 8765)
-    token_file = ctx.settings.state_dir / "token"
+    token_file = ctx.settings.token_path
     assert out.strip() == f"serving on http://127.0.0.1:8765; token in {token_file}"
     assert token_file.read_text().strip() not in out
 
@@ -51,7 +51,7 @@ def test_the_app_it_serves_requires_the_token(ctx):
 
     with TestClient(app, base_url="http://127.0.0.1:8765") as client:
         assert client.get("/tasks").status_code == 401
-        token = (ctx.settings.state_dir / "token").read_text().strip()
+        token = (ctx.settings.token_path).read_text().strip()
         assert client.get("/tasks", headers={"Authorization": f"Bearer {token}"}).status_code == 200
 
 
@@ -92,7 +92,7 @@ def test_serve_refuses_when_orphans_cannot_be_proved_dead(ctx):
 def test_serve_refuses_a_token_file_others_can_read(ctx):
     import os
     serve(ctx)
-    os.chmod(ctx.settings.state_dir / "token", 0o644)
+    os.chmod(ctx.settings.token_path, 0o644)
     ctx.served.clear()
 
     code, out, err = serve(ctx)

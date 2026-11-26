@@ -23,7 +23,7 @@ WARNINGS = {
 
 @pytest.fixture
 def ctx(tmp_path):
-    settings = Settings(repo=tmp_path, state_dir=tmp_path / "state", worktree_root=tmp_path / "wt",
+    settings = Settings(repo=tmp_path, state_dir=tmp_path / "state", worktree_root=tmp_path / "wt", home=tmp_path / "home",
                         server_allowed_hosts=("nas.lan", "192.168.1.5"))
     settings.state_dir.mkdir()
     context = Context(settings, SqliteTaskStore(settings.db_path), SqliteLedger(settings.db_path), stages={})
@@ -44,4 +44,4 @@ def test_a_set_list_prints_one_warning_naming_the_hosts_before_listening(ctx, bi
     assert err.getvalue() == WARNINGS[bind]
     assert heard_before_listening == [WARNINGS[bind]]
     assert "still refused" not in err.getvalue()
-    assert out.getvalue().splitlines() == [f"serving on http://127.0.0.1:9001; token in {ctx.settings.state_dir / 'token'}"]
+    assert out.getvalue().splitlines() == [f"serving on http://127.0.0.1:9001; token in {ctx.settings.token_path}"]

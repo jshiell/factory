@@ -17,7 +17,7 @@ def nobody_listening(request):
 
 @pytest.fixture
 def ctx(tmp_path):
-    settings = Settings(repo=tmp_path, state_dir=tmp_path / "state", worktree_root=tmp_path / "wt")
+    settings = Settings(repo=tmp_path, state_dir=tmp_path / "state", worktree_root=tmp_path / "wt", home=tmp_path / "home")
     http = httpx2.Client(transport=httpx2.MockTransport(nobody_listening), base_url="http://127.0.0.1:8765")
     return Context(settings, TaskStore(settings.tasks_dir), Ledger(settings.ledger_path), stages={},
                    clock=lambda: datetime(2026, 1, 2, 3, 4, 5), server=ServerClient(http, "tok"))
@@ -63,4 +63,4 @@ def test_a_server_that_refuses_the_token_says_where_the_token_comes_from(ctx):
     code, out, err = run(ctx, "list")
 
     assert (code, out) == (1, "")
-    assert str(ctx.settings.state_dir / "token") in err
+    assert str(ctx.settings.token_path) in err

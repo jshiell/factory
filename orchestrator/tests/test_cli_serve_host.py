@@ -12,7 +12,7 @@ from factory.sqlite_store import SqliteTaskStore
 
 @pytest.fixture
 def ctx(tmp_path):
-    settings = Settings(repo=tmp_path, state_dir=tmp_path / "state", worktree_root=tmp_path / "wt")
+    settings = Settings(repo=tmp_path, state_dir=tmp_path / "state", worktree_root=tmp_path / "wt", home=tmp_path / "home")
     settings.state_dir.mkdir()
     context = Context(settings, SqliteTaskStore(settings.db_path), SqliteLedger(settings.db_path), stages={})
     context.reap = lambda directory: ReapResult([], [])
@@ -35,7 +35,7 @@ def test_serve_binds_the_configured_host_and_still_prints_the_loopback_url(ctx):
     assert code == 0
     (_, host, port), = ctx.served
     assert (host, port) == ("0.0.0.0", 8765)
-    assert out == f"serving on http://127.0.0.1:8765; token in {ctx.settings.state_dir / 'token'}\n"
+    assert out == f"serving on http://127.0.0.1:8765; token in {ctx.settings.token_path}\n"
 
 
 def test_a_wide_bind_warns_on_stderr_before_it_starts_listening(ctx):
@@ -51,7 +51,7 @@ def test_a_wide_bind_warns_on_stderr_before_it_starts_listening(ctx):
     )
     assert err.getvalue() == warning
     assert heard_before_listening == [warning]
-    assert out.getvalue().splitlines() == [f"serving on http://127.0.0.1:9001; token in {ctx.settings.state_dir / 'token'}"]
+    assert out.getvalue().splitlines() == [f"serving on http://127.0.0.1:9001; token in {ctx.settings.token_path}"]
 
 
 def test_the_cli_client_still_connects_to_loopback_whatever_the_bind(ctx):

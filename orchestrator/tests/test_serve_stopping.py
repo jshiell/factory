@@ -57,7 +57,7 @@ def test_a_signal_stops_serve_with_an_event_stream_open_and_releases_the_lock(pr
     server = _start_serve(repo, env, port)
     try:
         with httpx2.Client(base_url=f"http://127.0.0.1:{port}", timeout=START_SECONDS) as client:
-            _log_in(client, (state_dir / "token").read_text().strip())
+            _log_in(client, (tmp_path / "factory-home" / "_server" / "token").read_text().strip())
             with client.stream("GET", "/ui/events") as stream:
                 lines = stream.iter_lines()  # held: a discarded iterator closes the stream when collected
                 assert _first_event(lines)[0] == "event: tasks"

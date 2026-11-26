@@ -70,6 +70,22 @@ class Settings:
     def tasks_dir(self) -> Path:
         return self.state_dir / "tasks"
 
+    @property
+    def server_dir(self) -> Path:
+        if self.home is None:
+            raise SettingsError("no factory home is known, so there is no server directory")
+        return self.home / "_server"
+
+    @property
+    def token_path(self) -> Path:
+        return self.server_dir / "token"
+
+    @property
+    def private_dirs(self) -> tuple[str, ...]:
+        """Directories the sandbox must never be granted, even indirectly."""
+        server = () if self.home is None else (str(self.server_dir),)
+        return (str(self.state_dir), *server)
+
 
 @dataclass(frozen=True)
 class GlobalSettings:

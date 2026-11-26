@@ -68,7 +68,7 @@ def agent_runner(settings: Settings, project_subdir: str, records) -> Subprocess
     return SubprocessRunner(
         settings.claude_executable, project_subdir, settings.runner_timeout_s,
         sandbox=sandbox_named(settings.sandbox, settings.sandbox_executable), records=records,
-        private_dirs=(str(settings.state_dir),), harness=harness,
+        private_dirs=settings.private_dirs, harness=harness,
     )
 
 

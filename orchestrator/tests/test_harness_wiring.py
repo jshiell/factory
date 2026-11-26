@@ -106,7 +106,7 @@ def test_the_context_builds_its_agent_runner_with_the_configured_harness(tmp_pat
     monkeypatch.setitem(HARNESSES, "echo", harness)
     deps = []
     monkeypatch.setattr(cli, "build_stages", lambda settings, given: deps.append(given) or {})
-    settings = Settings(tmp_path / "repo", tmp_path / "state", tmp_path / "wts", harness="echo")
+    settings = Settings(tmp_path / "repo", tmp_path / "state", tmp_path / "wts", harness="echo", home=tmp_path / "home")
 
     cli.build_context(settings)
 

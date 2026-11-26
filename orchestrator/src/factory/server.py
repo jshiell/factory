@@ -469,9 +469,10 @@ class TokenFileUnsafe(Exception):
     pass
 
 
-def load_or_create_token(state_dir) -> str:
-    """The bearer token in `state_dir/token`: created once with mode 0600, refused if anyone else can read it."""
-    path = Path(state_dir) / "token"
+def load_or_create_token(directory) -> str:
+    """The bearer token in `directory/token`: created once with mode 0600, refused if anyone else can read it."""
+    Path(directory).mkdir(parents=True, exist_ok=True)
+    path = Path(directory) / "token"
     try:
         descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
     except FileExistsError:

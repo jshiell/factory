@@ -4,6 +4,7 @@ import pytest
 
 from factory.settings import (
     GlobalSettings,
+    Settings,
     SettingsError,
     load_global_settings,
     load_settings,
@@ -62,3 +63,19 @@ def test_repo_settings_carry_the_home(isolated_home, tmp_path):
     subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
 
     assert load_settings(None, cwd=repo).home == isolated_home / ".harness"
+
+
+def test_the_token_lives_in_the_server_directory_which_the_sandbox_must_never_be_granted(tmp_path):
+    settings = Settings(repo=tmp_path, state_dir=tmp_path / "state", worktree_root=tmp_path / "wt", home=tmp_path / "home")
+
+    assert settings.server_dir == tmp_path / "home" / "_server"
+    assert settings.token_path == tmp_path / "home" / "_server" / "token"
+    assert settings.private_dirs == (str(tmp_path / "state"), str(tmp_path / "home" / "_server"))
+
+
+def test_settings_without_a_home_have_no_token_path_and_only_the_state_dir_private(tmp_path):
+    settings = Settings(repo=tmp_path, state_dir=tmp_path / "state", worktree_root=tmp_path / "wt")
+
+    assert settings.private_dirs == (str(tmp_path / "state"),)
+    with pytest.raises(SettingsError):
+        _ = settings.token_path

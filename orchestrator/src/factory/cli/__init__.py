@@ -120,7 +120,7 @@ def main(argv: list[str], io: IO, ctx: Context) -> int:
         return 130
     except ServerRefused as refused:
         if refused.status == 401:
-            print(f"the server refused the token in {ctx.settings.state_dir / 'token'}; restart `factory serve` or check the file", file=io.stderr)
+            print(f"the server refused the token in {ctx.settings.token_path}; restart `factory serve` or check the file", file=io.stderr)
             return 1
         if refused.error == "unknown task":
             print(f"unknown task: {refused.detail}", file=io.stderr)
@@ -303,7 +303,7 @@ _COMMANDS = {
 
 
 def _server_client(settings: Settings) -> ServerClient:
-    token_file = settings.state_dir / "token"
+    token_file = settings.token_path
     token = token_file.read_text().strip() if token_file.exists() else ""  # no token means no server has ever run here
     http = httpx2.Client(base_url=f"http://127.0.0.1:{settings.server_port}", timeout=30.0)
     return ServerClient(http, token)

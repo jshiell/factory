@@ -76,7 +76,7 @@ def gate_sandbox_for(settings: Settings) -> Callable[[Task], GateSandbox]:
             sandbox=sandbox_named(settings.sandbox, settings.sandbox_executable), worktree=worktree, project_dir=project_dir,
             cache_dir=cache_dir, python_prefix=tooling.python_prefix, uv_python_dir=tooling.uv_python_dir,
             real_uv=tooling.real_uv, base_env=dict(os.environ), test_argv=settings.test_argv,
-            private_dirs=(str(settings.state_dir),),
+            private_dirs=settings.private_dirs,
         )
     return make
 
