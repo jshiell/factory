@@ -105,6 +105,13 @@ Rule: an existing assertion is edited only when it pins old wording, an old path
 - Increment 3: the `project` fixture in `test_cli_wiring.py` writes `server_port` to `<FACTORY_HOME>/factory.toml`; the two tests that expect no global config (`test_init_writes_the_global_template...`, `test_clone_refuses_a_non_github_repository...`) remove that file first. `test_settings_ipv4_hosts.py` `load_with` writes the global config. `test_serve_stopping.py` was fixed through the fixture.
 - Increment 4: tests pinning a per-repo `home` were removed or moved to the global config: deleted `test_a_relative_home_in_dot_factory_config_resolves_against_the_repo_root` (superseded by the refusal test), `test_a_home_in_the_config_is_relative_to_the_config_directory` (the global-config relative home is covered by the existing global tests) and `test_factory_home_beats_the_home_in_the_config` (duplicate of the global-config `FACTORY_HOME` test); moved the tilde and plugin-dir tests to the global config.
 
+- Increments 6–14: the restart notice from `factory clone` goes to stderr; `private_dirs` is a `Settings` property; `load_or_create_token` takes a directory; the leading-dot refusal covers the owner part of a clone spec as well as the name; the `migrate` lock message names the server; the in-repo state message ends "and run `factory migrate`".
+- Increment 15: `api_routes` returns an `Api` (routes, actions, clean preview and enqueue) rather than a bare route list, because the app state needs the last three; the `/ui-login-codes` route moved out of it into the app builder (it is server-level).
+- Increment 16: `JobRunner()` takes its default job store as optional; each repo gets a `_BoundRunner` that submits to that repo's `JobStore`. The multi-repo app is `_build_repos_app(registry)`, separate from `_build_app` (the adapter) until increment 32.
+- Increment 17: the catch-all also answers a known repo's unknown path with a JSON 404; a known repo's own unmatched paths inside its mount still get Starlette's default 404 (as the root routes do today).
+- Increment 18: `ServerClient.unscoped()` returns a prefix-free view; `for_repo(name)` (increment 21) returns a scoped one.
+- Increments 22–23: `Context` gains `repo` (qualifies printed ids) and `repo_required` (set only by the real CLI path in increment 24, so the single-repo adapter tests keep working until increment 34). A malformed task ref raises `InvalidTaskId`; `NoRepo` exits 2.
+
 ## Not verified
 - What the nono profile grants (step 0 spike); README line ~360 records a live check where other state and worktrees were denied.
 - Starlette's default 404 body type (handled by the JSON catch-all regardless).
