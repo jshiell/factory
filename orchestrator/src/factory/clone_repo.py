@@ -11,7 +11,7 @@ _SPEC = re.compile(
 )
 
 
-_RESERVED = ("_shared", "factory.toml")
+_RESERVED = ("_shared", "_server", "factory.toml")
 
 
 class RepositoryError(ValueError):
