@@ -719,7 +719,8 @@ async def _repos_index(request: Request) -> HTMLResponse:
 def repos_ui_routes() -> list[Route | Mount]:
     """The UI of the multi-repo server."""
     return [Route("/ui", _ui_without_slash, methods=["GET"]), Route("/ui/", _repos_index, methods=["GET"]),
-            Route("/ui/repos/{repo}/tasks/{task_id}", _task_page, methods=["GET"])]
+            Route("/ui/repos/{repo}/tasks/{task_id}", _task_page, methods=["GET"]),
+            Route("/ui/repos/{repo}/tasks/{task_id}/events", _task_events, methods=["GET"])]
 
 
 def _event(name: str, fragment: str) -> str:
@@ -771,8 +772,8 @@ async def _task_events(request: Request) -> StreamingResponse | HTMLResponse:
     _, refusal = _load_task(request)  # before the stream exists, so a refusal still has its real status
     if refusal:
         return refusal
-    state, task_id = request.app.state, request.path_params["task_id"]
-    return _stream(request, _unless_unchanged(lambda: _event("task", _task_fragment(state.store, state.jobs, task_id))))
+    repo, task_id = _repo(request), request.path_params["task_id"]
+    return _stream(request, _unless_unchanged(lambda: _event("task", _task_fragment(repo.store, repo.jobs, task_id))))
 
 
 def _task_fragment(store, jobs, task_id: str) -> str:

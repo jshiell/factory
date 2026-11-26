@@ -500,6 +500,7 @@ def _build_repos_app(registry: RepoRegistry) -> Starlette:
                     exception_handlers={**_EXCEPTION_HANDLERS, UnknownRepo: _unknown_repo})
     app.state.runner, app.state.changes, app.state.stopping = runner, changes, stopping
     app.state.registry, app.state.repos = registry, repos
+    app.state.keepalive_seconds = 15
     return app
 
 

@@ -1,4 +1,5 @@
 import sqlite3
+import threading
 
 import pytest
 from starlette.testclient import TestClient
@@ -55,3 +56,31 @@ def test_a_task_page_shows_the_task_of_its_own_repo_and_links_to_its_events(clie
     assert page.status_code == 200
     assert "goal in a" in page.text and "goal in b" not in page.text
     assert 'sse-connect="/ui/repos/a/tasks/same/events"' in page.text
+
+
+def first_event(client, path):
+    """The lines of the first SSE event of `path`; fails instead of hanging."""
+    lines: list[str] = []
+
+    def read():
+        with client.stream("GET", path) as response:
+            for line in response.iter_lines():
+                if not line:
+                    return
+                lines.append(line)
+
+    reader = threading.Thread(target=read, daemon=True)
+    reader.start()
+    reader.join(10)
+    assert not reader.is_alive(), f"no event within 10s for {path}"
+    return lines
+
+
+def test_a_task_stream_sends_the_task_of_its_own_repo(client, contexts):
+    contexts["a"].store.save(Task(id="same", prompt="goal in a", state=TaskState.QUEUED))
+    contexts["b"].store.save(Task(id="same", prompt="goal in b", state=TaskState.QUEUED))
+
+    event = "\n".join(first_event(client, "/ui/repos/a/tasks/same/events"))
+
+    assert event.startswith("event: task")
+    assert "goal in a" in event and "goal in b" not in event
