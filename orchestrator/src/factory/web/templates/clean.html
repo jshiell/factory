@@ -7,7 +7,7 @@
 <p>Cleaning removes the worktrees, branches and gate caches listed below. This cannot be undone.</p>
 {% if view.candidates %}
 <ul>
-  {% for c in view.candidates %}<li><a href="/ui/tasks/{{ c.id | urlencode }}">{{ c.id }}</a>: {{ c.state | humanise }}{% for flag in c.flags %}, {{ flag }}{% endfor %}</li>
+  {% for c in view.candidates %}<li><a href="{{ base | default('/ui') }}/tasks/{{ c.id | urlencode }}">{{ c.id }}</a>: {{ c.state | humanise }}{% for flag in c.flags %}, {{ flag }}{% endfor %}</li>
   {% endfor %}
 </ul>
 {% endif %}
@@ -18,7 +18,7 @@
   {% endfor %}
 </ul>
 {% endif %}
-<form method="post" action="/ui/clean">
+<form method="post" action="{{ base | default('/ui') }}/clean">
 <input type="hidden" name="token" value="{{ view.token }}">
 <button type="submit">Clean up</button>
 </form>

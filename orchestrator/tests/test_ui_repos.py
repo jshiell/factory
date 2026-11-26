@@ -1,9 +1,11 @@
+import re
 import sqlite3
 import threading
 
 import pytest
 from starlette.testclient import TestClient
 
+from factory.clean_tasks import Candidate
 from factory.repos import RepoRegistry
 from factory.server import _build_repos_app
 from factory.task import Task, TaskState
@@ -150,6 +152,33 @@ def test_a_repo_whose_jobs_cannot_be_read_is_named_and_the_others_still_show(cli
     assert page.status_code == 200
     assert "in-a" in page.text
     assert "b: unreadable" in page.text
+
+
+@pytest.fixture
+def clean_candidates(monkeypatch):
+    found = [Candidate(Task(id="old-task", prompt="", state=TaskState.FAILED, worktree="/w/t1"),
+                       directory_exists=True, dirty=True, commits_ahead=2, branch_exists=True)]
+    monkeypatch.setattr("factory.server.clean_candidates", lambda *a, **k: found)
+    return found
+
+
+def test_the_clean_page_of_a_repo_links_its_tasks_and_confirming_queues_the_job_in_that_repo(client, clean_candidates):
+    page = client.get("/ui/repos/a/clean")
+    token = re.search(r'name="token" value="([0-9a-f]{64})"', page.text).group(1)
+
+    done = client.post("/ui/repos/a/clean", data={"token": token}, follow_redirects=False)
+
+    assert page.status_code == 200
+    assert 'href="/ui/repos/a/tasks/old-task"' in page.text and 'action="/ui/repos/a/clean"' in page.text
+    assert done.status_code == 303 and done.headers["location"] == "/ui/jobs"
+    assert [job.kind for job in client.app.state.repos["a"].jobs.list()] == ["clean"]
+    assert client.app.state.repos["b"].jobs.list() == []
+
+
+def test_the_index_links_each_repos_clean_page(client):
+    page = client.get("/ui/")
+
+    assert 'href="/ui/repos/a/clean"' in page.text and 'href="/ui/repos/b/clean"' in page.text
 
 
 def test_rejecting_a_plan_acts_on_the_repo_in_the_url_and_returns_to_its_task_page(client, contexts):

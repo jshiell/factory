@@ -155,14 +155,14 @@ def _clean_git_failed_page() -> HTMLResponse:
 
 async def _clean_page(request: Request) -> HTMLResponse:
     try:
-        view = request.app.state.clean_preview()
+        view = _repo(request).clean_preview()
     except (subprocess.CalledProcessError, OSError):  # the text is a git command line or a path
         return _clean_git_failed_page()
     shown = {"token": view["token"], "skipped": [_safe(name) for name in view["skipped"]],
              "orphans": [{"name": _safe(o["name"]), "size": o["size"]} for o in view["orphans"]],
              "candidates": [{"id": _safe(c["id"]), "state": c["state"], "flags": _clean_flags(c)}
                             for c in view["candidates"]]}
-    return HTMLResponse(_TEMPLATES.get_template("clean.html").render(view=shown))
+    return HTMLResponse(_TEMPLATES.get_template("clean.html").render(view=shown, base=_base(request)))
 
 
 async def _clean(request: Request) -> RedirectResponse | HTMLResponse:
@@ -173,7 +173,7 @@ async def _clean(request: Request) -> RedirectResponse | HTMLResponse:
     if token is None:
         return _bad_form_page()
     try:
-        request.app.state.enqueue_clean(token)
+        _repo(request).enqueue_clean(token)
     except CleanChanged:
         return _wrong_state_page("What would be cleaned changed since you opened the page. Open it again to see "
                                  "what would be cleaned now.")
@@ -773,6 +773,8 @@ def repos_ui_routes() -> list[Route | Mount]:
     return [Route("/ui", _ui_without_slash, methods=["GET"]), Route("/ui/", _repos_index, methods=["GET"]),
             Route("/ui/tasks/new", _new_task_page, methods=["GET"]), Route("/ui/tasks/new", _new_task, methods=["POST"]),
             Route("/ui/jobs", _repos_jobs_page, methods=["GET"]),
+            Route("/ui/repos/{repo}/clean", _clean_page, methods=["GET"]),
+            Route("/ui/repos/{repo}/clean", _clean, methods=["POST"]),
             *_task_routes("/ui/repos/{repo}")]
 
 
