@@ -684,6 +684,20 @@ async def _ui_page(request: Request) -> HTMLResponse:
     return HTMLResponse(_TEMPLATES.get_template("page.html").render(_tasks_context(request.app.state.store)))
 
 
+def _repos_context(registry) -> dict:
+    return {"repos": [{"name": name, "base": f"/ui/repos/{name}", **_tasks_context(registry.get(name).store)}
+                      for name in registry.started_names]}
+
+
+async def _repos_index(request: Request) -> HTMLResponse:
+    return HTMLResponse(_TEMPLATES.get_template("repos_page.html").render(_repos_context(request.app.state.registry)))
+
+
+def repos_ui_routes() -> list[Route | Mount]:
+    """The UI of the multi-repo server."""
+    return [Route("/ui", _ui_without_slash, methods=["GET"]), Route("/ui/", _repos_index, methods=["GET"])]
+
+
 def _event(name: str, fragment: str) -> str:
     """One SSE event; splitting on every line break keeps a CR in the text from ending a line or the event."""
     data_lines = "".join(f"data: {line}\n" for line in fragment.splitlines())

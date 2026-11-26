@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block content %}
+<div id="repos">
+{% for repo in repos %}
+<h2>{{ repo.name }}</h2>
+{% with tasks=repo.tasks, skipped=repo.skipped, base=repo.base %}{% include "_tasks.html" %}{% endwith %}
+{% endfor %}
+</div>
+{% endblock %}

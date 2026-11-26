@@ -56,7 +56,7 @@ from factory.textsafe import log_failure
 from factory.waiver import InvalidWaiver, note_lines
 from factory.web.auth import LoginCodes, Sessions, session_cookie_name
 from factory.web.changes import TaskChanges
-from factory.web.routes import ui_routes
+from factory.web.routes import repos_ui_routes, ui_routes
 from factory.web.stopping import StopRequest
 from factory.web_actions import (
     CLEAN_CHECK_FAILED,
@@ -490,7 +490,7 @@ def _build_repos_app(registry: RepoRegistry) -> Starlette:
         if hasattr(ctx.store, "subscribe"):
             ctx.store.subscribe(changes.notify)
         mounts.append(Mount(f"/repos/{name}", routes=api_routes(ctx, jobs, _BoundRunner(runner, jobs)).routes))
-    mounts += [Route("/repos/{repo}", _no_such_repo_route), Route("/repos/{repo}/{rest:path}", _no_such_repo_route)]
+    mounts += [*repos_ui_routes(), Route("/repos/{repo}", _no_such_repo_route), Route("/repos/{repo}/{rest:path}", _no_such_repo_route)]
     app = Starlette(lifespan=_lifespan(changes, stopping, runner), routes=mounts,
                     exception_handlers={**_EXCEPTION_HANDLERS, UnknownRepo: _unknown_repo})
     app.state.runner, app.state.changes, app.state.stopping = runner, changes, stopping

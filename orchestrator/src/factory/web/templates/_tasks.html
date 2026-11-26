@@ -3,7 +3,7 @@
   <tbody>
   {% for task in tasks %}
     <tr{% if task.needs_you %} class="needs-you"{% endif %}>
-      <td><a href="/ui/tasks/{{ task.id | urlencode }}">{{ task.id }}</a></td>
+      <td><a href="{{ base | default('/ui') }}/tasks/{{ task.id | urlencode }}">{{ task.id }}</a></td>
       <td>{{ task.state | humanise }}{% if task.needs_you %} (<strong>Needs you</strong>){% endif %}</td>
       <td>{{ task.goal }}</td>
       <td>{{ task.failure_reason or "" }}</td>
