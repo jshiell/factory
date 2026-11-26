@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block content %}
 <p>Goal: {{ task.goal }}</p>
-<form method="post" action="/ui/tasks/{{ task.id | urlencode }}/answer">
+<form method="post" action="{{ base | default('/ui') }}/tasks/{{ task.id | urlencode }}/answer">
 <input type="hidden" name="round" value="{{ task.grill_rounds }}">
 {% for question in task.open_questions %}
 <p>{{ question.number }}. {{ question.title }}</p>
@@ -10,5 +10,5 @@
 {% endfor %}
 <button type="submit">Send answers</button>
 </form>
-<p><a href="/ui/tasks/{{ task.id | urlencode }}">Back to the task</a></p>
+<p><a href="{{ base | default('/ui') }}/tasks/{{ task.id | urlencode }}">Back to the task</a></p>
 {% endblock %}

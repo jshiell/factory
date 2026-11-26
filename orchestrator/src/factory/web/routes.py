@@ -244,7 +244,7 @@ async def _reject_page(request: Request) -> HTMLResponse:
         return refusal
     if task.state is not TaskState.REVIEWED:
         return _not_reviewed_page()
-    return HTMLResponse(_TEMPLATES.get_template("reject.html").render(task=_task_detail(task)))
+    return HTMLResponse(_TEMPLATES.get_template("reject.html").render(task=_task_detail(task), base=_base(request)))
 
 
 async def _reject(request: Request) -> RedirectResponse | HTMLResponse:
@@ -252,14 +252,14 @@ async def _reject(request: Request) -> RedirectResponse | HTMLResponse:
     if refusal:
         return refusal
     try:
-        approve_plan.reject_plan(task.id, request.app.state.store)
+        approve_plan.reject_plan(task.id, _repo(request).store)
     except InvalidTransition:
         return _not_reviewed_page()
     except (TaskNotFound, InvalidTaskId):  # the task went between the load above and the one inside reject_plan
         return _missing_page()
     except _UNREADABLE:
         return _unreadable_page()
-    return RedirectResponse(f"/ui/tasks/{quote(task.id, safe='')}", status_code=303)
+    return RedirectResponse(f"{_base(request)}/tasks/{quote(task.id, safe='')}", status_code=303)
 
 
 def _default_answer(question) -> str:
@@ -288,7 +288,7 @@ async def _answer_page(request: Request) -> HTMLResponse:
         return refusal
     if task.state is not TaskState.OPEN_QUESTIONS:
         return _no_open_questions_page()
-    return HTMLResponse(_TEMPLATES.get_template("answer.html").render(task=_answer_page_detail(task)))
+    return HTMLResponse(_TEMPLATES.get_template("answer.html").render(task=_answer_page_detail(task), base=_base(request)))
 
 
 # Above 3 x MAX_ANSWER_BYTES, as percent-encoding triples each non-ASCII byte, so the answer-size 422 stays reachable.
@@ -365,7 +365,7 @@ async def _answer(request: Request) -> RedirectResponse | HTMLResponse:
         return _no_open_questions_page()
     try:
         form = await _read_form(request)
-        answer_questions.answer_questions(task.id, request.app.state.store, _round(form), _answer_text(task, form))
+        answer_questions.answer_questions(task.id, _repo(request).store, _round(form), _answer_text(task, form))
     except (_BadForm, answer_questions.AnswerRejected):  # AnswerRejected is a ValueError: keep it ahead of any _UNREADABLE
         return _bad_form_page()
     except answer_questions.RoundChanged:
@@ -376,7 +376,7 @@ async def _answer(request: Request) -> RedirectResponse | HTMLResponse:
         return _missing_page()
     except _UNREADABLE:
         return _unreadable_page()
-    return RedirectResponse(f"/ui/tasks/{quote(task.id, safe='')}", status_code=303)
+    return RedirectResponse(f"{_base(request)}/tasks/{quote(task.id, safe='')}", status_code=303)
 
 
 def _approve_page_detail(task) -> dict:
@@ -397,7 +397,7 @@ async def _approve_page(request: Request) -> HTMLResponse:
         return refusal
     if task.state is not TaskState.REVIEWED:
         return _not_reviewed_wrong_state_page()
-    return HTMLResponse(_TEMPLATES.get_template("approve.html").render(task=_approve_page_detail(task)))
+    return HTMLResponse(_TEMPLATES.get_template("approve.html").render(task=_approve_page_detail(task), base=_base(request)))
 
 
 def _shown_digest(form: dict[str, list[str]]) -> str:
@@ -419,7 +419,7 @@ async def _approve(request: Request) -> RedirectResponse | HTMLResponse:
     except _BadForm:
         return _bad_form_page()
     try:
-        service.approve(request.app.state.store, task.id, shown_digest, task.review_findings, waived=())
+        service.approve(_repo(request).store, task.id, shown_digest, task.review_findings, waived=())
     except service.NotReviewed:  # the task left reviewed between the load above and the one inside service.approve
         return _not_reviewed_wrong_state_page()
     except service.PlanChanged:
@@ -428,7 +428,7 @@ async def _approve(request: Request) -> RedirectResponse | HTMLResponse:
         return _missing_page()
     except _UNREADABLE:
         return _unreadable_page()
-    return RedirectResponse(f"/ui/tasks/{quote(task.id, safe='')}", status_code=303)
+    return RedirectResponse(f"{_base(request)}/tasks/{quote(task.id, safe='')}", status_code=303)
 
 
 @dataclass(frozen=True)
@@ -477,7 +477,7 @@ def _action_refusal(request: Request, task, action: _TaskAction) -> HTMLResponse
     """The 409 page refusing the action for this task (wrong state, or a job already queued or running), or None."""
     if not action.allowed(task):
         return _wrong_state_page(action.wrong_state)
-    if request.app.state.jobs.unfinished_for_task(task.id):
+    if _repo(request).jobs.unfinished_for_task(task.id):
         return _wrong_state_page(f"That task already has a job queued or running, so it cannot be {action.gerund} yet. "
                                  "Open the task and wait for the job to finish.")
     return None
@@ -491,7 +491,7 @@ def _action_page(action: _TaskAction):
         if refusal := _action_refusal(request, task, action):
             return refusal
         detail = {"id": task.id, "goal": _safe(task.goal if task.goal is not None else task.prompt)}
-        return HTMLResponse(_TEMPLATES.get_template("action_confirm.html").render(task=detail, action=action))
+        return HTMLResponse(_TEMPLATES.get_template("action_confirm.html").render(task=detail, action=action, base=_base(request)))
     return page
 
 
@@ -512,12 +512,12 @@ def _action_post(action: _TaskAction):
         if refusal := _action_refusal(request, task, action):
             return refusal
         try:
-            action.enqueue(request.app.state.actions, task.id)
+            action.enqueue(_repo(request).actions, task.id)
         except (TaskNotFound, InvalidTaskId):  # the task went between the load above and the one inside the enqueue
             return _missing_page()
         except _UNREADABLE:
             return _unreadable_page()
-        return RedirectResponse(f"/ui/tasks/{quote(task.id, safe='')}", status_code=303)
+        return RedirectResponse(f"{_base(request)}/tasks/{quote(task.id, safe='')}", status_code=303)
     return post
 
 
@@ -528,7 +528,7 @@ async def _merge_page(request: Request) -> HTMLResponse:
     if refusal := _action_refusal(request, task, _MERGE):
         return refusal
     try:
-        preview = request.app.state.actions.merge_preview(task.id)  # git runs on the event loop, as the JSON preview's does
+        preview = _repo(request).actions.merge_preview(task.id)  # git runs on the event loop, as the JSON preview's does
     except MergeRefused as error:
         return _wrong_state_page(f"That task cannot be merged: {_safe(_truncated(str(error), _ERROR_LIMIT))}")
     except InvalidTransition:  # the task left audited between the load above and the one inside the preview
@@ -546,7 +546,7 @@ async def _merge_page(request: Request) -> HTMLResponse:
     merge = {"branch": _safe(preview.branch), "audited_sha": _safe(shown.audited_sha), "diffstat": _safe(preview.diffstat),
              "findings": [_safe(finding) for finding in preview.findings],
              "tool_config": [_safe(path) for path in preview.tool_config]}
-    return HTMLResponse(_TEMPLATES.get_template("merge_confirm.html").render(task=detail, action=_MERGE, merge=merge))
+    return HTMLResponse(_TEMPLATES.get_template("merge_confirm.html").render(task=detail, action=_MERGE, merge=merge, base=_base(request)))
 
 
 def _shown_sha(form: dict[str, list[str]]) -> str:
@@ -573,7 +573,7 @@ async def _merge(request: Request) -> RedirectResponse | HTMLResponse:
     if refusal := _action_refusal(request, task, _MERGE):
         return refusal
     try:
-        request.app.state.actions.enqueue_merge(task.id, shown_sha)  # compares with the audited sha it loads, then queues
+        _repo(request).actions.enqueue_merge(task.id, shown_sha)  # compares with the audited sha it loads, then queues
     except ShownCommitChanged:
         return _wrong_state_page("The audited commit changed since you opened this page. Open the task again to see "
                                  "what would be merged now.")
@@ -581,7 +581,7 @@ async def _merge(request: Request) -> RedirectResponse | HTMLResponse:
         return _missing_page()
     except _UNREADABLE:
         return _unreadable_page()
-    return RedirectResponse(f"/ui/tasks/{quote(task.id, safe='')}", status_code=303)
+    return RedirectResponse(f"{_base(request)}/tasks/{quote(task.id, safe='')}", status_code=303)
 
 
 _RETRY_WRONG_STATE = "That task cannot be retried in its current state."
@@ -601,7 +601,7 @@ async def _retry_page(request: Request) -> HTMLResponse:
     if refusal:
         return refusal
     try:
-        kept = _kept_plan(request.app.state.actions.keepable_plan(task.id))
+        kept = _kept_plan(_repo(request).actions.keepable_plan(task.id))
     except RetryRefused:
         kept = None
     except (TaskNotFound, InvalidTaskId):  # the task went between the load above and the one inside keepable_plan
@@ -609,7 +609,7 @@ async def _retry_page(request: Request) -> HTMLResponse:
     except _UNREADABLE:
         return _unreadable_page()
     detail = {"id": task.id, "goal": _safe(task.goal if task.goal is not None else task.prompt)}
-    return HTMLResponse(_TEMPLATES.get_template("retry_confirm.html").render(task=detail, kept=kept))
+    return HTMLResponse(_TEMPLATES.get_template("retry_confirm.html").render(task=detail, kept=kept, base=_base(request)))
 
 
 async def _retry(request: Request) -> RedirectResponse | HTMLResponse:
@@ -625,7 +625,7 @@ async def _retry(request: Request) -> RedirectResponse | HTMLResponse:
     if refusal:
         return refusal
     try:
-        new_id = request.app.state.actions.retry(task.id, shown_digest)
+        new_id = _repo(request).actions.retry(task.id, shown_digest)
     except RetryRefused:  # its text names the task and the domain's reason; neither is shown
         if shown_digest is None:
             return _wrong_state_page(_RETRY_WRONG_STATE)
@@ -637,7 +637,7 @@ async def _retry(request: Request) -> RedirectResponse | HTMLResponse:
         return _missing_page()
     except _UNREADABLE:
         return _unreadable_page()
-    return RedirectResponse(f"/ui/tasks/{quote(new_id, safe='')}", status_code=303)
+    return RedirectResponse(f"{_base(request)}/tasks/{quote(new_id, safe='')}", status_code=303)
 
 
 def _retry_choice(form: dict[str, list[str]]) -> str | None:
@@ -687,9 +687,9 @@ async def _new_task(request: Request) -> RedirectResponse | HTMLResponse:
     return RedirectResponse(f"/ui/tasks/{quote(task_id, safe='')}", status_code=303)
 
 
-def _render_task(task, job=None) -> str:
+def _render_task(task, job=None, base="/ui") -> str:
     return _TEMPLATES.get_template("_task.html").render(
-        task=_task_detail(task), job=_job_view(job), actions=_offered_actions(task, job))
+        task=_task_detail(task), job=_job_view(job), actions=_offered_actions(task, job), base=base)
 
 
 def render_tasks(store) -> str:
@@ -716,11 +716,25 @@ async def _repos_index(request: Request) -> HTMLResponse:
     return HTMLResponse(_TEMPLATES.get_template("repos_page.html").render(_repos_context(request.app.state.registry)))
 
 
+def _task_routes(prefix: str) -> list[Route]:
+    """The pages of one task, under `prefix` (`/ui`, or `/ui/repos/{repo}`)."""
+    task = f"{prefix}/tasks/{{task_id}}"
+    pages = (("reject", _reject_page, _reject), ("answer", _answer_page, _answer), ("approve", _approve_page, _approve),
+             ("abandon", _action_page(_ABANDON), _action_post(_ABANDON)),
+             ("recover", _action_page(_RECOVER), _action_post(_RECOVER)),
+             ("advance", _action_page(_ADVANCE), _action_post(_ADVANCE)),
+             ("rebase", _action_page(_REBASE), _action_post(_REBASE)),
+             ("merge", _merge_page, _merge), ("retry", _retry_page, _retry))
+    routes = [Route(task, _task_page, methods=["GET"])]
+    for name, page, post in pages:
+        routes += [Route(f"{task}/{name}", page, methods=["GET"]), Route(f"{task}/{name}", post, methods=["POST"])]
+    return [*routes, Route(f"{task}/events", _task_events, methods=["GET"])]
+
+
 def repos_ui_routes() -> list[Route | Mount]:
     """The UI of the multi-repo server."""
     return [Route("/ui", _ui_without_slash, methods=["GET"]), Route("/ui/", _repos_index, methods=["GET"]),
-            Route("/ui/repos/{repo}/tasks/{task_id}", _task_page, methods=["GET"]),
-            Route("/ui/repos/{repo}/tasks/{task_id}/events", _task_events, methods=["GET"])]
+            *_task_routes("/ui/repos/{repo}")]
 
 
 def _event(name: str, fragment: str) -> str:
@@ -772,15 +786,15 @@ async def _task_events(request: Request) -> StreamingResponse | HTMLResponse:
     _, refusal = _load_task(request)  # before the stream exists, so a refusal still has its real status
     if refusal:
         return refusal
-    repo, task_id = _repo(request), request.path_params["task_id"]
-    return _stream(request, _unless_unchanged(lambda: _event("task", _task_fragment(repo.store, repo.jobs, task_id))))
+    repo, task_id, base = _repo(request), request.path_params["task_id"], _base(request)
+    return _stream(request, _unless_unchanged(lambda: _event("task", _task_fragment(repo.store, repo.jobs, task_id, base))))
 
 
-def _task_fragment(store, jobs, task_id: str) -> str:
+def _task_fragment(store, jobs, task_id: str, base: str = "/ui") -> str:
     """The task fragment with its latest job, or the unreadable notice when a later write left the row unreadable;
     never the raw row."""
     try:
-        return _render_task(store.load(task_id), jobs.latest_for_task(task_id))
+        return _render_task(store.load(task_id), jobs.latest_for_task(task_id), base)
     except _UNREADABLE:
         return _TEMPLATES.get_template("_task_unreadable.html").render()
 
@@ -824,26 +838,7 @@ def ui_routes() -> list[Route | Mount]:
             Route("/ui/events", _events, methods=["GET"]), Route("/ui/costs", _costs_page, methods=["GET"]),
             Route("/ui/jobs", _jobs_page, methods=["GET"]),
             Route("/ui/clean", _clean_page, methods=["GET"]), Route("/ui/clean", _clean, methods=["POST"]),
-Route("/ui/tasks/new", _new_task_page, methods=["GET"]),
+            Route("/ui/tasks/new", _new_task_page, methods=["GET"]),
             Route("/ui/tasks/new", _new_task, methods=["POST"]),
-            Route("/ui/tasks/{task_id}", _task_page, methods=["GET"]),
-            Route("/ui/tasks/{task_id}/reject", _reject_page, methods=["GET"]),
-            Route("/ui/tasks/{task_id}/reject", _reject, methods=["POST"]),
-            Route("/ui/tasks/{task_id}/answer", _answer_page, methods=["GET"]),
-            Route("/ui/tasks/{task_id}/answer", _answer, methods=["POST"]),
-            Route("/ui/tasks/{task_id}/approve", _approve_page, methods=["GET"]),
-            Route("/ui/tasks/{task_id}/approve", _approve, methods=["POST"]),
-            Route("/ui/tasks/{task_id}/abandon", _action_page(_ABANDON), methods=["GET"]),
-            Route("/ui/tasks/{task_id}/abandon", _action_post(_ABANDON), methods=["POST"]),
-            Route("/ui/tasks/{task_id}/recover", _action_page(_RECOVER), methods=["GET"]),
-            Route("/ui/tasks/{task_id}/recover", _action_post(_RECOVER), methods=["POST"]),
-            Route("/ui/tasks/{task_id}/advance", _action_page(_ADVANCE), methods=["GET"]),
-            Route("/ui/tasks/{task_id}/advance", _action_post(_ADVANCE), methods=["POST"]),
-            Route("/ui/tasks/{task_id}/rebase", _action_page(_REBASE), methods=["GET"]),
-            Route("/ui/tasks/{task_id}/rebase", _action_post(_REBASE), methods=["POST"]),
-            Route("/ui/tasks/{task_id}/merge", _merge_page, methods=["GET"]),
-            Route("/ui/tasks/{task_id}/merge", _merge, methods=["POST"]),
-            Route("/ui/tasks/{task_id}/retry", _retry_page, methods=["GET"]),
-            Route("/ui/tasks/{task_id}/retry", _retry, methods=["POST"]),
-            Route("/ui/tasks/{task_id}/events", _task_events, methods=["GET"]),
+            *_task_routes("/ui"),
             Route("/ui/login", _login, methods=["GET"]), Mount("/ui/static", StaticFiles(directory=STATIC_DIR))]

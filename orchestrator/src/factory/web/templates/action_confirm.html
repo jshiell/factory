@@ -3,9 +3,9 @@
 <p>{{ action.question }}</p>
 <p>Goal: {{ task.goal }}</p>
 {% block details %}{% endblock %}
-<form method="post" action="/ui/tasks/{{ task.id | urlencode }}/{{ action.name }}">
+<form method="post" action="{{ base | default('/ui') }}/tasks/{{ task.id | urlencode }}/{{ action.name }}">
 {% block fields %}{% endblock %}
 <button type="submit">{{ action.button }}</button>
 </form>
-<p><a href="/ui/tasks/{{ task.id | urlencode }}">Back to the task</a></p>
+<p><a href="{{ base | default('/ui') }}/tasks/{{ task.id | urlencode }}">Back to the task</a></p>
 {% endblock %}

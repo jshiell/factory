@@ -3,7 +3,7 @@
 <p>Retry this task? A new task is made with the same goal; this task is left as it is.</p>
 <p>Goal: {{ task.goal }}</p>
 <p>From scratch, the new task starts at proposed and is planned again.</p>
-<form method="post" action="/ui/tasks/{{ task.id | urlencode }}/retry">
+<form method="post" action="{{ base | default('/ui') }}/tasks/{{ task.id | urlencode }}/retry">
 <button type="submit">Retry from scratch</button>
 </form>
 {% if kept %}
@@ -15,11 +15,11 @@
 {% for finding in kept.audit_findings %}<li>{{ finding }}</li>
 {% endfor %}</ul>
 {% endif %}
-<form method="post" action="/ui/tasks/{{ task.id | urlencode }}/retry">
+<form method="post" action="{{ base | default('/ui') }}/tasks/{{ task.id | urlencode }}/retry">
 <input type="hidden" name="keep_plan" value="1">
 <input type="hidden" name="plan_digest" value="{{ kept.plan_digest }}">
 <button type="submit">Retry keeping the plan</button>
 </form>
 {% endif %}
-<p><a href="/ui/tasks/{{ task.id | urlencode }}">Back to the task</a></p>
+<p><a href="{{ base | default('/ui') }}/tasks/{{ task.id | urlencode }}">Back to the task</a></p>
 {% endblock %}

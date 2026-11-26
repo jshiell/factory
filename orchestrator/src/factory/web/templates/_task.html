@@ -18,14 +18,14 @@
 {% if task.state in ("reviewed", "open_questions") or actions %}
 <nav class="actions">
 {% if task.state == "reviewed" %}
-<p><a href="/ui/tasks/{{ task.id | urlencode }}/approve">Approve this plan</a></p>
-<p><a href="/ui/tasks/{{ task.id | urlencode }}/reject">Reject this plan</a></p>
+<p><a href="{{ base | default('/ui') }}/tasks/{{ task.id | urlencode }}/approve">Approve this plan</a></p>
+<p><a href="{{ base | default('/ui') }}/tasks/{{ task.id | urlencode }}/reject">Reject this plan</a></p>
 {% endif %}
 {% if task.state == "open_questions" %}
-<p><a href="/ui/tasks/{{ task.id | urlencode }}/answer">Answer these questions</a></p>
+<p><a href="{{ base | default('/ui') }}/tasks/{{ task.id | urlencode }}/answer">Answer these questions</a></p>
 {% endif %}
 {% for name, text in actions %}
-<p><a href="/ui/tasks/{{ task.id | urlencode }}/{{ name }}">{{ text }}</a></p>
+<p><a href="{{ base | default('/ui') }}/tasks/{{ task.id | urlencode }}/{{ name }}">{{ text }}</a></p>
 {% endfor %}
 </nav>
 {% endif %}

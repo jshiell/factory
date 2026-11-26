@@ -84,3 +84,32 @@ def test_a_task_stream_sends_the_task_of_its_own_repo(client, contexts):
 
     assert event.startswith("event: task")
     assert "goal in a" in event and "goal in b" not in event
+
+
+def _reviewed(task_id, prompt):
+    return Task(id=task_id, prompt=prompt, state=TaskState.REVIEWED, plan="the plan")
+
+
+def test_the_task_page_and_its_stream_link_the_actions_under_their_repo(client, contexts):
+    contexts["a"].store.save(_reviewed("same", "goal in a"))  # guard: covered by the template change below
+
+    page = client.get("/ui/repos/a/tasks/same")
+    event = "\n".join(first_event(client, "/ui/repos/a/tasks/same/events"))
+
+    for text in (page.text, event):
+        assert 'href="/ui/repos/a/tasks/same/approve"' in text
+        assert 'href="/ui/repos/a/tasks/same/reject"' in text
+
+
+def test_rejecting_a_plan_acts_on_the_repo_in_the_url_and_returns_to_its_task_page(client, contexts):
+    contexts["a"].store.save(_reviewed("same", "goal in a"))
+    contexts["b"].store.save(_reviewed("same", "goal in b"))
+
+    page = client.get("/ui/repos/a/tasks/same/reject")
+    done = client.post("/ui/repos/a/tasks/same/reject", follow_redirects=False)
+
+    assert 'action="/ui/repos/a/tasks/same/reject"' in page.text
+    assert 'href="/ui/repos/a/tasks/same"' in page.text
+    assert done.status_code == 303 and done.headers["location"] == "/ui/repos/a/tasks/same"
+    assert contexts["a"].store.load("same").state is not TaskState.REVIEWED
+    assert contexts["b"].store.load("same").state is TaskState.REVIEWED
