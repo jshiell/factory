@@ -13,7 +13,7 @@ JOB_ERROR_SENTENCE = "The job failed unexpectedly. The server log has the detail
 class JobRunner:
     """One worker thread running submitted jobs one at a time, in submission order."""
 
-    def __init__(self, jobs: JobStore):
+    def __init__(self, jobs: JobStore | None = None):
         self._jobs = jobs
         self._queue: queue.Queue = queue.Queue()
         self._thread = threading.Thread(target=self._work, name="factory-jobs", daemon=True)

@@ -15,7 +15,7 @@ from typing import Any
 from starlette.applications import Starlette
 from starlette.requests import Request
 from starlette.responses import HTMLResponse, JSONResponse
-from starlette.routing import Route
+from starlette.routing import Mount, Route
 
 from factory import service
 from factory.answer_questions import AnswerRejected, RoundChanged, answer_questions
@@ -412,10 +412,6 @@ def api_routes(ctx, jobs, runner) -> Api:
     async def show_job(request: Request) -> AsciiJSONResponse:
         return AsciiJSONResponse(_job_json(jobs.get(request.path_params["job_id"])))
 
-    async def ui_login_code(request: Request) -> AsciiJSONResponse:
-        code = request.app.state.login_codes.issue()
-        return AsciiJSONResponse({"url": f"http://{request.headers['host']}/ui/login?code={code}"})
-
     routes = [Route("/eval-audit", eval_audit, methods=["POST"]),
             Route("/clean-preview", clean_preview, methods=["GET"]), Route("/clean", clean, methods=["POST"]),
             Route("/tasks/{task_id}/retry-preview", retry_preview, methods=["GET"]),
@@ -431,11 +427,56 @@ def api_routes(ctx, jobs, runner) -> Api:
             Route("/tasks/{task_id}/recover", recover, methods=["POST"]),
             Route("/tasks/{task_id}/abandon", abandon, methods=["POST"]),
             Route("/tasks/{task_id}/advance", advance_task, methods=["POST"]),
-            Route("/ui-login-codes", ui_login_code, methods=["POST"]),
             Route("/jobs", list_jobs, methods=["GET"]), Route("/jobs/{job_id}", show_job, methods=["GET"]),
             Route("/costs", costs, methods=["GET"]), Route("/tasks", create_task, methods=["POST"]), Route("/tasks", list_tasks, methods=["GET"]),
             Route("/tasks/{task_id}", show_task, methods=["GET"]),]
     return Api(routes, actions, clean_preview_now, enqueue_clean)
+
+
+async def _ui_login_code(request: Request) -> AsciiJSONResponse:
+    code = request.app.state.login_codes.issue()
+    return AsciiJSONResponse({"url": f"http://{request.headers['host']}/ui/login?code={code}"})
+
+
+class _BoundRunner:
+    """The one global job worker, submitting to the job store of one repo."""
+
+    def __init__(self, runner: JobRunner, jobs: JobStore):
+        self._runner, self._jobs = runner, jobs
+
+    def submit(self, kind, task_id, run):
+        return self._runner.submit(kind, task_id, run, self._jobs)
+
+
+_EXCEPTION_HANDLERS = {ApiError: _error_response, TaskNotFound: _unknown_task, InvalidTaskId: _unknown_task,
+                       JobNotFound: _unknown_job, service.NotReviewed: _not_reviewed}
+
+
+def _lifespan(changes, stopping, runner):
+    @asynccontextmanager
+    async def lifespan(app):
+        changes.attach(asyncio.get_running_loop())
+        stopping.attach(asyncio.get_running_loop())
+        runner.start()
+        try:
+            yield
+        finally:
+            runner.stop()
+    return lifespan
+
+
+def _build_repos_app(contexts: dict) -> Starlette:
+    """One app serving every context under /repos/<name>, with one job worker for all of them."""
+    changes, stopping, runner = TaskChanges(), StopRequest(), JobRunner()
+    mounts = []
+    for name, ctx in sorted(contexts.items()):
+        jobs = JobStore(ctx.settings.db_path, on_change=changes.notify)
+        if hasattr(ctx.store, "subscribe"):
+            ctx.store.subscribe(changes.notify)
+        mounts.append(Mount(f"/repos/{name}", routes=api_routes(ctx, jobs, _BoundRunner(runner, jobs)).routes))
+    app = Starlette(lifespan=_lifespan(changes, stopping, runner), routes=mounts, exception_handlers=_EXCEPTION_HANDLERS)
+    app.state.runner, app.state.changes, app.state.stopping = runner, changes, stopping
+    return app
 
 
 def _build_app(ctx) -> Starlette:
@@ -446,24 +487,12 @@ def _build_app(ctx) -> Starlette:
     if hasattr(ctx.store, "subscribe"):  # the legacy JSON store cannot announce writes; its pages update on reload
         ctx.store.subscribe(changes.notify)  # once per app, not per lifespan, so repeated lifespans do not stack
 
-    @asynccontextmanager
-    async def lifespan(app):
-        changes.attach(asyncio.get_running_loop())
-        stopping.attach(asyncio.get_running_loop())
-        runner.start()
-        try:
-            yield
-        finally:
-            runner.stop()
-
     api = api_routes(ctx, jobs, runner)
 
     app = Starlette(
-        lifespan=lifespan,
-        routes=[*api.routes, *ui_routes()],
-        exception_handlers={ApiError: _error_response, TaskNotFound: _unknown_task, InvalidTaskId: _unknown_task,
-                           JobNotFound: _unknown_job,
-                           service.NotReviewed: _not_reviewed},
+        lifespan=_lifespan(changes, stopping, runner),
+        routes=[*api.routes, Route("/ui-login-codes", _ui_login_code, methods=["POST"]), *ui_routes()],
+        exception_handlers=_EXCEPTION_HANDLERS,
     )
     app.state.runner = runner
     app.state.jobs = jobs
