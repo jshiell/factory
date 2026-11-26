@@ -185,11 +185,28 @@ async def _clean(request: Request) -> RedirectResponse | HTMLResponse:
 _JOBS_SHOWN = 50
 
 
+def _jobs_view(jobs) -> list[dict]:
+    newest = jobs.list()[-_JOBS_SHOWN:][::-1]
+    return [{"kind": _safe(job.kind), "state": job.state, "task_id": _safe(job.task_id),
+             "error": _safe(_truncated(job.error, _ERROR_LIMIT)) if job.error else None} for job in newest]
+
+
 async def _jobs_page(request: Request) -> HTMLResponse:
-    newest = request.app.state.jobs.list()[-_JOBS_SHOWN:][::-1]
-    shown = [{"kind": _safe(job.kind), "state": job.state, "task_id": _safe(job.task_id),
-              "error": _safe(_truncated(job.error, _ERROR_LIMIT)) if job.error else None} for job in newest]
-    return HTMLResponse(_TEMPLATES.get_template("jobs.html").render(jobs=shown))
+    return HTMLResponse(_TEMPLATES.get_template("jobs.html").render(jobs=_jobs_view(request.app.state.jobs)))
+
+
+def _repo_jobs_section(state, name: str) -> dict:
+    section = {"name": name, "base": f"/ui/repos/{quote(name, safe='')}"}
+    try:
+        return {**section, "jobs": _jobs_view(state.repos[name].jobs)}
+    except (sqlite3.Error, OSError):  # one repo's broken database must not take the page down
+        return {**section, "unreadable": True}
+
+
+async def _repos_jobs_page(request: Request) -> HTMLResponse:
+    state = request.app.state
+    sections = [_repo_jobs_section(state, name) for name in state.registry.started_names]
+    return HTMLResponse(_TEMPLATES.get_template("repos_jobs.html").render(repos=sections))
 
 
 def _missing_page() -> HTMLResponse:
@@ -755,6 +772,7 @@ def repos_ui_routes() -> list[Route | Mount]:
     """The UI of the multi-repo server."""
     return [Route("/ui", _ui_without_slash, methods=["GET"]), Route("/ui/", _repos_index, methods=["GET"]),
             Route("/ui/tasks/new", _new_task_page, methods=["GET"]), Route("/ui/tasks/new", _new_task, methods=["POST"]),
+            Route("/ui/jobs", _repos_jobs_page, methods=["GET"]),
             *_task_routes("/ui/repos/{repo}")]
 
 

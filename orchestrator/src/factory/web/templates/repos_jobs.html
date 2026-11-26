@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Jobs</h2>
+{% for repo in repos %}
+<h2>{{ repo.name }}</h2>
+{% if repo.unreadable %}
+<p class="skipped">{{ repo.name }}: unreadable</p>
+{% else %}
+{% with jobs=repo.jobs, base=repo.base %}{% include "_jobs.html" %}{% endwith %}
+{% endif %}
+{% endfor %}
+<p><a href="/ui/">Back to the task list</a></p>
+{% endblock %}

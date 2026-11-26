@@ -1,0 +1,4 @@
+<ul>
+  {% for job in jobs %}<li>{{ job.kind | humanise }}, {{ job.state | humanise }}{% if job.task_id %} <a href="{{ base | default('/ui') }}/tasks/{{ job.task_id | urlencode }}">{{ job.task_id }}</a>{% endif %}{% if job.error %} Error: {{ job.error }}{% endif %}</li>
+  {% endfor %}
+</ul>

@@ -125,6 +125,33 @@ def test_a_blank_goal_keeps_the_chosen_repo_selected_on_the_form(client):
     assert '<option value="b" selected' in done.text
 
 
+def test_the_jobs_page_lists_the_jobs_of_every_repo_linked_under_its_repo(client):
+    client.app.state.repos["a"].jobs.create("advance", "in-a")
+    client.app.state.repos["b"].jobs.create("merge", "in-b")
+
+    page = client.get("/ui/jobs")
+
+    assert page.status_code == 200
+    assert "<h2>a</h2>" in page.text and "<h2>b</h2>" in page.text
+    assert 'href="/ui/repos/a/tasks/in-a"' in page.text and "Advance" in page.text
+    assert 'href="/ui/repos/b/tasks/in-b"' in page.text and "Merge" in page.text
+
+
+def test_a_repo_whose_jobs_cannot_be_read_is_named_and_the_others_still_show(client, monkeypatch):
+    client.app.state.repos["a"].jobs.create("advance", "in-a")
+
+    def unreadable():
+        raise sqlite3.DatabaseError("file is not a database")
+
+    monkeypatch.setattr(client.app.state.repos["b"].jobs, "list", unreadable)
+
+    page = client.get("/ui/jobs")
+
+    assert page.status_code == 200
+    assert "in-a" in page.text
+    assert "b: unreadable" in page.text
+
+
 def test_rejecting_a_plan_acts_on_the_repo_in_the_url_and_returns_to_its_task_page(client, contexts):
     contexts["a"].store.save(_reviewed("same", "goal in a"))
     contexts["b"].store.save(_reviewed("same", "goal in b"))
