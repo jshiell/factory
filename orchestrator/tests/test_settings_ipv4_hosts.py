@@ -1,9 +1,7 @@
 """A numeric `server_allowed_hosts` entry must be a real dotted-quad IPv4 address."""
-import subprocess
-
 import pytest
 
-from factory.settings import SettingsError, load_settings
+from factory.settings import SettingsError, load_repo_settings
 
 
 @pytest.fixture(autouse=True)
@@ -16,17 +14,16 @@ def isolated_home(tmp_path, monkeypatch):
 
 @pytest.fixture
 def repo_dir(tmp_path):
-    repo = (tmp_path / "repo").resolve()
-    repo.mkdir()
-    subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+    repo = (tmp_path / "fh" / "proj" / "repo").resolve()
+    repo.mkdir(parents=True)
     return repo
 
 
+
+
 def load_with(repo_dir, host):
-    global_config = repo_dir.parent / "home" / ".harness" / "factory.toml"
-    global_config.parent.mkdir(exist_ok=True)
-    global_config.write_text(f'server_allowed_hosts = ["{host}"]\n')
-    return load_settings(None, cwd=repo_dir)
+    (repo_dir.parent.parent / "factory.toml").write_text(f'server_allowed_hosts = ["{host}"]\n')
+    return load_repo_settings(repo_dir.parent.parent, repo_dir.parent.name)
 
 
 @pytest.mark.parametrize("host", ["1.2.3", "1.2.3.4.5", "256.1.1.1", "1.2.3.999", "10.01.1.1", "123", "1..2.3"])

@@ -5,7 +5,7 @@ import pytest
 
 from factory.cli import IO
 from factory.init_config import TEMPLATE, init_global_config
-from factory.settings import load_settings
+from factory.settings import load_repo_settings
 
 
 @pytest.fixture
@@ -27,14 +27,16 @@ def test_init_writes_the_template_into_the_harness_home(harness):
     assert str(harness / "factory.toml") in out
 
 
-def test_every_commented_example_in_the_template_is_a_valid_global_setting(harness, repo):
+def test_every_commented_example_in_the_template_is_a_valid_global_setting(harness):
     lines = [re.sub(r"^# ", "", line) for line in TEMPLATE.splitlines() if re.match(r"^# (\[\w+\]|\w+ = )", line)]
     assert any(line.startswith("plugins = ") for line in lines)
     assert "[stage_plugins]" in lines
     (harness / "_shared" / "plugins" / "my-plugin").mkdir(parents=True)
     (harness / "factory.toml").write_text("\n".join(lines) + "\n")
 
-    load_settings(None, cwd=repo)
+    (harness / "proj" / "repo").mkdir(parents=True)
+
+    load_repo_settings(harness, "proj")
 
 
 def test_init_refuses_to_overwrite_an_existing_global_config(harness):

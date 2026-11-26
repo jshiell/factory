@@ -1,10 +1,9 @@
 import json
 import re
-import subprocess
 
 import pytest
 
-from factory.settings import SettingsError, load_settings
+from factory.settings import SettingsError, load_repo_settings
 
 
 @pytest.fixture(autouse=True)
@@ -18,30 +17,31 @@ def isolated_home(tmp_path, monkeypatch):
 
 @pytest.fixture
 def repo_dir(tmp_path):
-    repo = (tmp_path / "repo").resolve()
-    repo.mkdir()
-    subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+    repo = (tmp_path / "fh" / "proj" / "repo").resolve()
+    repo.mkdir(parents=True)
     return repo
 
 
+def load(repo_dir):
+    return load_repo_settings(repo_dir.parent.parent, repo_dir.parent.name)
+
+
 @pytest.fixture
-def global_config(isolated_home):
-    path = isolated_home / ".harness" / "factory.toml"
-    path.parent.mkdir()
-    return path
+def global_config(repo_dir):
+    return repo_dir.parent.parent / "factory.toml"
 
 
 def test_server_allowed_hosts_defaults_to_empty_and_comes_from_the_global_config(repo_dir, global_config):
-    assert load_settings(None, cwd=repo_dir).server_allowed_hosts == ()
+    assert load(repo_dir).server_allowed_hosts == ()
     global_config.write_text('server_allowed_hosts = ["nas.lan", "192.168.1.5"]\n')
 
-    assert load_settings(None, cwd=repo_dir).server_allowed_hosts == ("nas.lan", "192.168.1.5")
+    assert load(repo_dir).server_allowed_hosts == ("nas.lan", "192.168.1.5")
 
 
 def test_server_allowed_hosts_is_read_from_the_global_config(repo_dir, global_config):
     global_config.write_text('server_allowed_hosts = ["nas.lan"]\n')
 
-    assert load_settings(None, cwd=repo_dir).server_allowed_hosts == ("nas.lan",)
+    assert load(repo_dir).server_allowed_hosts == ("nas.lan",)
 
 
 @pytest.mark.parametrize("value", ['"nas.lan"', "3", "[]"])
@@ -49,7 +49,7 @@ def test_server_allowed_hosts_must_be_a_non_empty_list_of_strings(repo_dir, glob
     global_config.write_text(f"server_allowed_hosts = {value}\n")
 
     with pytest.raises(SettingsError, match="wrong type for setting: server_allowed_hosts"):
-        load_settings(None, cwd=repo_dir)
+        load(repo_dir)
 
 
 @pytest.mark.parametrize(
@@ -63,4 +63,4 @@ def test_invalid_server_allowed_hosts_entries_are_refused(repo_dir, global_confi
     global_config.write_text(f"server_allowed_hosts = {json.dumps(entries)}\n")
 
     with pytest.raises(SettingsError, match=f"server_allowed_hosts {re.escape(repr(entries[-1]))} is invalid: ."):
-        load_settings(None, cwd=repo_dir)
+        load(repo_dir)

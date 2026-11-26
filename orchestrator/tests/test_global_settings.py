@@ -1,5 +1,3 @@
-import subprocess
-
 import pytest
 
 from factory.settings import (
@@ -7,7 +5,6 @@ from factory.settings import (
     Settings,
     SettingsError,
     load_global_settings,
-    load_settings,
 )
 
 
@@ -55,14 +52,6 @@ def test_an_invalid_server_setting_is_a_settings_error(global_config, line):
 
     with pytest.raises(SettingsError):
         load_global_settings()
-
-
-def test_repo_settings_carry_the_home(isolated_home, tmp_path):
-    repo = (tmp_path / "repo").resolve()
-    repo.mkdir()
-    subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
-
-    assert load_settings(None, cwd=repo).home == isolated_home / ".harness"
 
 
 def test_the_token_lives_in_the_server_directory_which_the_sandbox_must_never_be_granted(tmp_path):

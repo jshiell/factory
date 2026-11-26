@@ -3,7 +3,7 @@ import subprocess
 import pytest
 
 from configutil import write_config
-from factory.settings import SettingsError, load_settings
+from factory.settings import SettingsError, load_repo_settings
 
 
 @pytest.fixture(autouse=True)
@@ -16,21 +16,28 @@ def isolated_home(tmp_path, monkeypatch):
 
 
 @pytest.fixture
-def repo_dir(tmp_path):
-    repo = (tmp_path / "repo").resolve()
-    repo.mkdir()
+def factory_home(tmp_path):
+    return (tmp_path / "fh").resolve()
+
+
+@pytest.fixture
+def repo_dir(factory_home):
+    repo = factory_home / "proj" / "repo"
+    repo.mkdir(parents=True)
     subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
     return repo
 
 
-@pytest.mark.smoke
-def test_defaults_come_from_the_git_toplevel_and_the_harness_home(repo_dir, isolated_home):
-    (repo_dir / "sub").mkdir()
+def load(repo_dir, config=None):
+    return load_repo_settings(repo_dir.parent.parent, repo_dir.parent.name, config)
 
-    settings = load_settings(None, cwd=repo_dir / "sub")
+
+@pytest.mark.smoke
+def test_defaults_come_from_the_repo_and_its_project_directory_in_the_home(repo_dir, factory_home):
+    settings = load(repo_dir)
 
     assert settings.repo == repo_dir
-    project = isolated_home / ".harness" / "repo"
+    project = factory_home / "proj"
     assert settings.state_dir == project / "state"
     assert settings.worktree_root == project / "worktrees"
     assert settings.project_subdir == "."
@@ -43,7 +50,7 @@ def test_defaults_come_from_the_git_toplevel_and_the_harness_home(repo_dir, isol
 def test_an_unset_project_subdir_warns_when_the_repo_has_the_old_default_target(repo_dir):
     (repo_dir / "target").mkdir()
 
-    [warning] = load_settings(None, cwd=repo_dir).warnings
+    [warning] = load(repo_dir).warnings
 
     assert "target/" in warning and 'project_subdir = "target"' in warning and ".factory/factory.toml" in warning
 
@@ -51,7 +58,7 @@ def test_an_unset_project_subdir_warns_when_the_repo_has_the_old_default_target(
 def test_no_project_subdir_warning_without_a_target_directory(repo_dir):
     (repo_dir / "target").write_text("a file, not the old project")
 
-    assert load_settings(None, cwd=repo_dir).warnings == ()
+    assert load(repo_dir).warnings == ()
 
 
 @pytest.mark.parametrize("value", ["target", "."])
@@ -59,46 +66,29 @@ def test_no_project_subdir_warning_when_the_project_config_sets_it(repo_dir, val
     (repo_dir / "target").mkdir()
     write_config(repo_dir, f'project_subdir = "{value}"\n')
 
-    assert load_settings(None, cwd=repo_dir).warnings == ()
+    assert load(repo_dir).warnings == ()
 
 
-def test_no_project_subdir_warning_when_the_global_config_sets_it(repo_dir, isolated_home):
+def test_no_project_subdir_warning_when_the_global_config_sets_it(repo_dir, global_config):
     (repo_dir / "target").mkdir()
-    (isolated_home / ".harness").mkdir()
-    (isolated_home / ".harness" / "factory.toml").write_text('project_subdir = "target"\n')
+    global_config.write_text('project_subdir = "target"\n')
 
-    assert load_settings(None, cwd=repo_dir).warnings == ()
-
-
-def test_outside_a_git_repository_without_a_configured_repo_is_an_error(tmp_path):
-    with pytest.raises(SettingsError, match="repo"):
-        load_settings(None, cwd=tmp_path)
+    assert load(repo_dir).warnings == ()
 
 
 def test_the_dot_factory_config_is_used_when_no_path_is_given(repo_dir):
     write_config(repo_dir, 'cap_usd = 9\nproject_subdir = "app"\n')
 
-    settings = load_settings(None, cwd=repo_dir)
+    settings = load(repo_dir)
 
     assert (settings.cap_usd, settings.project_subdir) == (9.0, "app")
 
 
-def test_the_project_config_is_read_from_dot_factory_in_the_git_toplevel(repo_dir):
-    (repo_dir / ".factory").mkdir()
-    (repo_dir / ".factory" / "factory.toml").write_text("cap_usd = 7\n")
-    (repo_dir / "sub").mkdir()
-
-    settings = load_settings(None, cwd=repo_dir / "sub")
-
-    assert settings.cap_usd == 7.0
-
-
 def test_a_root_factory_toml_fails_with_the_git_mv_fix(repo_dir):
     (repo_dir / "factory.toml").write_text("cap_usd = 7\n")
-    (repo_dir / "sub").mkdir()
 
     with pytest.raises(SettingsError) as raised:
-        load_settings(None, cwd=repo_dir / "sub")
+        load(repo_dir)
 
     message = str(raised.value)
     assert str(repo_dir / "factory.toml") in message
@@ -106,20 +96,11 @@ def test_a_root_factory_toml_fails_with_the_git_mv_fix(repo_dir):
     assert "gitignore" in message
 
 
-def test_relative_paths_in_dot_factory_config_resolve_against_the_repo_root(repo_dir):
-    write_config(repo_dir, 'state_dir = "s"\nworktree_root = "../wt"\n')
-
-    settings = load_settings(None, cwd=repo_dir)
-
-    assert settings.state_dir == repo_dir / "s"
-    assert settings.worktree_root == repo_dir / ".." / "wt"
-
-
 def test_home_is_refused_in_the_repo_config_naming_the_file(repo_dir):
     write_config(repo_dir, 'home = "h"\n')
 
     with pytest.raises(SettingsError, match=rf"home is global-only.*{repo_dir}.*factory\.toml"):
-        load_settings(None, cwd=repo_dir)
+        load(repo_dir)
 
 
 def test_an_explicit_config_inside_the_repo_but_outside_dot_factory_is_refused(repo_dir):
@@ -127,68 +108,27 @@ def test_an_explicit_config_inside_the_repo_but_outside_dot_factory_is_refused(r
     (repo_dir / "conf" / "f.toml").write_text("cap_usd = 7\n")
 
     with pytest.raises(SettingsError, match=r"conf/f\.toml.*\.factory"):
-        load_settings(repo_dir / "conf" / "f.toml", cwd=repo_dir)
-
-
-def test_an_explicit_config_inside_the_configured_repo_is_refused_from_any_cwd(tmp_path, repo_dir):
-    (repo_dir / "f.toml").write_text(f'repo = "{repo_dir}"\n')
-
-    with pytest.raises(SettingsError, match=r"f\.toml.*\.factory"):
-        load_settings(repo_dir / "f.toml", cwd=tmp_path)
-
-
-def test_an_explicit_config_naming_a_missing_repo_still_loads(tmp_path):
-    (tmp_path / "f.toml").write_text(f'repo = "{tmp_path / "gone"}"\n')
-
-    assert load_settings(tmp_path / "f.toml", cwd=tmp_path).repo == tmp_path / "gone"
+        load(repo_dir, repo_dir / "conf" / "f.toml")
 
 
 def test_an_explicit_config_inside_dot_factory_is_accepted(repo_dir):
     (repo_dir / ".factory").mkdir()
     (repo_dir / ".factory" / "other.toml").write_text("cap_usd = 7\n")
 
-    assert load_settings(repo_dir / ".factory" / "other.toml", cwd=repo_dir).cap_usd == 7.0
+    assert load(repo_dir, repo_dir / ".factory" / "other.toml").cap_usd == 7.0
 
 
 @pytest.mark.parametrize("name", ["factory.db", "token"])
-def test_old_in_repo_state_fails_naming_where_to_move_it(repo_dir, isolated_home, name):
+def test_old_in_repo_state_fails_naming_where_to_move_it(repo_dir, factory_home, name):
     (repo_dir / ".factory").mkdir()
     (repo_dir / ".factory" / name).write_text("")
 
     with pytest.raises(SettingsError) as raised:
-        load_settings(None, cwd=repo_dir)
+        load(repo_dir)
 
     message = str(raised.value)
     assert str(repo_dir / ".factory" / name) in message
-    assert str(isolated_home / ".harness" / "repo" / "state") in message
-
-
-@pytest.mark.parametrize("state_dir", [".factory", "./.factory/"])
-def test_old_in_repo_state_loads_when_state_dir_points_at_it(repo_dir, state_dir):
-    write_config(repo_dir, f'state_dir = "{state_dir}"\n')
-    (repo_dir / ".factory" / "factory.db").write_text("")
-    (repo_dir / ".factory" / "token").write_text("")
-
-    assert load_settings(None, cwd=repo_dir).state_dir.resolve() == repo_dir / ".factory"
-
-
-def test_only_repo_state_and_worktree_paths_resolve_against_the_config_directory(tmp_path, repo_dir):
-    config_dir = tmp_path / "cfg"
-    config_dir.mkdir()
-    (config_dir / "f.toml").write_text(
-        f'repo = "{repo_dir}"\nstate_dir = "state"\nworktree_root = "../wt"\nproject_subdir = "proj"\n'
-    )
-
-    settings = load_settings(config_dir / "f.toml", cwd=tmp_path)
-
-    assert settings.state_dir == config_dir / "state"
-    assert settings.worktree_root == (config_dir / ".." / "wt")
-    assert settings.project_subdir == "proj"
-
-
-def test_an_explicit_missing_config_file_raises(repo_dir):
-    with pytest.raises(SettingsError, match=r"missing\.toml"):
-        load_settings(repo_dir / "missing.toml", cwd=repo_dir)
+    assert str(factory_home / "proj" / "state") in message
 
 
 @pytest.mark.parametrize(
@@ -209,28 +149,28 @@ def test_bad_settings_are_rejected_with_a_message_naming_the_key(repo_dir, line,
     write_config(repo_dir, line + "\n")
 
     with pytest.raises(SettingsError, match=key):
-        load_settings(None, cwd=repo_dir)
+        load(repo_dir)
 
 
 def test_sandbox_executable_defaults_to_unset_and_can_be_set(repo_dir):
-    assert load_settings(None, cwd=repo_dir).sandbox_executable is None
+    assert load(repo_dir).sandbox_executable is None
     write_config(repo_dir, 'sandbox_executable = "/opt/fake-nono"\n')
 
-    assert load_settings(None, cwd=repo_dir).sandbox_executable == "/opt/fake-nono"
+    assert load(repo_dir).sandbox_executable == "/opt/fake-nono"
 
 
 def test_a_non_string_sandbox_executable_is_rejected_naming_the_key(repo_dir):
     write_config(repo_dir, "sandbox_executable = 3\n")
 
     with pytest.raises(SettingsError, match="sandbox_executable"):
-        load_settings(None, cwd=repo_dir)
+        load(repo_dir)
 
 
 def test_fix_rounds_defaults_to_two_and_accepts_zero_and_more(repo_dir):
-    assert load_settings(None, cwd=repo_dir).fix_rounds == 2
+    assert load(repo_dir).fix_rounds == 2
     for value in (0, 3):
         write_config(repo_dir, f"fix_rounds = {value}\n")
-        assert load_settings(None, cwd=repo_dir).fix_rounds == value
+        assert load(repo_dir).fix_rounds == value
 
 
 @pytest.mark.parametrize("value", ["-1", "1.5", '"2"', "true"])
@@ -238,15 +178,15 @@ def test_a_bad_fix_rounds_is_rejected_naming_the_key(repo_dir, value):
     write_config(repo_dir, f"fix_rounds = {value}\n")
 
     with pytest.raises(SettingsError, match="fix_rounds"):
-        load_settings(None, cwd=repo_dir)
+        load(repo_dir)
 
 
 def test_grilling_is_on_by_default_with_three_rounds_and_both_come_from_the_config(repo_dir):
-    defaults = load_settings(None, cwd=repo_dir)
+    defaults = load(repo_dir)
     assert (defaults.grill, defaults.grill_max_rounds) == (True, 3)
 
     write_config(repo_dir, "grill = false\ngrill_max_rounds = 0\n")
-    configured = load_settings(None, cwd=repo_dir)
+    configured = load(repo_dir)
 
     assert (configured.grill, configured.grill_max_rounds) == (False, 0)
 
@@ -260,146 +200,34 @@ def test_a_bad_grill_setting_is_rejected_naming_the_key(repo_dir, line, key):
     write_config(repo_dir, line + "\n")
 
     with pytest.raises(SettingsError, match=key):
-        load_settings(None, cwd=repo_dir)
+        load(repo_dir)
 
 
 def test_gate_cache_dir_is_under_the_state_dir(repo_dir):
-    settings = load_settings(None, cwd=repo_dir)
+    settings = load(repo_dir)
 
     assert settings.gate_cache_dir == settings.state_dir / "gate-cache"
 
 
-def test_server_port_defaults_to_8765_and_comes_from_the_global_config(tmp_path, isolated_home):
-    from factory.settings import load_settings
-    config = tmp_path / "factory.toml"
-    config.write_text(f'repo = "{tmp_path}"\n')
-    assert load_settings(config, tmp_path).server_port == 8765
+def test_server_port_defaults_to_8765_and_comes_from_the_global_config(repo_dir, global_config):
+    assert load(repo_dir).server_port == 8765
 
-    (isolated_home / ".harness").mkdir()
-    (isolated_home / ".harness" / "factory.toml").write_text("server_port = 9001\n")
-    assert load_settings(config, tmp_path).server_port == 9001
+    global_config.write_text("server_port = 9001\n")
+    assert load(repo_dir).server_port == 9001
 
 
-def test_the_project_key_is_the_resolved_basename_of_a_dotdot_repo(tmp_path, isolated_home):
-    nested = tmp_path / "proj" / "inner"
-    nested.mkdir(parents=True)
-    config = nested / "factory.toml"
-    config.write_text('repo = ".."\n')
-
-    settings = load_settings(config, cwd=tmp_path)
-
-    assert settings.state_dir == isolated_home / ".harness" / "proj" / "state"
-
-
-def test_the_project_key_follows_a_symlinked_repo(tmp_path, repo_dir, isolated_home):
-    link = tmp_path / "alias"
-    link.symlink_to(repo_dir)
-    config = tmp_path / "factory.toml"
-    config.write_text(f'repo = "{link}"\n')
-
-    settings = load_settings(config, cwd=tmp_path)
-
-    assert settings.worktree_root == isolated_home / ".harness" / "repo" / "worktrees"
-
-
-def test_a_repo_with_no_usable_name_is_rejected_naming_repo(tmp_path):
-    config = tmp_path / "factory.toml"
-    config.write_text('repo = "/"\n')
-
-    with pytest.raises(SettingsError, match="repo"):
-        load_settings(config, cwd=tmp_path)
-
-
-def test_a_non_string_home_is_rejected_naming_the_key(repo_dir):
-    write_config(repo_dir, "home = 3\n")
+def test_a_non_string_home_in_the_global_config_is_rejected_naming_the_key(repo_dir, global_config):
+    global_config.write_text("home = 3\n")
 
     with pytest.raises(SettingsError, match="home"):
-        load_settings(None, cwd=repo_dir)
-
-
-def test_a_tilde_in_the_global_home_expands_before_joining_the_config_directory(repo_dir, isolated_home):
-    (isolated_home / ".harness").mkdir()
-    (isolated_home / ".harness" / "factory.toml").write_text('home = "~/x"\n')
-
-    settings = load_settings(None, cwd=repo_dir)
-
-    assert settings.state_dir == isolated_home / "x" / "repo" / "state"
-
-
-def test_a_tilde_in_state_dir_and_worktree_root_expands(tmp_path, repo_dir, isolated_home):
-    config = tmp_path / "factory.toml"
-    config.write_text(f'repo = "{repo_dir}"\nstate_dir = "~/s"\nworktree_root = "~/w"\n')
-
-    settings = load_settings(config, cwd=tmp_path)
-
-    assert (settings.state_dir, settings.worktree_root) == (isolated_home / "s", isolated_home / "w")
-
-
-def test_an_empty_factory_home_is_ignored(repo_dir, isolated_home, monkeypatch):
-    monkeypatch.setenv("FACTORY_HOME", "")
-
-    settings = load_settings(None, cwd=repo_dir)
-
-    assert settings.state_dir == isolated_home / ".harness" / "repo" / "state"
-
-
-def test_a_relative_factory_home_is_rejected_naming_the_variable(repo_dir, monkeypatch):
-    monkeypatch.setenv("FACTORY_HOME", "relative/dir")
-
-    with pytest.raises(SettingsError, match="FACTORY_HOME"):
-        load_settings(None, cwd=repo_dir)
-
-
-def test_a_tilde_in_factory_home_expands(repo_dir, isolated_home, monkeypatch):
-    monkeypatch.setenv("FACTORY_HOME", "~/fh")
-
-    settings = load_settings(None, cwd=repo_dir)
-
-    assert settings.state_dir == isolated_home / "fh" / "repo" / "state"
-
-
-def test_an_empty_HOME_is_rejected_instead_of_writing_under_root(repo_dir, monkeypatch):
-    monkeypatch.setenv("HOME", "")
-
-    with pytest.raises(SettingsError, match="HOME"):
-        load_settings(None, cwd=repo_dir)
-
-
-def test_setting_only_state_dir_still_derives_the_worktree_root(tmp_path, repo_dir, isolated_home):
-    config = tmp_path / "factory.toml"
-    config.write_text(f'repo = "{repo_dir}"\nstate_dir = "s"\n')
-
-    settings = load_settings(config, cwd=tmp_path)
-
-    assert settings.state_dir == tmp_path / "s"
-    assert settings.worktree_root == isolated_home / ".harness" / "repo" / "worktrees"
-
-
-def test_setting_only_worktree_root_still_derives_the_state_dir(tmp_path, repo_dir, isolated_home):
-    config = tmp_path / "factory.toml"
-    config.write_text(f'repo = "{repo_dir}"\nworktree_root = "w"\n')
-
-    settings = load_settings(config, cwd=tmp_path)
-
-    assert settings.worktree_root == tmp_path / "w"
-    assert settings.state_dir == isolated_home / ".harness" / "repo" / "state"
-
-
-def test_a_bad_factory_home_is_harmless_when_both_paths_are_overridden(tmp_path, repo_dir, monkeypatch):
-    monkeypatch.setenv("FACTORY_HOME", "relative")
-    config = tmp_path / "factory.toml"
-    config.write_text(f'repo = "{repo_dir}"\nstate_dir = "s"\nworktree_root = "w"\n')
-
-    settings = load_settings(config, cwd=tmp_path)
-
-    assert settings.state_dir == tmp_path / "s"
+        load(repo_dir)
 
 
 def test_append_system_prompt_defaults_to_none_and_can_be_set(repo_dir):
-    assert load_settings(None, cwd=repo_dir).append_system_prompt is None
+    assert load(repo_dir).append_system_prompt is None
     write_config(repo_dir, 'append_system_prompt = "Be terse."\n')
 
-    assert load_settings(None, cwd=repo_dir).append_system_prompt == "Be terse."
+    assert load(repo_dir).append_system_prompt == "Be terse."
 
 
 @pytest.mark.parametrize("value", ['""', "3"])
@@ -407,14 +235,14 @@ def test_a_bad_append_system_prompt_is_rejected_naming_the_key(repo_dir, value):
     write_config(repo_dir, f"append_system_prompt = {value}\n")
 
     with pytest.raises(SettingsError, match="append_system_prompt"):
-        load_settings(None, cwd=repo_dir)
+        load(repo_dir)
 
 
 def test_stage_prompts_default_to_empty_and_can_be_set_per_stage(repo_dir):
-    assert load_settings(None, cwd=repo_dir).stage_prompts == {}
+    assert load(repo_dir).stage_prompts == {}
     write_config(repo_dir, '[stage_prompts]\nplan = "Plan well."\naudit = "Be strict."\n')
 
-    assert load_settings(None, cwd=repo_dir).stage_prompts == {"plan": "Plan well.", "audit": "Be strict."}
+    assert load(repo_dir).stage_prompts == {"plan": "Plan well.", "audit": "Be strict."}
 
 
 @pytest.mark.parametrize(
@@ -430,20 +258,18 @@ def test_bad_stage_prompts_are_rejected_naming_the_key(repo_dir, toml):
     write_config(repo_dir, toml + "\n")
 
     with pytest.raises(SettingsError, match="stage_prompts"):
-        load_settings(None, cwd=repo_dir)
+        load(repo_dir)
 
 
 @pytest.fixture
-def global_config(isolated_home):
-    path = isolated_home / ".harness" / "factory.toml"
-    path.parent.mkdir()
-    return path
+def global_config(factory_home):
+    return factory_home / "factory.toml"
 
 
 def test_the_global_config_applies_when_there_is_no_local_file(repo_dir, global_config):
     global_config.write_text('cap_usd = 7\nmodel = "opus"\n')
 
-    settings = load_settings(None, cwd=repo_dir)
+    settings = load(repo_dir)
 
     assert (settings.cap_usd, settings.model) == (7.0, "opus")
 
@@ -452,7 +278,7 @@ def test_a_local_key_overrides_the_global_one_and_other_global_keys_survive(repo
     global_config.write_text('cap_usd = 7\nmodel = "opus"\n')
     write_config(repo_dir, "cap_usd = 2\n")
 
-    settings = load_settings(None, cwd=repo_dir)
+    settings = load(repo_dir)
 
     assert (settings.cap_usd, settings.model) == (2.0, "opus")
 
@@ -461,38 +287,18 @@ def test_stage_prompts_merge_per_stage_with_the_local_one_winning(repo_dir, glob
     global_config.write_text('[stage_prompts]\nplan = "G plan."\naudit = "G audit."\n')
     write_config(repo_dir, '[stage_prompts]\nplan = "L plan."\n')
 
-    settings = load_settings(None, cwd=repo_dir)
+    settings = load(repo_dir)
 
     assert settings.stage_prompts == {"plan": "L plan.", "audit": "G audit."}
 
 
-def test_the_global_config_lives_in_factory_home_and_its_home_key_does_not_move_it(repo_dir, tmp_path, monkeypatch):
-    env_home = tmp_path / "fh"
-    env_home.mkdir()
-    monkeypatch.setenv("FACTORY_HOME", str(env_home))
-    (env_home / "factory.toml").write_text(f'model = "opus"\nhome = "{tmp_path / "elsewhere"}"\n')
-
-    assert load_settings(None, cwd=repo_dir).model == "opus"
-
-
-def test_a_relative_path_in_the_global_config_resolves_against_its_own_directory(repo_dir, global_config):
-    global_config.write_text('home = "projects"\n')
-
-    settings = load_settings(None, cwd=repo_dir)
-
-    assert settings.state_dir == global_config.parent / "projects" / "repo" / "state"
-
-
-def test_the_global_config_in_a_home_kept_under_git_is_not_a_root_factory_toml(global_config):
+def test_the_global_config_in_a_home_kept_under_git_is_not_a_root_factory_toml(repo_dir, global_config):
     home = global_config.parent
     subprocess.run(["git", "init", "-q"], cwd=home, check=True)
     global_config.write_text('model = "opus"\n')
-    clone = home / "proj" / "repo"
-    clone.mkdir(parents=True)
-    subprocess.run(["git", "init", "-q"], cwd=clone, check=True)
-    write_config(clone, "cap_usd = 3\n")
+    write_config(repo_dir, "cap_usd = 3\n")
 
-    settings = load_settings(None, cwd=clone)
+    settings = load(repo_dir)
 
     assert (settings.model, settings.cap_usd, settings.state_dir) == ("opus", 3.0, home / "proj" / "state")
 
@@ -502,7 +308,7 @@ def test_per_repo_paths_are_rejected_in_the_global_config(repo_dir, global_confi
     global_config.write_text(f'{key} = "x"\n')
 
     with pytest.raises(SettingsError, match=f"{key}.*global|global.*{key}"):
-        load_settings(None, cwd=repo_dir)
+        load(repo_dir)
 
 
 def test_watch_approvers_are_rejected_in_the_global_config(repo_dir, global_config):
@@ -510,7 +316,7 @@ def test_watch_approvers_are_rejected_in_the_global_config(repo_dir, global_conf
     global_config.write_text(f'{key} = ["alice"]\n')
 
     with pytest.raises(SettingsError, match=f"{key}.*global|global.*{key}"):
-        load_settings(None, cwd=repo_dir)
+        load(repo_dir)
 
 
 def test_watch_merge_is_rejected_in_the_global_config(repo_dir, global_config):
@@ -518,7 +324,7 @@ def test_watch_merge_is_rejected_in_the_global_config(repo_dir, global_config):
     global_config.write_text(f"{key} = true\n")
 
     with pytest.raises(SettingsError, match=f"{key}.*global|global.*{key}"):
-        load_settings(None, cwd=repo_dir)
+        load(repo_dir)
 
 
 def test_watch_retry_is_rejected_in_the_global_config(repo_dir, global_config):
@@ -526,7 +332,7 @@ def test_watch_retry_is_rejected_in_the_global_config(repo_dir, global_config):
     global_config.write_text(f"{key} = true\n")
 
     with pytest.raises(SettingsError, match=f"{key}.*global|global.*{key}"):
-        load_settings(None, cwd=repo_dir)
+        load(repo_dir)
 
 
 def test_main_branch_is_rejected_in_the_global_config(repo_dir, global_config):
@@ -534,7 +340,7 @@ def test_main_branch_is_rejected_in_the_global_config(repo_dir, global_config):
     global_config.write_text(f'{key} = "main"\n')
 
     with pytest.raises(SettingsError, match=f"{key}.*global|global.*{key}"):
-        load_settings(None, cwd=repo_dir)
+        load(repo_dir)
 
 
 @pytest.mark.parametrize("content", ["bogus = 1\n", "cap_usd = 'x'\n"])
@@ -542,18 +348,18 @@ def test_a_bad_global_config_names_the_file_in_its_error(repo_dir, global_config
     global_config.write_text(content)
 
     with pytest.raises(SettingsError, match=str(global_config)):
-        load_settings(None, cwd=repo_dir)
+        load(repo_dir)
 
 
 def test_plugins_default_to_none_and_come_from_the_config_with_local_replacing_global(repo_dir, global_config):
-    assert load_settings(None, cwd=repo_dir).plugins == ()
+    assert load(repo_dir).plugins == ()
     for name in "abc":
         (global_config.parent / "_shared" / "plugins" / name).mkdir(parents=True)
     global_config.write_text('plugins = ["a", "b"]\n')
-    assert load_settings(None, cwd=repo_dir).plugins == ("a", "b")
+    assert load(repo_dir).plugins == ("a", "b")
     write_config(repo_dir, 'plugins = ["c"]\n')
 
-    assert load_settings(None, cwd=repo_dir).plugins == ("c",)
+    assert load(repo_dir).plugins == ("c",)
 
 
 @pytest.mark.parametrize("value", ["[]", '"a"', "[1]", '["../x"]', '["a/b"]', '[""]', '["."]', '[".."]', '["a", "a"]'])
@@ -561,7 +367,7 @@ def test_bad_plugin_names_are_rejected_naming_the_key(repo_dir, value):
     write_config(repo_dir, f"plugins = {value}\n")
 
     with pytest.raises(SettingsError, match="wrong type for setting: plugins"):
-        load_settings(None, cwd=repo_dir)
+        load(repo_dir)
 
 
 def test_plugin_names_resolve_to_directories_under_the_shared_plugins_dir(repo_dir, global_config):
@@ -570,37 +376,27 @@ def test_plugin_names_resolve_to_directories_under_the_shared_plugins_dir(repo_d
     (shared / "b").mkdir()
     write_config(repo_dir, 'plugins = ["a", "b"]\n')
 
-    assert load_settings(None, cwd=repo_dir).plugin_dirs == (shared / "a", shared / "b")
-
-
-def test_plugin_dirs_follow_a_configured_home(repo_dir, tmp_path, isolated_home):
-    shared = tmp_path / "myhome" / "_shared" / "plugins"
-    (shared / "a").mkdir(parents=True)
-    (isolated_home / ".harness").mkdir()
-    (isolated_home / ".harness" / "factory.toml").write_text(f'home = "{tmp_path / "myhome"}"\n')
-    write_config(repo_dir, 'plugins = ["a"]\n')
-
-    assert load_settings(None, cwd=repo_dir).plugin_dirs == (shared / "a",)
+    assert load(repo_dir).plugin_dirs == (shared / "a", shared / "b")
 
 
 def test_a_missing_plugin_directory_is_an_error_naming_it(repo_dir, global_config):
     write_config(repo_dir, 'plugins = ["nope"]\n')
 
     with pytest.raises(SettingsError, match="nope"):
-        load_settings(None, cwd=repo_dir)
+        load(repo_dir)
 
 
 def make_plugins(home, *names):
     for name in names:
-        (home / ".harness" / "_shared" / "plugins" / name).mkdir(parents=True, exist_ok=True)
+        (home / "_shared" / "plugins" / name).mkdir(parents=True, exist_ok=True)
 
 
-def test_stage_plugins_default_to_empty_and_can_be_set_per_stage(repo_dir, isolated_home):
-    assert load_settings(None, cwd=repo_dir).stage_plugins == {}
-    make_plugins(isolated_home, "a", "b", "c")
+def test_stage_plugins_default_to_empty_and_can_be_set_per_stage(repo_dir, factory_home):
+    assert load(repo_dir).stage_plugins == {}
+    make_plugins(factory_home, "a", "b", "c")
     write_config(repo_dir, '[stage_plugins]\nreview = ["a", "b"]\naudit = ["c"]\n')
 
-    assert load_settings(None, cwd=repo_dir).stage_plugins == {"review": ("a", "b"), "audit": ("c",)}
+    assert load(repo_dir).stage_plugins == {"review": ("a", "b"), "audit": ("c",)}
 
 
 @pytest.mark.parametrize(
@@ -618,33 +414,33 @@ def test_bad_stage_plugins_are_rejected_naming_the_key(repo_dir, toml):
     write_config(repo_dir, toml + "\n")
 
     with pytest.raises(SettingsError, match="wrong type for setting: stage_plugins"):
-        load_settings(None, cwd=repo_dir)
+        load(repo_dir)
 
 
 def test_stage_plugins_merge_per_stage_with_the_local_list_replacing_the_global_one(repo_dir, global_config):
-    make_plugins(global_config.parent.parent, "a", "b", "c")
+    make_plugins(global_config.parent, "a", "b", "c")
     global_config.write_text('[stage_plugins]\nreview = ["a"]\naudit = ["b"]\n')
     write_config(repo_dir, '[stage_plugins]\nreview = ["c"]\n')
 
-    assert load_settings(None, cwd=repo_dir).stage_plugins == {"review": ("c",), "audit": ("b",)}
+    assert load(repo_dir).stage_plugins == {"review": ("c",), "audit": ("b",)}
 
 
-def test_stage_plugin_names_resolve_to_directories_per_stage(repo_dir, isolated_home):
-    make_plugins(isolated_home, "a", "b")
-    shared = isolated_home / ".harness" / "_shared" / "plugins"
+def test_stage_plugin_names_resolve_to_directories_per_stage(repo_dir, factory_home):
+    make_plugins(factory_home, "a", "b")
+    shared = factory_home / "_shared" / "plugins"
     write_config(repo_dir, '[stage_plugins]\nreview = ["a", "b"]\naudit = ["b"]\n')
 
-    settings = load_settings(None, cwd=repo_dir)
+    settings = load(repo_dir)
 
     assert settings.stage_plugin_dirs == {"review": (shared / "a", shared / "b"), "audit": (shared / "b",)}
-    assert load_settings(None, cwd=repo_dir).plugin_dirs == ()
+    assert load(repo_dir).plugin_dirs == ()
 
 
-def test_a_missing_stage_plugin_directory_is_an_error_naming_it(repo_dir, isolated_home):
+def test_a_missing_stage_plugin_directory_is_an_error_naming_it(repo_dir, factory_home):
     write_config(repo_dir, '[stage_plugins]\nreview = ["nope"]\n')
 
     with pytest.raises(SettingsError, match="nope"):
-        load_settings(None, cwd=repo_dir)
+        load(repo_dir)
 
 
 @pytest.mark.parametrize(
@@ -657,51 +453,51 @@ def test_a_missing_stage_plugin_directory_is_an_error_naming_it(repo_dir, isolat
     ],
 )
 @pytest.mark.parametrize("toml", ['plugins = ["bad"]', '[stage_plugins]\nreview = ["bad"]'])
-def test_a_plugin_with_hooks_or_mcp_servers_is_refused_naming_it(repo_dir, isolated_home, toml, setup_plugin, reason):
-    make_plugins(isolated_home, "bad")
-    setup_plugin(isolated_home / ".harness" / "_shared" / "plugins" / "bad")
+def test_a_plugin_with_hooks_or_mcp_servers_is_refused_naming_it(repo_dir, factory_home, toml, setup_plugin, reason):
+    make_plugins(factory_home, "bad")
+    setup_plugin(factory_home / "_shared" / "plugins" / "bad")
     write_config(repo_dir, toml + "\n")
 
     with pytest.raises(SettingsError, match=f"bad.*{reason}"):
-        load_settings(None, cwd=repo_dir)
+        load(repo_dir)
 
 
 @pytest.mark.parametrize("relative", ["skills/s/SKILL.md", "agents/a.md"])
-def test_a_skill_or_agent_with_frontmatter_hooks_is_refused_naming_it(repo_dir, isolated_home, relative):
-    make_plugins(isolated_home, "bad")
-    plugin = isolated_home / ".harness" / "_shared" / "plugins" / "bad"
+def test_a_skill_or_agent_with_frontmatter_hooks_is_refused_naming_it(repo_dir, factory_home, relative):
+    make_plugins(factory_home, "bad")
+    plugin = factory_home / "_shared" / "plugins" / "bad"
     (plugin / relative).parent.mkdir(parents=True)
     (plugin / relative).write_text("---\nname: x\nhooks:\n  PreToolUse: []\n---\nBody\n")
     write_config(repo_dir, 'plugins = ["bad"]\n')
 
     with pytest.raises(SettingsError, match=f"bad.*frontmatter hooks.*{relative}"):
-        load_settings(None, cwd=repo_dir)
+        load(repo_dir)
 
 
-def test_a_skill_that_only_mentions_hooks_outside_its_frontmatter_is_accepted(repo_dir, isolated_home):
-    make_plugins(isolated_home, "ok")
-    plugin = isolated_home / ".harness" / "_shared" / "plugins" / "ok"
+def test_a_skill_that_only_mentions_hooks_outside_its_frontmatter_is_accepted(repo_dir, factory_home):
+    make_plugins(factory_home, "ok")
+    plugin = factory_home / "_shared" / "plugins" / "ok"
     (plugin / "skills" / "s").mkdir(parents=True)
     (plugin / "skills" / "s" / "SKILL.md").write_text("---\nname: s\n---\nhooks:\n  are discussed here\n")
     write_config(repo_dir, 'plugins = ["ok"]\n')
 
-    assert load_settings(None, cwd=repo_dir).plugin_dirs == (plugin,)
+    assert load(repo_dir).plugin_dirs == (plugin,)
 
 
-def test_a_plugin_with_an_unreadable_manifest_is_refused(repo_dir, isolated_home):
-    make_plugins(isolated_home, "bad")
-    plugin = isolated_home / ".harness" / "_shared" / "plugins" / "bad"
+def test_a_plugin_with_an_unreadable_manifest_is_refused(repo_dir, factory_home):
+    make_plugins(factory_home, "bad")
+    plugin = factory_home / "_shared" / "plugins" / "bad"
     (plugin / ".claude-plugin").mkdir()
     (plugin / ".claude-plugin" / "plugin.json").write_text("{not json")
     write_config(repo_dir, 'plugins = ["bad"]\n')
 
     with pytest.raises(SettingsError, match=r"bad.*plugin\.json"):
-        load_settings(None, cwd=repo_dir)
+        load(repo_dir)
 
 
-def test_a_plugin_manifest_that_cannot_be_read_is_refused_not_a_crash(repo_dir, isolated_home):
-    make_plugins(isolated_home, "bad")
-    plugin = isolated_home / ".harness" / "_shared" / "plugins" / "bad"
+def test_a_plugin_manifest_that_cannot_be_read_is_refused_not_a_crash(repo_dir, factory_home):
+    make_plugins(factory_home, "bad")
+    plugin = factory_home / "_shared" / "plugins" / "bad"
     (plugin / ".claude-plugin").mkdir()
     manifest = plugin / ".claude-plugin" / "plugin.json"
     manifest.write_text('{"name": "bad"}')
@@ -709,14 +505,14 @@ def test_a_plugin_manifest_that_cannot_be_read_is_refused_not_a_crash(repo_dir, 
     write_config(repo_dir, 'plugins = ["bad"]\n')
     try:
         with pytest.raises(SettingsError, match=r"bad.*plugin\.json"):
-            load_settings(None, cwd=repo_dir)
+            load(repo_dir)
     finally:
         manifest.chmod(0o644)
 
 
-def test_a_skill_file_that_cannot_be_read_is_refused_not_a_crash(repo_dir, isolated_home):
-    make_plugins(isolated_home, "bad")
-    plugin = isolated_home / ".harness" / "_shared" / "plugins" / "bad"
+def test_a_skill_file_that_cannot_be_read_is_refused_not_a_crash(repo_dir, factory_home):
+    make_plugins(factory_home, "bad")
+    plugin = factory_home / "_shared" / "plugins" / "bad"
     (plugin / "skills" / "s").mkdir(parents=True)
     skill = plugin / "skills" / "s" / "SKILL.md"
     skill.write_text("---\nname: s\n---\n")
@@ -724,39 +520,28 @@ def test_a_skill_file_that_cannot_be_read_is_refused_not_a_crash(repo_dir, isola
     write_config(repo_dir, 'plugins = ["bad"]\n')
     try:
         with pytest.raises(SettingsError, match=r"bad.*skills/s/SKILL.md"):
-            load_settings(None, cwd=repo_dir)
+            load(repo_dir)
     finally:
         skill.chmod(0o644)
 
 
-def test_a_plugin_with_only_skills_and_agents_is_accepted(repo_dir, isolated_home):
-    make_plugins(isolated_home, "ok")
-    plugin = isolated_home / ".harness" / "_shared" / "plugins" / "ok"
+def test_a_plugin_with_only_skills_and_agents_is_accepted(repo_dir, factory_home):
+    make_plugins(factory_home, "ok")
+    plugin = factory_home / "_shared" / "plugins" / "ok"
     (plugin / "skills" / "s").mkdir(parents=True)
     (plugin / "agents").mkdir()
     (plugin / ".claude-plugin").mkdir()
     (plugin / ".claude-plugin" / "plugin.json").write_text('{"name": "ok"}')
     write_config(repo_dir, 'plugins = ["ok"]\n')
 
-    assert load_settings(None, cwd=repo_dir).plugin_dirs == (plugin,)
-
-
-def test_a_repo_cloned_into_the_home_is_keyed_by_its_project_directory(isolated_home):
-    clone = isolated_home / ".harness" / "myproj" / "repo"
-    clone.mkdir(parents=True)
-    subprocess.run(["git", "init", "-q"], cwd=clone, check=True)
-
-    settings = load_settings(None, cwd=clone)
-
-    assert settings.state_dir == isolated_home / ".harness" / "myproj" / "state"
-    assert settings.worktree_root == isolated_home / ".harness" / "myproj" / "worktrees"
+    assert load(repo_dir).plugin_dirs == (plugin,)
 
 
 def test_watch_approvers_default_to_none_and_load_as_a_casefolded_tuple(repo_dir):
-    assert load_settings(None, cwd=repo_dir).watch_approvers == ()
+    assert load(repo_dir).watch_approvers == ()
     write_config(repo_dir, 'watch_approvers = ["Alice", "bob-2"]\n')
 
-    assert load_settings(None, cwd=repo_dir).watch_approvers == ("alice", "bob-2")
+    assert load(repo_dir).watch_approvers == ("alice", "bob-2")
 
 
 @pytest.mark.parametrize("login", ["", "-a", "a-", "a--b", "a_b", "a b", "a/b", "@a", "a" * 40])
@@ -764,28 +549,28 @@ def test_a_bad_watch_approver_login_is_rejected_naming_the_key(repo_dir, login):
     write_config(repo_dir, f'watch_approvers = ["{login}"]\n')
 
     with pytest.raises(SettingsError, match="wrong type for setting: watch_approvers"):
-        load_settings(None, cwd=repo_dir)
+        load(repo_dir)
 
 
 def test_main_branch_is_unset_by_default_and_comes_from_the_config(repo_dir):
-    assert load_settings(None, cwd=repo_dir).main_branch is None
+    assert load(repo_dir).main_branch is None
     write_config(repo_dir, 'main_branch = "master"\n')
 
-    assert load_settings(None, cwd=repo_dir).main_branch == "master"
+    assert load(repo_dir).main_branch == "master"
 
 
 def test_an_empty_main_branch_is_rejected_naming_the_key(repo_dir):
     write_config(repo_dir, 'main_branch = ""\n')
 
     with pytest.raises(SettingsError, match="wrong type for setting: main_branch"):
-        load_settings(None, cwd=repo_dir)
+        load(repo_dir)
 
 
 def test_watch_merge_is_off_by_default_and_comes_from_the_config(repo_dir):
-    assert load_settings(None, cwd=repo_dir).watch_merge is False
+    assert load(repo_dir).watch_merge is False
     write_config(repo_dir, "watch_merge = true\n")
 
-    assert load_settings(None, cwd=repo_dir).watch_merge is True
+    assert load(repo_dir).watch_merge is True
 
 
 @pytest.mark.parametrize("where", ["project", "global"])
@@ -794,7 +579,7 @@ def test_gate_allow_outside_is_refused_naming_the_file_and_why(repo_dir, global_
     global_config.write_text('gate_allow_outside = ["README.md"]\n' if where == "global" else "")
 
     with pytest.raises(SettingsError) as raised:
-        load_settings(None, cwd=repo_dir)
+        load(repo_dir)
 
     message = str(raised.value)
     assert "gate_allow_outside" in message and str(path) in message
@@ -805,7 +590,7 @@ def test_gate_allow_outside_is_refused_naming_the_file_and_why(repo_dir, global_
 def test_project_subdir_dot_names_the_repo_root(repo_dir, subdir):
     write_config(repo_dir, f'project_subdir = "{subdir}"\n')
 
-    assert load_settings(None, cwd=repo_dir).project_subdir == subdir
+    assert load(repo_dir).project_subdir == subdir
 
 
 @pytest.mark.parametrize("subdir", [".factory", ".FACTORY", "./.Factory/sub", ".factory/"])
@@ -813,14 +598,14 @@ def test_project_subdir_in_the_factory_dir_is_rejected(repo_dir, subdir):
     write_config(repo_dir, f'project_subdir = "{subdir}"\n')
 
     with pytest.raises(SettingsError, match=r"project_subdir.*\.factory"):
-        load_settings(None, cwd=repo_dir)
+        load(repo_dir)
 
 
 def test_gate_allow_dependency_changes_is_off_by_default_and_comes_from_the_repo_config(repo_dir):
-    assert load_settings(None, cwd=repo_dir).gate_allow_dependency_changes is False
+    assert load(repo_dir).gate_allow_dependency_changes is False
     write_config(repo_dir, "gate_allow_dependency_changes = true\n")
 
-    assert load_settings(None, cwd=repo_dir).gate_allow_dependency_changes is True
+    assert load(repo_dir).gate_allow_dependency_changes is True
 
 
 def test_gate_allow_dependency_changes_is_rejected_in_the_global_config(repo_dir, global_config):
@@ -828,48 +613,48 @@ def test_gate_allow_dependency_changes_is_rejected_in_the_global_config(repo_dir
     global_config.write_text(f"{key} = true\n")
 
     with pytest.raises(SettingsError, match=f"{key}.*global|global.*{key}"):
-        load_settings(None, cwd=repo_dir)
+        load(repo_dir)
 
 
 def test_gate_allow_dependency_changes_must_be_a_boolean(repo_dir):
     write_config(repo_dir, 'gate_allow_dependency_changes = "yes"\n')
 
     with pytest.raises(SettingsError, match="gate_allow_dependency_changes"):
-        load_settings(None, cwd=repo_dir)
+        load(repo_dir)
 
 
 def test_watch_retry_is_off_by_default_and_comes_from_the_config(repo_dir):
-    assert load_settings(None, cwd=repo_dir).watch_retry is False
+    assert load(repo_dir).watch_retry is False
     write_config(repo_dir, "watch_retry = true\n")
 
-    assert load_settings(None, cwd=repo_dir).watch_retry is True
+    assert load(repo_dir).watch_retry is True
 
 
 def test_the_harness_defaults_to_claude_and_can_be_named_locally_or_globally(repo_dir, global_config):
-    assert load_settings(None, cwd=repo_dir).harness == "claude"
+    assert load(repo_dir).harness == "claude"
     global_config.write_text('harness = "claude"\n')
     write_config(repo_dir, 'harness = "claude"\n')
 
-    assert load_settings(None, cwd=repo_dir).harness == "claude"
+    assert load(repo_dir).harness == "claude"
 
 
 def test_an_unknown_harness_names_the_key_and_the_known_ones(repo_dir):
     write_config(repo_dir, 'harness = "gemini"\n')
 
     with pytest.raises(SettingsError, match=r"harness.*gemini.*claude"):
-        load_settings(None, cwd=repo_dir)
+        load(repo_dir)
 
 
 def test_the_sandbox_defaults_to_nono_and_can_be_named_locally_or_globally(repo_dir, global_config):
-    assert load_settings(None, cwd=repo_dir).sandbox == "nono"
+    assert load(repo_dir).sandbox == "nono"
     global_config.write_text('sandbox = "nono"\n')
     write_config(repo_dir, 'sandbox = "nono"\n')
 
-    assert load_settings(None, cwd=repo_dir).sandbox == "nono"
+    assert load(repo_dir).sandbox == "nono"
 
 
 def test_an_unknown_sandbox_names_the_key_and_the_known_ones(repo_dir):
     write_config(repo_dir, 'sandbox = "bubblewrap"\n')
 
     with pytest.raises(SettingsError, match=r"^sandbox 'bubblewrap' is unknown; known: nono$"):
-        load_settings(None, cwd=repo_dir)
+        load(repo_dir)

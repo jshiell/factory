@@ -2,7 +2,6 @@ import ipaddress
 import json
 import os
 import re
-import subprocess
 import tomllib
 from dataclasses import dataclass, field, replace
 from pathlib import Path, PurePosixPath
@@ -122,36 +121,6 @@ _KNOWN =_PATH_KEYS + _STRING_KEYS + _PROMPT_KEYS + ("stage_prompts", "stage_plug
 
 
 PROJECT_CONFIG = Path(".factory") / "factory.toml"
-
-
-def load_settings(path: Path | None, cwd: Path) -> Settings:
-    toplevel = _toplevel_or_none(cwd)
-    if toplevel is not None:
-        _check_no_old_layout(toplevel)
-        if path is None and (toplevel / PROJECT_CONFIG).exists():
-            path = toplevel / PROJECT_CONFIG
-    global_path = _usable_global_config_path()
-    global_layer = _global_layer(global_path) if global_path and global_path.exists() else {}
-    typed = _merged(global_layer, {} if path is None else _layer(path))
-    repo = typed.pop("repo", None) or _git_toplevel(cwd)
-    if path is not None:
-        _check_config_outside_editable_area(path, {_toplevel_or_none(repo), toplevel} - {None})
-    configured_home = typed.pop("home", None)
-    state_dir = typed.pop("state_dir", None) or _project_dir(repo, configured_home) / "state"
-    worktree_root = typed.pop("worktree_root", None) or _project_dir(repo, configured_home) / "worktrees"
-    if toplevel is not None:
-        _check_no_in_repo_state(toplevel / ".factory", state_dir)
-    plugin_dirs = _plugin_dirs(typed.get("plugins", ()), configured_home)
-    stage_plugin_dirs = {
-        stage: _plugin_dirs(names, configured_home) for stage, names in typed.get("stage_plugins", {}).items()
-    }
-    settings = replace(
-        Settings(repo, state_dir, worktree_root), plugin_dirs=plugin_dirs, stage_plugin_dirs=stage_plugin_dirs,
-        warnings=_project_subdir_warnings(repo, typed), home=_usable_home(configured_home), **typed,
-    )
-    _check_project_subdir(settings.project_subdir)
-    _check_known(settings)
-    return settings
 
 
 _FIXED_LAYOUT_KEYS = ("repo", "state_dir", "worktree_root")
@@ -343,13 +312,6 @@ def global_config_path() -> Path:
     return (_environment_home() or _default_home()) / "factory.toml"
 
 
-def _usable_global_config_path() -> Path | None:
-    try:
-        return global_config_path()
-    except SettingsError:
-        return None  # an unusable home is reported only where the home is needed
-
-
 def _expanded(key: str, value: str) -> Path:
     path = Path(value)
     return path if key == "repo" else path.expanduser()
@@ -365,28 +327,10 @@ def _harness_home(configured_home: Path | None) -> Path:
     return _environment_home() or configured_home or _default_home()
 
 
-def _usable_home(configured_home: Path | None) -> Path | None:
-    try:
-        return _harness_home(configured_home)
-    except SettingsError:
-        return None  # an unusable home is reported only where the home is needed
-
-
 def harness_home() -> Path:
     path = global_config_path()
     configured = _global_layer(path).get("home") if path.exists() else None
     return _harness_home(configured)
-
-
-def _project_dir(repo: Path, configured_home: Path | None) -> Path:
-    home = _harness_home(configured_home)
-    resolved = repo.resolve()
-    key = resolved.name
-    if key == "repo" and resolved.parent.parent == home.resolve():
-        key = resolved.parent.name  # a clone made by `factory clone` lives at <home>/<project>/repo
-    if not key:
-        raise SettingsError("repo has no directory name to key the project by")
-    return home / key
 
 
 def _plugin_dirs(names: tuple[str, ...], configured_home: Path | None) -> tuple[Path, ...]:
@@ -502,18 +446,3 @@ def _check_project_subdir(subdir: str) -> None:
         raise SettingsError("project_subdir may not be .factory or inside it; the factory's own files live there")
 
 
-def _git_toplevel(cwd: Path) -> Path:
-    toplevel = _toplevel_or_none(cwd)
-    if toplevel is None:
-        raise SettingsError("repo not set and the current directory is not in a git repository")
-    return toplevel
-
-
-def _toplevel_or_none(cwd: Path) -> Path | None:
-    if not cwd.is_dir():
-        return None
-    completed = subprocess.run(
-        ["git", "rev-parse", "--show-toplevel"], cwd=cwd, capture_output=True, text=True,
-        stdin=subprocess.DEVNULL,
-    )
-    return Path(completed.stdout.strip()) if completed.returncode == 0 else None
