@@ -141,7 +141,7 @@ def run_pass(github, server, state_dir, approver_ids: set[int], clock=_utc_now, 
     """One pass over the repo's issues: start a task for each new approver issue, post its plan once reviewed, approve it on an approver's 👍."""
     state = load_state(state_dir, clock)
     home = str(home or Path.home())
-    options = Options(approver_ids, home)
+    options = Options(approver_ids, home, server.repo)
     try:
         self_id = github.self_user().id
         issues = parse_issues(github.open_issues(), approver_ids, state.watching_since)
@@ -153,30 +153,30 @@ def run_pass(github, server, state_dir, approver_ids: set[int], clock=_utc_now, 
             _handle_issue(github, server, state, state_dir, issue, options, self_id, merge, retry)
         except GitHubError as error:
             _log_failure(f"issue #{issue.number}", error.stderr)
-            _count_failed_pass(github, state, state_dir, issue.number, self_id, options.home, error.stderr)
+            _count_failed_pass(github, state, state_dir, issue.number, self_id, options, error.stderr)
         except ServerRefused as error:
             _log_failure(f"issue #{issue.number}", str(error))
-            _count_failed_pass(github, state, state_dir, issue.number, self_id, options.home, str(error))
+            _count_failed_pass(github, state, state_dir, issue.number, self_id, options, str(error))
         except ServerUnreachable as error:
             _log_failure(f"issue #{issue.number}", str(error))
         else:
             _reset_failed_passes(state, state_dir, issue.number)
 
 
-def _count_failed_pass(github, state, state_dir, number: int, self_id: int, home: str, last_error: str) -> None:
+def _count_failed_pass(github, state, state_dir, number: int, self_id: int, options: Options, last_error: str) -> None:
     if number not in state.issues:
         return
     state.failed_passes[number] = state.failed_passes.get(number, 0) + 1
     save_state(state_dir, state)
     if state.failed_passes[number] >= GIVE_UP_AFTER:
-        _give_up(github, state, state_dir, number, self_id, home, last_error)
+        _give_up(github, state, state_dir, number, self_id, options, last_error)
 
 
-def _give_up(github, state, state_dir, number: int, self_id: int, home: str, last_error: str) -> None:
+def _give_up(github, state, state_dir, number: int, self_id: int, options: Options, last_error: str) -> None:
     """Stop the issue for good and say so once; the stopped phase is skipped by every later pass.
     Nothing escapes: if the comment cannot be posted the issue is stopped silently and the log is the trace."""
     try:
-        _post_gave_up(github, state, state_dir, number, self_id, home, last_error)
+        _post_gave_up(github, state, state_dir, number, self_id, options, last_error)
     except Exception as error:
         _log_line(f"issue #{number} stopped without a comment", str(error))
         state.issues[number].phase = Phase.STOPPED
@@ -184,12 +184,12 @@ def _give_up(github, state, state_dir, number: int, self_id: int, home: str, las
             save_state(state_dir, state)
 
 
-def _post_gave_up(github, state, state_dir, number: int, self_id: int, home: str, last_error: str) -> None:
+def _post_gave_up(github, state, state_dir, number: int, self_id: int, options: Options, last_error: str) -> None:
     record = state.issues[number]
     sections = [
         ("Stopped", f"The watcher stopped retrying this issue after {GIVE_UP_AFTER} failed passes and no longer acts on reactions to its earlier comments here.", False),
-        ("Last error", escape_control(strip_home(last_error, home).strip()), True),
-        ("Next", f"Inspect the task at the terminal: factory show {require_safe_id(record.task_id)}", False),
+        ("Last error", escape_control(strip_home(last_error, options.home).strip()), True),
+        ("Next", f"Inspect the task at the terminal: factory show {options.repo}/{require_safe_id(record.task_id)}", False),
     ]
     body = render_comment(record.task_id, "gave-up", sections)
     _post_result(IssueThread(github, number, self_id), Progress(state, state_dir, record), "gave-up", Phase.STOPPED, body)

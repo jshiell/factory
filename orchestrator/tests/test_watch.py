@@ -202,6 +202,7 @@ class FakeServer:
     def __init__(self, advance_result=None, approval=None, job_state="succeeded", task_state="planned", failure_reason=None,
                  questions=None, grill_rounds=0, merge_preview=None, merge_job=None, task_state_after_merge=None,
                  audited_sha=None, rebase_job=None, task_state_after_rebase=None, audited_sha_after_rebase=None):
+        self.repo = "proj"
         self.audited_sha = audited_sha
         self.audited_sha_after_rebase = audited_sha_after_rebase
         self.task_state_after_rebase = task_state_after_rebase
@@ -2034,7 +2035,7 @@ def test_the_failed_pass_that_reaches_the_cap_posts_one_gave_up_comment_and_stop
     [(issue_number, body)] = github.comments_posted
     assert issue_number == 5
     assert body.startswith("<!-- factory:task=t-1:kind=gave-up -->")
-    assert "20" in body and "task is busy" in body and "factory show t-1" in body and "reactions" in body
+    assert "20" in body and "task is busy" in body and "factory show proj/t-1" in body and "reactions" in body
     record = load_state(tmp_path).issues[5]
     assert (record.phase, record.result_comment_id) == (Phase.STOPPED, 1)
 
