@@ -270,13 +270,14 @@ def test_gate_cache_dir_is_under_the_state_dir(repo_dir):
     assert settings.gate_cache_dir == settings.state_dir / "gate-cache"
 
 
-def test_server_port_defaults_to_8765_and_comes_from_the_config(tmp_path):
+def test_server_port_defaults_to_8765_and_comes_from_the_global_config(tmp_path, isolated_home):
     from factory.settings import load_settings
     config = tmp_path / "factory.toml"
     config.write_text(f'repo = "{tmp_path}"\n')
     assert load_settings(config, tmp_path).server_port == 8765
 
-    config.write_text(f'repo = "{tmp_path}"\nserver_port = 9001\n')
+    (isolated_home / ".harness").mkdir()
+    (isolated_home / ".harness" / "factory.toml").write_text("server_port = 9001\n")
     assert load_settings(config, tmp_path).server_port == 9001
 
 

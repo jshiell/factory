@@ -68,7 +68,9 @@ def project(tmp_path):
     nono.write_text(FAKE_NONO)
     nono.chmod(nono.stat().st_mode | stat.S_IEXEC)
     write_config(repo, f'claude_executable = "{fake}"\nsandbox_executable = "{nono}"\nstate_dir = "{tmp_path / "state"}"\n'
-                       f'worktree_root = "{tmp_path / "wt"}"\nserver_port = {_free_port()}\n')
+                       f'worktree_root = "{tmp_path / "wt"}"\n')
+    (tmp_path / "factory-home").mkdir()
+    (tmp_path / "factory-home" / "factory.toml").write_text(f"server_port = {_free_port()}\n")
     sh("git", "init", "-q", "-b", "main", cwd=repo, env=env)
     sh("git", "add", "-A", cwd=repo, env=env)
     sh("git", "commit", "-q", "-m", "init", cwd=repo, env=env)
@@ -110,6 +112,7 @@ def test_help_exits_0_and_names_the_commands(project):
 
 def test_init_writes_the_global_template_without_needing_a_repo_or_a_server(project):
     _, env, tmp_path = project
+    (tmp_path / "factory-home" / "factory.toml").unlink()  # the fixture's server_port file
 
     result = sh("uv", "run", "--project", str(ORCHESTRATOR), "factory", "init", cwd=tmp_path, env=env,
                 stdin=subprocess.DEVNULL)
@@ -130,6 +133,7 @@ def test_clone_without_a_repository_argument_is_a_usage_error_needing_no_repo_or
 
 def test_clone_refuses_a_non_github_repository_and_an_init_with_extra_arguments_is_a_usage_error(project):
     _, env, tmp_path = project
+    (tmp_path / "factory-home" / "factory.toml").unlink()  # the fixture's server_port file
 
     def run(*args):
         return sh("uv", "run", "--project", str(ORCHESTRATOR), "factory", *args, cwd=tmp_path, env=env,

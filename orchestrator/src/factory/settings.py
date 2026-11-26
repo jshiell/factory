@@ -204,8 +204,13 @@ _PER_REPO_KEYS = (
 )
 
 
+_GLOBAL_ONLY_KEYS = ("server_port", "server_host", "server_allowed_hosts")  # one server serves every repo
+
+
 def _layer(path: Path, per_repo_allowed: bool = True) -> dict:
     values = _read(path)
+    if per_repo_allowed and (misplaced := sorted(set(values) & set(_GLOBAL_ONLY_KEYS))):
+        raise SettingsError(f"{misplaced[0]} is global-only and not allowed in the repo config {path}")
     if not per_repo_allowed and (misplaced := sorted(set(values) & set(_PER_REPO_KEYS))):
         raise SettingsError(f"{misplaced[0]} is per-repo and not allowed in the global config {path}")
     if "gate_allow_outside" in values:

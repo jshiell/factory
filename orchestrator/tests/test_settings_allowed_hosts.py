@@ -4,7 +4,6 @@ import subprocess
 
 import pytest
 
-from configutil import write_config
 from factory.settings import SettingsError, load_settings
 
 
@@ -32,9 +31,9 @@ def global_config(isolated_home):
     return path
 
 
-def test_server_allowed_hosts_defaults_to_empty_and_comes_from_the_repo_config(repo_dir):
+def test_server_allowed_hosts_defaults_to_empty_and_comes_from_the_global_config(repo_dir, global_config):
     assert load_settings(None, cwd=repo_dir).server_allowed_hosts == ()
-    write_config(repo_dir, 'server_allowed_hosts = ["nas.lan", "192.168.1.5"]\n')
+    global_config.write_text('server_allowed_hosts = ["nas.lan", "192.168.1.5"]\n')
 
     assert load_settings(None, cwd=repo_dir).server_allowed_hosts == ("nas.lan", "192.168.1.5")
 
@@ -46,8 +45,8 @@ def test_server_allowed_hosts_is_read_from_the_global_config(repo_dir, global_co
 
 
 @pytest.mark.parametrize("value", ['"nas.lan"', "3", "[]"])
-def test_server_allowed_hosts_must_be_a_non_empty_list_of_strings(repo_dir, value):
-    write_config(repo_dir, f"server_allowed_hosts = {value}\n")
+def test_server_allowed_hosts_must_be_a_non_empty_list_of_strings(repo_dir, global_config, value):
+    global_config.write_text(f"server_allowed_hosts = {value}\n")
 
     with pytest.raises(SettingsError, match="wrong type for setting: server_allowed_hosts"):
         load_settings(None, cwd=repo_dir)
@@ -60,8 +59,8 @@ def test_server_allowed_hosts_must_be_a_non_empty_list_of_strings(repo_dir, valu
         ["0.0.0.0"], ["127.0.0.1"], ["localhost"], ["nas.lan", "nas.lan"],
     ],
 )
-def test_invalid_server_allowed_hosts_entries_are_refused(repo_dir, entries):
-    write_config(repo_dir, f"server_allowed_hosts = {json.dumps(entries)}\n")
+def test_invalid_server_allowed_hosts_entries_are_refused(repo_dir, global_config, entries):
+    global_config.write_text(f"server_allowed_hosts = {json.dumps(entries)}\n")
 
     with pytest.raises(SettingsError, match=f"server_allowed_hosts {re.escape(repr(entries[-1]))} is invalid: ."):
         load_settings(None, cwd=repo_dir)
