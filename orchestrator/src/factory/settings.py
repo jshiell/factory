@@ -142,12 +142,43 @@ def load_settings(path: Path | None, cwd: Path) -> Settings:
         warnings=_project_subdir_warnings(repo, typed), home=_usable_home(configured_home), **typed,
     )
     _check_project_subdir(settings.project_subdir)
+    _check_known(settings)
+    return settings
+
+
+_FIXED_LAYOUT_KEYS = ("repo", "state_dir", "worktree_root")
+
+
+def load_repo_settings(home: Path, name: str) -> Settings:
+    """Settings for the repo at `<home>/<name>/repo`: the global config under the repo's own, in a fixed layout."""
+    project = home / name
+    repo = project / "repo"
+    path = repo / PROJECT_CONFIG
+    global_path = home / "factory.toml"
+    global_layer = _global_layer(global_path) if global_path.exists() else {}
+    if path.exists() and (moved := sorted(set(_read(path)) & set(_FIXED_LAYOUT_KEYS))):
+        raise SettingsError(f"{moved[0]} is not allowed in the repo config {path}: the layout is fixed under {project}")
+    _check_no_old_layout(repo)
+    typed = _merged(global_layer, _layer(path) if path.exists() else {})
+    typed.pop("home", None)
+    state_dir = project / "state"
+    _check_no_in_repo_state(repo / ".factory", state_dir)
+    settings = replace(
+        Settings(repo, state_dir, project / "worktrees"), plugin_dirs=_plugin_dirs(typed.get("plugins", ()), home),
+        stage_plugin_dirs={stage: _plugin_dirs(names, home) for stage, names in typed.get("stage_plugins", {}).items()},
+        warnings=_project_subdir_warnings(repo, typed), home=home, **typed,
+    )
+    _check_project_subdir(settings.project_subdir)
+    _check_known(settings)
+    return settings
+
+
+def _check_known(settings: Settings) -> None:
     if settings.harness not in HARNESSES:
         raise SettingsError(f"harness {settings.harness!r} is unknown; known: {', '.join(sorted(HARNESSES))}")
     if settings.sandbox not in SANDBOXES:
         raise SettingsError(f"sandbox {settings.sandbox!r} is unknown; known: {', '.join(sorted(SANDBOXES))}")
     _check_server(settings.server_host, settings.server_allowed_hosts)
-    return settings
 
 
 def load_global_settings() -> GlobalSettings:
@@ -203,7 +234,8 @@ def _check_no_in_repo_state(factory_dir: Path, state_dir: Path) -> None:
         if (factory_dir / name).exists():
             raise SettingsError(
                 f"{factory_dir / name} is old in-repo state, which is no longer read: "
-                f"move the state files in {factory_dir} (factory.db, token, tasks, ledger) to {state_dir}"
+                f"move the state files in {factory_dir} (factory.db, token, tasks, ledger) to {state_dir} "
+                "and run `factory migrate`"
             )
 
 
