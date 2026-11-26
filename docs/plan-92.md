@@ -112,6 +112,18 @@ Rule: an existing assertion is edited only when it pins old wording, an old path
 - Increment 18: `ServerClient.unscoped()` returns a prefix-free view; `for_repo(name)` (increment 21) returns a scoped one.
 - Increments 22–23: `Context` gains `repo` (qualifies printed ids) and `repo_required` (set only by the real CLI path in increment 24, so the single-repo adapter tests keep working until increment 34). A malformed task ref raises `InvalidTaskId`; `NoRepo` exits 2.
 - Increment 24: `serve` and `ui` still load the single repo config (`_STILL_SINGLE_REPO`) until increment 32. The legacy app also mounts its routes under `/repos/<project dir name>` as a bridge so the scoped client works against it; the bridge goes in 32/34. `--help` anywhere on the line skips building the context, so it works outside a repo. `--config` moves only the repo's own config file (`load_repo_settings(..., config=)`). `test_cli_wiring` keeps its legacy server by giving `serve` a `--config` that holds the state and worktree paths; the settings-warnings test in `test_cli_package` now runs `list` from a repo under the home.
+- Increment 20: `--repo` is a pre-parser option that may appear anywhere on the line.
+- Increment 25: the index first had no SSE; it landed in 31.
+- Increment 26: an unknown repo on a UI route returns the JSON 404; template hrefs take `base`. The "is X, not reviewed" message is left bare.
+- Increment 27: a `_task_routes(prefix)` helper serves the per-task pages under `/ui` and `/ui/repos/{repo}`.
+- Increment 28: the repo selector is at `/ui/tasks/new`, with a `?repo=` preselect; the grill default comes from the selected repo.
+- Increments 29 and 31: costs and jobs pages are per-repo sections, not merged lists; no cross-repo cost total.
+- Increment 30: clean pages are per repo at `/ui/repos/{repo}/clean`, linked from the index.
+- Increment 32: the `ServerContext` seam; `--config` and `--repo` are ignored for `serve` and `ui`; a repo whose lock is held, or whose orphans cannot be proved dead, is skipped rather than refusing to start; reaped lines are repo-prefixed; skipped-repo stderr lines are new; login and static routes were added to the repos app.
+- Increment 33: `Options.repo` and `ServerClient.repo`. Only the gave-up comment prints `<repo>/<id>`; the other watch comments still print bare ids (`merging.py` 26, 41, 192; `planning.py` 87; `retrying.py` 45).
+- Increment 34: tests migrated to one repo named `proj` via a `repos_app` helper; `_require_repo` is unconditional (`repo_required` removed); `test_web_sentence_case` uses `zdata-proj`; the `test_cli_wiring` hack was removed.
+- Increment 35: `load_settings` was deleted outright (`init` and `eval-export` did not need it); about 20 old-layout tests were deleted (cwd and git-toplevel discovery, `state_dir`/`worktree_root`/`repo`/`home` keys, `_project_dir` keying); an explicit `--config` that does not exist is now an error (c8366a8); the `FACTORY_HOME` rules are guarded on the global loader (db4c141).
+- Increment 36: `factory-sample` does not exist in the repo, so there was nothing to move. `todo.md` is untracked; its two items were removed in the working copy only.
 
 ## Not verified
 - What the nono profile grants (step 0 spike); README line ~360 records a live check where other state and worktrees were denied.
