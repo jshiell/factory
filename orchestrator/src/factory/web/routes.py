@@ -653,13 +653,26 @@ def _kept_plan(task) -> dict:
             "audit_findings": [_safe(finding) for finding in gaps_to_carry(task)]}
 
 
-def _new_task_page_with(message: str | None, goal: str, grill: bool, status_code: int = 200) -> HTMLResponse:
-    return HTMLResponse(_TEMPLATES.get_template("new_task.html").render(message=message, goal=goal, grill=grill),
-                        status_code=status_code)
+def _new_task_page_with(message: str | None, goal: str, grill: bool, status_code: int = 200,
+                        repos: tuple[str, ...] | None = None, selected: str | None = None) -> HTMLResponse:
+    return HTMLResponse(_TEMPLATES.get_template("new_task.html").render(
+        message=message, goal=goal, grill=grill, repos=repos, selected=selected), status_code=status_code)
+
+
+def _registry(request: Request):
+    """The repo registry of the multi-repo app, None on the single-repo app."""
+    return getattr(request.app.state, "registry", None)
 
 
 async def _new_task_page(request: Request) -> HTMLResponse:
-    return _new_task_page_with(None, "", request.app.state.settings.grill)
+    registry = _registry(request)
+    if registry is None:
+        return _new_task_page_with(None, "", request.app.state.settings.grill)
+    names = registry.started_names
+    wanted = request.query_params.get("repo")
+    selected = wanted if wanted in names else (names[0] if names else None)
+    grill = request.app.state.repos[selected].settings.grill if selected else False
+    return _new_task_page_with(None, "", grill, repos=names, selected=selected)
 
 
 def _as_sentence(text: str) -> str:
@@ -675,16 +688,23 @@ async def _new_task(request: Request) -> RedirectResponse | HTMLResponse:
         if goal is None:
             raise _BadForm
         grill = _single(form, "grill") is not None
+        registry = _registry(request)
+        chosen = _single(form, "repo") if registry else None
+        if registry and chosen not in registry.started_names:
+            raise _BadForm
     except _BadForm:
         return _bad_form_page()
+    repos = request.app.state.repos[chosen] if registry else request.app.state
+    base = f"/ui/repos/{quote(chosen, safe='')}" if registry else "/ui"
     try:
         if not goal.strip():
             raise InvalidInput("The goal cannot be blank.")
-        task_id = request.app.state.actions.create(goal, grill)
+        task_id = repos.actions.create(goal, grill)
     except InvalidInput as error:
         shown_goal = goal.encode(errors="replace").decode()  # a lone surrogate cannot be written to the response
-        return _new_task_page_with(_as_sentence(str(error)), shown_goal, grill, status_code=422)
-    return RedirectResponse(f"/ui/tasks/{quote(task_id, safe='')}", status_code=303)
+        return _new_task_page_with(_as_sentence(str(error)), shown_goal, grill, status_code=422,
+                                   repos=registry.started_names if registry else None, selected=chosen)
+    return RedirectResponse(f"{base}/tasks/{quote(task_id, safe='')}", status_code=303)
 
 
 def _render_task(task, job=None, base="/ui") -> str:
@@ -734,6 +754,7 @@ def _task_routes(prefix: str) -> list[Route]:
 def repos_ui_routes() -> list[Route | Mount]:
     """The UI of the multi-repo server."""
     return [Route("/ui", _ui_without_slash, methods=["GET"]), Route("/ui/", _repos_index, methods=["GET"]),
+            Route("/ui/tasks/new", _new_task_page, methods=["GET"]), Route("/ui/tasks/new", _new_task, methods=["POST"]),
             *_task_routes("/ui/repos/{repo}")]
 
 

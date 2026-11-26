@@ -3,6 +3,7 @@
 <p>New task. Creating it does not start it.</p>
 {% if message %}<p class="error">{{ message }}</p>{% endif %}
 <form method="post" action="/ui/tasks/new">
+{% if repos %}<p><label>Repository <select name="repo">{% for name in repos %}<option value="{{ name }}"{% if name == selected %} selected{% endif %}>{{ name }}</option>{% endfor %}</select></label></p>{% endif %}
 <p><textarea name="goal" rows="8" cols="80" required>{{ goal }}</textarea></p>
 <p><label><input type="checkbox" name="grill" value="true"{% if grill %} checked{% endif %}> Grill the goal first</label></p>
 <button type="submit">Create task</button>

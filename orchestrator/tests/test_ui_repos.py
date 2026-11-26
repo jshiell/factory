@@ -101,6 +101,30 @@ def test_the_task_page_and_its_stream_link_the_actions_under_their_repo(client, 
         assert 'href="/ui/repos/a/tasks/same/reject"' in text
 
 
+def test_the_new_task_page_offers_every_repo_and_creates_the_task_in_the_chosen_one(client, contexts):
+    page = client.get("/ui/tasks/new")
+    done = client.post("/ui/tasks/new", data={"repo": "b", "goal": "do it"}, follow_redirects=False)
+
+    assert '<option value="a"' in page.text and '<option value="b"' in page.text
+    [task] = contexts["b"].store.list().tasks
+    assert contexts["a"].store.list().tasks == []
+    assert done.status_code == 303 and done.headers["location"] == f"/ui/repos/b/tasks/{task.id}"
+
+
+def test_a_new_task_for_an_unknown_repo_is_refused_and_creates_nothing(client, contexts):
+    done = client.post("/ui/tasks/new", data={"repo": "nope", "goal": "do it"}, follow_redirects=False)
+
+    assert done.status_code == 422
+    assert contexts["a"].store.list().tasks == [] and contexts["b"].store.list().tasks == []
+
+
+def test_a_blank_goal_keeps_the_chosen_repo_selected_on_the_form(client):
+    done = client.post("/ui/tasks/new", data={"repo": "b", "goal": "  "})
+
+    assert done.status_code == 422
+    assert '<option value="b" selected' in done.text
+
+
 def test_rejecting_a_plan_acts_on_the_repo_in_the_url_and_returns_to_its_task_page(client, contexts):
     contexts["a"].store.save(_reviewed("same", "goal in a"))
     contexts["b"].store.save(_reviewed("same", "goal in b"))
