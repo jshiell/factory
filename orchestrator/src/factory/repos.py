@@ -63,3 +63,17 @@ def discover_repos(home: Path) -> Discovery:
         else:
             names.append(entry.name)
     return Discovery(tuple(names), problems)
+
+
+def repo_name_from_cwd(home: Path, cwd: Path) -> str | None:
+    """The repo the directory belongs to: its project directory, its checkout at any depth, or one of its task worktrees."""
+    try:
+        parts = cwd.resolve().relative_to(home.resolve()).parts
+    except ValueError:
+        return None
+    if not parts or name_problem(parts[0]):
+        return None
+    inside = parts[1:]
+    if not inside or inside[0] == "repo" or (inside[0] == "worktrees" and len(inside) > 1):
+        return parts[0]
+    return None
