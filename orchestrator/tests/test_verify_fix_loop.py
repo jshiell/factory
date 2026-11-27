@@ -179,6 +179,14 @@ def test_a_failed_fix_round_stores_the_last_gate_output_and_the_fixers_result(re
     assert store.load("t1").failure_evidence == result.failure_evidence
 
 
+def test_every_other_fix_failure_still_stores_the_last_gate_output(repo, store, ledger, task):
+    result = verify(store, ledger, FakeRunner(repo, RuntimeError("boom")))
+
+    assert result.failure_reason == "fix_runner_error"
+    assert "FAIL: no fixed file" in result.failure_evidence
+    assert "boom" not in result.failure_evidence
+
+
 def test_an_agent_that_moves_head_fails_fix_moved(repo, store, ledger, task):
     def commit():
         (repo / "proj" / "fixed").write_text("ok")

@@ -64,6 +64,8 @@ def verify_task(
             gate_allow_dependency_changes, repo=repo,
         )
         if failure is not None:
+            if not task.failure_evidence:
+                task = replace(task, failure_evidence=bounded_evidence([("test output", result.output or "")]))
             return _finish(apply(task, Event.GATE_FAILED, reason=failure), store)
 
 
