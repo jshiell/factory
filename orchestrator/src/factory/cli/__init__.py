@@ -368,6 +368,8 @@ def _repo_context(config: Path | None, repo_option: str | None) -> Context:
     name = repo_option or repo_name_from_cwd(home, Path.cwd())
     if name is None:
         raise NoRepo(NO_REPO_MESSAGE)
+    if not (home / name / "repo").is_dir():
+        raise SettingsError(f"unknown repo {name}: there is no checkout at {home / name / 'repo'}")
     settings = load_repo_settings(home, name, config)
     for warning in settings.warnings:
         print(f"settings warning: {warning}", file=sys.stderr)

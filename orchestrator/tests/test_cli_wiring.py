@@ -429,3 +429,14 @@ def test_eval_export_needs_no_repo_and_no_server(project):
 
     assert result.returncode == 0, result.stderr
     assert (directory / "run.json").is_file() and (directory / "run.md").is_file()
+
+
+def test_an_unknown_repo_is_refused_without_creating_its_state(project):
+    _, env, tmp_path = project
+    home = Path(env["FACTORY_HOME"])
+
+    result = sh("uv", "run", "--project", str(ORCHESTRATOR), "factory", "--repo", "typo", "list", cwd=tmp_path, env=env,
+                stdin=subprocess.DEVNULL)
+
+    assert result.returncode == 2 and "unknown repo typo" in result.stderr
+    assert not (home / "typo").exists()
