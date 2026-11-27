@@ -1,11 +1,13 @@
 import json
 import os
+from dataclasses import replace
 from pathlib import Path
 
 from factory import failure_codes
 from factory.command import MAX_PROMPT_BYTES, RunnerConfig
 from factory.ledger import Ledger
-from factory.step import Runner
+from factory.readonly_stage import run_readonly_stage
+from factory.step import Runner, check_budget
 from factory.store import TaskStore
 from factory.task import Task, TaskState
 
@@ -54,4 +56,10 @@ def diagnose_task(
     task = store.load(task_id)
     if refusal := diagnose_refusal(task):
         raise RuntimeError(refusal)
-    raise NotImplementedError
+    check_budget(task_id, ledger, config, cap_usd)
+    staged = run_readonly_stage(
+        task, build_diagnose_prompt(task), runner, config, ledger, "diagnose", repo, require_clean=False
+    )
+    answer = staged.structured_output
+    diagnosis = {"cause": answer["cause"], "evidence": answer["evidence"], "next_step": answer["next_step"]}
+    return store.update(task_id, lambda current: replace(current, diagnosis=diagnosis))

@@ -1,3 +1,4 @@
+import json
 import os
 import re
 from unittest.mock import Mock
@@ -8,8 +9,38 @@ from factory import failure_codes
 from factory.command import MAX_PROMPT_BYTES, RunnerConfig
 from factory.diagnose_task import build_diagnose_prompt, diagnose_refusal, diagnose_task
 from factory.ledger import Ledger
+from factory.step import RunResult
 from factory.store import TaskStore
 from factory.task import Task, TaskState
+
+
+def diagnosis_stdout(output, cost=0.05):
+    payload = {"type": "result", "subtype": "success", "is_error": False, "total_cost_usd": cost}
+    return json.dumps({**payload, "structured_output": output})
+
+
+class DiagnoseRunner:
+    def __init__(self, stdout):
+        self.result, self.tasks = RunResult(stdout, 0), []
+
+    def run(self, task, config):
+        self.tasks.append(task)
+        return self.result
+
+
+def diagnose(store, tmp_path, runner, repo):
+    ledger = Ledger(tmp_path / "ledger.jsonl")
+    return diagnose_task("t1", store, ledger, runner, RunnerConfig(model="sonnet", budget_usd=0.3), 10, None)
+
+
+def test_a_diagnosis_from_the_agent_is_stored_on_the_failed_task(repo, store, tmp_path):
+    store.save(Task(id="t1", prompt="p", state=TaskState.FAILED, worktree=str(repo)))
+    answer = {"cause": "the test is wrong", "evidence": ["line 3"], "next_step": "fix the test"}
+
+    returned = diagnose(store, tmp_path, DiagnoseRunner(diagnosis_stdout(answer)), repo)
+
+    assert returned.diagnosis == answer
+    assert store.load("t1").diagnosis == answer
 
 
 def test_an_oversized_task_is_trimmed_to_the_launch_limit_keeping_the_evidence():
