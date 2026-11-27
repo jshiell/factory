@@ -5,6 +5,7 @@ from pathlib import Path
 
 from factory.audit_task import AUDIT_CONFIG, audit_task
 from factory.command import RunnerConfig
+from factory.diagnose_task import DIAGNOSE_CONFIG, diagnose_task
 from factory.fix_prompt import boundary_rule, dependency_rule
 from factory.gate_sandbox import GateSandbox, build_gate_sandbox, discover_uv_tooling
 from factory.ledger import Ledger
@@ -87,6 +88,7 @@ def build_stages(settings: Settings, deps: Deps) -> dict[str, Callable[[str], Ta
     plan_config = stage_config(PLAN_CONFIG, settings, "plan")
     review_config = stage_config(REVIEW_CONFIG, settings, "review")
     audit_config = stage_config(AUDIT_CONFIG, settings, "audit")
+    diagnose_config = stage_config(DIAGNOSE_CONFIG, settings, "diagnose")
     return {
         "plan": lambda task_id: plan_task(task_id, store, ledger, runner, plan_config, cap, deps.worktrees, settings.repo, grill_max_rounds=settings.grill_max_rounds),
         "review": lambda task_id: review_plan(task_id, store, ledger, runner, review_config, cap, settings.repo),
@@ -103,5 +105,8 @@ def build_stages(settings: Settings, deps: Deps) -> dict[str, Callable[[str], Ta
         ),
         "audit": lambda task_id: audit_task(
             task_id, store, ledger, runner, audit_config, cap, repo=settings.repo
+        ),
+        "diagnose": lambda task_id: diagnose_task(
+            task_id, store, ledger, runner, diagnose_config, cap, repo=settings.repo
         ),
     }

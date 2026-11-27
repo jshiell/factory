@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 
 from factory.audit_task import AUDIT_CONFIG, audit_task
+from factory.diagnose_task import DIAGNOSE_CONFIG
 from factory.digest import plan_digest
 from factory.gate_sandbox import UvTooling
 from factory.ledger import Ledger
@@ -116,6 +117,16 @@ def test_read_only_stages_receive_their_own_read_only_config(setup, stage, state
     build_stages(settings, deps)[stage]("t1")
 
     assert runner.configs == [expected]
+
+
+def test_the_diagnose_stage_receives_the_diagnose_config(setup):
+    store, runner, settings, deps, repo, base = setup
+    save(store, settings, TaskState.FAILED)
+
+    with pytest.raises(RuntimeError):  # the recording runner never returns a diagnosis
+        build_stages(settings, deps)["diagnose"]("t1")
+
+    assert runner.configs == [DIAGNOSE_CONFIG]
 
 
 def test_the_plan_stage_stops_asking_at_the_configured_round_cap(setup):
@@ -321,8 +332,8 @@ def test_the_verify_stage_treats_the_state_dir_as_private_when_granting_uv(setup
     assert policies[0].read == ("/py", "/uvpy")
 
 
-def test_stage_names_are_exactly_the_pipeline(setup):
-    assert set(build_stages(setup[2], setup[3])) == {"plan", "review", "implement", "verify", "audit"}
+def test_stage_names_are_the_pipeline_and_the_on_demand_diagnosis(setup):
+    assert set(build_stages(setup[2], setup[3])) == {"plan", "review", "implement", "verify", "audit", "diagnose"}
 
 
 def test_the_verify_stage_passes_the_state_and_worktree_dirs_to_the_gate(setup, monkeypatch):
