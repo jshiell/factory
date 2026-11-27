@@ -54,6 +54,20 @@ def test_a_failing_gate_marks_the_task_failed_with_the_gate_reason(repo, store):
     assert store.load("t1") == task
 
 
+def test_failing_tests_store_their_output_as_evidence_without_any_fix_rounds(repo, store):
+    store.save(agent_done_task(repo))
+    (repo / "proj" / "code.py").write_text("changed by agent")
+
+    task = verify_task(
+        "t1", store, project_subdir="proj", test_argv=["sh", "-c", "echo assertion-failed-here; exit 1"],
+        gate_timeout_s=10, repo=None,
+    )
+
+    assert task.failure_reason == "tests_failed"
+    assert "assertion-failed-here" in task.failure_evidence
+    assert store.load("t1").failure_evidence == task.failure_evidence
+
+
 def test_task_that_is_not_agent_done_is_rejected_without_committing(repo, store):
     store.save(agent_done_task(repo, state=TaskState.RUNNING))
     (repo / "proj" / "code.py").write_text("uncommitted")

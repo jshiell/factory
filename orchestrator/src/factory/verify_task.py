@@ -6,6 +6,7 @@ from factory import failure_codes
 from factory.agent_call import Infra, call_agent
 from factory.classify import OutcomeKind
 from factory.command import RunnerConfig
+from factory.evidence import bounded_evidence
 from factory.fix_prompt import OUTPUT_LIMIT, build_fix_prompt
 from factory.gate import GateResult, check_gate, commit_all, has_nested_repo
 from factory.gate_sandbox import GateSandbox
@@ -48,23 +49,29 @@ def verify_task(
     apply(task, Event.GATE_PASSED)  # reject tasks that are not agent_done before touching git
     if task.fix_in_flight:
         return _fail_interrupted(task, store, ledger, fix_config)
-    capture = OUTPUT_LIMIT if fix_rounds > 0 else None
     tracker = Tracker(records, task.id, GATE_STAGE) if records else None
     while True:
         result = _gate_once(
-            task, project_subdir, test_argv, gate_timeout_s, sandbox, capture, factory_paths, tracker,
+            task, project_subdir, test_argv, gate_timeout_s, sandbox, OUTPUT_LIMIT, factory_paths, tracker,
             gate_allow_dependency_changes, repo=repo,
         )
         if result.passed:
             return _finish(apply(task, Event.GATE_PASSED), store)
         if result.reason != failure_codes.TESTS_FAILED or task.fix_rounds_used >= fix_rounds:
-            return _finish(apply(task, Event.GATE_FAILED, reason=result.reason), store)
+            return _finish(_gate_failed(task, result), store)
         task, failure = _fix_round(
             task, result.output or "", store, runner, ledger, fix_config, cap_usd,
             gate_allow_dependency_changes, repo=repo,
         )
         if failure is not None:
             return _finish(apply(task, Event.GATE_FAILED, reason=failure), store)
+
+
+def _gate_failed(task: Task, result: GateResult) -> Task:
+    failed = apply(task, Event.GATE_FAILED, reason=result.reason)
+    if result.output is None:
+        return failed
+    return replace(failed, failure_evidence=bounded_evidence([("test output", result.output)]))
 
 
 def _fix_round(
