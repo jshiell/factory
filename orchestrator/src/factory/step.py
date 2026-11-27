@@ -6,6 +6,7 @@ from typing import Protocol
 from factory import failure_codes
 from factory.classify import Outcome, OutcomeKind, classify
 from factory.command import PromptTooLarge, RunnerConfig
+from factory.evidence import bounded_evidence
 from factory.ledger import Ledger
 from factory.store import TaskStore
 from factory.task import Event, Task, apply
@@ -92,9 +93,19 @@ def step(
     if outcome.kind in (OutcomeKind.SUCCESS, OutcomeKind.SUCCESS_WITH_DENIALS):
         finished = replace(apply(running, Event.SUCCEEDED), denials=outcome.denials)
     else:
-        finished = apply(running, Event.FAILED, reason=outcome.kind.value)
+        failed = apply(running, Event.FAILED, reason=outcome.kind.value)
+        finished = replace(failed, failure_evidence=outcome_evidence(outcome, result.stderr))
     store.save(finished)
     return finished
+
+
+def outcome_evidence(outcome: Outcome, stderr: str) -> str:
+    return bounded_evidence([
+        ("subtype", outcome.subtype or ""),
+        ("result", outcome.result or ""),
+        ("errors", "\n".join(outcome.errors)),
+        ("stderr", stderr),
+    ])
 
 
 def _fail_with_assumed_cost(

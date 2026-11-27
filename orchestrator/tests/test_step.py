@@ -211,3 +211,16 @@ def test_assumed_implementer_cost_is_also_staged(store, ledger):
     step("t1", store, ledger, FakeRunner(timed_out=True), CONFIG, cap_usd=10)
 
     assert ledger.entries()[0]["stage"] == "implement"
+
+
+def test_an_outcome_failure_stores_the_subtype_result_and_stderr_tail_as_evidence(store, ledger):
+    stdout = (
+        '{"type": "result", "subtype": "error_during_execution", "is_error": true,'
+        ' "result": "could not edit foo.py", "total_cost_usd": 0.01}'
+    )
+    runner = FakeRunner(stdout, 1, stderr="boom")
+
+    task = step("t1", store, ledger, runner, CONFIG, cap_usd=10)
+
+    assert all(text in task.failure_evidence for text in ("error_during_execution", "could not edit foo.py", "boom"))
+    assert store.load("t1").failure_evidence == task.failure_evidence
