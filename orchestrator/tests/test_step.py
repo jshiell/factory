@@ -213,6 +213,13 @@ def test_assumed_implementer_cost_is_also_staged(store, ledger):
     assert ledger.entries()[0]["stage"] == "implement"
 
 
+def test_a_timeout_stores_the_stderr_tail_as_evidence(store, ledger):
+    task = step("t1", store, ledger, FakeRunner(timed_out=True, stderr="still compiling"), CONFIG, cap_usd=10)
+
+    assert "still compiling" in task.failure_evidence
+    assert store.load("t1").failure_evidence == task.failure_evidence
+
+
 def test_an_outcome_failure_stores_the_subtype_result_and_stderr_tail_as_evidence(store, ledger):
     stdout = (
         '{"type": "result", "subtype": "error_during_execution", "is_error": true,'

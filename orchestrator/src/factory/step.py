@@ -87,7 +87,8 @@ def step(
         logging.getLogger("factory").warning("agent run failed for task %s, stage implement: %r", task_id, error)
         return _fail_with_assumed_cost(running, failure_codes.RUNNER_ERROR, store, ledger, config)
     if result.timed_out:
-        return _fail_with_assumed_cost(running, failure_codes.TIMEOUT, store, ledger, config)
+        evidence = bounded_evidence([("stderr", result.stderr)])
+        return _fail_with_assumed_cost(running, failure_codes.TIMEOUT, store, ledger, config, evidence)
     outcome = classify_run(result, task_id, "implement")
     ledger.append(task_id, outcome.cost_usd, stage="implement")
     if outcome.kind in (OutcomeKind.SUCCESS, OutcomeKind.SUCCESS_WITH_DENIALS):
@@ -109,9 +110,9 @@ def outcome_evidence(outcome: Outcome, stderr: str) -> str:
 
 
 def _fail_with_assumed_cost(
-    running: Task, reason: str, store: TaskStore, ledger: Ledger, config: RunnerConfig
+    running: Task, reason: str, store: TaskStore, ledger: Ledger, config: RunnerConfig, evidence: str = ""
 ) -> Task:
     ledger.append(running.id, ASSUMED_COST_MULTIPLIER * config.budget_usd, assumed=True, stage="implement")
-    failed = apply(running, Event.FAILED, reason=reason)
+    failed = replace(apply(running, Event.FAILED, reason=reason), failure_evidence=evidence)
     store.save(failed)
     return failed
