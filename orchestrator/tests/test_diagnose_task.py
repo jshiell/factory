@@ -62,6 +62,28 @@ def test_output_that_is_not_a_diagnosis_is_refused_and_the_task_is_untouched(rep
     assert store.load("t1") == failed
 
 
+def test_a_run_that_does_not_finish_is_refused_with_a_plain_sentence_and_the_task_is_untouched(repo, store, tmp_path):
+    failed = Task(id="t1", prompt="p", state=TaskState.FAILED, worktree=str(repo))
+    store.save(failed)
+
+    with pytest.raises(RuntimeError, match="did not finish"):
+        diagnose(store, tmp_path, DiagnoseRunner("not json"), repo)
+
+    assert store.load("t1") == failed
+
+
+def test_a_run_that_changes_the_worktree_is_refused_and_the_task_is_untouched(repo, store, tmp_path):
+    failed = Task(id="t1", prompt="p", state=TaskState.FAILED, worktree=str(repo))
+    store.save(failed)
+    runner = DiagnoseRunner(diagnosis_stdout({"cause": "c", "evidence": [], "next_step": "n"}))
+    runner.run = lambda task, config: ((repo / "evil.txt").write_text("e"), runner.result)[1]
+
+    with pytest.raises(RuntimeError, match="changed the worktree"):
+        diagnose(store, tmp_path, runner, repo)
+
+    assert store.load("t1") == failed
+
+
 def test_an_oversized_task_is_trimmed_to_the_launch_limit_keeping_the_evidence():
     task = Task(
         id="t1", prompt="p", goal="G" * MAX_PROMPT_BYTES, state=TaskState.FAILED,

@@ -6,7 +6,7 @@ from pathlib import Path
 from factory import failure_codes
 from factory.command import MAX_PROMPT_BYTES, RunnerConfig
 from factory.ledger import Ledger
-from factory.readonly_stage import run_readonly_stage
+from factory.readonly_stage import Infra, Modified, run_readonly_stage
 from factory.step import Runner, check_budget
 from factory.store import TaskStore
 from factory.task import Task, TaskState
@@ -60,6 +60,10 @@ def diagnose_task(
     staged = run_readonly_stage(
         task, build_diagnose_prompt(task), runner, config, ledger, "diagnose", repo, require_clean=False
     )
+    if isinstance(staged, Modified):
+        raise RuntimeError("The diagnosis agent changed the worktree, so its answer was discarded. Nothing was saved.")
+    if isinstance(staged, Infra):
+        raise RuntimeError("The diagnosis agent did not finish. Nothing was saved; diagnose again.")
     diagnosis = _parse_diagnosis(staged.structured_output)
     if diagnosis is None:
         raise RuntimeError("The diagnosis came back unreadable. Nothing was changed; diagnose again.")
