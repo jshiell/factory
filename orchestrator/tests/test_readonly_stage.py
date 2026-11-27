@@ -77,6 +77,43 @@ def test_the_unchanged_variant_runs_on_a_dirty_worktree_that_the_run_leaves_as_i
     assert (repo / "stray.txt").read_text() == "left by the implementer"
 
 
+@pytest.mark.parametrize("tamper", ["edit_stray", "add_file", "stage_stray", "commit_all"])
+def test_guard_the_unchanged_variant_reports_any_change_made_during_the_run_as_modified(repo, task, ledger, tamper):
+    # guard (green on arrival): the fingerprint already covers each of these. A change to an ignored file is outside it.
+    (repo / "stray.txt").write_text("left by the implementer")
+
+    def run():
+        if tamper == "edit_stray":
+            (repo / "stray.txt").write_text("edited by the agent")
+        if tamper == "add_file":
+            (repo / "new.txt").write_text("n")
+        if tamper == "stage_stray":
+            git(repo, "add", "stray.txt")
+        if tamper == "commit_all":
+            git(repo, "add", "-A")
+            git(repo, "commit", "-q", "-m", "agent commit")
+
+    result = run_readonly_stage(task, "P", Runner(on_run=run), CONFIG, ledger, "diagnose", repo=None, require_clean=False)
+
+    assert result == Modified()
+    assert ledger.total() == pytest.approx(0.05)
+
+
+def test_guard_the_unchanged_variant_still_reports_a_rewritten_dot_git_as_modified(repo, ledger, tmp_path):
+    worktree, _ = WorktreeManager(repo, tmp_path / "wt").create("t1")
+    (worktree / "stray.txt").write_text("left by the implementer")
+    markers = []
+    runner = Runner(on_run=lambda: markers.append(redirect_to_planted_gitdir(worktree, tmp_path, clone_of=repo)))
+
+    result = run_readonly_stage(
+        Task(id="t1", prompt="p", worktree=str(worktree)), "P", runner, CONFIG, ledger, "diagnose", repo=repo,
+        require_clean=False,
+    )
+
+    assert result == Modified()
+    assert not markers[0].exists()
+
+
 @pytest.mark.parametrize("commit", [False, True])
 def test_a_worktree_changed_by_the_run_is_modified_after_charging_the_cost(repo, task, ledger, commit):
     def tamper():
