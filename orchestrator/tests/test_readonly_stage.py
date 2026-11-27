@@ -67,6 +67,16 @@ def test_a_dirty_worktree_before_the_run_is_modified_and_the_runner_is_not_calle
     assert runner.tasks == [] and ledger.total() == 0
 
 
+def test_the_unchanged_variant_runs_on_a_dirty_worktree_that_the_run_leaves_as_it_was(repo, task, ledger):
+    (repo / "stray.txt").write_text("left by the implementer")
+    runner = Runner()
+
+    result = run_readonly_stage(task, "P", runner, CONFIG, ledger, "diagnose", repo=None, require_clean=False)
+
+    assert result == Ran({"ok": 1}, git(repo, "rev-parse", "HEAD"))
+    assert (repo / "stray.txt").read_text() == "left by the implementer"
+
+
 @pytest.mark.parametrize("commit", [False, True])
 def test_a_worktree_changed_by_the_run_is_modified_after_charging_the_cost(repo, task, ledger, commit):
     def tamper():
