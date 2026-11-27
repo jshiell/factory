@@ -12,7 +12,7 @@ from factory.gate import GateResult, check_gate, commit_all, has_nested_repo
 from factory.gate_sandbox import GateSandbox
 from factory.ledger import Ledger
 from factory.process_registry import Tracker
-from factory.step import ASSUMED_COST_MULTIPLIER, Runner, check_budget
+from factory.step import ASSUMED_COST_MULTIPLIER, Runner, check_budget, outcome_parts
 from factory.store import TaskStore
 from factory.task import Event, Task, apply
 from factory.worktree_clean import clean_worktree
@@ -98,7 +98,8 @@ def _fix_round(
     task = replace(task, denials=task.denials + called.outcome.denials)
     store.save(task)
     if called.outcome.kind not in _SUCCESS:
-        return task, f"{failure_codes.FIX_PREFIX}{called.outcome.kind.value}"
+        evidence = bounded_evidence([("test output", test_output), *outcome_parts(called.outcome)])
+        return replace(task, failure_evidence=evidence), f"{failure_codes.FIX_PREFIX}{called.outcome.kind.value}"
     if tree.git("rev-parse", "HEAD") != head:
         return task, failure_codes.FIX_MOVED
     if not tree.git("status", "--porcelain"):

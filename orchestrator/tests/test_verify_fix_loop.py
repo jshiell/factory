@@ -168,6 +168,17 @@ def test_a_non_success_agent_outcome_fails_with_its_kind(repo, store, ledger, ta
     assert result.failure_reason == "fix_error"
 
 
+def test_a_failed_fix_round_stores_the_last_gate_output_and_the_fixers_result(repo, store, ledger, task):
+    errored = json.dumps(
+        {"type": "result", "subtype": "error_during_execution", "is_error": True, "result": "fixer gave up"}
+    )
+
+    result = verify(store, ledger, FakeRunner(repo, stdout=errored))
+
+    assert "FAIL: no fixed file" in result.failure_evidence and "fixer gave up" in result.failure_evidence
+    assert store.load("t1").failure_evidence == result.failure_evidence
+
+
 def test_an_agent_that_moves_head_fails_fix_moved(repo, store, ledger, task):
     def commit():
         (repo / "proj" / "fixed").write_text("ok")

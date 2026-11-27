@@ -111,12 +111,15 @@ def step(
 
 
 def outcome_evidence(outcome: Outcome, stderr: str) -> str:
-    return bounded_evidence([
+    return bounded_evidence([*outcome_parts(outcome), ("stderr", stderr)])
+
+
+def outcome_parts(outcome: Outcome) -> list[tuple[str, str]]:
+    return [
         ("subtype", outcome.subtype or ""),
         ("result", outcome.result or ""),
         ("errors", "\n".join(outcome.errors)),
-        ("stderr", stderr),
-    ])
+    ]
 
 
 def _fail_with_assumed_cost(
