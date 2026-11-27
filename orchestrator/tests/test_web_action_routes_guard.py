@@ -8,7 +8,7 @@ from webposts import same_origin_headers
 pytest_plugins = ["webfixtures"]
 
 TASK_ID = "20260102-030405"
-ACTIONS = ["abandon", "recover", "advance", "rebase", "merge", "retry"]
+ACTIONS = ["abandon", "recover", "advance", "diagnose", "rebase", "merge", "retry"]
 
 
 @pytest.fixture
