@@ -201,6 +201,22 @@ def test_an_oversized_prompt_fails_the_task_without_a_charge_and_is_logged(store
     assert any("t1" in r.getMessage() and "implement" in r.getMessage() and "200000" in r.getMessage() for r in caplog.records)
 
 
+def test_runner_error_and_oversized_prompt_store_a_fixed_sentence_never_the_exception_text(store, ledger):
+    def explode(task):
+        raise FileNotFoundError("/secret/path/claude --flag")
+
+    def refuse(task):
+        raise PromptTooLarge("prompt is 200000 bytes")
+
+    runner_error = step("t1", store, ledger, FakeRunner(on_run=explode), CONFIG, cap_usd=10)
+    store.save(Task(id="t1", prompt="do it"))
+    too_large = step("t1", store, ledger, FakeRunner(on_run=refuse), CONFIG, cap_usd=10)
+
+    assert "could not be started" in runner_error.failure_evidence
+    assert "too large" in too_large.failure_evidence
+    assert "/secret/path" not in runner_error.failure_evidence and "200000" not in too_large.failure_evidence
+
+
 def test_implementer_cost_is_recorded_under_the_implement_stage(store, ledger):
     step("t1", store, ledger, FakeRunner(fixture_stdout("success")), CONFIG, cap_usd=10)
 

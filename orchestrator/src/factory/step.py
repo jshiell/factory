@@ -14,6 +14,11 @@ from factory.task import Event, Task, apply
 ASSUMED_COST_MULTIPLIER = 2
 
 
+# Fixed sentences: the exception text can hold paths and command lines that must not be stored or shown.
+RUNNER_ERROR_EVIDENCE = "The agent could not be started or crashed before it produced a result."
+PROMPT_TOO_LARGE_EVIDENCE = "The prompt was too large to pass to the agent."
+
+
 class BudgetCapReached(Exception):
     pass
 
@@ -80,12 +85,17 @@ def step(
         result = runner.run(running, config)
     except PromptTooLarge as error:
         logging.getLogger("factory").warning("agent run refused for task %s, stage implement: %s", task_id, error)
-        failed = apply(running, Event.FAILED, reason=failure_codes.PROMPT_TOO_LARGE)
+        failed = replace(
+            apply(running, Event.FAILED, reason=failure_codes.PROMPT_TOO_LARGE),
+            failure_evidence=PROMPT_TOO_LARGE_EVIDENCE,
+        )
         store.save(failed)
         return failed
     except Exception as error:
         logging.getLogger("factory").warning("agent run failed for task %s, stage implement: %r", task_id, error)
-        return _fail_with_assumed_cost(running, failure_codes.RUNNER_ERROR, store, ledger, config)
+        return _fail_with_assumed_cost(
+            running, failure_codes.RUNNER_ERROR, store, ledger, config, RUNNER_ERROR_EVIDENCE
+        )
     if result.timed_out:
         evidence = bounded_evidence([("stderr", result.stderr)])
         return _fail_with_assumed_cost(running, failure_codes.TIMEOUT, store, ledger, config, evidence)
