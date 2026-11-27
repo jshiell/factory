@@ -4,6 +4,7 @@ from dataclasses import replace
 from pathlib import Path
 
 from factory import failure_codes
+from factory.audit_task import AUDIT_CONFIG
 from factory.command import MAX_PROMPT_BYTES, RunnerConfig
 from factory.ledger import Ledger
 from factory.readonly_stage import Infra, Modified, run_readonly_stage
@@ -14,6 +15,24 @@ from factory.task import Task, TaskState
 MAX_CAUSE = 1000
 MAX_EVIDENCE_ITEMS = 8
 MAX_ITEM = 500
+
+DIAGNOSIS_SCHEMA = {
+    "type": "object",
+    "required": ["cause", "evidence", "next_step"],
+    "additionalProperties": False,
+    "properties": {
+        "cause": {"type": "string", "maxLength": MAX_CAUSE},
+        "evidence": {"type": "array", "maxItems": MAX_EVIDENCE_ITEMS, "items": {"type": "string", "maxLength": MAX_ITEM}},
+        "next_step": {"type": "string", "maxLength": MAX_ITEM},
+    },
+}
+
+DIAGNOSE_CONFIG = replace(
+    AUDIT_CONFIG,
+    disallowed_tools=(*AUDIT_CONFIG.disallowed_tools, "WebFetch", "WebSearch"),
+    json_schema=DIAGNOSIS_SCHEMA,
+    append_system_prompt="You are a read-only failure diagnostician. Never try to modify files.",
+)
 
 
 def diagnose_refusal(task: Task) -> str | None:

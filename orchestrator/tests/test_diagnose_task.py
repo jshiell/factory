@@ -6,8 +6,10 @@ from unittest.mock import Mock
 import pytest
 
 from factory import failure_codes
+from factory.audit_task import AUDIT_CONFIG
 from factory.command import MAX_PROMPT_BYTES, RunnerConfig
 from factory.diagnose_task import (
+    DIAGNOSE_CONFIG,
     MAX_CAUSE,
     MAX_EVIDENCE_ITEMS,
     MAX_ITEM,
@@ -67,6 +69,17 @@ def test_output_that_is_not_a_diagnosis_is_refused_and_the_task_is_untouched(rep
         diagnose(store, tmp_path, DiagnoseRunner(stdout), repo)
 
     assert store.load("t1") == failed
+
+
+@pytest.mark.smoke
+def test_diagnose_config_is_read_only_without_the_web_and_has_the_diagnosis_schema_and_a_modest_budget():
+    assert DIAGNOSE_CONFIG.allowed_tools == ()
+    assert DIAGNOSE_CONFIG.confine is True
+    assert set(DIAGNOSE_CONFIG.disallowed_tools) == set(AUDIT_CONFIG.disallowed_tools) | {"WebFetch", "WebSearch"}
+    assert set(DIAGNOSE_CONFIG.json_schema["required"]) == {"cause", "evidence", "next_step"}
+    assert DIAGNOSE_CONFIG.json_schema["additionalProperties"] is False
+    assert DIAGNOSE_CONFIG.max_turns is not None
+    assert 0 < DIAGNOSE_CONFIG.budget_usd < 0.5
 
 
 def test_guard_a_diagnosis_leaves_the_state_and_reason_and_charges_the_ledger_under_diagnose(repo, store, tmp_path):
