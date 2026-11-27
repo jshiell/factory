@@ -2,6 +2,7 @@ import pytest
 
 from factory.abandon_task import can_abandon
 from factory.advance import can_advance
+from factory.diagnose_task import can_diagnose
 from factory.merge_task import can_merge
 from factory.rebase_task import can_rebase
 from factory.recover_task import can_recover
@@ -16,7 +17,7 @@ pytest_plugins = ["webfixtures"]
 TASK = "20260102-030405"
 PAGE = f"/ui/repos/proj/tasks/{TASK}"
 PREDICATES = {"abandon": can_abandon, "recover": can_recover, "advance": can_advance, "rebase": can_rebase,
-              "merge": can_merge, "retry": can_retry}
+              "merge": can_merge, "retry": can_retry, "diagnose": can_diagnose}
 
 
 def link(action):
@@ -70,6 +71,22 @@ def test_a_failed_task_offers_retry_but_not_abandon(client, ctx):
     add(ctx, TASK, TaskState.FAILED, goal="g")
 
     assert shown(client.get(PAGE).text) == {"retry"}
+
+
+def test_a_failed_task_with_a_worktree_offers_diagnose_and_retry(client, ctx):
+    add(ctx, TASK, TaskState.FAILED, goal="g", worktree="/some/worktree")
+
+    html = client.get(PAGE).text
+
+    assert shown(html) == {"diagnose", "retry"}
+    assert "Diagnose this failure" in html
+
+
+def test_diagnose_is_hidden_while_the_failed_task_has_an_unfinished_job(client, ctx):
+    add(ctx, TASK, TaskState.FAILED, goal="g", worktree="/some/worktree")
+    job_in_state(client, "running")
+
+    assert "diagnose" not in shown(client.get(PAGE).text)
 
 
 def test_the_action_links_have_readable_text(client, ctx):

@@ -121,7 +121,7 @@ def _job_view(job) -> dict | None:
 
 _ACTION_LINKS = (("advance", "Advance this task", can_advance), ("rebase", "Rebase this task", can_rebase),
                  ("merge", "Merge this task", can_merge), ("recover", "Recover this task", can_recover),
-                 ("abandon", "Abandon this task", can_abandon))
+                 ("abandon", "Abandon this task", can_abandon), ("diagnose", "Diagnose this failure", can_diagnose))
 
 
 def _offered_actions(task, job) -> list[tuple[str, str]]:
