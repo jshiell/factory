@@ -93,6 +93,17 @@ def test_guard_a_diagnosis_leaves_the_state_and_reason_and_charges_the_ledger_un
     assert [(e["stage"], e["cost_usd"]) for e in Ledger(tmp_path / "ledger.jsonl").entries()] == [("diagnose", 0.07)]
 
 
+def test_guard_diagnosing_again_replaces_the_stored_diagnosis(repo, store, tmp_path):
+    # guard (green on arrival): `replace(current, diagnosis=...)` overwrites
+    old = {"cause": "old", "evidence": ["old line"], "next_step": "old step"}
+    store.save(Task(id="t1", prompt="p", state=TaskState.FAILED, worktree=str(repo), diagnosis=old))
+    new = {"cause": "new", "evidence": [], "next_step": "new step"}
+
+    diagnose(store, tmp_path, DiagnoseRunner(diagnosis_stdout(new)), repo)
+
+    assert store.load("t1").diagnosis == new
+
+
 def test_guard_a_diagnosis_is_refused_at_the_spending_cap_without_running(repo, store, tmp_path):
     # guard (green on arrival): `check_budget` runs before the stage
     failed = Task(id="t1", prompt="p", state=TaskState.FAILED, worktree=str(repo))
