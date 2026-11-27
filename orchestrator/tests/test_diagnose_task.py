@@ -7,7 +7,14 @@ import pytest
 
 from factory import failure_codes
 from factory.command import MAX_PROMPT_BYTES, RunnerConfig
-from factory.diagnose_task import build_diagnose_prompt, diagnose_refusal, diagnose_task
+from factory.diagnose_task import (
+    MAX_CAUSE,
+    MAX_EVIDENCE_ITEMS,
+    MAX_ITEM,
+    build_diagnose_prompt,
+    diagnose_refusal,
+    diagnose_task,
+)
 from factory.ledger import Ledger
 from factory.step import RunResult
 from factory.store import TaskStore
@@ -60,6 +67,20 @@ def test_output_that_is_not_a_diagnosis_is_refused_and_the_task_is_untouched(rep
         diagnose(store, tmp_path, DiagnoseRunner(stdout), repo)
 
     assert store.load("t1") == failed
+
+
+def test_an_oversized_diagnosis_is_capped_before_it_is_stored(repo, store, tmp_path):
+    store.save(Task(id="t1", prompt="p", state=TaskState.FAILED, worktree=str(repo)))
+    answer = {
+        "cause": "c" * (MAX_CAUSE + 1), "evidence": ["e" * (MAX_ITEM + 1)] * (MAX_EVIDENCE_ITEMS + 1),
+        "next_step": "n" * (MAX_ITEM + 1),
+    }
+
+    stored = diagnose(store, tmp_path, DiagnoseRunner(diagnosis_stdout(answer)), repo).diagnosis
+
+    assert len(stored["cause"]) == MAX_CAUSE
+    assert [len(item) for item in stored["evidence"]] == [MAX_ITEM] * MAX_EVIDENCE_ITEMS
+    assert len(stored["next_step"]) == MAX_ITEM
 
 
 def test_a_run_that_does_not_finish_is_refused_with_a_plain_sentence_and_the_task_is_untouched(repo, store, tmp_path):

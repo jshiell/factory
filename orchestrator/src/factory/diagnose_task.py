@@ -11,6 +11,10 @@ from factory.step import Runner, check_budget
 from factory.store import TaskStore
 from factory.task import Task, TaskState
 
+MAX_CAUSE = 1000
+MAX_EVIDENCE_ITEMS = 8
+MAX_ITEM = 500
+
 
 def diagnose_refusal(task: Task) -> str | None:
     """A plain sentence saying why the task cannot be diagnosed, or None when it can."""
@@ -78,4 +82,8 @@ def _parse_diagnosis(output: dict | None) -> dict | None:
         return None
     if not isinstance(evidence, list) or not all(isinstance(item, str) for item in evidence):
         return None
-    return {"cause": cause, "evidence": evidence, "next_step": next_step}
+    return {
+        "cause": cause[:MAX_CAUSE],
+        "evidence": [item[:MAX_ITEM] for item in evidence[:MAX_EVIDENCE_ITEMS]],
+        "next_step": next_step[:MAX_ITEM],
+    }
