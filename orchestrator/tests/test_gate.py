@@ -693,14 +693,23 @@ def test_failing_tests_hand_back_their_output_when_a_capture_limit_is_given(repo
     assert "boom" in result.output and "bang" in result.output
 
 
-def test_the_output_is_none_without_a_capture_limit_or_for_other_outcomes(repo):
+def test_the_output_is_none_without_a_capture_limit_or_for_a_pass(repo):
     base = repo_with_project_change(repo)
 
     uncaptured = gate(repo, base, test_argv=["sh", "-c", "echo boom; exit 1"])
     passed = check_gate(repo, base, "proj", ["true"], timeout_s=10, capture_limit=500)
-    timed_out = check_gate(repo, base, "proj", ["sleep", "5"], timeout_s=0.3, capture_limit=500)
 
-    assert (uncaptured.output, passed.output, timed_out.output) == (None, None, None)
+    assert (uncaptured.output, passed.output) == (None, None)
+
+
+def test_a_timed_out_run_hands_back_what_it_printed_before_the_kill(repo):
+    base = repo_with_project_change(repo)
+
+    result = check_gate(repo, base, "proj", ["sh", "-c", "echo got-this-far; sleep 5"], timeout_s=0.5,
+                        capture_limit=500)
+
+    assert result.reason == "tests_timeout"
+    assert "got-this-far" in result.output
 
 
 def test_the_wrapper_s_own_lines_are_part_of_the_captured_output(repo, tmp_path):

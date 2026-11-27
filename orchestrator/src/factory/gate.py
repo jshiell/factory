@@ -100,7 +100,7 @@ def check_gate(
     except OSError:  # a missing sandbox wrapper: fail closed, never run the tests unconfined
         return GateResult(False, failure_codes.SANDBOX_UNAVAILABLE)
     if ran.timed_out:
-        return GateResult(False, failure_codes.TESTS_TIMEOUT)
+        return GateResult(False, failure_codes.TESTS_TIMEOUT, output=ran.tail)
     if ran.exit_code != 0:
         return GateResult(False, failure_codes.TESTS_FAILED, ran.exit_code, ran.tail)
     return GateResult(True)

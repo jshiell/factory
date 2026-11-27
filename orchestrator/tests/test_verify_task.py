@@ -68,6 +68,20 @@ def test_failing_tests_store_their_output_as_evidence_without_any_fix_rounds(rep
     assert store.load("t1").failure_evidence == task.failure_evidence
 
 
+def test_a_tests_timeout_stores_what_the_tests_printed_before_the_kill(repo, store):
+    # guard (green on arrival): the gate now hands the tail back and _gate_failed stores any output
+    store.save(agent_done_task(repo))
+    (repo / "proj" / "code.py").write_text("changed by agent")
+
+    task = verify_task(
+        "t1", store, project_subdir="proj", test_argv=["sh", "-c", "echo stuck-at-step-3; sleep 5"],
+        gate_timeout_s=0.5, repo=None,
+    )
+
+    assert task.failure_reason == "tests_timeout"
+    assert "stuck-at-step-3" in task.failure_evidence
+
+
 def test_task_that_is_not_agent_done_is_rejected_without_committing(repo, store):
     store.save(agent_done_task(repo, state=TaskState.RUNNING))
     (repo / "proj" / "code.py").write_text("uncommitted")
