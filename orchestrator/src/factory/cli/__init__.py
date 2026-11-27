@@ -11,7 +11,7 @@ from factory.audit_corpus import CASES as EVAL_CASES
 from factory.audit_corpus import PROJECT_SUBDIR
 from factory.audit_eval import check_corpus
 from factory.audit_share import build_bundle, write_bundle
-from factory.cli.admin import _clone, _migrate, _serve, _watch
+from factory.cli.admin import _clone, _migrate, _serve
 from factory.cli.base import (
     IO,
     NO_REPO_MESSAGE,
@@ -68,13 +68,6 @@ class _Parser(argparse.ArgumentParser):
         raise _UsageError(message)
 
 
-def _positive_int(text: str) -> int:
-    value = int(text)
-    if value <= 0:
-        raise argparse.ArgumentTypeError("must be positive")
-    return value
-
-
 def _repo_name(text: str) -> str:
     if problem := name_problem(text):
         raise argparse.ArgumentTypeError(problem)
@@ -111,10 +104,6 @@ def _parser() -> argparse.ArgumentParser:
     ui = commands.add_parser("ui", help="Print a one-time link that logs a browser into the web UI")
     ui.add_argument("--host", help="Host name for the link: a loopback name or one in server_allowed_hosts")
     commands.add_parser("costs").add_argument("task_id", nargs="?")
-    watch = commands.add_parser("watch")
-    watch.add_argument("--interval", type=_positive_int, default=60)
-    watch.add_argument("--once", action="store_true")
-    watch.add_argument("--allow-public", action="store_true")
     audit_eval = commands.add_parser("eval-audit")
     audit_eval.add_argument("--runs", type=int, default=3)
     audit_eval.add_argument("--only", action="append")
@@ -328,7 +317,7 @@ def _eval_export(args, io, ctx) -> int:
 
 _COMMANDS = {
     "new": _new, "list": _list, "show": _show, "advance": _advance,
-    "answer": _answer, "approve": _approve, "reject": _reject, "merge": _merge, "retry": _retry, "recover": _recover, "abandon": _abandon, "rebase": _rebase, "clean": _clean, "migrate": _migrate, "costs": _costs, "eval-audit": _eval_audit, "eval-export": _eval_export, "serve": _serve, "watch": _watch, "ui": _ui,
+    "answer": _answer, "approve": _approve, "reject": _reject, "merge": _merge, "retry": _retry, "recover": _recover, "abandon": _abandon, "rebase": _rebase, "clean": _clean, "migrate": _migrate, "costs": _costs, "eval-audit": _eval_audit, "eval-export": _eval_export, "serve": _serve, "ui": _ui,
     "init": lambda args, io, ctx: init_global_config(io),
     "clone": lambda args, io, ctx: _clone(args.repository, io),
 }

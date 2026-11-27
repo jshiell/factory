@@ -183,6 +183,12 @@ def test_usage_errors_exit_2(ctx):
     assert run(ctx, "bogus")[0] == 2
 
 
+def test_the_watch_command_was_removed(ctx):
+    code, _, err = run(ctx, "watch", "--once")
+
+    assert code == 2 and "watch" in err
+
+
 def test_control_characters_are_escaped_except_newline_and_tab():
     text = "ok\n\tfine \x1b[2K hidden\rline ‮"
 

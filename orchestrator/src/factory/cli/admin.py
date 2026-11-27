@@ -1,6 +1,5 @@
 from factory.cli.base import IO, _print_reaped
 from factory.clone_repo import RepositoryError, clone_repository
-from factory.github import GitHubError
 from factory.ledger import Ledger
 from factory.lock import AlreadyRunning, state_lock
 from factory.migrate import DatabaseNotEmpty, migrate
@@ -93,63 +92,6 @@ def _serve(args, io, ctx) -> int:
         print(escape_control(str(refused)), file=io.stderr)
         return 1
     return 0
-
-
-def _watch(args, io, ctx) -> int:
-    try:
-        with state_lock(ctx.settings.state_dir, name="watch"):
-            return _watch_locked(args, io, ctx)
-    except AlreadyRunning:
-        print("another factory watch holds the lock; nothing changed", file=io.stderr)
-        return 1
-
-
-def _watch_locked(args, io, ctx) -> int:
-    if not ctx.settings.watch_approvers:
-        print("watch needs watch_approvers: set it in the repo's .factory/factory.toml to the GitHub logins whose issues may start tasks", file=io.stderr)
-        return 1
-    try:
-        owner, name = ctx.origin_slug(ctx.settings.repo)
-    except RepositoryError as error:
-        print(f"watch needs a GitHub origin: {error}", file=io.stderr)
-        return 1
-    try:
-        github = ctx.github(owner, name)
-    except ValueError as error:
-        print(f"watch needs a plain GitHub origin: {escape_control(str(error))}", file=io.stderr)
-        return 1
-    try:
-        github.self_user()
-    except FileNotFoundError:
-        print("watch needs the gh CLI: gh is not installed", file=io.stderr)
-        return 1
-    except GitHubError:
-        print("watch needs a logged-in gh: run `gh auth login`", file=io.stderr)
-        return 1
-    try:
-        is_private = github.repo_is_private()
-    except GitHubError as error:
-        print(f"watch cannot read the repository from GitHub: {escape_control(error.stderr.strip())}", file=io.stderr)
-        return 1
-    if not is_private and not args.allow_public:
-        print("this repo is public: plans, failure reasons and worktree paths would become public comments; pass --allow-public to watch it anyway", file=io.stderr)
-        return 1
-    approver_ids = set()
-    for login in ctx.settings.watch_approvers:
-        try:
-            approver_ids.add(github.user_id(login))
-        except GitHubError:
-            print(f"watch cannot resolve the approver {login!r} on GitHub: check watch_approvers", file=io.stderr)
-            return 1
-    try:
-        while True:
-            ctx.watch_pass(github, ctx.server, ctx.settings.state_dir, approver_ids, merge=ctx.settings.watch_merge, retry=ctx.settings.watch_retry)
-            if args.once:
-                return 0
-            ctx.sleep(args.interval)
-    except KeyboardInterrupt:
-        print("watch stopped", file=io.stderr)
-        return 0
 
 
 def _clone(spec: str, io: IO) -> int:

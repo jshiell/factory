@@ -1,5 +1,4 @@
 import signal
-import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -8,7 +7,6 @@ from pathlib import Path
 from factory.audit_corpus import PROJECT_SUBDIR
 from factory.client import ServerClient
 from factory.failure_codes import explain
-from factory.github import GitHub, origin_slug
 from factory.harness import harness_named, missing_capabilities
 from factory.ids import InvalidTaskId, require_safe_id
 from factory.ledger import Ledger
@@ -36,7 +34,6 @@ from factory.waiver import (
     approval_prompt,
     parse_answer,
 )
-from factory.watch import run_pass
 
 
 def _coded(field: str, code: str) -> str:
@@ -109,10 +106,6 @@ class Context:
     repo: str | None = None  # the repo this command runs in; qualifies the task ids it prints
     probe: Callable[[int], float | None] = field(default_factory=ps_probe)
     group_alive: Callable[[int], bool] = group_alive
-    watch_pass: Callable[..., None] = run_pass
-    github: Callable[[str, str], GitHub] = GitHub.default
-    origin_slug: Callable[[Path], tuple[str, str]] = origin_slug
-    sleep: Callable[[float], None] = time.sleep
 
 
 @dataclass
