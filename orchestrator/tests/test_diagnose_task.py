@@ -43,6 +43,25 @@ def test_a_diagnosis_from_the_agent_is_stored_on_the_failed_task(repo, store, tm
     assert store.load("t1").diagnosis == answer
 
 
+@pytest.mark.parametrize(
+    "stdout",
+    [
+        diagnosis_stdout(None),
+        diagnosis_stdout({"cause": "c"}),
+        diagnosis_stdout({"cause": 1, "evidence": [], "next_step": "n"}),
+        diagnosis_stdout({"cause": "c", "evidence": [1], "next_step": "n"}),
+    ],
+)
+def test_output_that_is_not_a_diagnosis_is_refused_and_the_task_is_untouched(repo, store, tmp_path, stdout):
+    failed = Task(id="t1", prompt="p", state=TaskState.FAILED, worktree=str(repo))
+    store.save(failed)
+
+    with pytest.raises(RuntimeError, match="unreadable"):
+        diagnose(store, tmp_path, DiagnoseRunner(stdout), repo)
+
+    assert store.load("t1") == failed
+
+
 def test_an_oversized_task_is_trimmed_to_the_launch_limit_keeping_the_evidence():
     task = Task(
         id="t1", prompt="p", goal="G" * MAX_PROMPT_BYTES, state=TaskState.FAILED,

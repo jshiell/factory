@@ -60,6 +60,18 @@ def diagnose_task(
     staged = run_readonly_stage(
         task, build_diagnose_prompt(task), runner, config, ledger, "diagnose", repo, require_clean=False
     )
-    answer = staged.structured_output
-    diagnosis = {"cause": answer["cause"], "evidence": answer["evidence"], "next_step": answer["next_step"]}
+    diagnosis = _parse_diagnosis(staged.structured_output)
+    if diagnosis is None:
+        raise RuntimeError("The diagnosis came back unreadable. Nothing was changed; diagnose again.")
     return store.update(task_id, lambda current: replace(current, diagnosis=diagnosis))
+
+
+def _parse_diagnosis(output: dict | None) -> dict | None:
+    if not isinstance(output, dict):
+        return None
+    cause, evidence, next_step = output.get("cause"), output.get("evidence"), output.get("next_step")
+    if not isinstance(cause, str) or not isinstance(next_step, str):
+        return None
+    if not isinstance(evidence, list) or not all(isinstance(item, str) for item in evidence):
+        return None
+    return {"cause": cause, "evidence": evidence, "next_step": next_step}
