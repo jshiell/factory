@@ -3,7 +3,7 @@ from factory.settings import global_config_path
 TEMPLATE = '''\
 # Global factory settings, applied to every repo under this home.
 # A repo's own .factory/factory.toml overrides these key by key.
-# Per-repo keys (watch_approvers, watch_merge, watch_retry, main_branch, gate_allow_dependency_changes) are not allowed here.
+# Per-repo keys (main_branch, gate_allow_dependency_changes) are not allowed here.
 # The server's keys (server_port, server_host, server_allowed_hosts) are allowed only here.
 # Uncomment and edit what you want to change.
 

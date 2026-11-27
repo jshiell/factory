@@ -316,30 +316,6 @@ def test_per_repo_paths_are_rejected_in_the_global_config(repo_dir, global_confi
         load(repo_dir)
 
 
-def test_watch_approvers_are_rejected_in_the_global_config(repo_dir, global_config):
-    key = "watch_approvers"
-    global_config.write_text(f'{key} = ["alice"]\n')
-
-    with pytest.raises(SettingsError, match=f"{key}.*global|global.*{key}"):
-        load(repo_dir)
-
-
-def test_watch_merge_is_rejected_in_the_global_config(repo_dir, global_config):
-    key = "watch_merge"
-    global_config.write_text(f"{key} = true\n")
-
-    with pytest.raises(SettingsError, match=f"{key}.*global|global.*{key}"):
-        load(repo_dir)
-
-
-def test_watch_retry_is_rejected_in_the_global_config(repo_dir, global_config):
-    key = "watch_retry"
-    global_config.write_text(f"{key} = true\n")
-
-    with pytest.raises(SettingsError, match=f"{key}.*global|global.*{key}"):
-        load(repo_dir)
-
-
 def test_main_branch_is_rejected_in_the_global_config(repo_dir, global_config):
     key = "main_branch"
     global_config.write_text(f'{key} = "main"\n')
@@ -541,22 +517,6 @@ def test_a_plugin_with_only_skills_and_agents_is_accepted(repo_dir, factory_home
 
     assert load(repo_dir).plugin_dirs == (plugin,)
 
-
-def test_watch_approvers_default_to_none_and_load_as_a_casefolded_tuple(repo_dir):
-    assert load(repo_dir).watch_approvers == ()
-    write_config(repo_dir, 'watch_approvers = ["Alice", "bob-2"]\n')
-
-    assert load(repo_dir).watch_approvers == ("alice", "bob-2")
-
-
-@pytest.mark.parametrize("login", ["", "-a", "a-", "a--b", "a_b", "a b", "a/b", "@a", "a" * 40])
-def test_a_bad_watch_approver_login_is_rejected_naming_the_key(repo_dir, login):
-    write_config(repo_dir, f'watch_approvers = ["{login}"]\n')
-
-    with pytest.raises(SettingsError, match="wrong type for setting: watch_approvers"):
-        load(repo_dir)
-
-
 def test_main_branch_is_unset_by_default_and_comes_from_the_config(repo_dir):
     assert load(repo_dir).main_branch is None
     write_config(repo_dir, 'main_branch = "master"\n')
@@ -571,13 +531,6 @@ def test_an_empty_main_branch_is_rejected_naming_the_key(repo_dir):
         load(repo_dir)
 
 
-def test_watch_merge_is_off_by_default_and_comes_from_the_config(repo_dir):
-    assert load(repo_dir).watch_merge is False
-    write_config(repo_dir, "watch_merge = true\n")
-
-    assert load(repo_dir).watch_merge is True
-
-
 @pytest.mark.parametrize("where", ["project", "global"])
 def test_gate_allow_outside_is_refused_naming_the_file_and_why(repo_dir, global_config, where):
     path = write_config(repo_dir, 'gate_allow_outside = ["README.md"]\n') if where == "project" else global_config
@@ -589,6 +542,21 @@ def test_gate_allow_outside_is_refused_naming_the_file_and_why(repo_dir, global_
     message = str(raised.value)
     assert "gate_allow_outside" in message and str(path) in message
     assert "whole repo" in message and ".factory" in message
+
+
+@pytest.mark.parametrize("key", ["watch_approvers", "watch_merge", "watch_retry"])
+@pytest.mark.parametrize("where", ["project", "global"])
+def test_a_removed_watch_setting_is_refused_naming_the_file_and_that_watch_was_removed(repo_dir, global_config, key, where):
+    line = f"{key} = " + ('["alice"]' if key == "watch_approvers" else "true") + "\n"
+    path = write_config(repo_dir, line) if where == "project" else global_config
+    global_config.write_text(line if where == "global" else "")
+
+    with pytest.raises(SettingsError) as raised:
+        load(repo_dir)
+
+    message = str(raised.value)
+    assert f"{key} in {path} is no longer read" in message
+    assert "factory watch was removed" in message and "remove it" in message
 
 
 @pytest.mark.parametrize("subdir", [".", "./"])
@@ -626,13 +594,6 @@ def test_gate_allow_dependency_changes_must_be_a_boolean(repo_dir):
 
     with pytest.raises(SettingsError, match="gate_allow_dependency_changes"):
         load(repo_dir)
-
-
-def test_watch_retry_is_off_by_default_and_comes_from_the_config(repo_dir):
-    assert load(repo_dir).watch_retry is False
-    write_config(repo_dir, "watch_retry = true\n")
-
-    assert load(repo_dir).watch_retry is True
 
 
 def test_the_harness_defaults_to_claude_and_can_be_named_locally_or_globally(repo_dir, global_config):

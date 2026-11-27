@@ -45,9 +45,6 @@ class Settings:
     plugin_dirs: tuple[Path, ...] = ()
     stage_plugins: dict[str, tuple[str, ...]] = field(default_factory=dict)
     stage_plugin_dirs: dict[str, tuple[Path, ...]] = field(default_factory=dict)
-    watch_approvers: tuple[str, ...] = ()
-    watch_merge: bool = False
-    watch_retry: bool = False
     gate_allow_dependency_changes: bool = False
     main_branch: str | None = None
     warnings: tuple[str, ...] = ()
@@ -113,10 +110,10 @@ _STRING_KEYS = ("project_subdir", "claude_executable", "sandbox_executable", "mo
 _PROMPT_KEYS = ("append_system_prompt",)
 _STAGES = ("plan", "review", "implement", "audit")
 _FLOAT_KEYS = ("cap_usd", "gate_timeout_s", "runner_timeout_s", "budget_usd")
-_STRING_LIST_KEYS = ("test_argv", "allowed_tools", "plugins", "watch_approvers", "server_allowed_hosts")
+_STRING_LIST_KEYS = ("test_argv", "allowed_tools", "plugins", "server_allowed_hosts")
 _INT_KEYS = ("max_turns", "fix_rounds", "server_port", "grill_max_rounds")
-_BOOL_KEYS = ("grill", "watch_merge", "watch_retry", "gate_allow_dependency_changes")
-GITHUB_LOGIN = re.compile(r"(?!.{40})[A-Za-z0-9]+(-[A-Za-z0-9]+)*")
+_BOOL_KEYS = ("grill", "gate_allow_dependency_changes")
+_REMOVED_WATCH_KEYS = ("watch_approvers", "watch_merge", "watch_retry")
 _KNOWN =_PATH_KEYS + _STRING_KEYS + _PROMPT_KEYS + ("stage_prompts", "stage_plugins") + _FLOAT_KEYS + _STRING_LIST_KEYS + _INT_KEYS + _BOOL_KEYS
 
 
@@ -257,7 +254,7 @@ def _global_layer(path: Path) -> dict:
 
 
 _PER_REPO_KEYS = (
-    "repo", "state_dir", "worktree_root", "watch_approvers", "watch_merge", "watch_retry", "main_branch",
+    "repo", "state_dir", "worktree_root", "main_branch",
     "gate_allow_dependency_changes",  # a standing opt-out of a security check: never global
 )
 
@@ -271,6 +268,8 @@ def _layer(path: Path, per_repo_allowed: bool = True) -> dict:
         raise SettingsError(f"{misplaced[0]} is global-only and not allowed in the repo config {path}")
     if not per_repo_allowed and (misplaced := sorted(set(values) & set(_PER_REPO_KEYS))):
         raise SettingsError(f"{misplaced[0]} is per-repo and not allowed in the global config {path}")
+    if removed := [key for key in _REMOVED_WATCH_KEYS if key in values]:
+        raise SettingsError(f"{removed[0]} in {path} is no longer read: factory watch was removed; remove it")
     if "gate_allow_outside" in values:
         raise SettingsError(
             f"gate_allow_outside in {path} is no longer read: tasks may now edit the whole repo except .factory/, "
@@ -383,13 +382,8 @@ def _typed(key: str, value):
     elif key in _BOOL_KEYS:
         if isinstance(value, bool):
             return value
-    elif isinstance(value, list) and value and all(isinstance(item, str) for item in value):
-        if key == "watch_approvers":
-            if all(GITHUB_LOGIN.fullmatch(login) for login in value):
-                return tuple(login.casefold() for login in value)
-            raise SettingsError(f"wrong type for setting: {key}")
-        if key != "plugins" or _plugin_names_ok(value):
-            return tuple(value)
+    elif isinstance(value, list) and value and all(isinstance(item, str) for item in value) and (key != "plugins" or _plugin_names_ok(value)):
+        return tuple(value)
     raise SettingsError(f"wrong type for setting: {key}")
 
 
