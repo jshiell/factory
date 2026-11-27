@@ -171,6 +171,7 @@ The server also serves a browser page under `/ui`. From it you can create tasks,
 - Risk: cookies ignore ports, so another server on loopback that your browser visits receives the cookie. HttpOnly keeps page scripts from reading it, but that server can replay the cookie with its own `Host` and `Origin` headers, so it could do anything the pages can: reject, approve, answer, create tasks, advance, rebase, merge, abandon, recover, retry or clean (approving, advancing and retrying queue work that spends money, and merging changes code). This is accepted for a single-user machine.
 - Task actions (plan 80). The JSON status codes and bodies are unchanged; the web pages share the same code (`web_actions.py`).
   - New task (`/ui/tasks/new`, with a repo selector; `?repo=NAME` preselects one): a goal and a "grill" checkbox prefilled from the `grill` setting. Creating does not start the task; advance it from its page.
+  - Diagnose has the same kind of confirmation page and link, shown for a failed task with a worktree (see "Failure diagnosis").
   - Advance, rebase, merge, abandon and recover each have a confirmation page at `/ui/repos/{repo}/tasks/{id}/<action>` and a link on the task page, shown only when the task's state allows it (abandon is also hidden while a fix agent is in flight, and no link is shown while the task has a queued or running job). The POST queues a job and answers 303 to the task page, which shows the latest job (kind, state, error, stopped) and updates live. A page for a task in the wrong state, or with an unfinished job, is a 409 page, and a malformed form is a 422 page. Advance runs until the next decision point and may spend money on several stages. Merge's page shows the branch, audited commit, diffstat and findings, and the POST is refused if the audited commit changed.
   - Retry (`/ui/repos/{repo}/tasks/{id}/retry`) is synchronous and redirects to the new task. When the plan can be kept the page says so, and that advancing the new task spends money. Waive and reinstate stay in the terminal.
   - Costs (`/ui/costs`), jobs (`/ui/jobs`, the latest 50) and clean (`/ui/repos/{repo}/clean`, linked from the index, one repo at a time: a preview, then one button bound to the preview's token; if what would be cleaned changed the POST is a 409 page).
@@ -437,6 +438,15 @@ The web task page shows the description, then a separate `failure: code` line; i
 The module holds the catalogue; read it there rather than here.
 To add a code, add its constant, then an entry per field it can appear in; the guard tests fail on a code with no entry or a literal that bypasses the constant.
 The `fix_` family of `failure_reason` codes is composed from its prefix rather than listed one by one.
+
+### Failure diagnosis
+
+On a failed task that still has its worktree, the web UI's "Diagnose this failure" action (a confirm page, then a job) runs a read-only agent that writes a cause, up to eight evidence lines and a next step. It is stored on the task (`diagnosis`) and shown in the failure block labelled "Diagnosis (written by an agent)", beside the canned explanation and raw code, which stay. Diagnosing again replaces the stored diagnosis.
+- **Inputs.** The failure code and its explanation, the redacted evidence captured when the task failed (`failure_evidence`), the findings, denied tool calls, goal and plan. The prompt marks all of it as data and is cut at the launch limit from the end, so the goal and plan go first.
+- **Read-only.** The stage compares the worktree's fingerprint before and after; a changed worktree discards the answer. Ignored files are outside the fingerprint. The web tools are disallowed.
+- **Cost.** Each run is charged to the ledger under stage `diagnose` and counts against the shared spending cap; at the cap the job fails with a plain sentence.
+- **Failure.** An unfinished, changed-worktree or unreadable run ends the job with a plain sentence and stores nothing. There is no new failure code or task field beyond `diagnosis`.
+- **Limits.** Web UI only: no JSON route, CLI command, Slack or watch output. Redaction covers only the environment values the factory strips, so a secret printed under another name is stored and sent to the agent. The agent can be wrong.
 
 ### Why this shape
 
