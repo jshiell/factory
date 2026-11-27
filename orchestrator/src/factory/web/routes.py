@@ -87,6 +87,14 @@ def _described(field: str, code: str | None) -> str | None:
     return f"{description} ({code})" if description else code
 
 
+def _diagnosis_view(diagnosis: dict | None) -> dict | None:
+    """The agent-written diagnosis with every field escaped for display; None when there is none."""
+    if not diagnosis:
+        return None
+    return {"cause": _safe(diagnosis["cause"]), "evidence": [_safe(item) for item in diagnosis["evidence"]],
+            "next_step": _safe(diagnosis["next_step"])}
+
+
 def _task_detail(task) -> dict:
     facts = {"retry_of": task.retry_of, "fix_rounds": task.fix_rounds_used, "attempts": task.attempts,
              "denials": len(task.denials), "worktree": task.worktree,
@@ -102,6 +110,7 @@ def _task_detail(task) -> dict:
             "facts": [(_FIELD_LABELS[field], _safe(value)) for field, value in facts.items() if value],
             "goal": _safe(task.goal if task.goal is not None else task.prompt), "failure_reason": _safe(task.failure_reason),
             "failure_explanation": _explanation("failure_reason", task.failure_reason),
+            "diagnosis": _diagnosis_view(task.diagnosis),
             "plan":_safe(task.plan), "open_questions": questions, "grill_rounds": task.grill_rounds,
             "lists": [(label, [_safe(item) for item in items]) for label, items in lists if items]}
 

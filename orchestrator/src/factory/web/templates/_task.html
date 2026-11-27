@@ -33,6 +33,15 @@
 <div class="failure">
 {% if task.failure_explanation %}<p>{{ task.failure_explanation }}</p>
 {% endif %}<p>Failure: {{ task.failure_reason }}</p>
+{% if task.diagnosis %}
+<h3>Diagnosis (written by an agent)</h3>
+<p>Cause: {{ task.diagnosis.cause }}</p>
+{% if task.diagnosis.evidence %}<ul>
+  {% for item in task.diagnosis.evidence %}<li>{{ item }}</li>
+  {% endfor %}
+</ul>
+{% endif %}<p>Next step: {{ task.diagnosis.next_step }}</p>
+{% endif %}
 </div>
 {% endif %}
 {% for label, value in task.facts %}
