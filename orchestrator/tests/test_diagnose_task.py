@@ -1,14 +1,27 @@
+import os
 import re
 from unittest.mock import Mock
 
 import pytest
 
 from factory import failure_codes
-from factory.command import RunnerConfig
+from factory.command import MAX_PROMPT_BYTES, RunnerConfig
 from factory.diagnose_task import build_diagnose_prompt, diagnose_refusal, diagnose_task
 from factory.ledger import Ledger
 from factory.store import TaskStore
 from factory.task import Task, TaskState
+
+
+def test_an_oversized_task_is_trimmed_to_the_launch_limit_keeping_the_evidence():
+    task = Task(
+        id="t1", prompt="p", goal="G" * MAX_PROMPT_BYTES, state=TaskState.FAILED,
+        failure_reason=failure_codes.TESTS_FAILED, failure_evidence="EVIDENCE-TAIL", plan="P" * MAX_PROMPT_BYTES,
+    )
+
+    prompt = build_diagnose_prompt(task)
+
+    assert len(os.fsencode(prompt)) <= MAX_PROMPT_BYTES
+    assert "EVIDENCE-TAIL" in prompt
 
 
 def test_the_prompt_carries_what_is_known_about_the_failure_and_marks_it_as_data():
