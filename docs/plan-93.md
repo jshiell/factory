@@ -68,7 +68,10 @@ A failed task shows a canned sentence and next step per failure code (`failure_c
 `test_web_task_failure_text.py`, `test_web_task_page.py`, `test_web_task_job.py`, `test_web_task_events.py`, `test_failure_codes.py`, `test_failure_codes_catalogue.py`, `test_failure_code_literals.py`, and whatever pins `capture=None` (increment 7).
 
 ## Deviations
-- **Stage-names test.** Registering `diagnose` made `test_stage_names_are_exactly_the_pipeline` fail; it became `test_stage_names_are_the_pipeline_and_the_on_demand_diagnosis` with `"diagnose"` in the expected set (a spec change, not a compile fix). The gate test changed in the same way for the new evidence argument (increment 3).
+- **Stage-names test.** Registering `diagnose` made `test_stage_names_are_exactly_the_pipeline` fail; it became `test_stage_names_are_the_pipeline_and_the_on_demand_diagnosis` with `"diagnose"` in the expected set (a spec change, not a compile fix). The gate test also changed (increment 8, ac5dafb): a timed-out run now returns its output.
+- **Increment 6** was planned as a guard but needed source changes (`RUNNER_ERROR_EVIDENCE`, `PROMPT_TOO_LARGE_EVIDENCE`), so it was a red.
+- **Increment 22** nav tests: `test_web_task_actions.py` (state-driven links, fragment, busy) and `test_web_task_action_group.py`.
+- **JSON task body.** The "Not verified" risk came true: `GET /tasks/{id}` returns the whole task, so it carries `failure_evidence` and `diagnosis`. Decision (user): keep it and document it in the README rather than strip the fields.
 - **Increments 11 and 12a** were written without a separate red run.
 - **Increment 20.** The budget stops (`BudgetCapReached`, `MissingBudget`) are translated to two plain sentences in `WebActions.enqueue_diagnose` (`CAP_REACHED`, `NO_BUDGET`); the stage's own `RuntimeError`s pass through the job refusal channel unchanged.
 - **Increment 21.** The confirm page was red per route; the POST route was registered with the page, so its tests are marked guards (green on arrival). `can_diagnose` (failed with a worktree) gates the route and the nav; a worktree cleaned since is refused by the job with a plain sentence.
