@@ -78,4 +78,4 @@ A failed task shows a canned sentence and next step per failure code (`failure_c
 - **Increment 22.** `diagnose` was added to the `PREDICATES` of `test_web_task_actions.py` and `ACTIONS` of `test_web_action_routes_guard.py`.
 - **Increment 24.** All three escaping tests were guards (green on arrival): `_safe` and autoescape already covered them.
 - **Prompt cut.** The launch-limit cut is a byte cut of the tail, so the goal and plan are lost first.
-- **Still unverified** (not checked during implementation): the Risks list above, other than the secrets and fingerprint gaps now stated in the README.
+- **Still unverified** (not checked during implementation): the Risks list above, other than the secrets and fingerprint gaps now stated in the README and the JSON task-body risk, confirmed above.
