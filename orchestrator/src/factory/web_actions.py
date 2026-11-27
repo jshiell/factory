@@ -9,6 +9,7 @@ from factory.merge_task import MergeRefused, Preview, merge_preview
 from factory.rebase_task import RebaseRefused
 from factory.recover_task import RecoverRefused, recover_task
 from factory.retry_task import require_keepable_plan, retry_task
+from factory.step import BudgetCapReached, MissingBudget
 from factory.task import InvalidTransition, Task
 from factory.worktrees import WorktreeManager
 
@@ -16,6 +17,8 @@ from factory.worktrees import WorktreeManager
 # command line or a path.
 MERGE_CHECK_FAILED = "Git could not check this task's branch and worktree, so it cannot be merged."
 CLEAN_CHECK_FAILED = "Git could not check the repository, so nothing can be cleaned."
+CAP_REACHED = "The spending cap for this repository has been reached, so no diagnosis was run."
+NO_BUDGET = "No spending budget is configured for this task, so no diagnosis was run."
 
 
 class InvalidInput(Exception):
@@ -71,6 +74,20 @@ class WebActions:
         service.get_task(self._ctx.store, task_id)
         return self._runner.submit(
             "advance", task_id, lambda: _advance_result_json(advance(task_id, self._ctx.store, self._ctx.stages)))
+
+    def enqueue_diagnose(self, task_id: str):
+        """Queue a diagnosis; a spending-cap stop ends the job with a sentence, and the stage's own refusals pass through."""
+        service.get_task(self._ctx.store, task_id)
+
+        def diagnose_now():
+            try:
+                return _task_result_json(self._ctx.stages["diagnose"](task_id))
+            except BudgetCapReached:
+                raise RuntimeError(CAP_REACHED) from None
+            except MissingBudget:
+                raise RuntimeError(NO_BUDGET) from None
+
+        return self._runner.submit("diagnose", task_id, diagnose_now)
 
     def enqueue_abandon(self, task_id: str):
         return self._enqueue("abandon", task_id, AbandonRefused, lambda id_: abandon_task(id_, self._ctx.store))
