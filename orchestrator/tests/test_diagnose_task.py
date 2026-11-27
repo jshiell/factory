@@ -1,5 +1,36 @@
-from factory.diagnose_task import diagnose_refusal
+import re
+from unittest.mock import Mock
+
+import pytest
+
+from factory.command import RunnerConfig
+from factory.diagnose_task import diagnose_refusal, diagnose_task
+from factory.ledger import Ledger
+from factory.store import TaskStore
 from factory.task import Task, TaskState
+
+
+@pytest.fixture
+def store(tmp_path):
+    (tmp_path / "tasks").mkdir()
+    return TaskStore(tmp_path / "tasks")
+
+
+@pytest.mark.parametrize(
+    "task",
+    [
+        Task(id="t1", prompt="", state=TaskState.VERIFIED, worktree="/nonexistent"),
+        Task(id="t1", prompt="", state=TaskState.FAILED, worktree=None),
+    ],
+)
+def test_diagnosing_a_task_that_cannot_be_diagnosed_raises_the_refusal_before_any_work(tmp_path, store, task):
+    store.save(task)
+    runner = Mock()
+
+    with pytest.raises(RuntimeError, match=re.escape(diagnose_refusal(task))):
+        diagnose_task("t1", store, Ledger(tmp_path / "ledger.jsonl"), runner, RunnerConfig(model="sonnet", budget_usd=0.3), cap_usd=10, repo=None)
+
+    runner.run.assert_not_called()
 
 
 def test_a_task_that_has_not_failed_is_refused_with_a_plain_sentence():

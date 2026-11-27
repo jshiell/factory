@@ -8,7 +8,7 @@ STAGE_MODULES = (
     "step", "agent_call", "readonly_stage", "classify",
     "gate", "verify_task", "worktree_clean",
     "plan_task", "review_plan", "audit_task", "audit_eval", "audit_gaps",
-    "approve_plan", "abandon_task", "recover_task",
+    "approve_plan", "abandon_task", "recover_task", "diagnose_task",
 )  # fmt: skip
 NOT_CODES = {"FIX_PREFIX", "FIX_SENTENCE_PREFIX"}
 CODES = {
