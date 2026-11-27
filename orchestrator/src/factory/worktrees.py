@@ -38,9 +38,9 @@ class WorktreeGit:
     path: Path
     git_dir: Path | None = None
 
-    def git(self, *args: str) -> str:
+    def git(self, *args: str, env: dict[str, str] | None = None) -> str:
         pin = (f"--git-dir={self.git_dir}", f"--work-tree={self.path}") if self.git_dir else ()
-        return run_git(self.path, *pin, *args)
+        return run_git(self.path, *pin, *args, env=env)
 
 
 def linked_git_dir(repo: Path, task_id: str, worktree: Path) -> Path:
