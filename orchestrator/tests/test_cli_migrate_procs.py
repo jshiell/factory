@@ -99,7 +99,7 @@ def test_migrate_is_refused_while_another_run_holds_the_lock(ctx):
     with state_lock(ctx.settings.state_dir):
         code, _, err = run(ctx, "migrate")
 
-    assert code == 1 and "holds the lock" in err and path.exists()
+    assert code == 1 and "holds the lock" in err and "a running `factory serve` holds every repo it serves" in err and path.exists()
 
 
 def test_a_database_that_already_holds_tasks_still_has_its_old_process_records_cleared(ctx):
