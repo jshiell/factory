@@ -131,7 +131,7 @@ Rule: an existing assertion is edited only when it pins old wording, an old path
 - After the audit: `_repo_context` refuses a repo with no `<home>/<name>/repo` checkout (`settings error`, exit 2) before any state is created; test `test_an_unknown_repo_is_refused_without_creating_its_state` in `test_cli_wiring.py` (red first).
 - After the audit: `test_cli_migrate_procs.py` now also asserts the `migrate` lock message names the running `factory serve` (a guard; the wording came with increment 14).
 
-## Not verified
-- What the nono profile grants (step 0 spike); README line ~360 records a live check where other state and worktrees were denied.
-- Starlette's default 404 body type (handled by the JSON catch-all regardless).
-- What `clean_worktree` does with `factory_paths` (`stages.py:99`); `<home>/_server` is not added there unless step 0 shows a need.
+## Not verified (resolved 2026-11-27 unless noted)
+- nono grants, live spike (nono 0.81.0, `nono run --allow <worktree>` with no factory profile): a process granted only one worktree could not read `<home>/_server/token` or another repo's `state/factory.db` (both DENIED). The third probe, `cat` on `proj/state`, is not evidence: `cat` on a directory fails whatever the grant. Not covered: the factory's real agent profile and its extra grants (executable dir, uv dir, plugin dirs); the README line ~360 records that check for the earlier layout.
+- Starlette's default 404 for an unmatched path is `text/plain; charset=utf-8` with body `Not Found` (run against a bare app). The JSON catch-all covers unknown repos and a known repo's unknown paths; paths it does not match still get this body.
+- `clean_worktree`'s `factory_paths` (`worktree_clean.py:21`) only refuses to clean when the state dir or worktree root lies inside the worktree. `<home>/_server` is never inside a worktree (`<home>/<name>/worktrees/<id>`), so it is not added.
