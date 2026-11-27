@@ -39,6 +39,25 @@ def test_a_task_with_grilling_state_loads_back_equal(tmp_path):
     assert store.load("t1") == task
 
 
+def test_a_task_with_failure_evidence_and_a_diagnosis_loads_back_equal(tmp_path):
+    diagnosis = {"cause": "c", "evidence": ["e"], "next_step": "n"}
+    task = Task(id="t1", prompt="", state=TaskState.FAILED, failure_evidence="tail", diagnosis=diagnosis)
+    store = SqliteTaskStore(tmp_path / "factory.db")
+    store.save(task)
+
+    assert store.load("t1") == task
+
+
+def test_guard_a_stored_row_without_the_diagnosis_keys_loads_with_empty_defaults():
+    from factory.store import task_from_dict, task_to_dict
+    row = task_to_dict(Task(id="t1", prompt=""))
+    del row["failure_evidence"], row["diagnosis"]
+
+    task = task_from_dict(row)
+
+    assert task.failure_evidence == "" and task.diagnosis is None
+
+
 def test_create_never_overwrites_an_existing_task(tmp_path):
     store = SqliteTaskStore(tmp_path / "factory.db")
     store.create(Task(id="t1", prompt="first"))

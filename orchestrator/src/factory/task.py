@@ -71,6 +71,8 @@ class Task:
     grill_rounds: int = 0
     open_questions: tuple[dict, ...] = ()
     grill_log: tuple[dict, ...] = ()
+    failure_evidence: str = ""
+    diagnosis: dict | None = None
 
 
 _TRANSITIONS = {
