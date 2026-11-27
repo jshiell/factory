@@ -12,3 +12,15 @@ def test_a_failed_task_that_never_had_a_worktree_is_refused_with_a_plain_sentenc
     task = Task(id="t1", prompt="", state=TaskState.FAILED, worktree=None)
 
     assert diagnose_refusal(task) == "This task has no worktree to inspect."
+
+
+def test_a_failed_task_whose_worktree_is_gone_is_refused_with_a_plain_sentence(tmp_path):
+    task = Task(id="t1", prompt="", state=TaskState.FAILED, worktree=str(tmp_path / "removed"))
+
+    assert diagnose_refusal(task) == "This task's worktree no longer exists (it may have been cleaned)."
+
+
+def test_guard_a_failed_task_with_a_worktree_on_disk_is_not_refused(tmp_path):
+    task = Task(id="t1", prompt="", state=TaskState.FAILED, worktree=str(tmp_path))
+
+    assert diagnose_refusal(task) is None
