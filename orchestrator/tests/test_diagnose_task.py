@@ -16,7 +16,7 @@ from factory.diagnose_task import (
     diagnose_task,
 )
 from factory.ledger import Ledger
-from factory.step import RunResult
+from factory.step import BudgetCapReached, RunResult
 from factory.store import TaskStore
 from factory.task import Task, TaskState
 
@@ -67,6 +67,32 @@ def test_output_that_is_not_a_diagnosis_is_refused_and_the_task_is_untouched(rep
         diagnose(store, tmp_path, DiagnoseRunner(stdout), repo)
 
     assert store.load("t1") == failed
+
+
+def test_guard_a_diagnosis_leaves_the_state_and_reason_and_charges_the_ledger_under_diagnose(repo, store, tmp_path):
+    # guard (green on arrival): the stage charges the ledger and `replace` touches only `diagnosis`
+    store.save(Task(id="t1", prompt="p", state=TaskState.FAILED, failure_reason="tests_failed", worktree=str(repo)))
+    answer = {"cause": "c", "evidence": [], "next_step": "n"}
+
+    diagnosed = diagnose(store, tmp_path, DiagnoseRunner(diagnosis_stdout(answer, cost=0.07)), repo)
+
+    assert (diagnosed.state, diagnosed.failure_reason) == (TaskState.FAILED, "tests_failed")
+    assert [(e["stage"], e["cost_usd"]) for e in Ledger(tmp_path / "ledger.jsonl").entries()] == [("diagnose", 0.07)]
+
+
+def test_guard_a_diagnosis_is_refused_at_the_spending_cap_without_running(repo, store, tmp_path):
+    # guard (green on arrival): `check_budget` runs before the stage
+    failed = Task(id="t1", prompt="p", state=TaskState.FAILED, worktree=str(repo))
+    store.save(failed)
+    runner = DiagnoseRunner(diagnosis_stdout({"cause": "c", "evidence": [], "next_step": "n"}))
+
+    with pytest.raises(BudgetCapReached):
+        diagnose_task(
+            "t1", store, Ledger(tmp_path / "ledger.jsonl"), runner, RunnerConfig(model="sonnet", budget_usd=0.3),
+            cap_usd=0.01, repo=None,
+        )
+
+    assert runner.tasks == [] and store.load("t1") == failed
 
 
 def test_an_oversized_diagnosis_is_capped_before_it_is_stored(repo, store, tmp_path):
