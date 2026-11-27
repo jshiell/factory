@@ -35,6 +35,11 @@ DIAGNOSE_CONFIG = replace(
 )
 
 
+def can_diagnose(task: Task) -> bool:
+    """Whether a diagnosis can be offered: the task failed and has a worktree (one cleaned since is refused by the job)."""
+    return task.state is TaskState.FAILED and task.worktree is not None
+
+
 def diagnose_refusal(task: Task) -> str | None:
     """A plain sentence saying why the task cannot be diagnosed, or None when it can."""
     if task.state is not TaskState.FAILED:

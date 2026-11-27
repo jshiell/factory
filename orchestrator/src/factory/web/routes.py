@@ -17,6 +17,7 @@ from factory import answer_questions, approve_plan, service
 from factory.abandon_task import can_abandon
 from factory.advance import can_advance
 from factory.audit_gaps import gaps_to_carry
+from factory.diagnose_task import can_diagnose
 from factory.digest import plan_digest
 from factory.failure_codes import explain
 from factory.ids import InvalidTaskId
@@ -487,6 +488,13 @@ _ADVANCE = _TaskAction(
     "advanced", can_advance, "That task cannot be advanced in its current state.", WebActions.enqueue_advance)
 
 
+_DIAGNOSE = _TaskAction(
+    "diagnose", "Diagnose this failure? A read-only agent inspects the task's worktree and writes the most likely cause "
+    "and next step, replacing any earlier diagnosis. It counts against the shared spending cap and may spend money.",
+    "Diagnose failure", "diagnosed", can_diagnose, "That task cannot be diagnosed in its current state.",
+    WebActions.enqueue_diagnose)
+
+
 _REBASE = _TaskAction(
     "rebase", "Rebase this task onto the current main? Its commits are replayed on main's latest commit and the task "
     "returns to agent done, so it must be verified and audited again (which may spend money). Its audit result and "
@@ -775,6 +783,7 @@ def _task_routes(prefix: str) -> list[Route]:
              ("abandon", _action_page(_ABANDON), _action_post(_ABANDON)),
              ("recover", _action_page(_RECOVER), _action_post(_RECOVER)),
              ("advance", _action_page(_ADVANCE), _action_post(_ADVANCE)),
+             ("diagnose", _action_page(_DIAGNOSE), _action_post(_DIAGNOSE)),
              ("rebase", _action_page(_REBASE), _action_post(_REBASE)),
              ("merge", _merge_page, _merge), ("retry", _retry_page, _retry))
     routes = [Route(task, _task_page, methods=["GET"])]
