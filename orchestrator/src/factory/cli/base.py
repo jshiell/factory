@@ -7,7 +7,6 @@ from pathlib import Path
 from factory.audit_corpus import PROJECT_SUBDIR
 from factory.client import ServerClient
 from factory.harness import harness_named, missing_capabilities
-from factory.ids import InvalidTaskId, require_safe_id
 from factory.ledger import Ledger
 from factory.process import group_alive, kill_tree
 from factory.process_registry import (
@@ -15,7 +14,6 @@ from factory.process_registry import (
     ps_probe,
     reap_orphans,
 )
-from factory.repos import name_problem
 from factory.runner import SubprocessRunner
 from factory.sandbox import sandbox_named
 from factory.settings import GlobalSettings, Settings, SettingsError
@@ -124,15 +122,3 @@ NO_REPO_MESSAGE = "no repo: run inside a repo under the factory home, or pass --
 
 class NoRepo(Exception):
     """A bare task id was given and the working directory is in no repo."""
-
-
-def task_client(server: ServerClient, default_repo: str | None, ref: str) -> tuple[ServerClient, str]:
-    """The client scoped to the repo of a task ref (<repo>/<id>, or a bare <id> in the default repo) and its bare id."""
-    repo, separator, task_id = ref.rpartition("/")
-    if separator and (name_problem(repo) or "/" in repo):
-        raise InvalidTaskId(ref)
-    if not separator:
-        if default_repo is None:
-            raise NoRepo(f"{NO_REPO_MESSAGE}, or name the task as <repo>/<id>")
-        repo = default_repo
-    return server.for_repo(repo), require_safe_id(task_id)

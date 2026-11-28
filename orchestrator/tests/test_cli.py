@@ -8,12 +8,13 @@ from starlette.testclient import TestClient
 
 from factory import cli
 from factory.audit_corpus import CASES as EVAL_CASES
-from factory.cli import IO, Context, escape_control, main
+from factory.cli import IO, Context, main
 from factory.client import ServerClient
 from factory.ledger import Ledger
 from factory.server import load_or_create_token
 from factory.settings import Settings
 from factory.store import TaskStore
+from factory.textsafe import escape_control
 from serving import repos_app
 
 

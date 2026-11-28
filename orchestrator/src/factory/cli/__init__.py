@@ -26,7 +26,6 @@ from factory.cli.base import (
 )
 from factory.client import ServerClient, ServerRefused, ServerUnreachable
 from factory.gate import check_gate
-from factory.ids import InvalidTaskId
 from factory.init_config import init_global_config
 from factory.repos import discover_repos, name_problem, repo_name_from_cwd
 from factory.settings import (
@@ -40,9 +39,8 @@ from factory.sqlite_ledger import SqliteLedger
 from factory.sqlite_process_records import SqliteProcessRecords
 from factory.sqlite_store import SqliteTaskStore
 from factory.stages import Deps, build_stages, gate_sandbox_for
-from factory.store import TaskNotFound
 from factory.task import Task
-from factory.textsafe import escape_control  # re-exported
+from factory.textsafe import escape_control
 from factory.worktrees import WorktreeManager
 
 
@@ -107,12 +105,6 @@ def main(argv: list[str], io: IO, ctx: Context) -> int:
     handler = _COMMANDS[args.command]
     try:
         return handler(args, io, ctx)
-    except (TaskNotFound, InvalidTaskId) as error:
-        print(f"unknown task: {error}", file=io.stderr)
-        return 2
-    except NoRepo as error:
-        print(error, file=io.stderr)
-        return 2
     except _StoppedWaiting as stopped:
         print(f"stopped waiting; job {stopped.job_id} is still running on the server", file=io.stderr)
         return 130
@@ -120,73 +112,10 @@ def main(argv: list[str], io: IO, ctx: Context) -> int:
         if refused.status == 401:
             print(f"the server refused the token in {ctx.settings.token_path}; restart `factory serve` or check the file", file=io.stderr)
             return 1
-        if refused.error == "unknown task":
-            print(f"unknown task: {refused.detail}", file=io.stderr)
-            return 2
         raise
     except ServerUnreachable:
         print("no factory server is running; start one with: factory serve", file=io.stderr)
         return 1
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 def _eval_usage_error(args, evals_root: Path) -> str | None:
@@ -320,8 +249,6 @@ def build_context(settings: Settings, repo: str | None = None) -> Context:
 
 def _exit_on_signal(signum, frame):
     raise SystemExit(128 + signum)  # a BaseException, so the runner kills the agent tree on the way out
-
-
 
 
 _NEEDS_NO_REPO = ("init", "clone", "eval-export")

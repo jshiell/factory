@@ -21,18 +21,9 @@ class ServerClient:
     def __init__(self, http: httpx2.Client, token: str, sleep: Callable[[float], None] = time.sleep, prefix: str = ""):
         self._http, self._headers, self._sleep, self._prefix = http, {"Authorization": f"Bearer {token}"}, sleep, prefix
 
-    @property
-    def repo(self) -> str:
-        """The repo this client is scoped to."""
-        return self._prefix.removeprefix("/repos/")
-
     def for_repo(self, name: str) -> ServerClient:
         """The same connection and token, scoped to one repo's routes."""
         return ServerClient(self._http, self._headers["Authorization"].removeprefix("Bearer "), self._sleep, f"/repos/{name}")
-
-    def unscoped(self) -> ServerClient:
-        """The same connection and token without the repo prefix, for the server-level calls."""
-        return ServerClient(self._http, self._headers["Authorization"].removeprefix("Bearer "), self._sleep)
 
     def get(self, path: str, **params) -> dict:
         return self._send("GET", path, params=params)

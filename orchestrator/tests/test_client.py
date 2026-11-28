@@ -71,15 +71,3 @@ def test_a_prefixed_client_scopes_gets_posts_and_job_polls_to_its_repo():
     client.wait("j1")
 
     assert seen == [("GET", "/repos/proj/tasks"), ("POST", "/repos/proj/tasks"), ("GET", "/repos/proj/jobs/j1")]
-
-
-def test_the_unscoped_view_of_a_prefixed_client_skips_the_prefix_but_keeps_the_token():
-    seen = []
-
-    def handler(request):
-        seen.append((request.url.path, request.headers["authorization"]))
-        return httpx2.Response(200, json={})
-
-    client_over(handler, "secret", prefix="/repos/proj").unscoped().get("/repos")
-
-    assert seen == [("/repos", "Bearer secret")]

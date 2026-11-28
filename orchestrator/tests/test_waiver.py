@@ -1,14 +1,7 @@
 import pytest
 
 from factory.review_notes import MAX_ITEM, MAX_ITEMS, TRUNCATED, capped_findings
-from factory.waiver import (
-    Approve,
-    Refuse,
-    Reinstate,
-    Waive,
-    parse_answer,
-    remove_waived,
-)
+from factory.waiver import remove_waived
 
 REQUIRED = "Recommend (required): "
 
@@ -25,73 +18,3 @@ def test_capping_the_notes_left_after_a_waiver_changes_nothing(notes):
 
     assert capped_findings(reduced) == reduced
     assert (TRUNCATED in shown) == (TRUNCATED in reduced)
-
-
-@pytest.mark.parametrize("text", ["y", "  y \n", "y\n"])
-def test_y_approves_without_waiving(text):
-    assert parse_answer(text, required_count=2) == Approve()
-
-
-@pytest.mark.parametrize("text", ["", "n", "yes", "Y y", "Y", "ok"])
-def test_anything_else_is_not_approved_and_needs_no_explanation(text):
-    assert parse_answer(text, required_count=2) == Refuse(reason=None)
-
-
-@pytest.mark.parametrize("text, numbers", [("w 1", (1,)), ("w 1 3", (1, 3)), ("  w 3   1 \n", (3, 1))])
-def test_w_with_note_numbers_waives_those_notes(text, numbers):
-    assert parse_answer(text, required_count=3) == Waive(numbers=numbers)
-
-
-@pytest.mark.parametrize("text", ['w', ' w \n'])
-def test_w_without_note_numbers_is_refused(text):
-    answer = parse_answer(text, required_count=3)
-
-    assert isinstance(answer, Refuse) and answer.reason
-
-
-@pytest.mark.parametrize("text", ['w x', 'w \u00b2', 'w -1', 'w 1.5', 'w +1', 'w \u0661'])
-def test_a_note_number_must_be_plain_ascii_digits(text):
-    answer = parse_answer(text, required_count=3)
-
-    assert isinstance(answer, Refuse) and answer.reason
-
-
-@pytest.mark.parametrize("text", ['w 0', 'w 4', 'w 1 9', 'w 00'])
-def test_a_note_number_must_be_one_of_the_shown_required_notes(text):
-    answer = parse_answer(text, required_count=3)
-
-    assert isinstance(answer, Refuse) and answer.reason
-
-
-@pytest.mark.parametrize("text", ["w 1 1", "w 2 1 2"])
-def test_a_note_number_may_not_be_repeated(text):
-    answer = parse_answer(text, required_count=3)
-
-    assert isinstance(answer, Refuse) and answer.reason
-
-
-def test_with_no_required_note_shown_a_waive_answer_is_refused():
-    # guard (green on arrival; mutation-checked)
-    answer = parse_answer("w 1", required_count=0)
-
-    assert isinstance(answer, Refuse) and answer.reason
-
-
-def test_r_with_numbers_reinstates_earlier_waived_notes():
-    assert parse_answer("r 2 1", required_count=3, waived_count=2) == Reinstate(numbers=(2, 1))
-
-
-@pytest.mark.parametrize("text, waived_count", [
-    ("r", 2), ("r 3", 2), ("r 0", 2), ("r 1 1", 2), ("r a", 2), ("r 1", 0), ("r 1 w 2", 2), ("w 1 r 1", 2),
-], ids=["no-numbers", "too-high", "zero", "twice", "not-digits", "nothing-waived", "r-then-w", "w-then-r"])
-def test_a_bad_reinstate_answer_is_refused_with_a_reason(text, waived_count):
-    # guard (green on arrival; mutation-checked)
-    answer = parse_answer(text, required_count=3, waived_count=waived_count)
-
-    assert isinstance(answer, Refuse) and answer.reason
-
-
-@pytest.mark.parametrize("text", ["y", "w 1 3"])
-def test_y_and_w_ignore_the_waived_count(text):
-    # guard (green on arrival; mutation-checked)
-    assert parse_answer(text, 3, waived_count=2) == parse_answer(text, 3)
