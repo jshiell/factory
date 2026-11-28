@@ -431,10 +431,16 @@ async def _answer(request: Request) -> RedirectResponse | HTMLResponse:
 
 def _approve_page_detail(task) -> dict:
     """What the CLI preview shows: the capped findings with required notes numbered, and the dropped-required warning."""
+    return {"id": task.id, **_notes_detail(task),
+            "goal": _safe(task.goal if task.goal is not None else task.prompt), "plan": _safe(task.plan),
+            "risks": [_safe(risk) for risk in task.plan_risks], "plan_digest": plan_digest(task.plan)}
+
+
+def _notes_detail(task) -> dict:
+    """The capped reviewer notes with required ones numbered, the required notes to offer for waiving, and the warning."""
     lines, required = note_lines(capped_findings(task.review_findings))
-    return {"id": task.id, "required_notes": [_safe(note) for note in required], "goal": _safe(task.goal if task.goal is not None else task.prompt), "plan": _safe(task.plan),
-            "risks": [_safe(risk) for risk in task.plan_risks], "findings": _safe("\n".join(lines)),
-            "warning": _safe(dropped_required_warning(task.review_findings)), "plan_digest": plan_digest(task.plan)}
+    return {"findings": _safe("\n".join(lines)), "required_notes": [_safe(note) for note in required],
+            "warning": _safe(dropped_required_warning(task.review_findings))}
 
 
 def _not_reviewed_wrong_state_page() -> HTMLResponse:
@@ -710,7 +716,7 @@ def _retry_choice(form: dict[str, list[str]]) -> str | None:
 
 def _kept_plan(task) -> dict:
     """What a keep-plan retry carries over, from the one load that passed the keepable check, with that plan's digest."""
-    return {"plan": _safe(task.plan), "plan_digest": plan_digest(task.plan),
+    return {"plan": _safe(task.plan), "plan_digest": plan_digest(task.plan), **_notes_detail(task),
             "audit_findings": [_safe(finding) for finding in gaps_to_carry(task)]}
 
 

@@ -9,6 +9,13 @@
 {% if kept %}
 <p>Keeping the plan, the new task is queued with the plan below, already approved. Advancing it spends money.</p>
 <div class="plan">{{ kept.plan | markdown_with_urls }}</div>
+{% if kept.findings %}
+<p>Reviewer notes the new task is told about:</p>
+<pre>{{ kept.findings }}</pre>
+{% endif %}
+{% if kept.warning %}
+<p><strong>{{ kept.warning }}</strong></p>
+{% endif %}
 {% if kept.audit_findings %}
 <p>Audit findings the new task is told about:</p>
 <ul>
@@ -16,6 +23,13 @@
 {% endfor %}</ul>
 {% endif %}
 <form method="post" action="{{ base | default('/ui') }}/tasks/{{ task.id | urlencode }}/retry">
+{% if kept.required_notes %}
+<fieldset>
+<legend>Waive required notes</legend>
+<p>A ticked note is not sent to the agents and not enforced by the audit. An audit finding that quotes a waived note is not sent to the new task.</p>
+{% for note in kept.required_notes %}<label><input type="checkbox" name="waive" value="{{ note }}"> [{{ loop.index }}] {{ note }}</label><br>
+{% endfor %}</fieldset>
+{% endif %}
 <input type="hidden" name="keep_plan" value="1">
 <input type="hidden" name="plan_digest" value="{{ kept.plan_digest }}">
 <button type="submit">Retry keeping the plan</button>

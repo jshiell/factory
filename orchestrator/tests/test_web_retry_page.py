@@ -62,10 +62,10 @@ def test_the_retry_page_of_a_task_with_a_keepable_plan_offers_both_retries_and_s
     assert "Retry from scratch" in plain and "plan_digest" not in plain
     assert "Retry keeping the plan" in keep
     assert f'action="/ui/repos/proj/tasks/{TASK_ID}/retry"' in keep
-    assert _controls(keep) == ['<input type="hidden" name="keep_plan" value="1">',
+    assert _controls(keep) == ['<input type="checkbox" name="waive" value="RECOMMEND (required): fix x">',
+                               '<input type="hidden" name="keep_plan" value="1">',
                                f'<input type="hidden" name="plan_digest" value="{plan_digest("the plan")}">',
                                '<button type="submit">']
-    assert "waive" not in text.lower()
 
 
 @pytest.mark.parametrize("state, fields", [
