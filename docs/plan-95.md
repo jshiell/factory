@@ -53,3 +53,9 @@ The terminal is the only place to waive a required reviewer note (`factory appro
 - Ticking about 19 or more boxes hits the 32-field cap and shows the bad-form page; `_MAX_FORM_FIELDS` may be raised with a comment if that is judged too tight.
 - The web UI is still unchecked in a real browser (README: plans 69 to 75).
 - No dependency changes expected.
+
+## Deviations (implementation, 2026-11-28)
+- Cycle 5 is covered by an existing test (guard); cycle 12 is three guards, since cycle 11 wired `reinstate`.
+- Cycle 8 changed the refusal sentence to name the waive choice; `tests/test_web_retry.py:127` still passes on its "cannot be retried" wording.
+- `test_web_approve_page.py` and `test_web_retry_page.py` were edited deliberately (new "factory approve"-free text, hidden-input filter, control count, leading waive checkbox).
+- The README accepted-losses item on waiving in the terminal belongs to plan 96; its README line 341-342 CLI text is left for that plan.
