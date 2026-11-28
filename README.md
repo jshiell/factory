@@ -134,6 +134,8 @@ The `sandbox` setting names the confinement mechanism for agent runs and the gat
 
 Exit codes: `0` ok, `1` refused or failed (the reason is printed), `2` usage error (`eval-audit` also uses `3` for an incomplete run).
 
+`ui` and `eval-audit` are clients of this server and need it running (`no factory server is running` otherwise); they read the token from `<home>/_server/token`. `eval-audit --check-corpus` runs locally. `init`, `clone`, `serve` and `eval-export` do not need the server. One home has one server and one token, so a CLI using a different home than the running server is refused with a 401. `eval-audit` names the repo with `--repo NAME`, or by running inside `<home>/<name>` (its checkout or one of its task worktrees); a checkout outside the home always needs `--repo`. `--config <file>` replaces the repo's config for one command. `eval-audit` waits for its job; Ctrl-C stops waiting and the job carries on. Any other command prints a usage error and a hint to use `factory ui`.
+
 ### What the CLI no longer does
 
 The task commands (`new`, `list`, `show`, `advance`, `answer`, `approve`, `reject`, `costs`, `merge`, `rebase`, `retry`, `recover`, `abandon`, `clean`) and `migrate` were removed in plan 96; the web UI covers them. What was lost:
@@ -192,24 +194,7 @@ Remote access: the global setting `server_allowed_hosts = ["nas.lan"]` (default 
 
 Stopping it with SIGINT, SIGTERM or SIGHUP shuts it down; jobs it left unfinished are marked `interrupted` at the next start. When an agent cannot be launched at all (a `runner_error` failure), the exception text is logged as a warning on the server's stderr, with the task id and stage; the task itself only records `runner_error`. A prompt too large to pass (`prompt_too_large`) is logged the same way, with its size and the limit. When an agent's result cannot be parsed (`<stage>_unparseable`), the same stderr gets a warning with the task id, stage, exit code, and the last 2000 characters of the agent's stdout and stderr (escaped, on one line); eval runs are included. That log can contain anything the agent saw or printed, so treat it as sensitive as the worktree.
 
-Reads and quick actions answer at once; `advance`, `abandon`, `recover`, `rebase`, `merge`, `clean` and `eval-audit` return
-`202 {job}` and run one at a time, in order. Poll `GET /jobs/{id}`.
-
-Every route below sits under `/repos/{name}` (for example `GET /repos/proj/tasks`). `GET /repos` lists the served repos, `POST /ui-login-codes` is server-wide, and `/jobs` lists the jobs of one repo.
-
-| Endpoint | Purpose |
-|---|---|
-| `POST /tasks {goal}` / `GET /tasks` / `GET /tasks/{id}` / `GET /costs?task_id=` | create and read. A goal over 20,000 bytes is 422 |
-| `GET /tasks/{id}/approval`, `POST .../approve {plan_digest, waive, review_findings?}`, `POST .../reject` | approve a reviewed plan; a stale digest is 409. An optional `review_findings` (the lines `/approval` showed) makes changed findings 409 too |
-| `GET /tasks/{id}/merge-preview`, `POST .../merge {audited_sha}` | a stale sha is 409 |
-| `GET /tasks/{id}/retry-preview`, `POST .../retry` or `{keep_plan, plan_digest, waive, reinstate}` | fresh or keep-plan retry |
-| `GET /clean-preview`, `POST /clean {token}` | the token hashes the preview; a changed preview is 409 |
-| `GET /tasks/{id}/questions`, `POST .../answer {round, answers}` | the planner's open questions and your answers (at most 20,000 bytes). A stale `round` or a task not in `open_questions` is 409. `POST /tasks` also takes `grill` (default: the `grill` setting) |
-| `POST /tasks/{id}/advance`, `/abandon`, `/recover`, `/rebase`, `POST /eval-audit {runs, max_usd, only, stage_config}` | jobs |
-| `GET /jobs`, `GET /jobs/{id}` | job state: `queued`, `running`, `succeeded`, `failed`, `interrupted` |
-
-Errors are `{error, detail}`: 401 token, 403 host or origin, 404 unknown task or job, 409 wrong state or stale preview, 422 bad input.
-`ui` and `eval-audit` are clients of this server and need it running (`no factory server is running` otherwise); they read the token from `<home>/_server/token`. `eval-audit --check-corpus` runs locally. `init`, `clone`, `serve` and `eval-export` do not need the server. One home has one server and one token, so a CLI using a different home than the running server is refused with a 401. `eval-audit` names the repo with `--repo NAME`, or by running inside `<home>/<name>` (its checkout or one of its task worktrees); a checkout outside the home always needs `--repo`. `--config <file>` replaces the repo's config for one command. `eval-audit` waits for its job; Ctrl-C stops waiting and the job carries on. Any other command prints a usage error and a hint to use `factory ui`.
+The JSON API (endpoints, jobs, errors) is described in [docs/api.md](docs/api.md).
 
 ## Design
 
