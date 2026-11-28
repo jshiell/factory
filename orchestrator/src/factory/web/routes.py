@@ -684,15 +684,17 @@ async def _retry(request: Request) -> RedirectResponse | HTMLResponse:
     if refusal:
         return refusal
     try:
-        shown_digest = _retry_choice(await _read_form(request))
+        form = await _read_form(request)
+        shown_digest = _retry_choice(form)
     except _BadForm:
         return _bad_form_page()
     # The body read awaited: load the task again so a task that stopped being retryable gets the wrong-state page.
     task, refusal = _load_retryable(request)
     if refusal:
         return refusal
+    required = note_lines(capped_findings(task.review_findings))[1]
     try:
-        new_id = _repo(request).actions.retry(task.id, shown_digest)
+        new_id = _repo(request).actions.retry(task.id, shown_digest, waive=_chosen_notes(form, "waive", required))
     except RetryRefused:  # its text names the task and the domain's reason; neither is shown
         if shown_digest is None:
             return _wrong_state_page(_RETRY_WRONG_STATE)

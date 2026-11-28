@@ -1,8 +1,10 @@
 import re
+from urllib.parse import urlencode
 
 from factory.digest import plan_digest
 from factory.review_notes import MAX_ITEMS
 from factory.task import TaskState
+from test_web_retry import new_task, post_retry
 from webhelpers import add
 
 pytest_plugins = ["webfixtures"]
@@ -32,6 +34,24 @@ def test_the_keep_plan_form_shows_the_reviewer_notes_and_a_waive_checkbox_for_ea
     assert "[1] Recommend (required): fix &lt;x&gt;" in text and "Recommend (optional): rename it" in text
     assert "not sent to the agents" in text
     assert "An audit finding that quotes a waived note is not sent to the new task." in text
+
+
+def keep_form(digest, **fields):
+    return urlencode({"keep_plan": "1", "plan_digest": digest, **fields}, doseq=True).encode()
+
+
+def test_posting_a_waive_value_on_a_keep_plan_retry_queues_the_task_with_that_note_waived_and_its_quoting_gap_dropped(client, ctx):
+    note = "Recommend (required): fix x"
+    keepable(ctx, (note, "Recommend (required): add y"), audit_findings=(f"you skipped: {note}", "gap two"))
+
+    response = post_retry(client, keep_form(plan_digest("the plan"), waive=note))
+
+    assert response.status_code == 303
+    new = new_task(ctx)
+    assert new.state is TaskState.QUEUED
+    assert new.waived_findings == (note,)
+    assert new.review_findings == ("Recommend (required): add y",)
+    assert new.prior_audit_findings == ("gap two",)
 
 
 def test_the_keep_plan_page_warns_when_required_notes_were_dropped_by_the_cap(client, ctx):
