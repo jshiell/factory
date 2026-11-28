@@ -10,24 +10,28 @@ only things that need a person are the two decisions that matter: *is this the r
 
 ## Quick start
 
+The [Requirements](#requirements) are listed below the steps.
+
+Run everything from the repo root: `uv run --project orchestrator factory <command>` (or install the `factory` script). The home is `FACTORY_HOME`, or `~/.harness` when unset.
+
+```sh
+factory init                      # optional: write a commented <home>/factory.toml template
+factory clone owner/repo          # put a GitHub repo at <home>/<name>/repo (see Cloning a repo)
+factory serve                     # start the local server
+factory ui                        # prints a one-time login link; open it in the browser
+```
+
+`clone` only takes GitHub repositories. To use another repo, put its checkout at `<home>/<name>/repo` yourself. Settings are in [Configuration](#configuration).
+
+The browser is the only task interface: create, answer, approve, advance and merge tasks there. Advancing is safe to re-run: it does whatever the current state calls for and stops at the next human gate, a failure, or its step cap. Agent spend is capped (see `cap_usd` in [Configuration](#configuration)) and every call is recorded in a ledger.
+
 ### Requirements
 
 - macOS or Linux (the sandbox is `nono` 0.81 or later). What was verified on each is in [Platform verification](#platform-verification). Windows is refused at startup (`launcher.py`), because factory needs `fcntl`, `pgrep`, `ps` and process groups. WSL is untested.
 - `git`, [`uv`](https://docs.astral.sh/uv/), Python 3.14
 - the `claude` CLI, logged in (OAuth). `ANTHROPIC_API_KEY` is stripped from the agents' environment on purpose
 - `nono` on `PATH`
-
-### Using it
-
-Run everything from the repo root. `uv run --project orchestrator factory <command>` (or install the `factory` script).
-
-```sh
-factory serve             # start the local server
-factory ui                # prints a one-time login link; open it in the browser
-```
-
-The browser is the only task interface: create, answer, approve, advance and merge tasks there. Advancing is safe to re-run: it does whatever the current state calls for and stops at the next human gate, a failure,
-or its step cap. Agent spend is capped (see `cap_usd` in [Configuration](#configuration)) and every call is recorded in a ledger.
+- `gh`, logged in, only for `factory clone`
 
 ## Web UI
 
