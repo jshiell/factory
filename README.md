@@ -58,10 +58,6 @@ The server also serves a browser page under `/ui`. From it you can create tasks,
 
 Before writing a plan the planner can ask you questions, using the shipped `grilling` plugin (loaded for the plan stage automatically; it runs no code). The task then waits in `open_questions` until you answer (in the web UI, or through the JSON API). The answer page shows each question with the planner's recommendation prefilled; a blank field takes it. Each answer round can lead to another, up to `grill_max_rounds` (default 3); after that the planner must plan. Settings: `grill = true` (default; the grill checkbox on the new-task form or `"grill": false` in the JSON API overrides per task) and `grill_max_rounds = 3` (`0` turns grilling off). Cost: up to `grill_max_rounds + 1` planner calls per task instead of one.
 
-No downgrade: an older build reading task rows written with the new fields raises a `TypeError`.
-
-`factory watch` was removed; approve and merge in the web UI. It leaves nothing to migrate, and the factory does not clean up after it: a `watch.json` and a `watch` lock file in the state directory, and the comments it posted on GitHub issues, stay until you delete them. A repo whose config still sets `watch_approvers`, `watch_merge` or `watch_retry` is refused, and `serve` skips it until you remove the key (see "Configuration").
-
 ## Configuration
 
 Each repo lives at `<home>/<name>/repo` (`factory clone` puts it there) and may have a `.factory/factory.toml` at its root; `--config <file>` replaces that file for one command (it must exist, and a file inside the repo but outside `.factory/` is refused). Tasks may edit the whole repo except `.factory/`, so the config lives there: a root `factory.toml` is a startup error that gives the `git mv factory.toml .factory/factory.toml` fix (`.factory/` may be gitignored). Relative paths in a file inside a `.factory` directory resolve against the repo root (the parent of `.factory`); in any other file, against the file's directory. `~` is expanded in paths. Unknown keys are an error, and `gate_allow_outside` (removed in plan 87) is refused with an explanation. `repo`, `home`, `state_dir` and `worktree_root` are not config keys: the layout is fixed, and a repo config that sets one is refused.
@@ -70,7 +66,7 @@ One server manages every repo under the home, and each repo has its own subdirec
 
 Global settings: an optional `<home>/factory.toml` (the home is fixed by `FACTORY_HOME` or `~/.harness`) applies to every repo. A repo's `.factory/factory.toml` overrides it key by key, except `stage_prompts`, which merges per stage (`plugins` and each stage's `stage_plugins` list are replaced as a whole, so a global prompt can outlive a plugin the repo list dropped). Each file's relative paths resolve against its own directory (the repo file's against the repo root). `main_branch` and `gate_allow_dependency_changes` are per-repo and an error in the global file; `watch_approvers`, `watch_merge` and `watch_retry` (from the removed `factory watch`) are refused in either file, and `serve` skips a repo whose config still sets one, so delete them; `server_port`, `server_host` and `server_allowed_hosts` belong to the one server and are an error in a repo's file. Errors from either file name it. Startup only reads it; `factory init` writes a commented template there, needs no repo or server, and refuses to overwrite an existing file. There is no switch to skip the global file; pointing `FACTORY_HOME` at an empty directory does, but it also moves every repo.
 
-Upgrading from a single-repo layout: a repo must now sit at `<home>/<name>/repo`; startup refuses one that has `<repo>/.factory/factory.db` or `<repo>/.factory/token`, or old state elsewhere, and names where to move it (`<home>/<name>/state`). Old JSON task files are no longer migrated (`factory migrate` was removed in plan 96); they are never deleted, so an older release can still migrate them. Upgrading from a root `factory.toml`: move it with `git mv factory.toml .factory/factory.toml`. Upgrading from the old `target` default: with `project_subdir` unset and a `target/` directory in the repo, every command that loads settings prints a `settings warning:` line; set `project_subdir = "target"` to keep working there, or `"."` to silence it.
+Old layout: a repo must sit at `<home>/<name>/repo`; startup refuses one that has `<repo>/.factory/factory.db` or `<repo>/.factory/token`, or old state elsewhere, and names where to move it (`<home>/<name>/state`). With `project_subdir` unset and a `target/` directory in the repo, every command that loads settings prints a `settings warning:` line; set `project_subdir = "target"` to keep working there, or `"."` to silence it.
 
 ```toml
 server_port = 8765             # global-only; where `serve` listens and `ui` and `eval-audit` connect
@@ -412,6 +408,7 @@ Recorded per plan in `docs/spike-findings.md`. The main ones, by area:
 - A prompt of 131,072 bytes or more cannot be passed (Linux limits one `argv` string; see [Platform verification](#platform-verification)). It is refused as `prompt_too_large` without a charge. Every stage but the audit fails the task with that reason (`fix_prompt_too_large` for the fix stage), since a retry would build the same prompt. A goal is capped at 20,000 bytes so the plan and review prompts always fit; the implement, fix and grill prompts can still overflow, because they also carry the plan, notes or answers. The audit refuses (`diff_too_large`) a diff over 200,000 bytes, or over whatever room the task prompt, which holds the whole plan, leaves under that limit.
 - The sandbox was re-measured on Linux only (nono 0.81, plan O7 probes), by a human running the spike scripts; CI covers the Linux suite with fakes, not nono itself. For macOS see [Platform verification](#platform-verification).
 - The gate sandbox grants read on the resolved directory holding `uv` (plan 56), without which the gate's test run exited 127 when `uv` lives under mise. Confirmed on Linux by the smoke and full probe runs (nono 0.81, uv 0.13.8, uv under mise only). Not covered: a relative `uv` path gets no grant and still exits 127; other layouts (system path, `~/.local/bin`) were not tried (for macOS see [Platform verification](#platform-verification)); a uv directory that holds `$HOME`, the state directory or `<home>/_server` is refused, which the probes did not exercise.
+- An older build cannot read task rows written with the new fields: it raises a `TypeError`, so there is no downgrade.
 
 **The web UI**
 - Known limit: the approve form binds only the plan digest, not the notes shown; the notes are read again when the form is posted, so a stale choice is refused but a note added since the page loaded is accepted without being shown.
@@ -424,8 +421,8 @@ Recorded per plan in `docs/spike-findings.md`. The main ones, by area:
 
 ```sh
 cd orchestrator && uv run ruff check     # lint (E, F, I, B, UP, C4, SIM, RUF); CI runs this on every push
-cd orchestrator && uv run pytest -q -n auto  # ~2000 tests, real git in temp repos, ~25s in parallel; CI runs them serially on Linux
-cd orchestrator && uv run pytest -q -m smoke  # 26 tests, ~3s: one or two per core seam, for a quick check while editing; not a substitute for the full run
+cd orchestrator && uv run pytest -q -n auto  # ~3300 tests, real git in temp repos, ~65s in parallel; CI runs them serially on Linux
+cd orchestrator && uv run pytest -q -m smoke  # 26 tests, ~6s: one or two per core seam, for a quick check while editing; not a substitute for the full run
 cd target && uv run pytest -q
 ```
 
@@ -441,7 +438,7 @@ Anything that needs a terminal, nono, the network or the home directory is cover
 
 | Path | What it is |
 |---|---|
-| `orchestrator/` | The factory: a Python 3.14 package, CLI `factory`; the standard library plus `httpx2`, `jinja2`, `starlette` and `uvicorn` for the server; ~2000 tests |
+| `orchestrator/` | The factory: a Python 3.14 package, CLI `factory`; the standard library plus `httpx2`, `jinja2`, `starlette` and `uvicorn` for the server; ~3300 tests |
 | `target/` | A tiny Python project (`calc`) the agents work on. Replace it with any `uv` + `pytest` project. To work in it, set `project_subdir = "target"` in `.factory/factory.toml` (the default is the repo root) |
 | `docs/` | One `plan-N.md` per increment (decisions, cycles, reviewer findings) and `spike-findings.md` (what was measured, known gaps) |
 | `spike/` | Throwaway probes and end-to-end scripts. Not production code; several make real API calls or need a terminal |
