@@ -76,3 +76,11 @@ A new reader can install, start the server, log in and configure a repo from the
 - **Sections to delete, sorted:** `factory watch` note (182) is history, except the refusal of `watch_*` keys, which is repeated at 190. 'What the CLI no longer does' (68-78): keep only the JSON locations, which go to `docs/api.md` in increment 7; the TTY sentence is repeated at 158. 'Upgrading from a single-repo layout' (194): keep the startup refusal and the `target/` warning in Configuration; the root `factory.toml` instruction is repeated at 186, and the rest is history.
 - **Unverified:** 'No downgrade' (180) is carried over unchanged into Known limits; I did not check it against the store code.
 - **Tooling:** git 2.53.0, so `git diff --color-moved=zebra --color-moved-ws=allow-indentation-change` is available.
+- **Implementation deviations:**
+  - The README API pointer is one line, not two.
+  - Increment 4: Quick start keeps `### Requirements` as a subsection under the steps; the opening line points to it.
+  - Increment 5: the Web UI section keeps its name (anchors `#web-ui` are linked from `docs/api.md`). The concurrency bullet (SQLite write transaction) went whole into Known limits rather than being split. The two "Known limit" approve and retry sentences moved verbatim and so read as near duplicates.
+  - Increment 6: only the Plugins paragraph moved (after the prompt notes); the file locations and precedence already led the section.
+  - Increment 7: only the four JSON-location bullets moved to `docs/api.md`. The keep-plan extras and TTY bullets were dropped (the no-TTY fact is already in the web UI guard).
+  - Increment 8: the single-repo upgrade paragraph was rewritten as "Old layout" with the startup refusal and the `target/` warning; the root `factory.toml` move and the old JSON migration sentences were deleted. Figures now: ~3300 tests, ~65s parallel, smoke 26 tests ~6s (measured). The serial time in AGENTS.md was not re-measured, so the figure was removed.
+
