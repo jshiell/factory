@@ -694,7 +694,9 @@ async def _retry(request: Request) -> RedirectResponse | HTMLResponse:
         return refusal
     required = note_lines(capped_findings(task.review_findings))[1]
     try:
-        new_id = _repo(request).actions.retry(task.id, shown_digest, waive=_chosen_notes(form, "waive", required))
+        new_id = _repo(request).actions.retry(
+            task.id, shown_digest, waive=_chosen_notes(form, "waive", required),
+            reinstate=_chosen_notes(form, "reinstate", task.waived_findings))
     except RetryRefused:  # its text names the task and the domain's reason; neither is shown
         if shown_digest is None:
             return _wrong_state_page(_RETRY_WRONG_STATE)

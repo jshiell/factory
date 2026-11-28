@@ -94,6 +94,16 @@ def test_the_keep_plan_form_has_no_reinstate_section_when_nothing_was_waived(cli
     assert 'name="reinstate"' not in client.get(f"/ui/repos/proj/tasks/{TASK_ID}/retry").text
 
 
+def test_waive_and_reinstate_in_one_post_is_refused_and_queues_nothing(client, ctx):
+    keepable(ctx, ("Recommend (required): add y",), waived_findings=("Recommend (required): fix x",))
+
+    response = post_retry(client, keep_form(plan_digest("the plan"), waive="Recommend (required): add y",
+                                            reinstate="Recommend (required): fix x"))
+
+    assert response.status_code == 409
+    assert [task.id for task in ctx.store.list().tasks] == [TASK_ID]
+
+
 def test_the_keep_plan_page_warns_when_required_notes_were_dropped_by_the_cap(client, ctx):
     keepable(ctx, tuple(f"Recommend (required): note {i}" for i in range(MAX_ITEMS + 2)))
 
