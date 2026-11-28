@@ -1,6 +1,7 @@
 import re
 
 from factory.digest import plan_digest
+from factory.review_notes import capped_findings
 from factory.task import TaskState
 from webhelpers import add
 from webposts import same_origin_headers
@@ -48,6 +49,36 @@ def test_posting_a_waive_value_that_is_no_required_note_is_refused_with_a_409_an
         assert "invented" not in response.text and "rename it" not in response.text
         assert "waive" in response.text
         assert ctx.store.load(TASK_ID).state is TaskState.REVIEWED
+
+
+def test_a_note_with_a_lone_surrogate_a_control_character_and_a_bidi_mark_can_be_waived_by_its_escaped_text(client, ctx):
+    _reviewed(ctx, (AWKWARD,))
+    escaped = 'Recommend (required): odd "quote" <b> \\ud800 \\x01 \\u202e end'
+
+    response = _post_approve(client, {"plan_digest": plan_digest(PLAN), "waive": escaped})
+
+    assert response.status_code == 303
+    assert ctx.store.load(TASK_ID).waived_findings == capped_findings((AWKWARD,))
+
+
+def test_two_identical_notes_are_both_waived_when_both_are_ticked_but_a_third_tick_is_refused(client, ctx):
+    note = "Recommend (required): same"
+    _reviewed(ctx, (note, note))
+
+    refused = _post_approve(client, {"plan_digest": plan_digest(PLAN), "waive": [note, note, note]})
+    assert refused.status_code == 409 and ctx.store.load(TASK_ID).state is TaskState.REVIEWED
+
+    assert _post_approve(client, {"plan_digest": plan_digest(PLAN), "waive": [note, note]}).status_code == 303
+    assert ctx.store.load(TASK_ID).waived_findings == (note, note)
+
+
+def test_a_value_matching_the_escaped_text_of_two_different_notes_is_refused(client, ctx):
+    _reviewed(ctx, ("Recommend (required): a\x01", "Recommend (required): a\\x01"))
+
+    response = _post_approve(client, {"plan_digest": plan_digest(PLAN), "waive": "Recommend (required): a\\x01"})
+
+    assert response.status_code == 409
+    assert ctx.store.load(TASK_ID).state is TaskState.REVIEWED
 
 
 def test_posting_a_waive_value_queues_the_task_with_that_note_waived_and_out_of_the_prompt(client, ctx):
