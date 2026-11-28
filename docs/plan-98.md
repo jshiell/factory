@@ -75,4 +75,11 @@ Each is one test, one implementation, one commit.
 - Styling of a form button inside `<nav class="actions">` is cosmetic and untested.
 
 ## Deviations
-(none yet)
+- The review and the first draft missed the rule from plans 72 and 76 that the live fragment holds links, never forms
+  (`test_web_reject_link.py`). The user chose to allow the one advance form; that test now strips the advance form before
+  asserting no `<form`. Commit `Allow the advance button in the live fragment`, made after the button commit, so the suite was
+  red between the button commit and that one.
+- Increment 3 (fragment guard) was a new test, not an existing parametrised one; it passed at once.
+- `test_web_action_ids.py` also covered the advance GET page; its GET tests now use `PAGE_ACTIONS` (no advance).
+- `test_web_advance_page.py` was deleted with the GET route.
+- The button note drops "(up to 10 steps)"; `_ADVANCE.question` and `.button` stay unused.
