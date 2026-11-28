@@ -166,7 +166,7 @@ Remote access: the global setting `server_allowed_hosts = ["nas.lan"]` (default 
 - Prefer IPv4 literals. A listed name is only as safe as the DNS that resolves it: whoever can re-point it passes the `Host` check, and mDNS or `.lan` names can be spoofed on the local network. Keep entries to names you control.
 - Not supported: an HTTPS-terminating proxy, and a tunnel that changes the `Host` or uses a different external port than the one in the login link (the link would not match; paste the code from the link into `/ui/login?code=` by hand).
 - Sessions are not tied to a host: a cookie stolen on one name works on every other accepted name and on loopback.
-- Remote reads lose the Fetch Metadata refusals (see "Web UI").
+- Remote reads lose the Fetch Metadata refusals (see [The web UI guard](#the-web-ui-guard)).
 
 Stopping it with SIGINT, SIGTERM or SIGHUP shuts it down; jobs it left unfinished are marked `interrupted` at the next start. When an agent cannot be launched at all (a `runner_error` failure), the exception text is logged as a warning on the server's stderr, with the task id and stage; the task itself only records `runner_error`. A prompt too large to pass (`prompt_too_large`) is logged the same way, with its size and the limit. When an agent's result cannot be parsed (`<stage>_unparseable`), the same stderr gets a warning with the task id, stage, exit code, and the last 2000 characters of the agent's stdout and stderr (escaped, on one line); eval runs are included. That log can contain anything the agent saw or printed, so treat it as sensitive as the worktree.
 
