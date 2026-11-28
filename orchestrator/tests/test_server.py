@@ -596,3 +596,69 @@ def test_approval_preview_warns_how_many_required_notes_the_cap_dropped(client, 
     warning = client.get("/repos/proj/tasks/a/approval").json()["warning"]
 
     assert warning.startswith(f"WARNING: 3 required note(s) beyond the first {MAX_ITEMS} were dropped")
+
+
+def test_post_tasks_twice_in_the_same_second_suffixes_the_second_id_and_keeps_the_first(client, ctx):
+    first = client.post("/repos/proj/tasks", json={"goal": "first"}).json()["id"]
+    second = client.post("/repos/proj/tasks", json={"goal": "second"}).json()["id"]
+
+    assert (first, second) == ("20260102-030405", "20260102-030405-2")
+    assert ctx.store.load(first).goal == "first" and ctx.store.load(second).goal == "second"
+
+
+@pytest.mark.parametrize("action", ["approve", "reject", "abandon", "rebase"])
+@pytest.mark.parametrize("task_id", ["missing", "a.b"])
+def test_posting_an_action_for_an_unknown_or_unsafe_task_id_is_404_with_the_error_shape(client, action, task_id):
+    response = client.post(f"/repos/proj/tasks/{task_id}/{action}", json={})
+
+    assert response.status_code == 404
+    assert response.json()["error"] == "unknown task"
+
+
+@pytest.mark.parametrize("action", ["approve", "reject", "abandon", "rebase"])
+def test_posting_an_action_for_an_id_with_an_encoded_slash_matches_no_route(client, action):
+    # the id never reaches the task lookup: the router answers its plain 404 (not the JSON error shape)
+    assert client.post(f"/repos/proj/tasks/..%2Fevil/{action}", json={}).status_code == 404
+
+
+def test_get_costs_puts_a_ledger_entry_without_a_stage_under_unknown(client, ctx):
+    ctx.ledger.append("a", 0.05)
+
+    assert client.get("/repos/proj/costs").json()["by_stage"] == {"unknown": 0.05}
+
+
+def test_get_costs_for_one_task_only_counts_that_task(client, ctx):
+    ctx.store.save(Task(id="t1", prompt="", state=TaskState.PROPOSED))
+    ctx.ledger.append("t1", 0.1, stage="plan")
+    ctx.ledger.append("t2", 0.9, stage="plan")
+
+    response = client.get("/repos/proj/costs", params={"task_id": "t1"})
+
+    assert response.json() == {"by_stage": {"plan": 0.1}, "by_task": {"t1": 0.1}, "assumed": 0.0, "total": 0.1}
+
+
+def test_retry_preview_of_an_audited_task_reports_its_state_and_audit_findings(client, ctx):
+    _keepable(ctx, state=TaskState.AUDITED, failure_reason=None, audit_findings=("note from the audit",))
+
+    body = client.get("/repos/proj/tasks/old/retry-preview").json()
+
+    assert body["state"] == "audited" and body["audit_findings"] == ["note from the audit"]
+
+
+def test_retry_preview_lists_the_notes_waived_earlier(client, ctx):
+    _keepable(ctx, review_findings=("nit",), waived_findings=("RECOMMEND (required): fix x",))
+
+    body = client.get("/repos/proj/tasks/old/retry-preview").json()
+
+    assert body["waived_findings"] == ["RECOMMEND (required): fix x"]
+
+
+def test_retry_preview_of_an_already_capped_stored_list_has_no_warning(client, ctx):
+    # guard: the TRUNCATED marker is not a dropped required note
+    from factory.review_notes import MAX_ITEMS, TRUNCATED
+    notes = tuple(f"gap {i}. Recommend (required): handle it" for i in range(MAX_ITEMS))
+    _keepable(ctx, review_findings=(*notes, TRUNCATED))
+
+    body = client.get("/repos/proj/tasks/old/retry-preview").json()
+
+    assert body["warning"] == "" and body["review_findings"][-1] == TRUNCATED

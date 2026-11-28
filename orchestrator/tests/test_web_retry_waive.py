@@ -157,3 +157,14 @@ def test_the_keep_plan_page_warns_when_required_notes_were_dropped_by_the_cap(cl
 
     assert "WARNING: 2 required note(s)" in text
     assert len(re.findall(r'name="waive"', text)) == MAX_ITEMS
+
+
+def test_the_keep_plan_page_shows_no_warning_for_an_already_capped_stored_list(client, ctx):
+    # guard: the TRUNCATED marker is not a dropped required note
+    from factory.review_notes import TRUNCATED
+    keepable(ctx, (*(f"Recommend (required): note {i}" for i in range(MAX_ITEMS)), TRUNCATED))
+
+    text = client.get(f"/ui/repos/proj/tasks/{TASK_ID}/retry").text
+
+    assert "WARNING" not in text
+    assert len(re.findall(r'name="waive"', text)) == MAX_ITEMS
