@@ -24,8 +24,12 @@ def link(action):
     return f'<a href="/ui/repos/proj/tasks/{TASK}/{action}">'
 
 
+def form(action):
+    return f'<form method="post" action="/ui/repos/proj/tasks/{TASK}/{action}">'
+
+
 def shown(html):
-    return {action for action in PREDICATES if link(action) in html}
+    return {action for action in PREDICATES if link(action) in html or form(action) in html}
 
 
 def expected(task):
