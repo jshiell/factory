@@ -104,6 +104,39 @@ def test_waive_and_reinstate_in_one_post_is_refused_and_queues_nothing(client, c
     assert [task.id for task in ctx.store.list().tasks] == [TASK_ID]
 
 
+def test_posting_a_reinstate_value_queues_the_task_with_that_note_no_longer_waived(client, ctx):
+    earlier, kept = "Recommend (required): fix x", "Recommend (required): old waiver"
+    keepable(ctx, ("Recommend (required): add y",), waived_findings=(earlier, kept))
+
+    response = post_retry(client, keep_form(plan_digest("the plan"), reinstate=earlier))
+
+    assert response.status_code == 303
+    new = new_task(ctx)
+    assert new.waived_findings == (kept,)
+    assert earlier in new.review_findings
+
+
+def test_a_reinstate_value_that_was_never_waived_is_refused_and_queues_nothing(client, ctx):
+    keepable(ctx, ("Recommend (required): add y",), waived_findings=("Recommend (required): fix x",))
+
+    for unknown in ("Recommend (required): <invented>", "Recommend (required): add y"):
+        response = post_retry(client, keep_form(plan_digest("the plan"), reinstate=unknown))
+
+        assert response.status_code == 409
+        assert "invented" not in response.text
+        assert [task.id for task in ctx.store.list().tasks] == [TASK_ID]
+
+
+def test_reinstating_past_the_note_cap_is_refused_and_queues_nothing(client, ctx):
+    waived = tuple(f"Recommend (required): old {i}" for i in range(3))
+    keepable(ctx, tuple(f"Recommend (required): now {i}" for i in range(MAX_ITEMS)), waived_findings=waived)
+
+    response = post_retry(client, keep_form(plan_digest("the plan"), reinstate=list(waived[:1])))
+
+    assert response.status_code == 409
+    assert [task.id for task in ctx.store.list().tasks] == [TASK_ID]
+
+
 def test_the_keep_plan_page_warns_when_required_notes_were_dropped_by_the_cap(client, ctx):
     keepable(ctx, tuple(f"Recommend (required): note {i}" for i in range(MAX_ITEMS + 2)))
 
