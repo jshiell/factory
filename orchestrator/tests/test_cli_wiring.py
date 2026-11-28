@@ -335,8 +335,14 @@ def test_a_task_that_kept_its_plan_is_implemented_with_the_approved_prompt_in_a_
 
 
 QUERY_RECORDS = """#!{python}
-import sqlite3, sys
-rows = sqlite3.connect(sys.argv[1]).execute("select task_id, stage from processes order by pid").fetchall()
+import sqlite3, sys, time
+# The parent records a process only after it has launched it, so wait for the row rather than race it.
+deadline = time.monotonic() + 10
+while True:
+    rows = sqlite3.connect(sys.argv[1]).execute("select task_id, stage from processes order by pid").fetchall()
+    if rows or time.monotonic() > deadline:
+        break
+    time.sleep(0.01)
 open(sys.argv[2], "w").write("".join(f"{{task}},{{stage}}\\n" for task, stage in rows))
 """
 
