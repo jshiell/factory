@@ -330,7 +330,7 @@ async def _answer_page(request: Request) -> HTMLResponse:
 
 # Above 3 x MAX_ANSWER_BYTES, as percent-encoding triples each non-ASCII byte, so the answer-size 422 stays reachable.
 _FORM_CAP_BYTES = 64 * 1024
-_MAX_FORM_FIELDS = 32  # a round and at most 10 answers, with room to spare
+_MAX_FORM_FIELDS = 32  # a round and at most 10 answers, or a retry form with its waive and reinstate boxes, with room to spare
 _FORM_TYPE = "application/x-www-form-urlencoded"
 
 

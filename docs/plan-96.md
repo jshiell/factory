@@ -14,7 +14,7 @@ Source: user request. Base: `main`.
 - Leave the CLI-only JSON routes in place; removing them is a later plan.
 
 ## Findings (survey and review; the greps are re-run in increment 0)
-- The web UI covers `new` (grill checkbox), `list`, `show`, `advance`, `answer`, `approve`, `reject`, `merge`, `rebase`, `retry`, `recover`, `abandon`, `clean` and `costs` for all repos, except for waivers (plan 95) and the accepted losses above.
+- The web UI covers `new` (grill checkbox), `list`, `show`, `advance`, `answer`, `approve`, `reject`, `merge`, `rebase`, `retry`, `recover`, `abandon`, `clean` and `costs` for all repos, except for the accepted losses above.
 - Web actions run in-process through `WebActions`; the web UI never calls the JSON API.
 - `server.py:37` imports `_new_eval_dir` from `factory.cli`, and many tests import `Context`, `IO`, `main`, `run` from it. `factory.cli` is trimmed, not deleted.
 - `run()` builds the repo context for any command not in `_NEEDS_NO_REPO` or `_SERVER_COMMANDS` before argparse runs; that is why the unknown-command routing is needed.
@@ -52,7 +52,7 @@ Source: user request. Base: `main`.
 7. **Docs:** the README sweep and the accepted-losses list.
    - Rewrite "Using it" as `serve`, `ui`, then the browser.
    - Rewrite the "Every CLI command except ... is a client" paragraph for `ui` and `eval-audit` only.
-   - Fix the TTY notes, the "waive in the terminal" lines (plan 95 changes these), "The CLI keeps connecting", the `factory show` and `factory answer` mentions, and the `factory list`, `migrate` and `costs` line in the Tasks section.
+   - Fix the TTY notes, the "waive in the terminal" lines (plan 95 added the web forms), "The CLI keeps connecting", the `factory show` and `factory answer` mentions, and the `factory list`, `migrate` and `costs` line in the Tasks section.
    - Update the smoke count only if it changes the documented "about 25". Add the Deviations section, and tick `todo.md` if it lists this (never commit it).
 8. Run the `verify` skill, then the `commit-auditor` against this plan.
 

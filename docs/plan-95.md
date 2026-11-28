@@ -1,6 +1,6 @@
 # Plan 95: waive and reinstate reviewer notes in the web UI
 
-Drafted 2026-11-28, revised after a plan review. Not yet approved.
+Drafted 2026-11-28, revised after a plan review. Approved and implemented 2026-11-28.
 Source: user decision while planning plan 96 ("Waivers: add them to the web forms first").
 Base: `main`. Prerequisite of plan 96 (remove the task CLI).
 
@@ -59,3 +59,4 @@ The terminal is the only place to waive a required reviewer note (`factory appro
 - Cycle 8 changed the refusal sentence to name the waive choice; `tests/test_web_retry.py:127` still passes on its "cannot be retried" wording.
 - `test_web_approve_page.py` and `test_web_retry_page.py` were edited deliberately (new "factory approve"-free text, hidden-input filter, control count, leading waive checkbox).
 - The README accepted-losses item on waiving in the terminal belongs to plan 96; its README line 341-342 CLI text is left for that plan.
+- The 32-field cap risk is nearly unreachable (at most 10 required notes per form, and reinstating past the cap is refused anyway), so no test or cap change was made; the plan estimate of about 19 boxes was wrong.
