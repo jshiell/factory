@@ -128,18 +128,6 @@ Exit codes: `0` ok, `1` refused or failed (the reason is printed), `2` usage err
 
 `ui` and `eval-audit` are clients of this server and need it running (`no factory server is running` otherwise); they read the token from `<home>/_server/token`. `eval-audit --check-corpus` runs locally. `init`, `clone`, `serve` and `eval-export` do not need the server. One home has one server and one token, so a CLI using a different home than the running server is refused with a 401. `eval-audit` names the repo with `--repo NAME`, or by running inside `<home>/<name>` (its checkout or one of its task worktrees); a checkout outside the home always needs `--repo`. `--config <file>` replaces the repo's config for one command. `eval-audit` waits for its job; Ctrl-C stops waiting and the job carries on. Any other command prints a usage error and a hint to use `factory ui`.
 
-### What the CLI no longer does
-
-The task commands (`new`, `list`, `show`, `advance`, `answer`, `approve`, `reject`, `costs`, `merge`, `rebase`, `retry`, `recover`, `abandon`, `clean`) and `migrate` were removed in plan 96; the web UI covers them. What was lost:
-
-- **Per-task costs.** `costs <id>` is gone. The costs page (`/ui/costs`) shows, for each repo, the total, the assumed spend, and spend by stage and by task (one figure per task); the task page shows no spend. The JSON `GET /costs?task_id=` still answers for one task.
-- **Clean results and problems.** The web clean page shows a preview and one button; it does not show what was removed or what failed. The job's `result.outcomes` (done, problems per task) is in the JSON `GET /jobs/{id}`.
-- **Branch-deletion detail in the clean preview.** The web preview lists id, state and flags; the JSON `GET /clean-preview` keeps `commits_ahead`, `branch_exists` and `branch_empty`.
-- **Rebase's old audited sha.** The web pages do not show it; the rebase job's JSON result still carries `old_audited_sha`.
-- **Keep-plan preview extras.** The web retry page does not show the failure reason, and no longer gives the "audited and still mergeable" warning.
-- **Scriptable output.** `new` printing the id, and `advance` blocking with exit codes, are gone. Scripts use the JSON API with the Bearer token.
-- **The TTY barrier.** `approve` and `merge` no longer need a terminal, so a script or agent holding the token can approve. The web UI and the JSON API never had a TTY check.
-
 ### Cloning a repo
 
 `factory clone <repo>` clones a GitHub repository with `gh repo clone` (needs `gh` installed and logged in) into `<home>/<name>/repo`, where `<name>` is the repository name.

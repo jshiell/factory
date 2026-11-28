@@ -21,3 +21,12 @@ Every route below sits under `/repos/{name}` (for example `GET /repos/proj/tasks
 | `GET /jobs`, `GET /jobs/{id}` | job state: `queued`, `running`, `succeeded`, `failed`, `interrupted` |
 
 Errors are `{error, detail}`: 401 token, 403 host or origin, 404 unknown task or job, 409 wrong state or stale preview, 422 bad input.
+
+## Data the web UI does not show
+
+The web UI leaves out some detail that the JSON API still has. Scripts use the JSON API with the Bearer token.
+
+- **Per-task costs.** `costs <id>` is gone. The costs page (`/ui/costs`) shows, for each repo, the total, the assumed spend, and spend by stage and by task (one figure per task); the task page shows no spend. The JSON `GET /costs?task_id=` still answers for one task.
+- **Clean results and problems.** The web clean page shows a preview and one button; it does not show what was removed or what failed. The job's `result.outcomes` (done, problems per task) is in the JSON `GET /jobs/{id}`.
+- **Branch-deletion detail in the clean preview.** The web preview lists id, state and flags; the JSON `GET /clean-preview` keeps `commits_ahead`, `branch_exists` and `branch_empty`.
+- **Rebase's old audited sha.** The web pages do not show it; the rebase job's JSON result still carries `old_audited_sha`.
