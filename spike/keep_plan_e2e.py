@@ -1,3 +1,4 @@
+# Plan 96 removed the CLI commands this script drives; it can no longer run and is kept only as history.
 """THROWAWAY e2e for plan 19 (run in a real terminal; it needs a TTY for the y/N prompts). No API calls, $0.
 
 Scratch repo (never touches this repo) with three tasks: f1 failed after an approved plan, r1 failed with a plan that was

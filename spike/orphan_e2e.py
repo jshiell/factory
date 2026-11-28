@@ -1,3 +1,4 @@
+# Plan 96 removed the CLI commands this script drives; it can no longer run and is kept only as history.
 """THROWAWAY e2e for plan 21 (needs real `ps`, `nono` on PATH, uv). Run from anywhere: python3 spike/orphan_e2e.py
 
 Starts a real `factory advance`, SIGKILLs the driver while (a) a nono-wrapped fake slow agent and (b) a slow gate

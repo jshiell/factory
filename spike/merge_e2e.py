@@ -1,3 +1,4 @@
+# Plan 96 removed the CLI commands this script drives; it can no longer run and is kept only as history.
 """THROWAWAY e2e for plan 7 (run in a real terminal; it needs a TTY for the y/N prompt).
 
 Builds a synthetic audited task in a scratch repo (never touches this repo), runs `factory merge`

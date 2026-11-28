@@ -1,3 +1,4 @@
+# Plan 96 removed the CLI commands this script drives; it can no longer run and is kept only as history.
 """THROWAWAY e2e for plan 11 (run in a real terminal; `clean` needs a TTY for its y/N prompt).
 
 Synthetic repo with tasks in queued, agent_done, verified, audited, running and merged states, gate-cache

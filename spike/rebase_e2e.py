@@ -1,3 +1,4 @@
+# Plan 96 removed the CLI commands this script drives; it can no longer run and is kept only as history.
 """THROWAWAY e2e for plan 15 (run in a real terminal). No API calls, $0, no nono (the gate runs unsandboxed here).
 
 Synthetic repo. The `factory rebase` CLI runs with YOUR real environment and global git config (1Password signing and

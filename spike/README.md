@@ -27,15 +27,15 @@ Plan numbers refer to `docs/plan-<n>.md`. "TTY" means it prompts y/N and needs a
 
 | Script | Plan | Needs | What it checks |
 |---|---|---|---|
-| `abandon_clean_e2e.py` | 11 | TTY, network, `uv` | `abandon` and `clean` over tasks in every state, including a gate cache filled by a real `uv` run |
-| `branch_gc_e2e.py` | 14 | TTY, `uv` | `clean` and failed-task branches (empty, with a commit, dirty worktree, unset base) |
+| `abandon_clean_e2e.py` | 11 | TTY, network, `uv` | `abandon` and `clean` over tasks in every state, including a gate cache filled by a real `uv` run. **Removed in plan 96**: drives CLI commands that no longer exist; kept as history. |
+| `branch_gc_e2e.py` | 14 | TTY, `uv` | `clean` and failed-task branches (empty, with a commit, dirty worktree, unset base). **Removed in plan 96**: drives CLI commands that no longer exist; kept as history. |
 | `clean_gate_e2e.py` | 13 | real `nono`, `uv`, network | Three gate runs through `verify_task` with the real gate sandbox |
-| `housekeeping_e2e.py` | 8 | TTY, `uv` | `recover`, `retry` and `clean` on a synthetic repo |
-| `keep_plan_e2e.py` | 19 | TTY, `uv` | `retry --keep-plan`, with and without a TTY |
-| `merge_e2e.py` | 7 | TTY, `uv` | `merge` and its y/N prompt |
-| `rebase_e2e.py` | 15 | `uv`, your real env and global git config | `factory rebase` never asks for a signature |
+| `housekeeping_e2e.py` | 8 | TTY, `uv` | `recover`, `retry` and `clean` on a synthetic repo. **Removed in plan 96**: drives CLI commands that no longer exist; kept as history. |
+| `keep_plan_e2e.py` | 19 | TTY, `uv` | `retry --keep-plan`, with and without a TTY. **Removed in plan 96**: drives CLI commands that no longer exist; kept as history. |
+| `merge_e2e.py` | 7 | TTY, `uv` | `merge` and its y/N prompt. **Removed in plan 96**: drives CLI commands that no longer exist; kept as history. |
+| `rebase_e2e.py` | 15 | `uv`, your real env and global git config | `factory rebase` never asks for a signature. **Removed in plan 96**: drives CLI commands that no longer exist; kept as history. |
 | `test_freeze_e2e.py` | 12 | real git, real gate | Real git and the real gate (isolated git config, temp dir) |
-| `orphan_e2e.py` | 21 | real `nono`, `ps`, `uv` | SIGKILL the driver mid-run, then `recover` / `abandon` leave no processes. Starts real processes (`sleep 31337`, `sleep 31338`). **Stale**: it checks `procs/*.json` and drives the old `factory advance`; see `orphan_setsid_probe.py` |
+| `orphan_e2e.py` | 21 | real `nono`, `ps`, `uv` | SIGKILL the driver mid-run, then `recover` / `abandon` leave no processes. Starts real processes (`sleep 31337`, `sleep 31338`). **Stale**: it checks `procs/*.json` and drives the old `factory advance`; see `orphan_setsid_probe.py`. **Removed in plan 96**: drives CLI commands that no longer exist; kept as history. |
 | `confinement_probe.py` | O7 | real `nono`, `uv`; `$0` | What an agent and the gate can read, write and see in their env under the real nono prefixes, with canaries. Plants fixtures under `$HOME`, `~/.claude` and `$TMPDIR` (not `~/.claude.json`). Flags: `--claude-dir`, `--ssh` (outcome only for one real `~/.ssh` file and `~/.claude/.credentials.json`) |
 | `orphan_setsid_probe.py` | O7 | real `nono`, `ps`, `pgrep`, `setsid`, `uv`; `$0` | SIGKILL the driver, then `reap_orphans` with SQLite records: control, a `setsid` child and a `setsid` grandchild whose parent exited. Starts `sleep 31351`..`31356` |
 | `git_hardening_probe.py` | O7 | real `nono`, `git`, `uv`; `$0` | Throwaway. Can an agent steer the factory's unconfined git into running a driver? Fixture filter/textconv drivers with canaries, `.gitattributes` route, nested-repo route, symlinks, writability of git config locations. Fixture under `$HOME/gitprobe-<pid>`; one sibling file in `~/.config/git` (removed) |
