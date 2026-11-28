@@ -54,6 +54,18 @@ def test_posting_a_waive_value_on_a_keep_plan_retry_queues_the_task_with_that_no
     assert new.prior_audit_findings == ("gap two",)
 
 
+def test_a_waive_value_that_is_no_required_note_is_refused_with_a_409_naming_no_note_and_queues_nothing(client, ctx):
+    keepable(ctx, ("Recommend (required): fix x", "Recommend (optional): rename it"))
+
+    for unknown in ("Recommend (required): <invented>", "Recommend (optional): rename it"):
+        response = post_retry(client, keep_form(plan_digest("the plan"), waive=unknown))
+
+        assert response.status_code == 409
+        assert "invented" not in response.text and "rename it" not in response.text
+        assert "waive" in response.text
+        assert [task.id for task in ctx.store.list().tasks] == [TASK_ID]
+
+
 def test_the_keep_plan_page_warns_when_required_notes_were_dropped_by_the_cap(client, ctx):
     keepable(ctx, tuple(f"Recommend (required): note {i}" for i in range(MAX_ITEMS + 2)))
 
