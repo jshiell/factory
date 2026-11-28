@@ -1,11 +1,14 @@
 import json
 import os
+import re
 import socket
 import stat
 import subprocess
 import sys
+import time
 from pathlib import Path
 
+import httpx2
 import pytest
 
 from configutil import config_path, write_config
@@ -80,6 +83,8 @@ def project(tmp_path):
 
 
 _SERVERS: dict[Path, subprocess.Popen] = {}
+_PORTS: dict[Path, int] = {}
+JOB_TIMEOUT_SECONDS = 60
 
 
 def _serving(repo: Path, env) -> None:
@@ -91,6 +96,20 @@ def _serving(repo: Path, env) -> None:
     _SERVERS[repo] = server
     announced = server.stdout.readline()
     assert announced.startswith("serving on "), announced + server.stderr.read()
+    _PORTS[repo] = int(re.match(r"serving on http://127\.0\.0\.1:(\d+);", announced).group(1))
+    _await_listening(_PORTS[repo])
+
+
+def _await_listening(port: int) -> None:
+    """The server announces before it binds, so wait until it accepts connections."""
+    deadline = time.monotonic() + JOB_TIMEOUT_SECONDS
+    while True:
+        try:
+            socket.create_connection(("127.0.0.1", port), timeout=1).close()
+            return
+        except OSError:
+            assert time.monotonic() < deadline, f"nothing listening on port {port}"
+            time.sleep(0.05)
 
 
 def factory(project, *args, stdin=subprocess.DEVNULL, served=True):
@@ -98,6 +117,28 @@ def factory(project, *args, stdin=subprocess.DEVNULL, served=True):
     if served and args[0] not in ("--help", "migrate"):
         _serving(repo, env)
     return sh("uv", "run", "--project", str(ORCHESTRATOR), "factory", *args, cwd=repo, env=env, stdin=stdin)
+
+
+def api(project, method, path, **body):
+    """One JSON call to the project's real server, scoped to repo `proj`; returns the decoded body, failing on an error status."""
+    repo, env, _ = project
+    _serving(repo, env)
+    token = (Path(env["FACTORY_HOME"]) / "_server" / "token").read_text().strip()
+    response = httpx2.request(method, f"http://127.0.0.1:{_PORTS[repo]}/repos/proj{path}", json=body or None,
+                              headers={"Authorization": f"Bearer {token}"}, timeout=30)
+    assert response.status_code < 400, f"{method} {path}: {response.status_code} {response.text}"
+    return response.json()
+
+
+def advance(project, task_id):
+    """Queue an advance and wait for its job; returns the finished job, failing if it does not finish in time."""
+    job = api(project, "POST", f"/tasks/{task_id}/advance")["job"]
+    deadline = time.monotonic() + JOB_TIMEOUT_SECONDS
+    while job["state"] not in ("succeeded", "failed", "interrupted"):
+        assert time.monotonic() < deadline, f"advance job {job['id']} did not finish: {job}"
+        time.sleep(0.1)
+        job = api(project, "GET", f"/jobs/{job['id']}")
+    return job
 
 
 @pytest.mark.smoke
@@ -181,15 +222,16 @@ def test_the_repo_option_names_the_repo_when_the_command_runs_elsewhere(project)
     assert unnamed.returncode == 2 and "no repo" in unnamed.stderr
 
 
+@pytest.mark.smoke
 def test_advance_plans_and_reviews_with_read_only_tools_and_stops_at_reviewed(project):
     _, _, tmp_path = project
-    task_id = factory(project, "new", "add multiply").stdout.strip()
+    task_id = api(project, "POST", "/tasks", goal="add multiply")["id"]
 
-    result = factory(project, "advance", task_id)
+    job = advance(project, task_id)
 
-    assert result.returncode == 0, result.stderr
-    assert "plan -> planned" in result.stdout and "review -> reviewed" in result.stdout
-    assert f"factory approve proj/{task_id}" in result.stdout
+    assert job["state"] == "succeeded", job
+    assert job["result"]["steps"] == [{"stage": "plan", "state": "planned"}, {"stage": "review", "state": "reviewed"}]
+    assert job["result"]["state"] == "reviewed"
     calls = [json.loads(line) for line in (tmp_path / "argv.log").read_text().splitlines()]
     assert len(calls) == 2
     (worktree,) = (tmp_path / "factory-home" / "proj" / "worktrees").iterdir()
@@ -203,8 +245,8 @@ def test_advance_plans_and_reviews_with_read_only_tools_and_stops_at_reviewed(pr
     assert len(sandbox_calls) == 2
     for argv in sandbox_calls:
         assert argv[:7] == ["run", "-s", "--profile", "nolabs-ai/claude", "--allow-cwd", "--read", str(worktree)]
-    shown = factory(project, "show", task_id).stdout
-    assert "reviewed" in shown and "1. add multiply" in shown
+    shown = api(project, "GET", f"/tasks/{task_id}")
+    assert shown["state"] == "reviewed" and "1. add multiply" in shown["plan"]
 
 
 def test_approve_from_a_non_terminal_changes_nothing(project):
@@ -242,7 +284,7 @@ def test_the_implement_stage_runs_confined_with_no_shell_in_its_worktree(project
     (tmp_path / "factory-home" / "proj" / "state").mkdir(parents=True, exist_ok=True)
     SqliteTaskStore((tmp_path / "factory-home" / "proj" / "state") / "factory.db").save(Task(id="t9", prompt="implement it", state=TaskState.QUEUED))
 
-    factory(project, "advance", "t9")
+    advance(project, "t9")
 
     (argv,) = [json.loads(line) for line in (tmp_path / "argv.log").read_text().splitlines()]
     (worktree,) = (tmp_path / "factory-home" / "proj" / "worktrees").iterdir()
@@ -261,7 +303,7 @@ def test_the_agent_is_not_granted_a_directory_that_holds_the_server_state(projec
     (tmp_path / "factory-home" / "proj" / "state").mkdir(parents=True, exist_ok=True)
     SqliteTaskStore((tmp_path / "factory-home" / "proj" / "state") / "factory.db").save(Task(id="t8", prompt="implement it", state=TaskState.QUEUED))
 
-    factory(project, "advance", "t8")
+    advance(project, "t8")
 
     (worktree,) = (tmp_path / "factory-home" / "proj" / "worktrees").iterdir()
     (sandbox_argv,) = [json.loads(line) for line in (tmp_path / "nono.log").read_text().splitlines()]
@@ -270,8 +312,6 @@ def test_the_agent_is_not_granted_a_directory_that_holds_the_server_state(projec
 
 
 def test_a_failing_gate_runs_one_confined_fix_round_and_the_tests_then_pass(project):
-    import re
-
     from factory.sqlite_store import SqliteTaskStore
     from factory.task import Task, TaskState
     from factory.worktrees import WorktreeManager
@@ -285,9 +325,9 @@ def test_a_failing_gate_runs_one_confined_fix_round_and_the_tests_then_pass(proj
     SqliteTaskStore((tmp_path / "factory-home" / "proj" / "state") / "factory.db").save(
         Task(id="t9", prompt="stored", state=TaskState.AGENT_DONE, worktree=str(worktree), base_sha=base, goal="g", plan="p"))
 
-    result = factory(project, "advance", "t9")
+    job = advance(project, "t9")
 
-    assert "verify -> verified" in result.stdout, result.stdout + result.stderr  # the fake audit is out of scope
+    assert job["state"] == "succeeded" and ("verify", "verified") in [(s["stage"], s["state"]) for s in job["result"]["steps"]], job  # the fake audit is out of scope
     calls = [json.loads(line) for line in (tmp_path / "argv.log").read_text().splitlines()]
     (fix,) = [argv for argv in calls if "--json-schema" not in argv]
     assert "NEEDS-FIX" in fix[fix.index("-p") + 1]
@@ -295,8 +335,8 @@ def test_a_failing_gate_runs_one_confined_fix_round_and_the_tests_then_pass(proj
     assert fix[fix.index("--disallowedTools") + 1] == "Bash Bash(git *) Glob NotebookEdit"
     nono_calls = [json.loads(line) for line in (tmp_path / "nono.log").read_text().splitlines()]
     assert any(argv[argv.index("--") + 1].endswith("fake-claude") and "--profile" in argv for argv in nono_calls)
-    shown = factory(project, "show", "t9").stdout
-    assert "verified" in shown and "NEEDS-FIX" not in shown and "fix_rounds_used: 1" in shown
+    shown = api(project, "GET", "/tasks/t9")
+    assert shown["state"] == "verified" and shown["fix_rounds_used"] == 1 and "NEEDS-FIX" not in json.dumps(shown)
 
 
 def test_a_task_that_kept_its_plan_is_implemented_with_the_approved_prompt_in_a_fresh_worktree(project):
@@ -315,7 +355,7 @@ def test_a_task_that_kept_its_plan_is_implemented_with_the_approved_prompt_in_a_
                     goal="add multiply", plan=plan, plan_digest=plan_digest(plan), failure_reason="tests_failed"))
     child = retry_with_plan("t1", store, lambda: datetime(2026, 1, 2, 3, 4, 5), plan_digest(plan), ())
 
-    factory(project, "advance", child.id)
+    advance(project, child.id)
 
     (argv, *_) = [json.loads(line) for line in (tmp_path / "argv.log").read_text().splitlines()]
     assert argv[argv.index("-p") + 1] == build_implementation_prompt("add multiply", plan)
@@ -338,7 +378,7 @@ def query_records_script(tmp_path):
     return script
 
 
-def test_an_agent_launched_by_the_real_cli_is_recorded_while_it_runs(project):
+def test_an_agent_launched_by_the_real_server_is_recorded_while_it_runs(project):
     from factory.sqlite_process_records import SqliteProcessRecords
     from factory.sqlite_store import SqliteTaskStore
     from factory.task import Task, TaskState
@@ -352,13 +392,13 @@ def test_an_agent_launched_by_the_real_cli_is_recorded_while_it_runs(project):
     (tmp_path / "factory-home" / "proj" / "state").mkdir(parents=True, exist_ok=True)
     SqliteTaskStore((tmp_path / "factory-home" / "proj" / "state") / "factory.db").save(Task(id="t9", prompt="implement it", state=TaskState.QUEUED))
 
-    factory(project, "advance", "t9")
+    advance(project, "t9")
 
     assert seen.read_text() == "t9,running\n"
     assert SqliteProcessRecords((tmp_path / "factory-home" / "proj" / "state") / "factory.db").load() == []
 
 
-def test_a_gate_run_launched_by_the_real_cli_is_recorded_while_it_runs(project):
+def test_a_gate_run_launched_by_the_real_server_is_recorded_while_it_runs(project):
     from factory.sqlite_process_records import SqliteProcessRecords
     from factory.sqlite_store import SqliteTaskStore
     from factory.task import Task, TaskState
@@ -374,7 +414,7 @@ def test_a_gate_run_launched_by_the_real_cli_is_recorded_while_it_runs(project):
     SqliteTaskStore((tmp_path / "factory-home" / "proj" / "state") / "factory.db").save(
         Task(id="t9", prompt="stored", state=TaskState.AGENT_DONE, worktree=str(worktree), base_sha=base, goal="g", plan="p"))
 
-    factory(project, "advance", "t9")
+    advance(project, "t9")
 
     assert seen.read_text() == "t9,gate\n"
     assert SqliteProcessRecords((tmp_path / "factory-home" / "proj" / "state") / "factory.db").load() == []
