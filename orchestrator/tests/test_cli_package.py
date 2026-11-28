@@ -32,3 +32,34 @@ def test_the_cli_prints_settings_warnings_to_stderr(tmp_path):
 
     assert result.stderr.startswith("settings warning: project_subdir is unset")
     assert "target/" not in result.stdout
+
+
+def _factory_home(tmp_path):
+    home = tmp_path / "home"
+    repo = home / "proj" / "repo"
+    repo.mkdir(parents=True)
+    subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+    env = {key: value for key, value in os.environ.items() if key != "FACTORY_HOME"} | {"FACTORY_HOME": str(home)}
+    return home, repo, env
+
+
+def test_an_unknown_command_is_a_usage_error_with_the_web_ui_hint_even_outside_any_repo(tmp_path):
+    _, _, env = _factory_home(tmp_path)
+    outside = tmp_path / "elsewhere"
+    outside.mkdir()
+
+    result = _in_a_fresh_interpreter("-m", "factory.cli", "watch", cwd=outside, env=env)
+
+    assert result.returncode == 2
+    assert "usage error" in result.stderr and "factory ui" in result.stderr
+    assert "no repo" not in result.stderr
+
+
+def test_an_unknown_command_inside_a_repo_creates_no_state(tmp_path):
+    home, repo, env = _factory_home(tmp_path)
+    before = sorted(home.rglob("*"))
+
+    result = _in_a_fresh_interpreter("-m", "factory.cli", "watch", cwd=repo, env=env)
+
+    assert result.returncode == 2 and "factory ui" in result.stderr
+    assert sorted(home.rglob("*")) == before

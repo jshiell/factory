@@ -124,6 +124,8 @@ def main(argv: list[str], io: IO, ctx: Context) -> int:
         args = _parser().parse_args(argv)
     except _UsageError as error:
         print(f"usage error: {error}", file=io.stderr)
+        if "invalid choice" in str(error):
+            print("task commands were removed; use the web UI: `factory ui`", file=io.stderr)
         return 2
     except SystemExit as exit_:
         return exit_.code or 0
@@ -387,6 +389,8 @@ def _server_context() -> ServerContext:
 def run() -> None:
     known, rest = _preparser().parse_known_args(sys.argv[1:])
     io = IO(sys.stdin, sys.stdout, sys.stderr)
+    if not rest or rest[0] not in _COMMANDS:  # argparse rejects it before any repo context or state exists
+        sys.exit(main(rest, io, None))
     if (rest[:1] and rest[0] in _NEEDS_NO_REPO) or {"-h", "--help"} & set(rest):
         try:
             sys.exit(main(rest, io, None))
