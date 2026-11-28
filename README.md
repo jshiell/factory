@@ -27,7 +27,7 @@ factory ui                # prints a one-time login link; open it in the browser
 ```
 
 The browser is the only task interface: create, answer, approve, advance and merge tasks there. Advancing is safe to re-run: it does whatever the current state calls for and stops at the next human gate, a failure,
-or its step cap. Agent spend is capped (see `cap_usd`) and every call is recorded in a ledger.
+or its step cap. Agent spend is capped (see `cap_usd` in [Configuration](#configuration)) and every call is recorded in a ledger.
 
 ## Web UI
 
@@ -39,7 +39,7 @@ The server also serves a browser page under `/ui`. From it you can create tasks,
 - Markdown: the plan (task, approve and retry pages) and each question body (answer page) render as CommonMark, nothing more: raw HTML is shown as text, images show only their alt text, and only `http`, `https` and `mailto` links become links (any other target stays plain text). Links open in a new tab with `rel="noopener noreferrer"`. On the approve and retry confirm pages each link is followed by its target, `text (url)`, so a person approving sees where it goes. The same control-character escaping applies to the rendered output. Approval still binds to the raw plan text, not what is shown. Titles, risks and findings stay plain text.
 - Style: the pages use sentence case for headings, labels, links, buttons and messages ("Goal: x", "Back to the task list"), and show states, stages, job kinds and job states humanised ("Open questions"). Stored values, URLs, JSON and logs stay raw, as do ids, branches, paths, code, goal and plan text, agent text, failure codes and job error text.
 - A session unused for 8 hours expires (not configurable); every request the guard authenticates counts as use. An open live-update stream is not cut when its session expires; it ends when the page closes it or the server stops.
-- Sessions live in memory, so restarting `serve` logs the browser out: the page should show a "Disconnected" banner (see the last bullet), also when you return to a tab that was hidden during the restart; run `factory ui` again.
+- Sessions live in memory, so restarting `serve` logs the browser out: the page should show a "Disconnected" banner, also when you return to a tab that was hidden during the restart; run `factory ui` again.
 - Under `/ui` the `Host` must be loopback or in `server_allowed_hosts` (same rule as the API: exact, case-sensitive, port ignored), an `Origin` must be absent or the server's own (reads; writes have a stricter rule, below), and `Sec-Fetch-Site` must be `same-origin` or `none`. Every UI response carries a strict Content-Security-Policy and `Cache-Control: no-store`. The JSON API stays Bearer-only: a cookie does not open it, and Bearer does not open `/ui`.
 - Reject: the page of a task in state `reviewed` shows a "Reject this plan" link to `/ui/tasks/{id}/reject`. That confirm page shows the goal and one button, which POSTs (a plain form, answered with a 303 back to the task page). The task becomes `failed` with reason `plan_rejected_by_human`. A rejection costs work: a rejected task is terminal, and a retry only makes a new `proposed` task from the goal (grill answers are lost); keeping the plan is refused. Any other state, including a task that left `reviewed` meanwhile, gets a 409 page; a missing, malformed or unreadable id gets the 404 or 500 page. None of these pages echoes the id.
 - Answer: the page of a task in state `open_questions` shows an "Answer these questions" link to `/ui/tasks/{id}/answer`. That page shows each question and has one text field per question, prefilled with the recommended answer; a blank field takes the recommended answer. The POST (a plain form, answered with a 303 back to the task page) moves the task to `proposed`. A page opened before a new round of questions arrived gets a 409 "questions changed" page. The form body is parsed by hand (no `python-multipart`): urlencoded only, at most 64 KiB, a repeated `round` or answer field is refused, and a bad form gets a 422 page.
@@ -54,7 +54,7 @@ The server also serves a browser page under `/ui`. From it you can create tasks,
 - Risk: cookies ignore ports, so another server on loopback that your browser visits receives the cookie. HttpOnly keeps page scripts from reading it, but that server can replay the cookie with its own `Host` and `Origin` headers, so it could do anything the pages can: reject, approve, answer, create tasks, advance, rebase, merge, abandon, recover, retry, diagnose or clean (approving, advancing, retrying and diagnosing queue work that spends money, and merging changes code). This is accepted for a single-user machine.
 - Task actions (plan 80). The JSON status codes and bodies are unchanged; the web pages share the same code (`web_actions.py`).
   - New task (`/ui/tasks/new`, with a repo selector; `?repo=NAME` preselects one): a goal and a "grill" checkbox prefilled from the `grill` setting. Creating does not start the task; advance it from its page.
-  - Diagnose has the same kind of confirmation page and link, shown for a failed task with a worktree (see "Failure diagnosis").
+  - Diagnose has the same kind of confirmation page and link, shown for a failed task with a worktree (see [Failure diagnosis](#failure-diagnosis)).
   - Advance, rebase, merge, abandon and recover each have a confirmation page at `/ui/repos/{repo}/tasks/{id}/<action>` and a link on the task page, shown only when the task's state allows it (abandon is also hidden while a fix agent is in flight, and no link is shown while the task has a queued or running job). The POST queues a job and answers 303 to the task page, which shows the latest job (kind, state, error, stopped) and updates live. A page for a task in the wrong state, or with an unfinished job, is a 409 page, and a malformed form is a 422 page. Advance runs until the next decision point and may spend money on several stages. Merge's page shows the branch, audited commit, diffstat and findings, and the POST is refused if the audited commit changed.
   - Retry (`/ui/repos/{repo}/tasks/{id}/retry`) is synchronous and redirects to the new task. When the plan can be kept the page says so, and that advancing the new task spends money. The keep-plan form also shows the reviewer notes with a waive checkbox per required note, and lists the notes waived earlier with a reinstate checkbox each. Waive and reinstate cannot be combined in one retry, and a retry from scratch accepts neither (422). An audit finding that quotes a waived note is not sent to the new task. Known limit: these forms bind only the plan digest, not the notes shown; the notes are read again when the form is posted, so a stale choice is refused but a note added since the page loaded is accepted without being shown.
   - Costs (`/ui/costs`), jobs (`/ui/jobs`, the latest 50) and clean (`/ui/repos/{repo}/clean`, linked from the index, one repo at a time: a preview, then one button bound to the preview's token; if what would be cleaned changed the POST is a 409 page).
@@ -85,9 +85,9 @@ Upgrading from a single-repo layout: a repo must now sit at `<home>/<name>/repo`
 ```toml
 server_port = 8765             # global-only; where `serve` listens and `ui` and `eval-audit` connect
 server_host = "127.0.0.1"      # global-only; "127.0.0.1" or "0.0.0.0" (`serve --host` overrides). A wide bind alone does not enable remote use: non-loopback Hosts are refused unless listed in `server_allowed_hosts`
-server_allowed_hosts = ["nas.lan"]  # global-only, default empty: extra Host names the guard accepts (see "Server"); plain HTTP, use a VPN or SSH tunnel
+server_allowed_hosts = ["nas.lan"]  # global-only, default empty: extra Host names the guard accepts (see "Remote access and security"); plain HTTP, use a VPN or SSH tunnel
 project_subdir = "."           # default: the repo root. Where the agent works and the tests run; not .factory or inside it. Tasks may edit the whole repo except .factory/ either way
-gate_allow_dependency_changes = false  # default false; repo file only. true lets a task change dependencies, entry points, build config and uv.lock (see the gate section)
+gate_allow_dependency_changes = false  # default false; repo file only. true lets a task change dependencies, entry points, build config and uv.lock (see "How agents are kept in check")
 grill = true                   # the planner may ask questions first
 grill_max_rounds = 3           # answer rounds before the planner must plan; 0 = no grilling
 main_branch = "main"           # repo-only; default unset (no check). When set, merge and rebase refuse unless the server checkout is on this branch; read at `serve` startup, so restart after changing it
@@ -127,8 +127,8 @@ The `sandbox` setting names the confinement mechanism for agent runs and the gat
 |---|---|
 | `init` | Write a commented global `<home>/factory.toml` template and the shared plugins directory. Needs no repo or server; refuses to overwrite an existing file |
 | `clone <repo>` | Clone a GitHub repository with `gh repo clone` into `<home>/<name>/repo`. Needs no repo or server. See "Cloning a repo" below |
-| `serve [--port N] [--host H]` | Run the local HTTP server (below) |
-| `ui [--host NAME]` | Print a one-time login link for the web UI; `--host` puts NAME in the link, for a browser on another machine (see "Web UI" below) |
+| `serve [--port N] [--host H]` | Run the local HTTP server (see [Remote access and security](#remote-access-and-security)) |
+| `ui [--host NAME]` | Print a one-time login link for the web UI; `--host` puts NAME in the link, for a browser on another machine (see [Web UI](#web-ui)) |
 | `eval-audit` | Run the auditor over 25 labelled changes (about $2) and compare with the last comparable run. See "Evaluating the auditor" below |
 | `eval-export DIR [--out DIR] [--with-findings]` | Write a shareable `run.json` and `run.md` for an eval directory. Needs no repo or server |
 
@@ -289,7 +289,7 @@ flowchart TB
 
 ### How agents are kept in check
 
-- **Sandboxed.** Every agent runs under `nono`. Measured on Linux (nono 0.81, `spike/confinement_probe.py`; for macOS see [Platform verification](#platform-verification)): it can read and write its whole worktree (`.git` file and `.factory/` included; see the sandbox setting), and read the directory holding the executable. Other tasks'
+- **Sandboxed.** Every agent runs under `nono`. Measured on Linux (nono 0.81, `spike/confinement_probe.py`; for macOS see [Platform verification](#platform-verification)): it can read and write its whole worktree (`.git` file and `.factory/` included; see the `sandbox` setting in [Configuration](#configuration)), and read the directory holding the executable. Other tasks'
   worktrees, the main checkout, `.git/config`, the state directory and the rest of `$HOME` were denied. Not denied: the
   agent can read and write `~/.claude` (including the credentials `claude` itself needs) and write `$TMPDIR`. The GitHub token
   variables are removed from its environment (and the sandboxed gate's). The implementer has no `Bash` and no `git`; plan, review and audit
