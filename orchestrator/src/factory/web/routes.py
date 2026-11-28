@@ -822,13 +822,15 @@ def _task_routes(prefix: str) -> list[Route]:
     pages = (("reject", _reject_page, _reject), ("answer", _answer_page, _answer), ("approve", _approve_page, _approve),
              ("abandon", _action_page(_ABANDON), _action_post(_ABANDON)),
              ("recover", _action_page(_RECOVER), _action_post(_RECOVER)),
-             ("advance", _action_page(_ADVANCE), _action_post(_ADVANCE)),
+             ("advance", None, _action_post(_ADVANCE)),
              ("diagnose", _action_page(_DIAGNOSE), _action_post(_DIAGNOSE)),
              ("rebase", _action_page(_REBASE), _action_post(_REBASE)),
              ("merge", _merge_page, _merge), ("retry", _retry_page, _retry))
     routes = [Route(task, _task_page, methods=["GET"])]
     for name, page, post in pages:
-        routes += [Route(f"{task}/{name}", page, methods=["GET"]), Route(f"{task}/{name}", post, methods=["POST"])]
+        if page is not None:
+            routes.append(Route(f"{task}/{name}", page, methods=["GET"]))
+        routes.append(Route(f"{task}/{name}", post, methods=["POST"]))
     return [*routes, Route(f"{task}/events", _task_events, methods=["GET"])]
 
 

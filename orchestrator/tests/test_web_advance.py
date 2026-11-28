@@ -51,9 +51,18 @@ def test_posting_an_advance_for_a_task_with_an_unfinished_job_is_a_409_and_queue
     assert client.app.state.repos["proj"].jobs.list() == [first]
 
 
+def test_advance_has_no_get_page_and_a_get_changes_nothing(client, ctx):
+    add(ctx, TASK_ID, TaskState.QUEUED, goal="fix the widget")
+
+    response = client.get(f"/ui/repos/proj/tasks/{TASK_ID}/advance")
+
+    assert response.status_code == 405
+    assert "<form" not in response.text and TASK_ID not in response.text
+    assert client.app.state.repos["proj"].jobs.list() == []
+
+
 @pytest.mark.parametrize("task_id", REFUSED_IDS)
 def test_advance_for_a_missing_or_invalid_id_is_a_404_without_the_id(client, task_id):
-    _assert_refusal_without_the_id(client.get(f"/ui/repos/proj/tasks/{task_id}/advance"), 404, task_id)
     _assert_refusal_without_the_id(_post_advance(client, task_id), 404, task_id)
     assert client.app.state.repos["proj"].jobs.list() == []
 
@@ -70,16 +79,16 @@ def test_a_bad_advance_form_is_a_422_that_queues_nothing(client, ctx, body, cont
     assert ctx.store.load(TASK_ID) == before
 
 
-def test_the_advance_page_and_post_without_a_session_or_from_a_foreign_origin_are_refused_and_queue_nothing(client, ctx):
+def test_an_advance_post_without_a_session_or_from_a_foreign_origin_is_refused_and_queues_nothing(client, ctx):
     before = add(ctx, TASK_ID, TaskState.QUEUED, goal="fix the widget")
     foreign = _post_advance(client, headers={"Origin": "http://evil.example"})
     client.cookies.clear()
 
-    responses = [client.get(f"/ui/repos/proj/tasks/{TASK_ID}/advance"), _post_advance(client)]
+    unauthenticated = _post_advance(client)
 
     assert foreign.status_code == 403
-    assert [response.status_code for response in responses] == [401, 401]
-    for response in [foreign, *responses]:
+    assert unauthenticated.status_code == 401
+    for response in (foreign, unauthenticated):
         assert_ui_security_headers(response)
     assert client.app.state.repos["proj"].jobs.list() == []
     assert ctx.store.load(TASK_ID) == before

@@ -13,6 +13,7 @@ pytest_plugins = ["webfixtures"]
 
 FORM = "application/x-www-form-urlencoded"
 ACTIONS = ["recover", "advance", "rebase"]
+PAGE_ACTIONS = [action for action in ACTIONS if action != "advance"]
 
 
 def _post(client, action, task_id):
@@ -20,13 +21,13 @@ def _post(client, action, task_id):
                        headers={**same_origin_headers(), "Content-Type": FORM})
 
 
-@pytest.mark.parametrize("action", ACTIONS)
+@pytest.mark.parametrize("action", PAGE_ACTIONS)
 @pytest.mark.parametrize("task_id", REFUSED_IDS)
 def test_the_page_of_a_missing_or_invalid_id_is_a_404_without_the_id(client, action, task_id):
     _assert_refusal_without_the_id(client.get(f"/ui/repos/proj/tasks/{task_id}/{action}"), 404, task_id)
 
 
-@pytest.mark.parametrize("action", ACTIONS)
+@pytest.mark.parametrize("action", PAGE_ACTIONS)
 def test_the_page_of_an_unreadable_task_is_a_500_without_the_id(client, ctx, action):
     _plant_unreadable_task(ctx)
 
