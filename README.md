@@ -45,10 +45,8 @@ Linux was re-measured on 2026-11-18 (nono 0.81.0, kernel 7.0.0-43). macOS was me
 Run everything from the repo root. `uv run --project orchestrator factory <command>` (or install the `factory` script).
 
 ```sh
-factory new "add a divide function that raises on zero"   # creates a task, prints its id
-factory advance t1        # runs stages until a human is needed: plan, review, then stops at "reviewed"
-factory approve t1        # needs a terminal: shows goal, plan, risks, review findings; type y
-factory advance t1        # implement, verify (with fix rounds), audit
+factory serve             # start the local server
+factory ui                # prints a one-time link: create, advance, approve and answer tasks in the browser
 factory merge t1          # needs a terminal: shows diffstat and audit findings; type y
 ```
 
@@ -59,11 +57,6 @@ or its step cap. Agent spend is capped (see `cap_usd`) and every call is recorde
 
 | Command | What it does |
 |---|---|
-| `new <goal> [--no-grill]` | Create a task (`proposed`). `--no-grill` skips the planner's questions for this task; without it the `grill` setting decides |
-| `answer <id>` | Answer a task's open questions (state `open_questions`). Needs a TTY (the web UI page does not). See "Grilling" below; then run `advance` again |
-| `list` / `show <id>` | List tasks, or show one task's state, goal, plan, risks, review and audit findings, failure reason, worktree and branch |
-| `advance <id>` | Run the next automatic stages until a human gate, a failure or the step cap |
-| `approve <id>` / `reject <id>` | Accept or reject a reviewed plan. `approve` needs a TTY (the web UI page does not) and binds to a digest of the plan you saw |
 | `merge <id>` | Fast-forward `main` to the audited commit. Needs a TTY; shows what will land first |
 | `retry <id>` | Start a fresh task from a failed or audited one (new id, `retry_of` set) |
 | `retry <id> --keep-plan` | Same, but queue it with the plan you already approved, skipping plan and review. Needs a TTY: shows the plan and asks `y` |
@@ -71,7 +64,6 @@ or its step cap. Agent spend is capped (see `cap_usd`) and every call is recorde
 | `abandon <id>` | Fail a task that is not running (for example one stuck mid-rebase) |
 | `recover <id>` | Mark a task whose driver died (`running`) as failed, charging an assumed cost |
 | `clean` | After a preview and confirmation, remove worktrees, gate caches, orphan caches and branches of finished tasks |
-| `costs [id]` | Spend by stage and by task, with assumed costs shown separately |
 | `init` | Write a commented global `<home>/factory.toml` template and the shared plugins directory. Needs no repo or server; refuses to overwrite an existing file |
 | `clone <repo>` | Clone a GitHub repository with `gh repo clone` into `<home>/<name>/repo`. Needs no repo or server. See "Cloning a repo" below |
 | `migrate` | Copy the old JSON tasks and ledger under `<home>/<name>/state` into `factory.db`. Refuses a database that already has rows; never deletes the old files |

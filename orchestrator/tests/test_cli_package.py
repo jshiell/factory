@@ -2,6 +2,8 @@ import os
 import subprocess
 import sys
 
+import pytest
+
 
 def _in_a_fresh_interpreter(*args: str, **kwargs) -> subprocess.CompletedProcess:
     return subprocess.run([sys.executable, "-I", *args], capture_output=True, text=True, **kwargs)
@@ -53,6 +55,18 @@ def test_an_unknown_command_is_a_usage_error_with_the_web_ui_hint_even_outside_a
     assert result.returncode == 2
     assert "usage error" in result.stderr and "factory ui" in result.stderr
     assert "no repo" not in result.stderr
+
+
+@pytest.mark.parametrize("command", ["new", "list", "show", "advance", "answer", "approve", "reject", "costs"])
+def test_a_removed_task_command_is_a_usage_error_with_the_web_ui_hint_even_outside_any_repo(tmp_path, command):
+    _, _, env = _factory_home(tmp_path)
+    outside = tmp_path / "elsewhere"
+    outside.mkdir()
+
+    result = _in_a_fresh_interpreter("-m", "factory.cli", command, cwd=outside, env=env)
+
+    assert result.returncode == 2
+    assert "usage error" in result.stderr and "factory ui" in result.stderr
 
 
 def test_an_unknown_command_inside_a_repo_creates_no_state(tmp_path):

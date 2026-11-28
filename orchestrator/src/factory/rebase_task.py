@@ -87,7 +87,7 @@ def rebase_task(task_id: str, store: TaskStore, repo: Path, main_branch: str | N
 def _require_rebasable(task: Task, repo: Path, main_branch: str | None) -> _Worktree:
     branch = f"factory/{task.id}"
     if task.fix_in_flight:
-        raise RebaseRefused(f"{task.id} has a fix agent that may still be alive: run `factory advance` first")
+        raise RebaseRefused(f"{task.id} has a fix agent that may still be alive: advance it first")
     if not task.worktree or not Path(task.worktree).is_dir():
         raise RebaseRefused(f"{task.id} has no worktree on disk to rebase in")
     worktree = _Worktree(Path(task.worktree), _expected_git_dir(task, repo))

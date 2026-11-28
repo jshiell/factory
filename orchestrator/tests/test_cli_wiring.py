@@ -146,7 +146,7 @@ def test_help_exits_0_and_names_the_commands(project):
     result = factory(project, "--help")
 
     assert result.returncode == 0
-    for command in ("new", "advance", "approve", "costs"):
+    for command in ("merge", "retry", "serve", "ui"):
         assert command in result.stdout
 
 
@@ -199,16 +199,6 @@ def test_clone_refuses_an_existing_target_through_the_cli(project):
     assert f"{target} already exists; not overwriting" in result.stderr
 
 
-@pytest.mark.smoke
-def test_new_list_show_work_against_a_fresh_state_directory(project):
-    created = factory(project, "new", "add multiply")
-    task_id = created.stdout.strip()
-
-    assert created.returncode == 0 and task_id
-    assert task_id in factory(project, "list").stdout
-    assert "add multiply" in factory(project, "show", task_id).stdout
-
-
 def test_the_repo_option_names_the_repo_when_the_command_runs_elsewhere(project):
     repo, env, tmp_path = project
     _serving(repo, env)
@@ -249,16 +239,6 @@ def test_advance_plans_and_reviews_with_read_only_tools_and_stops_at_reviewed(pr
     assert shown["state"] == "reviewed" and "1. add multiply" in shown["plan"]
 
 
-def test_approve_from_a_non_terminal_changes_nothing(project):
-    task_id = factory(project, "new", "add multiply").stdout.strip()
-    factory(project, "advance", task_id)
-
-    result = factory(project, "approve", task_id, stdin=subprocess.PIPE)
-
-    assert result.returncode == 1 and "interactive" in result.stderr
-    assert "reviewed" in factory(project, "show", task_id).stdout
-
-
 def test_a_bad_config_file_exits_2_naming_the_key(project):
     repo, _, _ = project
     write_config(repo, "bogus = 1\n")
@@ -269,12 +249,12 @@ def test_a_bad_config_file_exits_2_naming_the_key(project):
 
 
 def test_merge_from_a_non_terminal_changes_nothing(project):
-    task_id = factory(project, "new", "add multiply").stdout.strip()
+    task_id = api(project, "POST", "/tasks", goal="add multiply")["id"]
 
     result = factory(project, "merge", task_id, stdin=subprocess.PIPE)
 
     assert result.returncode == 1 and "interactive" in result.stderr
-    assert "proposed" in factory(project, "show", task_id).stdout
+    assert api(project, "GET", f"/tasks/{task_id}")["state"] == "proposed"
 
 
 def test_the_implement_stage_runs_confined_with_no_shell_in_its_worktree(project):

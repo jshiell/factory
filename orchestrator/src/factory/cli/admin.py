@@ -1,3 +1,5 @@
+from urllib.parse import urlsplit, urlunsplit
+
 from factory.cli.base import IO, _print_reaped
 from factory.clone_repo import RepositoryError, clone_repository
 from factory.ledger import Ledger
@@ -57,6 +59,22 @@ def _bind_warning(host: str, port: int, allowed_hosts) -> str | None:
         return (f"warning: bound to {host}, so port {port} is reachable from the network; "
                 "requests whose Host is not loopback are still refused (403)")
     return None
+
+
+def _ui(args, io, ctx) -> int:
+    from factory.server import _LOOPBACK_HOSTS
+    if args.host is not None and args.host not in _LOOPBACK_HOSTS | set(ctx.settings.server_allowed_hosts):
+        print(f"usage error: --host {args.host} is not loopback or in server_allowed_hosts", file=io.stderr)
+        return 2
+    url = ctx.server.post("/ui-login-codes")["url"]
+    print(url if args.host is None else _with_host(url, args.host), file=io.stdout)
+    return 0
+
+
+def _with_host(url: str, host: str) -> str:
+    parts = urlsplit(url)
+    netloc = host if parts.port is None else f"{host}:{parts.port}"
+    return urlunsplit(parts._replace(netloc=netloc))
 
 
 def _serve(args, io, ctx) -> int:

@@ -15,7 +15,7 @@ from factory.ledger import Ledger
 from factory.merge_task import MergeRefused
 from factory.server import load_or_create_token
 from factory.settings import Settings
-from factory.store import TaskStore, task_to_dict
+from factory.store import TaskStore
 from factory.task import Task, TaskState
 from serving import repos_app
 
@@ -55,128 +55,7 @@ def put(ctx, state=S.PROPOSED, task_id="t1", **fields):
     ctx.store.save(Task(id=task_id, prompt="", state=state, **fields))
 
 
-# --- new / list / show -------------------------------------------------------
-
-def test_new_creates_a_proposed_task_with_the_goal_and_prints_its_id(ctx):
-    code, out, _ = run(ctx, "new", "add multiply")
-
-    task = ctx.store.load("20260102-030405")
-    assert code == 0 and out.strip() == "20260102-030405"
-    assert (task.state, task.goal, task.prompt) == (S.PROPOSED, "add multiply", "")
-
-
-def test_new_no_grill_stores_a_task_that_does_not_grill_and_plain_new_follows_the_setting(ctx):
-    plain_id = run(ctx, "new", "loud")[1].strip()
-    quiet_id = run(ctx, "new", "--no-grill", "quiet")[1].strip()
-
-    assert (ctx.store.load(plain_id).grill, ctx.store.load(quiet_id).grill) == (True, False)
-
-
-def test_new_in_the_same_second_gets_a_suffix_instead_of_overwriting(ctx):
-    run(ctx, "new", "first")
-    code, out, _ = run(ctx, "new", "second")
-
-    assert code == 0 and out.strip() == "20260102-030405-2"
-    assert ctx.store.load("20260102-030405").goal == "first"
-
-
-def test_list_shows_id_state_and_failure_reason_and_names_skipped_files(ctx):
-    put(ctx, S.FAILED, "a", failure_reason="tests_failed")
-    put(ctx, S.REVIEWED, "b")
-    (ctx.settings.tasks_dir / "broken.json").write_text("{nope")
-
-    code, out, _ = run(ctx, "list")
-
-    assert code == 0
-    assert "a  failed  tests_failed" in out and "b  reviewed" in out and "skipped: broken.json" in out
-
-
-def test_list_describes_a_known_failure_reason_after_its_code(ctx):
-    put(ctx, S.FAILED, "a", failure_reason="timeout")
-
-    _, out, _ = run(ctx, "list")
-
-    assert "a  failed  timeout - The agent ran out of time. Retry the task." in out
-
-
-def test_list_shows_ids_and_skipped_names_with_control_characters_escaped(ctx):
-    ctx.settings.tasks_dir.mkdir(parents=True, exist_ok=True)
-    (ctx.settings.tasks_dir / "plain.json").write_text(_json.dumps(task_to_dict(Task(id="x\x1b[31my", prompt=""))))
-    (ctx.settings.tasks_dir / "bad\x07name.json").write_text("{nope")
-
-    code, out, _ = run(ctx, "list")
-
-    assert code == 0
-    assert "\x1b" not in out and "\x07" not in out
-    assert "x\\x1b[31my  queued" in out and "skipped: bad\\x07name.json" in out
-
-
-def test_show_prints_the_task_details(ctx):
-    put(ctx, S.AUDITED, goal="g", plan="the plan", plan_risks=("r1",), review_findings=("f1",),
-        audit_findings=("a1",), worktree="/w/t1", plan_error="old")
-
-    code, out, _ = run(ctx, "show", "t1")
-
-    assert code == 0
-    for text in ("audited", "g", "the plan", "r1", "f1", "a1", "/w/t1", "factory/t1", "old"):
-        assert text in out
-
-
-def test_show_reads_a_task_that_has_open_questions_through_the_server(ctx):
-    # guard (green on arrival): the server JSON carries the grilling fields and task_from_dict rebuilds them
-    question = {"number": 1, "title": "t", "body": "b", "recommended": "yes"}
-    put(ctx, S.OPEN_QUESTIONS, goal="g", grill=True, grill_rounds=1, open_questions=(question,))
-
-    code, out, _ = run(ctx, "show", "t1")
-
-    assert code == 0 and "open_questions" in out
-
-
-def test_show_lists_the_open_questions_with_their_recommendations(ctx):
-    asking(ctx)
-
-    _, out, _ = run(ctx, "show", "t1")
-
-    assert "questions (round 1):" in out and "1. Which db" in out and "recommended: sqlite" in out
-
-
-def test_show_prints_the_code_first_then_describes_a_known_failure_reason(ctx):
-    put(ctx, S.FAILED, failure_reason="tests_failed")
-
-    _, out, _ = run(ctx, "show", "t1")
-
-    assert ("failure: tests_failed - The tests failed after the agent's change (and any fix rounds). "
-            "Read the test output; retry or fix by hand.") in out
-
-
-def test_show_leaves_a_free_text_failure_reason_as_it_is(ctx):
-    put(ctx, S.FAILED, failure_reason="gate failed")
-
-    _, out, _ = run(ctx, "show", "t1")
-
-    assert "failure: gate failed\n" in out + "\n"
-
-
-@pytest.mark.parametrize("field, code, sentence", [
-    ("plan_error", "plan_malformed", "The plan came back in a form that could not be read."),
-    ("review_error", "review_malformed", "The review came back unreadable."),
-    ("audit_error", "audit_malformed", "The audit came back unreadable."),
-])
-def test_show_describes_a_known_stage_error_after_its_code(ctx, field, code, sentence):
-    put(ctx, S.PROPOSED, **{field: code})
-
-    _, out, _ = run(ctx, "show", "t1")
-
-    assert f"{field}: {code} - {sentence} Advance again" in out
-
-
-@pytest.mark.parametrize("command", ["show", "advance", "approve", "reject", "costs"])
-@pytest.mark.parametrize("task_id", ["missing", "../evil"])
-def test_unknown_or_unsafe_ids_exit_2(ctx, command, task_id):
-    code, _, err = run(ctx, command, task_id)
-
-    assert code == 2 and task_id in err
-
+# --- usage --------------------------------------------------------------------
 
 def test_usage_errors_exit_2(ctx):
     assert run(ctx)[0] == 2
@@ -197,24 +76,7 @@ def test_control_characters_are_escaped_except_newline_and_tab():
     assert escaped == "ok\n\tfine \\x1b[2K hidden\\x0dline \\u202e"
 
 
-def test_show_escapes_control_characters_in_agent_text(ctx):
-    put(ctx, S.REVIEWED, goal="g", plan="line\x1b[8mhidden")
-
-    _, out, _ = run(ctx, "show", "t1")
-
-    assert "\x1b" not in out and "\\x1b[8mhidden" in out
-
-
-def test_guard_show_escapes_a_lone_surrogate_in_agent_text(ctx):
-    put(ctx, S.REVIEWED, goal="bad\ud800goal")
-
-    code, out, _ = run(ctx, "show", "t1")
-
-    assert code == 0
-    assert "\ud800" not in out and "bad\\ud800goal" in out
-
-
-# --- advance ------------------------------------------------------------------
+# --- stage fakes --------------------------------------------------------------
 
 def moving(ctx, to, **fields):
     def stage(task_id):
@@ -227,294 +89,6 @@ def moving(ctx, to, **fields):
 def all_stages(ctx):
     return {"plan": moving(ctx, S.PLANNED), "review": moving(ctx, S.REVIEWED), "implement": moving(ctx, S.AGENT_DONE),
             "verify": moving(ctx, S.VERIFIED), "audit": moving(ctx, S.AUDITED)}
-
-
-def test_advance_prints_steps_and_exits_0_at_reviewed_pointing_at_approve(ctx):
-    put(ctx)
-    ctx.stages.update(all_stages(ctx))
-
-    code, out, _ = run(ctx, "advance", "t1")
-
-    assert code == 0
-    assert "plan -> planned" in out and "review -> reviewed" in out and "factory approve proj/t1" in out
-
-
-def test_advance_exits_0_at_audited(ctx):
-    put(ctx, S.QUEUED)
-    ctx.stages.update(all_stages(ctx))
-
-    assert run(ctx, "advance", "t1")[0] == 0
-
-
-def test_advance_exits_0_at_open_questions_pointing_at_answer(ctx):
-    put(ctx, goal="g", grill=True)
-    ctx.stages.update({"plan": moving(ctx, S.OPEN_QUESTIONS, grill_rounds=1)})
-
-    code, out, _ = run(ctx, "advance", "t1")
-
-    assert code == 0
-    assert "plan -> open_questions" in out and "open questions; run: factory answer proj/t1" in out
-    assert "no progress" not in out
-
-
-QUESTION = {"number": 1, "title": "Which db", "body": "Pick one.", "recommended": "sqlite"}
-
-
-def asking(ctx, *questions, **fields):
-    put(ctx, S.OPEN_QUESTIONS, goal="g", grill=True, grill_rounds=1, open_questions=questions or (QUESTION,), **fields)
-
-
-def test_answer_refuses_without_an_interactive_terminal_and_changes_nothing(ctx):
-    asking(ctx)
-
-    code, _, err = run(ctx, "answer", "t1", tty=False)
-
-    assert code == 1 and "answering needs an interactive terminal" in err
-    assert ctx.store.load("t1").state is S.OPEN_QUESTIONS
-
-
-def test_answer_shows_escaped_questions_and_posts_the_recommendation_or_the_typed_line(ctx, monkeypatch):
-    second = {"number": 2, "title": "Which\x1b[31m cache", "body": "Pick\x07 one.", "recommended": "none\x1b[2K"}
-    asking(ctx, QUESTION, second)
-    posted = []
-    real_post = ctx.server.post
-    monkeypatch.setattr(ctx.server, "post", lambda path, body=None: posted.append((path, body)) or real_post(path, body))
-
-    code, out, _ = run(ctx, "answer", "t1", stdin="\nredis\n")
-
-    assert code == 0 and "\x1b" not in out and "\x07" not in out
-    assert "Which db" in out and "Pick one." in out and "recommended: sqlite" in out and "Which\\x1b[31m cache" in out
-    path, body = posted[0]
-    assert path == "/tasks/t1/answer" and body["round"] == 1
-    assert body["answers"] == "1. sqlite\n2. redis"
-    assert ctx.store.load("t1").state is S.PROPOSED
-
-
-def test_answer_says_nothing_was_answered_when_the_round_moved_on_after_display(ctx, monkeypatch):
-    asking(ctx)
-    real_post = ctx.server.post
-
-    def moved_on(path, body=None):
-        ctx.store.save(replace(ctx.store.load("t1"), grill_rounds=2))
-        return real_post(path, body)
-    monkeypatch.setattr(ctx.server, "post", moved_on)
-
-    code, _, err = run(ctx, "answer", "t1", stdin="\n")
-
-    assert code == 1 and "questions changed since display; nothing answered" in err
-    assert ctx.store.load("t1").state is S.OPEN_QUESTIONS
-
-
-def test_answer_of_a_task_that_is_not_asking_says_so_and_exits_1(ctx):
-    put(ctx, goal="g")
-
-    code, _, err = run(ctx, "answer", "t1", stdin="\n")
-
-    assert code == 1 and "proposed" in err
-
-
-def test_advance_exits_1_when_the_task_fails_and_when_a_stage_stops(ctx):
-    put(ctx, S.QUEUED)
-    ctx.stages.update({**all_stages(ctx), "implement": moving(ctx, S.FAILED, failure_reason="timeout")})
-    assert run(ctx, "advance", "t1")[0] == 1
-
-    put(ctx)
-    ctx.stages.update({**all_stages(ctx), "plan": lambda task_id: ctx.store.load(task_id)})
-    code, out, _ = run(ctx, "advance", "t1")
-    assert code == 1 and "plan: no progress" in out
-
-
-def test_advance_describes_a_known_failure_reason_after_its_code(ctx):
-    put(ctx, S.QUEUED)
-    ctx.stages.update({**all_stages(ctx), "implement": moving(ctx, S.FAILED, failure_reason="timeout")})
-
-    _, out, _ = run(ctx, "advance", "t1")
-
-    assert "state: failed (timeout - The agent ran out of time. Retry the task.)" in out
-
-
-def test_advance_describes_the_error_behind_a_no_progress_stop_after_its_code(ctx):
-    put(ctx)
-
-    def stuck(task_id):
-        task = replace(ctx.store.load(task_id), plan_error="plan_malformed")
-        ctx.store.save(task)
-        return task
-    ctx.stages.update({**all_stages(ctx), "plan": stuck})
-
-    _, out, _ = run(ctx, "advance", "t1")
-
-    assert "stopped: plan: no progress (plan_malformed)\n" in out
-    assert "plan_error: plan_malformed - The plan came back in a form that could not be read. Advance again to re-plan.\n" in out
-
-
-# --- reject / costs -----------------------------------------------------------
-
-def test_reject_fails_a_reviewed_task_without_needing_a_terminal(ctx):
-    put(ctx, S.REVIEWED)
-
-    code, _, _ = run(ctx, "reject", "t1", tty=False)
-
-    task = ctx.store.load("t1")
-    assert code == 0 and (task.state, task.failure_reason) == (S.FAILED, "plan_rejected_by_human")
-
-
-def test_reject_of_a_task_that_is_not_reviewed_exits_1(ctx):
-    put(ctx, S.PLANNED)
-
-    code, _, err = run(ctx, "reject", "t1")
-
-    assert code == 1 and "planned" in err and ctx.store.load("t1").state is S.PLANNED
-
-
-def test_costs_totals_by_stage_and_task_and_flags_assumed_entries(ctx):
-    put(ctx)
-    ctx.ledger.append("t1", 0.1, stage="plan")
-    ctx.ledger.append("t1", 0.2, stage="plan")
-    ctx.ledger.append("t2", 0.6, assumed=True, stage="audit")
-    ctx.ledger.append("t2", 0.05)
-
-    code, out, _ = run(ctx, "costs")
-
-    assert code == 0
-    assert "plan  $0.3000" in out and "audit  $0.6000" in out and "unknown  $0.0500" in out
-    assert "t1  $0.3000" in out and "t2  $0.6500" in out and "assumed: $0.6000" in out and "total: $0.9500" in out
-
-
-def test_costs_shows_ledger_task_ids_with_control_characters_escaped(ctx):
-    ctx.ledger.append("x\x1b[31my", 0.5, stage="plan")
-
-    _, out, _ = run(ctx, "costs")
-
-    assert "x\\x1b[31my  $0.5000" in out and "\x1b" not in out
-
-
-def test_costs_for_one_task_only_counts_that_task(ctx):
-    put(ctx)
-    ctx.ledger.append("t1", 0.1, stage="plan")
-    ctx.ledger.append("t2", 0.9, stage="plan")
-
-    _, out, _ = run(ctx, "costs", "t1")
-
-    assert "total: $0.1000" in out and "t2" not in out
-
-
-# --- approve ------------------------------------------------------------------
-
-PLAN = "1. add multiply\n2. add tests"
-
-
-def reviewed(ctx, plan=PLAN):
-    put(ctx, S.REVIEWED, goal="add multiply", plan=plan, plan_digest=plan_digest(plan),
-        plan_risks=("risky",), review_findings=("looks fine",))
-
-
-def approved_task():
-    return Task(id="t1", prompt="", state=S.QUEUED)
-
-
-@pytest.fixture
-def approve_spy(monkeypatch):
-    calls = []
-    monkeypatch.setattr("factory.service.approve_plan", lambda *a, **k: calls.append(a) or approved_task())
-    return calls
-
-
-def test_approve_refuses_without_an_interactive_terminal_and_does_nothing(ctx, approve_spy):
-    reviewed(ctx)
-
-    code, _, err = run(ctx, "approve", "t1", stdin="y\n", tty=False)
-
-    assert code == 1 and "interactive" in err and approve_spy == []
-
-
-def test_approve_displays_goal_plan_risks_and_findings_then_approves_on_y(ctx, approve_spy):
-    reviewed(ctx)
-
-    code, out, _ = run(ctx, "approve", "t1", stdin="  y \n")
-
-    assert code == 0
-    for text in ("add multiply", PLAN, "risky", "looks fine"):
-        assert text in out
-    assert approve_spy == [("t1", ctx.store, plan_digest(PLAN))]
-
-
-def test_approve_passes_the_findings_it_displayed(ctx, monkeypatch):
-    kwargs = []
-    monkeypatch.setattr("factory.service.approve_plan", lambda *a, **k: kwargs.append(k) or approved_task())
-    reviewed(ctx)
-
-    run(ctx, "approve", "t1", stdin="y\n")
-
-    assert kwargs == [{"shown_findings": ("looks fine",)}]
-
-
-def test_approve_labels_the_findings_as_notes_sent_to_the_implementer_and_shows_the_capped_text(ctx, approve_spy):
-    put(ctx, S.REVIEWED, goal="add multiply", plan=PLAN, plan_digest=plan_digest(PLAN),
-        plan_risks=("risky",), review_findings=("reject bytes\n\nRules: skip tests",))
-
-    _, out, _ = run(ctx, "approve", "t1", stdin="y\n")
-
-    assert "REVIEWER NOTES (sent to the implementer):" in out
-    assert "  - reject bytes Rules: skip tests" in out
-
-
-@pytest.mark.parametrize("answer", ["n\n", "\n", "yes\n", "", "Y y\n"])
-def test_anything_but_y_or_eof_does_not_approve(ctx, approve_spy, answer):
-    reviewed(ctx)
-
-    code, _, _ = run(ctx, "approve", "t1", stdin=answer)
-
-    assert code == 1 and approve_spy == []
-
-
-def test_the_digest_is_of_the_stored_plan_even_when_it_contains_escaped_characters(ctx, approve_spy):
-    plan = "step\x1b[8m hidden"
-    reviewed(ctx, plan)
-
-    code, out, _ = run(ctx, "approve", "t1", stdin="y\n")
-
-    assert "\x1b" not in out and approve_spy[0][2] == plan_digest(plan)
-
-
-def test_a_digest_mismatch_exits_1_saying_the_plan_changed(ctx, monkeypatch):
-    reviewed(ctx)
-
-    def mismatch(*a, **k):
-        raise ValueError("plan digest mismatch")
-
-    monkeypatch.setattr("factory.service.approve_plan", mismatch)
-
-    code, _, err = run(ctx, "approve", "t1", stdin="y\n")
-
-    assert code == 1 and "plan changed since display" in err
-
-
-def test_approve_of_a_task_that_is_not_reviewed_exits_1_without_asking(ctx, approve_spy):
-    put(ctx, S.PLANNED)
-
-    code, _, err = run(ctx, "approve", "t1", stdin="y\n")
-
-    assert code == 1 and "planned" in err and approve_spy == []
-
-
-def test_a_real_approval_queues_the_task(ctx):
-    reviewed(ctx)
-
-    code, _, _ = run(ctx, "approve", "t1", stdin="y\n")
-
-    assert code == 0 and ctx.store.load("t1").state is S.QUEUED
-
-
-@pytest.mark.parametrize("command", [["new", "g"], ["list"], ["show", "t1"], ["advance", "t1"], ["reject", "t1"],
-                                      ["costs"]])
-def test_no_command_except_approve_calls_approve_plan(ctx, approve_spy, command):
-    reviewed(ctx)
-    ctx.stages.update(all_stages(ctx))
-
-    run(ctx, *command, stdin="y\n")
-
-    assert approve_spy == []
 
 
 # --- merge --------------------------------------------------------------------
@@ -608,12 +182,6 @@ def test_retry_of_a_task_that_cannot_be_retried_exits_1_with_the_reason(ctx):
     code, _, err = run(ctx, "retry", "t1")
 
     assert code == 1 and "queued" in err
-
-
-def test_show_prints_retry_of(ctx):
-    put(ctx, S.PROPOSED, goal="g", retry_of="t0")
-
-    assert "retry_of: t0" in run(ctx, "show", "t1")[1]
 
 
 # --- recover ------------------------------------------------------------------
@@ -824,7 +392,7 @@ def test_rebase_sends_the_task_back_to_agent_done_names_the_old_commit_and_needs
 
     task = ctx.store.load("t1")
     assert code == 0 and task.state is S.AGENT_DONE and task.audited_sha is None
-    assert old in out and "factory advance" in out
+    assert old in out and "advance it from the web UI (`factory ui`)" in out
 
 
 def test_rebase_of_a_refused_task_exits_1_with_the_reason_and_changes_nothing(ctx):
@@ -950,13 +518,6 @@ def test_keeping_the_plan_describes_a_known_failure_reason_after_its_code(ctx, k
     assert "FAILED BECAUSE: timeout - The agent ran out of time. Retry the task." in out
 
 
-@pytest.mark.parametrize("command", [["advance", "t1", "--keep-plan"], ["approve", "t1", "--keep-plan"], ["new", "g", "--keep-plan"]])
-def test_keep_plan_is_only_a_flag_of_retry(ctx, command):
-    code, _, err = run(ctx, *command)
-
-    assert code == 2 and "usage error" in err
-
-
 def test_keeping_the_plan_refuses_without_an_interactive_terminal_and_creates_nothing(ctx, keep_spy):
     approved_failure(ctx)
 
@@ -993,7 +554,7 @@ def test_keeping_the_plan_shows_the_plan_and_context_then_creates_a_queued_task_
         assert text in out
     new = ctx.store.load("20260102-030405")
     assert new.state is S.QUEUED and new.retry_of == "t1" and new.plan == KEPT
-    assert "20260102-030405" in out and "factory advance proj/20260102-030405" in out
+    assert "20260102-030405" in out and "advance it from the web UI (`factory ui`)" in out
 
 
 @pytest.mark.parametrize("answer", ["n\n", "\n", "yes\n", "", "Y y\n"])
@@ -1035,8 +596,7 @@ def test_an_audited_source_is_shown_with_its_findings_and_a_mergeable_warning(ct
     assert "naming is odd" in out and "still mergeable" in out
 
 
-@pytest.mark.parametrize("command", [["new", "g"], ["list"], ["show", "t1"], ["advance", "t1"], ["reject", "t1"],
-                                      ["approve", "t1"], ["retry", "t1"], ["costs"]])
+@pytest.mark.parametrize("command", [["retry", "t1"]])
 def test_guard_no_command_except_retry_keep_plan_calls_retry_with_plan(ctx, keep_spy, command):
     approved_failure(ctx)
     ctx.stages.update(all_stages(ctx))
@@ -1336,142 +896,6 @@ REQ2 = "Recommend (required): use math.fsum so the sum cannot overflow"
 OPT = "Recommend (optional): add a docstring"
 
 
-def reviewed_with_notes(ctx, *notes):
-    put(ctx, S.REVIEWED, goal="add multiply", plan=PLAN, plan_digest=plan_digest(PLAN),
-        plan_risks=("risky",), review_findings=notes)
-
-
-def test_approve_numbers_the_required_notes_and_offers_waiving_them(ctx, approve_spy):
-    reviewed_with_notes(ctx, REQ1, OPT, REQ2, "plain note")
-
-    _, out, _ = run(ctx, "approve", "t1", stdin="n\n")
-
-    assert f"  - [1] {REQ1}\n" in out and f"  - [2] {REQ2}\n" in out
-    assert f"  - {OPT}\n" in out and "  - plain note\n" in out
-    assert "'w 1 3'" in out
-
-
-def test_approve_without_a_required_note_shows_no_numbers_and_no_waive_offer(ctx, approve_spy):
-    # guard (green on arrival; mutation-checked)
-    reviewed_with_notes(ctx, OPT, "plain note")
-
-    _, out, _ = run(ctx, "approve", "t1", stdin="n\n")
-
-    assert "[1]" not in out and "waive" not in out
-    assert out.endswith("Approve this plan? [y/N] not approved\n")
-
-
-@pytest.fixture
-def approve_kwargs(monkeypatch):
-    calls = []
-    monkeypatch.setattr("factory.service.approve_plan", lambda *a, **k: calls.append(k) or approved_task())
-    return calls
-
-
-def test_w_shows_what_it_waives_asks_again_and_on_y_approves_with_that_note_waived(ctx, approve_kwargs):
-    reviewed_with_notes(ctx, REQ1, OPT, REQ2)
-
-    code, out, _ = run(ctx, "approve", "t1", stdin="w 2\ny\n")
-
-    assert code == 0
-    assert approve_kwargs == [{"shown_findings": (REQ1, OPT, REQ2), "waived": (REQ2,)}]
-    assert "Waiving" in out and f"  - {REQ2}\n" in out.split("Waiving", 1)[1]
-    assert "Waive these and approve? [y/N] " in out
-
-
-@pytest.mark.parametrize("text", ["w", "w 0", "w 3", "w 1 1", "w x", "w ²", "w -1"])
-def test_a_bad_waive_answer_approves_nothing_exits_1_and_says_why(ctx, approve_kwargs, text):
-    from factory.waiver import parse_answer
-
-    reviewed_with_notes(ctx, REQ1, OPT, REQ2)
-
-    code, out, err = run(ctx, "approve", "t1", stdin=text + "\ny\n")
-
-    assert code == 1 and approve_kwargs == []
-    assert err.strip() == parse_answer(text, 2).reason and "Waiving" not in out
-    assert ctx.store.load("t1").state is S.REVIEWED
-
-
-def test_an_unknown_answer_just_says_not_approved(ctx, approve_kwargs):
-    # guard (green on arrival): W is not w, and n is n
-    reviewed_with_notes(ctx, REQ1)
-
-    for text in ("W 1", "n", "yes"):
-        code, out, err = run(ctx, "approve", "t1", stdin=text + "\n")
-        assert code == 1 and out.endswith("not approved\n") and err == ""
-
-    assert approve_kwargs == []
-
-
-def test_y_with_required_notes_shown_approves_without_a_waiver(ctx, approve_kwargs):
-    # guard (green on arrival; mutation-checked)
-    reviewed_with_notes(ctx, REQ1, REQ2)
-
-    code, _, _ = run(ctx, "approve", "t1", stdin="y\n")
-
-    assert code == 0 and approve_kwargs == [{"shown_findings": (REQ1, REQ2)}]
-
-
-@pytest.mark.parametrize("second", ["n\n", "\n", "yes\n", ""])
-def test_declining_the_waiver_confirmation_approves_nothing(ctx, approve_kwargs, second):
-    # guard (green on arrival; mutation-checked)
-    reviewed_with_notes(ctx, REQ1, REQ2)
-
-    code, out, _ = run(ctx, "approve", "t1", stdin="w 1\n" + second)
-
-    assert code == 1 and approve_kwargs == [] and out.endswith("not approved\n")
-
-
-def test_w_when_no_note_is_required_approves_nothing(ctx, approve_kwargs):
-    # guard (green on arrival; mutation-checked)
-    reviewed_with_notes(ctx, OPT, "plain note")
-
-    code, _, err = run(ctx, "approve", "t1", stdin="w 1\ny\n")
-
-    assert code == 1 and approve_kwargs == [] and err.strip()
-
-
-def test_a_hint_names_the_task_with_its_repo_when_the_command_runs_in_one(ctx):
-    ctx.repo = "proj"
-    put(ctx, goal="g", grill=True)
-    ctx.stages.update({"plan": moving(ctx, S.OPEN_QUESTIONS, grill_rounds=1)})
-
-    _, out, _ = run(ctx, "advance", "t1")
-
-    assert "open questions; run: factory answer proj/t1" in out
-
-
-def test_list_outside_any_repo_is_a_usage_error_naming_the_repo_option(ctx):
-    ctx.repo = None
-
-    code, out, err = run(ctx, "list")
-
-    assert (code, out) == (2, "")
-    assert "--repo" in err
-
-
-def test_an_invalid_waiver_from_approve_is_reported_as_such_not_as_a_changed_plan(ctx, monkeypatch):
-    from factory.waiver import InvalidWaiver
-
-    def refuse(*args, **kwargs):
-        raise InvalidWaiver("only a required note can be waived: x")
-
-    monkeypatch.setattr("factory.service.approve_plan", refuse)
-    reviewed_with_notes(ctx, REQ1)
-
-    code, _, err = run(ctx, "approve", "t1", stdin="w 1\ny\n")
-
-    assert code == 1 and "cannot waive" in err and "plan changed" not in err
-
-
-def test_the_approve_line_names_how_many_required_notes_were_waived(ctx, approve_kwargs):
-    reviewed_with_notes(ctx, REQ1, REQ2)
-
-    _, out, _ = run(ctx, "approve", "t1", stdin="w 1 2\ny\n")
-
-    assert "approved and queued (2 required notes waived); run: factory advance proj/t1" in out
-
-
 # --- waiving required notes at retry --keep-plan ---------------------------------
 
 @pytest.fixture
@@ -1566,15 +990,6 @@ def test_no_reinstate_hint_or_block_without_earlier_waivers(ctx, keep_kwargs):
     assert err.strip() == "note numbers must be between 1 and 0"
 
 
-def test_approve_does_not_take_r(ctx, approve_kwargs):
-    # guard (green on arrival; mutation-checked)
-    reviewed_with_notes(ctx, REQ1)
-
-    code, out, _ = run(ctx, "approve", "t1", stdin="r 1\ny\n")
-
-    assert code == 1 and approve_kwargs == [] and "reinstate" not in out.lower()
-
-
 def test_a_failed_reinstate_is_reported_as_such_not_as_a_waiver(ctx, monkeypatch):
     from factory.waiver import InvalidWaiver
 
@@ -1625,40 +1040,6 @@ def test_a_gap_quoting_a_waived_note_is_reported_as_dropped(ctx, keep_kwargs):
 
 def _required_notes(count):
     return tuple(f"gap {i}. Recommend (required): handle it" for i in range(count))
-
-
-def test_approve_warns_how_many_required_notes_the_cap_dropped_before_asking(ctx, approve_spy):
-    from factory.review_notes import MAX_ITEMS
-
-    put(ctx, S.REVIEWED, goal="add multiply", plan=PLAN, plan_digest=plan_digest(PLAN),
-        plan_risks=("risky",), review_findings=_required_notes(MAX_ITEMS + 3))
-
-    _, out, _ = run(ctx, "approve", "t1", stdin="y\n")
-
-    warning = f"WARNING: 3 required note(s) beyond the first {MAX_ITEMS} were dropped"
-    assert warning in out and out.index("REVIEWER NOTES") < out.index(warning) < out.index("Approve this plan?")
-
-
-def test_guard_approve_prints_no_warning_at_the_item_limit(ctx, approve_spy):
-    from factory.review_notes import MAX_ITEMS
-
-    put(ctx, S.REVIEWED, goal="add multiply", plan=PLAN, plan_digest=plan_digest(PLAN),
-        plan_risks=("risky",), review_findings=_required_notes(MAX_ITEMS))
-
-    _, out, _ = run(ctx, "approve", "t1", stdin="y\n")
-
-    assert "WARNING" not in out
-
-
-def test_guard_waiving_a_shown_note_still_prints_the_warning_once(ctx, approve_spy):
-    from factory.review_notes import MAX_ITEMS
-
-    put(ctx, S.REVIEWED, goal="add multiply", plan=PLAN, plan_digest=plan_digest(PLAN),
-        plan_risks=("risky",), review_findings=_required_notes(MAX_ITEMS + 2))
-
-    _, out, _ = run(ctx, "approve", "t1", stdin="w 1\ny\n")
-
-    assert out.count("WARNING: 2 required note(s)") == 1
 
 
 def test_retry_keeping_the_plan_warns_how_many_stored_required_notes_the_cap_dropped(ctx, monkeypatch):

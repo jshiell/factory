@@ -11,7 +11,7 @@ from factory.audit_corpus import CASES as EVAL_CASES
 from factory.audit_corpus import PROJECT_SUBDIR
 from factory.audit_eval import check_corpus
 from factory.audit_share import build_bundle, write_bundle
-from factory.cli.admin import _clone, _migrate, _serve
+from factory.cli.admin import _clone, _migrate, _serve, _ui
 from factory.cli.base import (
     IO,
     NO_REPO_MESSAGE,
@@ -26,17 +26,6 @@ from factory.cli.base import (
 )
 from factory.cli.recovery import _abandon, _clean, _merge, _rebase, _recover, _retry
 from factory.cli.recovery import _describe_candidate as _describe_candidate
-from factory.cli.tasks import (
-    _advance,
-    _answer,
-    _approve,
-    _costs,
-    _list,
-    _new,
-    _reject,
-    _show,
-    _ui,
-)
 from factory.client import ServerClient, ServerRefused, ServerUnreachable
 from factory.gate import check_gate
 from factory.ids import InvalidTaskId
@@ -85,11 +74,7 @@ def _preparser() -> argparse.ArgumentParser:
 def _parser() -> argparse.ArgumentParser:
     parser = _Parser(prog="factory")
     commands = parser.add_subparsers(dest="command", required=True, parser_class=_Parser)
-    new = commands.add_parser("new")
-    new.add_argument("goal")
-    new.add_argument("--no-grill", action="store_true")
-    commands.add_parser("list")
-    for name in ("show", "advance", "answer", "approve", "reject", "merge", "recover", "abandon", "rebase"):
+    for name in ("merge", "recover", "abandon", "rebase"):
         commands.add_parser(name).add_argument("task_id")
     retry = commands.add_parser("retry")
     retry.add_argument("task_id")
@@ -103,7 +88,6 @@ def _parser() -> argparse.ArgumentParser:
     serve.add_argument("--host", choices=BIND_HOSTS)
     ui = commands.add_parser("ui", help="Print a one-time link that logs a browser into the web UI")
     ui.add_argument("--host", help="Host name for the link: a loopback name or one in server_allowed_hosts")
-    commands.add_parser("costs").add_argument("task_id", nargs="?")
     audit_eval = commands.add_parser("eval-audit")
     audit_eval.add_argument("--runs", type=int, default=3)
     audit_eval.add_argument("--only", action="append")
@@ -318,8 +302,7 @@ def _eval_export(args, io, ctx) -> int:
 
 
 _COMMANDS = {
-    "new": _new, "list": _list, "show": _show, "advance": _advance,
-    "answer": _answer, "approve": _approve, "reject": _reject, "merge": _merge, "retry": _retry, "recover": _recover, "abandon": _abandon, "rebase": _rebase, "clean": _clean, "migrate": _migrate, "costs": _costs, "eval-audit": _eval_audit, "eval-export": _eval_export, "serve": _serve, "ui": _ui,
+    "merge": _merge, "retry": _retry, "recover": _recover, "abandon": _abandon, "rebase": _rebase, "clean": _clean, "migrate": _migrate, "eval-audit": _eval_audit, "eval-export": _eval_export, "serve": _serve, "ui": _ui,
     "init": lambda args, io, ctx: init_global_config(io),
     "clone": lambda args, io, ctx: _clone(args.repository, io),
 }

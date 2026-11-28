@@ -75,7 +75,7 @@ def _retry_keeping_plan(task_id: str, io, ctx) -> int:
         else:
             raise
         return 1
-    print(f"{_ref(ctx, new['id'])}: queued with the approved plan; run: factory advance {_ref(ctx, new['id'])}", file=io.stdout)
+    print(f"{_ref(ctx, new['id'])}: queued with the approved plan; advance it from the web UI (`factory ui`)", file=io.stdout)
     return 0
 
 
@@ -100,7 +100,7 @@ def _rebase(args, io, ctx) -> int:
     rebased = _run_job(ctx, io, _task_path(args.task_id, "/rebase"))
     if rebased is None:
         return 1
-    print(f"{_ref(ctx, args.task_id)}: rebased onto main, back to agent_done; run `factory advance {_ref(ctx, args.task_id)}` to re-verify and re-audit", file=io.stdout)
+    print(f"{_ref(ctx, args.task_id)}: rebased onto main, back to agent_done; advance it from the web UI (`factory ui`) to re-verify and re-audit", file=io.stdout)
     print(f"the previously audited commit was {rebased['old_audited_sha']}; it is unreachable once the branch is cleaned", file=io.stdout)
     return 0
 

@@ -13,7 +13,7 @@ def _refusal(task: Task) -> str | None:
     if task.state is TaskState.RUNNING:
         return f"{task.id} is running: use `factory recover` once the driver is gone"
     if task.fix_in_flight:
-        return f"{task.id} has a fix agent that may still be alive: run `factory advance` first"
+        return f"{task.id} has a fix agent that may still be alive: advance it first"
     return None
 
 
