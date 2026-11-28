@@ -722,6 +722,7 @@ def _retry_choice(form: dict[str, list[str]]) -> str | None:
 def _kept_plan(task) -> dict:
     """What a keep-plan retry carries over, from the one load that passed the keepable check, with that plan's digest."""
     return {"plan": _safe(task.plan), "plan_digest": plan_digest(task.plan), **_notes_detail(task),
+            "waived_notes": [_safe(note) for note in task.waived_findings],
             "audit_findings": [_safe(finding) for finding in gaps_to_carry(task)]}
 
 

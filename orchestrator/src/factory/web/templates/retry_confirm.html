@@ -30,6 +30,13 @@
 {% for note in kept.required_notes %}<label><input type="checkbox" name="waive" value="{{ note }}"> [{{ loop.index }}] {{ note }}</label><br>
 {% endfor %}</fieldset>
 {% endif %}
+{% if kept.waived_notes %}
+<fieldset>
+<legend>Waived earlier</legend>
+<p>A ticked note is not waived any more: the new task is told about it and the audit enforces it again. Waive and reinstate cannot be combined in one retry.</p>
+{% for note in kept.waived_notes %}<label><input type="checkbox" name="reinstate" value="{{ note }}"> {{ note }}</label><br>
+{% endfor %}</fieldset>
+{% endif %}
 <input type="hidden" name="keep_plan" value="1">
 <input type="hidden" name="plan_digest" value="{{ kept.plan_digest }}">
 <button type="submit">Retry keeping the plan</button>

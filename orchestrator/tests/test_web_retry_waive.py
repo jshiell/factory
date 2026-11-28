@@ -76,6 +76,24 @@ def test_a_retry_from_scratch_that_posts_waive_or_reinstate_is_a_422_and_queues_
         assert [task.id for task in ctx.store.list().tasks] == [TASK_ID]
 
 
+def test_the_keep_plan_form_lists_the_notes_waived_earlier_with_a_reinstate_checkbox_for_each(client, ctx):
+    keepable(ctx, ("Recommend (required): add y",), waived_findings=("Recommend (required): fix <x>",))
+
+    text = client.get(f"/ui/repos/proj/tasks/{TASK_ID}/retry").text
+
+    plain, keep = _forms(text)
+    assert 'name="reinstate"' not in plain
+    boxes = re.findall(r'<input\b[^>]*name="reinstate"[^>]*>', keep)
+    assert len(boxes) == 1 and 'type="checkbox"' in boxes[0] and 'value="Recommend (required): fix &lt;x&gt;"' in boxes[0]
+    assert "Waived earlier" in keep and "not waived" in keep
+
+
+def test_the_keep_plan_form_has_no_reinstate_section_when_nothing_was_waived(client, ctx):
+    keepable(ctx, ("Recommend (required): add y",))
+
+    assert 'name="reinstate"' not in client.get(f"/ui/repos/proj/tasks/{TASK_ID}/retry").text
+
+
 def test_the_keep_plan_page_warns_when_required_notes_were_dropped_by_the_cap(client, ctx):
     keepable(ctx, tuple(f"Recommend (required): note {i}" for i in range(MAX_ITEMS + 2)))
 
