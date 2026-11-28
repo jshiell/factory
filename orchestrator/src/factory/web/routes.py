@@ -375,9 +375,16 @@ def _single(form: dict[str, list[str]], name: str) -> str | None:
 
 
 def _chosen_notes(form: dict[str, list[str]], name: str, candidates: list[str]) -> tuple[str, ...]:
-    """The candidate notes whose escaped text the form posted under `name` (the page shows and posts the escaped text)."""
-    posted = form.get(name, [])
-    return tuple(note for note in candidates if _safe(note) in posted)
+    """The raw candidate note for each value posted under `name` (the page shows and posts the escaped text).
+
+    Raises `InvalidWaiver` for a value that matches no candidate, or matches two different notes."""
+    chosen = []
+    for value in form.get(name, []):
+        matches = {note for note in candidates if _safe(note) == value}
+        if len(matches) != 1:
+            raise InvalidWaiver(value)
+        chosen.append(matches.pop())
+    return tuple(chosen)
 
 
 def _round(form: dict[str, list[str]]) -> int:
@@ -465,6 +472,8 @@ async def _approve(request: Request) -> RedirectResponse | HTMLResponse:
     try:
         service.approve(_repo(request).store, task.id, shown_digest, task.review_findings,
                         waived=_chosen_notes(form, "waive", required))
+    except InvalidWaiver:  # a ValueError, so it must come before _UNREADABLE
+        return _wrong_state_page("A ticked note is not a required note of this plan, so nothing was approved. Open the task again to choose which notes to waive.")
     except service.NotReviewed:  # the task left reviewed between the load above and the one inside service.approve
         return _not_reviewed_wrong_state_page()
     except service.PlanChanged:

@@ -38,6 +38,18 @@ def _post_approve(client, fields):
     return client.post(f"/ui/repos/proj/tasks/{TASK_ID}/approve", data=fields, headers=same_origin_headers(), follow_redirects=False)
 
 
+def test_posting_a_waive_value_that_is_no_required_note_is_refused_with_a_409_and_the_task_stays_reviewed(client, ctx):
+    _reviewed(ctx, ("Recommend (required): cover edge cases", "Recommend (optional): rename it"))
+
+    for unknown in ("Recommend (required): invented", "Recommend (optional): rename it"):
+        response = _post_approve(client, {"plan_digest": plan_digest(PLAN), "waive": unknown})
+
+        assert response.status_code == 409
+        assert "invented" not in response.text and "rename it" not in response.text
+        assert "waive" in response.text
+        assert ctx.store.load(TASK_ID).state is TaskState.REVIEWED
+
+
 def test_posting_a_waive_value_queues_the_task_with_that_note_waived_and_out_of_the_prompt(client, ctx):
     _reviewed(ctx, ("Recommend (required): cover edge cases", "Recommend (required): add a test"))
 
