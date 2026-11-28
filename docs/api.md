@@ -2,7 +2,7 @@
 
 The JSON API served by `factory serve`. The Bearer token, the `Host` and `Origin` guard and the bind rules are in the
 README, under [Remote access and security](../README.md#remote-access-and-security); the web UI at `/ui` is described
-under [Web UI](../README.md#web-ui).
+under [Web UI](../README.md#web-ui). Settings such as `server_port` are under [Configuration](../README.md#configuration).
 
 Reads and quick actions answer at once; `advance`, `abandon`, `recover`, `rebase`, `merge`, `clean` and `eval-audit` return
 `202 {job}` and run one at a time, in order. Poll `GET /jobs/{id}`.
