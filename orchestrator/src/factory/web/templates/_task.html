@@ -25,7 +25,14 @@
 <p><a href="{{ base | default('/ui') }}/tasks/{{ task.id | urlencode }}/answer">Answer these questions</a></p>
 {% endif %}
 {% for name, text in actions %}
+{% if name == "advance" %}
+<form method="post" action="{{ base | default('/ui') }}/tasks/{{ task.id | urlencode }}/advance">
+<button type="submit" title="Runs until the next decision point. May spend money on several stages.">{{ text }}</button>
+<small>Runs until the next decision point. May spend money on several stages.</small>
+</form>
+{% else %}
 <p><a href="{{ base | default('/ui') }}/tasks/{{ task.id | urlencode }}/{{ name }}">{{ text }}</a></p>
+{% endif %}
 {% endfor %}
 </nav>
 {% endif %}

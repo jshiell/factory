@@ -93,6 +93,17 @@ def test_diagnose_is_hidden_while_the_failed_task_has_an_unfinished_job(client, 
     assert "diagnose" not in shown(client.get(PAGE).text)
 
 
+def test_advance_is_a_post_button_with_a_spending_note_not_a_link(client, ctx):
+    add(ctx, TASK, TaskState.QUEUED, goal="g")
+
+    html = client.get(PAGE).text
+
+    assert form("advance") in html
+    assert link("advance") not in html
+    assert 'title="' in html.split(form("advance"))[1].split("</form>")[0]
+    assert "May spend money on several stages" in html
+
+
 def test_the_action_links_have_readable_text(client, ctx):
     add(ctx, TASK, TaskState.AUDITED, goal="g")
 
