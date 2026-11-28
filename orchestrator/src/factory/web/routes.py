@@ -418,8 +418,8 @@ async def _answer(request: Request) -> RedirectResponse | HTMLResponse:
 
 def _approve_page_detail(task) -> dict:
     """What the CLI preview shows: the capped findings with required notes numbered, and the dropped-required warning."""
-    lines, _ = note_lines(capped_findings(task.review_findings))
-    return {"id": task.id, "goal": _safe(task.goal if task.goal is not None else task.prompt), "plan": _safe(task.plan),
+    lines, required = note_lines(capped_findings(task.review_findings))
+    return {"id": task.id, "required_notes": [_safe(note) for note in required], "goal": _safe(task.goal if task.goal is not None else task.prompt), "plan": _safe(task.plan),
             "risks": [_safe(risk) for risk in task.plan_risks], "findings": _safe("\n".join(lines)),
             "warning": _safe(dropped_required_warning(task.review_findings)), "plan_digest": plan_digest(task.plan)}
 

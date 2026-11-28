@@ -43,16 +43,16 @@ def test_the_approve_page_shows_what_the_cli_preview_shows_and_a_form_posting_th
     assert "[2] Recommend (required): add a test" in pre[0]
     assert "WARNING" not in response.text
     assert "kept in the agent prompt and the audit, except any listed as dropped" in response.text
-    assert "factory approve" in response.text
+    assert "factory approve" not in response.text
     assert "<b>" not in response.text and "<script>" not in response.text and "\x1b" not in response.text
     forms = re.findall(r"<form\b[^>]*>.*?</form>", response.text, re.S)
     assert len(forms) == 1
     form = forms[0]
     assert re.search(r'<form[^>]*method="post"', form)
     assert f'action="/ui/repos/proj/tasks/{TASK_ID}/approve"' in form
-    (hidden,) = re.findall(r"<input\b[^>]*>", form)
+    (hidden,) = re.findall(r"<input\b[^>]*type=\"hidden\"[^>]*>", form)
     assert 'type="hidden"' in hidden and 'name="plan_digest"' in hidden and f'value="{plan_digest(PLAN)}"' in hidden
-    assert len(re.findall(r"<(?:input|button|select|textarea)\b", form)) == 2
+    assert len(re.findall(r"<(?:input|button|select|textarea)\b", form)) == 4  # digest, one checkbox per required note, button
     assert re.search(r'<button[^>]*type="submit"', form)
     assert f'<a href="/ui/repos/proj/tasks/{TASK_ID}">' in response.text
     assert "<style" not in response.text and "style=" not in response.text

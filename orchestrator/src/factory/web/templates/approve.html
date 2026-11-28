@@ -18,8 +18,15 @@
 {% if task.warning %}
 <p><strong>{{ task.warning }}</strong></p>
 {% endif %}
-<p>Required notes are kept in the agent prompt and the audit, except any listed as dropped. To waive a note, run <code>factory approve {{ task.id }}</code> in a terminal instead.</p>
+<p>Required notes are kept in the agent prompt and the audit, except any listed as dropped.</p>
 <form method="post" action="{{ base | default('/ui') }}/tasks/{{ task.id | urlencode }}/approve">
+{% if task.required_notes %}
+<fieldset>
+<legend>Waive required notes</legend>
+<p>A ticked note is not sent to the agents and not enforced by the audit.</p>
+{% for note in task.required_notes %}<label><input type="checkbox" name="waive" value="{{ note }}"> [{{ loop.index }}] {{ note }}</label><br>
+{% endfor %}</fieldset>
+{% endif %}
 <input type="hidden" name="plan_digest" value="{{ task.plan_digest }}">
 <button type="submit">Approve plan</button>
 </form>
