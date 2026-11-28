@@ -58,4 +58,21 @@ A new reader can install, start the server, log in and configure a repo from the
 - 'Older builds cannot read new task rows' was not re-verified against the store code; the line is carried over as written and flagged as unverified in the README wording check at increment 0.
 
 ## Deviations
-(none yet)
+
+### Increment 0: survey (README line numbers as of 687ac34)
+- **README mentions elsewhere:** only `AGENTS.md:11` ('the policy documents today's grants (see the README)', meaning the sandbox paragraph, README 328-333) and `docs/spike-findings.md` (294, 619, 632; prose, no links or anchors). Nothing in `orchestrator/src`, `.github`, `spike` or the tests reads or links the README. `init_config.py` has its own TOML template and does not need to mirror the README block.
+- **Anchors and references to fix in 1c:**
+  - `#platform-verification` links: 22, 328, 441, 453, 454, 455 (and the Design ones near 333); 1a moves the section, the anchor itself survives.
+  - Quoted: 60 'Cloning a repo', 62 'Web UI', 63 'Evaluating the auditor', 111 and 114 'below', 120 'Web UI', 168 'Failure diagnosis', 182 'Configuration', 199 'Server' (inside the TOML block), 334 'Web UI'.
+  - Positional: 53 'see `cap_usd`', 61 '(below)', 153 'see the last bullet' (the not-yet-checked bullet, 174, is deleted), 154 'below', 328 'the sandbox setting'.
+  - Already dangling: 201 'see the gate section'. Nearest real section: 'How agents are kept in check'.
+- **Server paragraphs (109-141):** 109-112 and 114-120 and 122 go to Remote access and security (109's first clause stays in the `serve` Commands row); 124-140 go verbatim to `docs/api.md`; 141 goes to Commands (client facts), with its 401 and 403 wording linked to the Remote access section.
+- **Web UI bullets (147-174):**
+  - Using the web UI: 145, 147 (login part), 148, 149, 150, 155-157 (flow part), 166-172.
+  - Remote access and security: 147 (cookie and host-check part), 152-154, 158-161, 165, and the 164 static-files-need-no-cookie sentence.
+  - Known limits or Design: 162, 163, 173, and the 164 vendoring sentence.
+  - Development: 151 (style rules).
+  - Dropped: 174. Mixed bullets (147, 155-157) are split at sentence boundaries during increment 5.
+- **Sections to delete, sorted:** `factory watch` note (182) is history, except the refusal of `watch_*` keys, which is repeated at 190. 'What the CLI no longer does' (68-78): keep only the JSON locations, which go to `docs/api.md` in increment 7; the TTY sentence is repeated at 158. 'Upgrading from a single-repo layout' (194): keep the startup refusal and the `target/` warning in Configuration; the root `factory.toml` instruction is repeated at 186, and the rest is history.
+- **Unverified:** 'No downgrade' (180) is carried over unchanged into Known limits; I did not check it against the store code.
+- **Tooling:** git 2.53.0, so `git diff --color-moved=zebra --color-moved-ws=allow-indentation-change` is available.
