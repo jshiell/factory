@@ -24,8 +24,6 @@ from factory.cli.base import (
 from factory.cli.base import (
     _reap_with_the_real_process_table as _reap_with_the_real_process_table,
 )
-from factory.cli.recovery import _abandon, _clean, _merge, _rebase, _recover, _retry
-from factory.cli.recovery import _describe_candidate as _describe_candidate
 from factory.client import ServerClient, ServerRefused, ServerUnreachable
 from factory.gate import check_gate
 from factory.ids import InvalidTaskId
@@ -74,12 +72,6 @@ def _preparser() -> argparse.ArgumentParser:
 def _parser() -> argparse.ArgumentParser:
     parser = _Parser(prog="factory")
     commands = parser.add_subparsers(dest="command", required=True, parser_class=_Parser)
-    for name in ("merge", "recover", "abandon", "rebase"):
-        commands.add_parser(name).add_argument("task_id")
-    retry = commands.add_parser("retry")
-    retry.add_argument("task_id")
-    retry.add_argument("--keep-plan", action="store_true")
-    commands.add_parser("clean")
     commands.add_parser("migrate")
     commands.add_parser("init")
     commands.add_parser("clone").add_argument("repository")
@@ -302,7 +294,7 @@ def _eval_export(args, io, ctx) -> int:
 
 
 _COMMANDS = {
-    "merge": _merge, "retry": _retry, "recover": _recover, "abandon": _abandon, "rebase": _rebase, "clean": _clean, "migrate": _migrate, "eval-audit": _eval_audit, "eval-export": _eval_export, "serve": _serve, "ui": _ui,
+    "migrate": _migrate, "eval-audit": _eval_audit, "eval-export": _eval_export, "serve": _serve, "ui": _ui,
     "init": lambda args, io, ctx: init_global_config(io),
     "clone": lambda args, io, ctx: _clone(args.repository, io),
 }

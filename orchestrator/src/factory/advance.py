@@ -62,7 +62,7 @@ def advance(
     steps: list[Step] = []
     while True:
         if task.state is TaskState.RUNNING:
-            return AdvanceResult(task, steps, "task is running but no driver holds the lock: run `factory recover` (a recorded agent was just killed)")
+            return AdvanceResult(task, steps, "task is running but no driver holds the lock: recover it in the web UI (a recorded agent was just killed)")
         stage = ACTIONS.get(task.state)
         if stage is None:
             return AdvanceResult(task, steps)

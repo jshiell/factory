@@ -112,11 +112,11 @@ def _await_listening(port: int) -> None:
             time.sleep(0.05)
 
 
-def factory(project, *args, stdin=subprocess.DEVNULL, served=True):
+def factory(project, *args, served=True):
     repo, env, _ = project
     if served and args[0] not in ("--help", "migrate"):
         _serving(repo, env)
-    return sh("uv", "run", "--project", str(ORCHESTRATOR), "factory", *args, cwd=repo, env=env, stdin=stdin)
+    return sh("uv", "run", "--project", str(ORCHESTRATOR), "factory", *args, cwd=repo, env=env)
 
 
 def api(project, method, path, **body):
@@ -146,7 +146,7 @@ def test_help_exits_0_and_names_the_commands(project):
     result = factory(project, "--help")
 
     assert result.returncode == 0
-    for command in ("merge", "retry", "serve", "ui"):
+    for command in ("serve", "ui", "eval-audit", "eval-export", "init", "clone"):
         assert command in result.stdout
 
 
@@ -246,15 +246,6 @@ def test_a_bad_config_file_exits_2_naming_the_key(project):
     result = factory(project, "eval-audit", "--check-corpus", served=False)  # the server could not start on this config either
 
     assert result.returncode == 2 and "bogus" in result.stderr
-
-
-def test_merge_from_a_non_terminal_changes_nothing(project):
-    task_id = api(project, "POST", "/tasks", goal="add multiply")["id"]
-
-    result = factory(project, "merge", task_id, stdin=subprocess.PIPE)
-
-    assert result.returncode == 1 and "interactive" in result.stderr
-    assert api(project, "GET", f"/tasks/{task_id}")["state"] == "proposed"
 
 
 def test_the_implement_stage_runs_confined_with_no_shell_in_its_worktree(project):

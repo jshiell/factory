@@ -386,7 +386,7 @@ def test_a_conflict_refusal_quotes_the_conflict_line_not_gits_progress_line(audi
 
     message = str(raised.value)
     assert "CONFLICT (" in message and "Rebasing (" not in message
-    assert "factory abandon t1" in message and "factory retry t1" in message
+    assert "abandon t1 then retry it in the web UI" in message
 
 
 def test_a_failure_that_is_not_a_conflict_quotes_gits_reason_and_gives_no_conflict_advice(audited):

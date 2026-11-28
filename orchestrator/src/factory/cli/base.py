@@ -6,7 +6,6 @@ from pathlib import Path
 
 from factory.audit_corpus import PROJECT_SUBDIR
 from factory.client import ServerClient
-from factory.failure_codes import explain
 from factory.harness import harness_named, missing_capabilities
 from factory.ids import InvalidTaskId, require_safe_id
 from factory.ledger import Ledger
@@ -25,21 +24,6 @@ from factory.sqlite_process_records import SqliteProcessRecords
 from factory.sqlite_store import SqliteTaskStore
 from factory.step import Runner
 from factory.store import TaskStore
-from factory.task import Task
-from factory.textsafe import escape_control
-from factory.waiver import (
-    Refuse,
-    Reinstate,
-    Waive,
-    approval_prompt,
-    parse_answer,
-)
-
-
-def _coded(field: str, code: str) -> str:
-    """The raw code first, so greps keep working, then our description of it; free text is shown as it is."""
-    explanation = explain(field, code)
-    return f"{code} - {explanation.text}" if explanation else code
 
 
 @dataclass
@@ -154,67 +138,3 @@ def task_client(server: ServerClient, default_repo: str | None, ref: str) -> tup
             raise NoRepo(f"{NO_REPO_MESSAGE}, or name the task as <repo>/<id>")
         repo = default_repo
     return server.for_repo(repo), require_safe_id(task_id)
-
-
-def _require_repo(ctx: Context) -> None:
-    if ctx.repo is None:
-        raise NoRepo(NO_REPO_MESSAGE)
-
-
-def _ref(ctx: Context, task_id: str) -> str:
-    """How to name the task on a command line: <repo>/<id> in a repo, else the bare id."""
-    return f"{ctx.repo}/{task_id}" if ctx.repo else task_id
-
-
-def _task_path(task_id: str, suffix: str = "") -> str:
-    return f"/tasks/{require_safe_id(task_id)}{suffix}"
-
-
-def _load(ctx: Context, task_id: str) -> Task:
-    return ctx.store.load(task_id)
-
-
-def _run_job(ctx, io, path: str, body: dict | None = None) -> dict | None:
-    """Queue the job, wait for it, and return its result; None (after saying why on stderr) when it did not succeed."""
-    job_id = ctx.server.post(path, body)["job"]["id"]
-    try:
-        job = ctx.server.wait(job_id)
-    except KeyboardInterrupt:
-        raise _StoppedWaiting(job_id) from None
-    if job["state"] != "succeeded":
-        print(escape_control(job["error"] or f"job {job['state']}"), file=io.stderr)
-        return None
-    return job["result"]
-
-
-def _ask_with_waiver(io, question: str, confirm_question: str, required: list[str], declined: str,
-                     waived_earlier: tuple[str, ...] = ()) -> tuple[tuple[str, ...], tuple[str, ...]] | None:
-    """Ask `question`; return (notes to waive, notes to reinstate), both empty for `y`, or None when nothing should go ahead."""
-    print(approval_prompt(question, required, len(waived_earlier)), end="", file=io.stdout)
-    io.stdout.flush()
-    answer = parse_answer(io.stdin.readline(), len(required), len(waived_earlier))
-    waived: tuple[str, ...] = ()
-    if isinstance(answer, Reinstate):
-        reinstated = tuple(waived_earlier[number - 1] for number in answer.numbers)
-        print(escape_control("\n".join(["Reinstating (these will be sent to the agents and enforced by the audit again):",
-                                        *(f"  - {note}" for note in reinstated)])), file=io.stdout)
-        print("Reinstate these and queue? [y/N] ", end="", file=io.stdout)
-        io.stdout.flush()
-        if io.stdin.readline().strip() != "y":
-            print(declined, file=io.stdout)
-            return None
-        return (), reinstated
-    if isinstance(answer, Waive):
-        waived = tuple(required[number - 1] for number in answer.numbers)
-        print(escape_control("\n".join(["Waiving (these will not be sent to the agents or enforced by the audit):",
-                                        *(f"  - {note}" for note in waived)])), file=io.stdout)
-        print(confirm_question, end="", file=io.stdout)
-        io.stdout.flush()
-        if io.stdin.readline().strip() != "y":
-            answer = Refuse(reason=None)
-    if isinstance(answer, Refuse):
-        if answer.reason:
-            print(escape_control(answer.reason), file=io.stderr)
-        print(declined, file=io.stdout)
-        return None
-    return waived, ()

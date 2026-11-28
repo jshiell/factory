@@ -71,7 +71,7 @@ def rebase_task(task_id: str, store: TaskStore, repo: Path, main_branch: str | N
     except subprocess.CalledProcessError as error:
         _restore(task, repo, worktree)
         reason, conflict = _failure_reason(error)
-        advice = f"; on a conflict run `factory abandon {task.id}` then `factory retry {task.id}`" if conflict else "; nothing was changed"
+        advice = f"; on a conflict abandon {task.id} then retry it in the web UI" if conflict else "; nothing was changed"
         raise RebaseRefused(f"git rebase failed ({reason}){advice}") from error
     except BaseException:  # a signal (SystemExit, KeyboardInterrupt) must not leave a rebase half done
         _restore(task, repo, worktree)
@@ -103,7 +103,7 @@ def _require_rebasable(task: Task, repo: Path, main_branch: str | None) -> _Work
         raise RebaseRefused(problem)
     main_head = run_git(repo, "rev-parse", "HEAD")
     if main_head == task.base_sha:
-        raise RebaseRefused("main has not moved: use `factory merge`")
+        raise RebaseRefused("main has not moved: merge it in the web UI")
     if is_ancestor(repo, task.audited_sha, main_head):
         raise RebaseRefused("the audited commit is already in main")
     return worktree

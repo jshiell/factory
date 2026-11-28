@@ -98,4 +98,4 @@ def require_keepable_plan(task: Task, shown_digest: str) -> None:
     if not (plan_digest(task.plan) == shown_digest == task.plan_digest):
         raise RetryRefused(f"plan digest mismatch for {task.id}")
     if not task.prompt:  # only approve_plan persists a prompt on a task that has a plan
-        raise RetryRefused(f"{task.id}: its plan was never approved; use retry without --keep-plan")
+        raise RetryRefused(f"{task.id}: its plan was never approved; use retry from scratch")

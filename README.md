@@ -47,7 +47,6 @@ Run everything from the repo root. `uv run --project orchestrator factory <comma
 ```sh
 factory serve             # start the local server
 factory ui                # prints a one-time link: create, advance, approve and answer tasks in the browser
-factory merge t1          # needs a terminal: shows diffstat and audit findings; type y
 ```
 
 `advance` is safe to re-run: it does whatever the current state calls for and stops at the next human gate, a failure,
@@ -57,13 +56,6 @@ or its step cap. Agent spend is capped (see `cap_usd`) and every call is recorde
 
 | Command | What it does |
 |---|---|
-| `merge <id>` | Fast-forward `main` to the audited commit. Needs a TTY; shows what will land first |
-| `retry <id>` | Start a fresh task from a failed or audited one (new id, `retry_of` set) |
-| `retry <id> --keep-plan` | Same, but queue it with the plan you already approved, skipping plan and review. Needs a TTY: shows the plan and asks `y` |
-| `rebase <id>` | An audited task whose merge was refused because `main` moved: replay it on the new `main` and send it back through verify and audit |
-| `abandon <id>` | Fail a task that is not running (for example one stuck mid-rebase) |
-| `recover <id>` | Mark a task whose driver died (`running`) as failed, charging an assumed cost |
-| `clean` | After a preview and confirmation, remove worktrees, gate caches, orphan caches and branches of finished tasks |
 | `init` | Write a commented global `<home>/factory.toml` template and the shared plugins directory. Needs no repo or server; refuses to overwrite an existing file |
 | `clone <repo>` | Clone a GitHub repository with `gh repo clone` into `<home>/<name>/repo`. Needs no repo or server. See "Cloning a repo" below |
 | `migrate` | Copy the old JSON tasks and ledger under `<home>/<name>/state` into `factory.db`. Refuses a database that already has rows; never deletes the old files |
