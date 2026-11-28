@@ -81,5 +81,5 @@ Each is one test, one implementation, one commit.
   red between the button commit and that one.
 - Increment 3 (fragment guard) was a new test, not an existing parametrised one; it passed at once.
 - `test_web_action_ids.py` also covered the advance GET page; its GET tests now use `PAGE_ACTIONS` (no advance).
-- `test_web_advance_page.py` was deleted with the GET route.
+- `test_web_advance_page.py` was deleted in `Allow the advance button in the live fragment`, one commit before the GET route went.
 - The button note drops "(up to 10 steps)"; `_ADVANCE.question` and `.button` stay unused.
