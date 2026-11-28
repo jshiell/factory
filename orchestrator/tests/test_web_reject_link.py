@@ -1,3 +1,5 @@
+import re
+
 import pytest
 
 from factory.task import TaskState
@@ -25,7 +27,8 @@ def test_no_other_states_fragment_links_to_it(ctx, state):
 
 
 @pytest.mark.parametrize("state", list(TaskState))
-def test_a_fragment_never_holds_a_form_or_inline_script_or_style(ctx, state):
-    fragment = _fragment(ctx, state)
+def test_a_fragment_holds_no_form_but_the_advance_button_and_no_inline_script_or_style(ctx, state):
+    fragment = re.sub(rf'<form method="post" action="/ui/repos/proj/tasks/{TASK_ID}/advance">.*?</form>', "",
+                      _fragment(ctx, state), flags=re.S)
 
     assert "<form" not in fragment and "<script" not in fragment and "<style" not in fragment and "style=" not in fragment
