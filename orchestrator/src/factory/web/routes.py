@@ -374,6 +374,12 @@ def _single(form: dict[str, list[str]], name: str) -> str | None:
     return values[0] if values else None
 
 
+def _chosen_notes(form: dict[str, list[str]], name: str, candidates: list[str]) -> tuple[str, ...]:
+    """The candidate notes whose escaped text the form posted under `name` (the page shows and posts the escaped text)."""
+    posted = form.get(name, [])
+    return tuple(note for note in candidates if _safe(note) in posted)
+
+
 def _round(form: dict[str, list[str]]) -> int:
     value = _single(form, "round")
     # isdigit alone admits superscript and fullwidth digits; int() alone admits ' 2', '+2' and '0_2', and refuses past 4300 digits with a ValueError.
@@ -455,8 +461,10 @@ async def _approve(request: Request) -> RedirectResponse | HTMLResponse:
         shown_digest = _shown_digest(form)
     except _BadForm:
         return _bad_form_page()
+    required = note_lines(capped_findings(task.review_findings))[1]
     try:
-        service.approve(_repo(request).store, task.id, shown_digest, task.review_findings, waived=())
+        service.approve(_repo(request).store, task.id, shown_digest, task.review_findings,
+                        waived=_chosen_notes(form, "waive", required))
     except service.NotReviewed:  # the task left reviewed between the load above and the one inside service.approve
         return _not_reviewed_wrong_state_page()
     except service.PlanChanged:
