@@ -1,6 +1,6 @@
 # Plan 96: remove the task CLI, leaving the web UI as the interface
 
-Drafted 2026-11-28, revised after a plan review. Not yet approved.
+Drafted 2026-11-28, revised after a plan review. Approved 2026-11-28.
 Source: user request. Base: `main`.
 **Depends on plan 95** (waivers in the web UI, implemented). Do not start increment 1 until plan 95 is implemented, because until then the CLI is the only place to waive a required reviewer note.
 
