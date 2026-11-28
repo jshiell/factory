@@ -75,7 +75,7 @@ Source: user request. Base: `main`.
 ## Deviations (increments 1-7)
 - Increment 1 was done as API-driven wiring tests plus guard tests (commits 8a84183 and 633aa59), not as per-test ports; vehicle tests were retargeted to `ui` and `eval-audit` (eec0bee).
 - `settings.py`'s in-repo-state message also carried a `factory migrate` instruction; it was reworded in increment 5 (ece67ec) with the `claim_state_dir` message.
-- `process_registry.clear_file_records`, `FileRecordsBlocked`, `FileRecordsCleared` and `still_running`, and `Context.probe` and `group_alive`, were removed with `migrate` (ece67ec).
+- `process_registry.clear_file_records`, `FileRecordsBlocked`, `FileRecordsCleared` and `still_running`, and the `Context.probe` and `Context.group_alive` fields, were removed with `migrate` (ece67ec).
 - The unknown-command hint reads "task commands were removed; use the web UI: `factory ui`" and is printed on any argparse "invalid choice" error (1f63885), not only for the old command names.
 - Kept, left as a follow-up: `Context.repo` (`test_cli_client.py` passes `repo=`) and `IO.stdin` (passed positionally in about ten test files).
 - Vacuous tests deleted in increment 3 (be1938a): `test_no_command_except_approve_calls_approve_plan`, `test_keep_plan_is_only_a_flag_of_retry` and `test_guard_approve_prints_no_warning_at_the_item_limit`.

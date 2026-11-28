@@ -85,7 +85,7 @@ class Context:
     eval_runner: Callable[[Settings, Path], Runner] = _real_eval_runner
     serve: Callable[[object, str, int], None] = _serve_with_uvicorn
     server: ServerClient | None = None
-    repo: str | None = None  # the repo this command runs in; qualifies the task ids it prints
+    repo: str | None = None  # the repo this command runs in
 
 
 @dataclass
@@ -121,4 +121,4 @@ NO_REPO_MESSAGE = "no repo: run inside a repo under the factory home, or pass --
 
 
 class NoRepo(Exception):
-    """A bare task id was given and the working directory is in no repo."""
+    """The working directory is in no repo."""
