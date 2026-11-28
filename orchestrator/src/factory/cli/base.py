@@ -1,6 +1,6 @@
 import signal
 from collections.abc import Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
@@ -88,8 +88,6 @@ class Context:
     serve: Callable[[object, str, int], None] = _serve_with_uvicorn
     server: ServerClient | None = None
     repo: str | None = None  # the repo this command runs in; qualifies the task ids it prints
-    probe: Callable[[int], float | None] = field(default_factory=ps_probe)
-    group_alive: Callable[[int], bool] = group_alive
 
 
 @dataclass

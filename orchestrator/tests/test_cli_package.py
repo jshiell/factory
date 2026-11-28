@@ -57,7 +57,7 @@ def test_an_unknown_command_is_a_usage_error_with_the_web_ui_hint_even_outside_a
     assert "no repo" not in result.stderr
 
 
-@pytest.mark.parametrize("command", ["new", "list", "show", "advance", "answer", "approve", "reject", "costs", "merge", "rebase", "retry", "recover", "abandon", "clean"])
+@pytest.mark.parametrize("command", ["new", "list", "show", "advance", "answer", "approve", "reject", "costs", "merge", "rebase", "retry", "recover", "abandon", "clean", "migrate"])
 def test_a_removed_task_command_is_a_usage_error_with_the_web_ui_hint_even_outside_any_repo(tmp_path, command):
     _, _, env = _factory_home(tmp_path)
     outside = tmp_path / "elsewhere"

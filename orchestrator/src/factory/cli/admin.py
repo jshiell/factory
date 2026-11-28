@@ -2,45 +2,7 @@ from urllib.parse import urlsplit, urlunsplit
 
 from factory.cli.base import IO, _print_reaped
 from factory.clone_repo import RepositoryError, clone_repository
-from factory.ledger import Ledger
-from factory.lock import AlreadyRunning, state_lock
-from factory.migrate import DatabaseNotEmpty, migrate
-from factory.process_registry import FileRecordsBlocked, clear_file_records
-from factory.store import TaskStore
 from factory.textsafe import escape_control
-
-
-def _migrate(args, io, ctx) -> int:
-    try:
-        with state_lock(ctx.settings.state_dir):
-            cleared = clear_file_records(ctx.settings.state_dir, ctx.probe, ctx.group_alive)
-            for path in cleared.removed:
-                print(f"removed stale process record {path.name}", file=io.stdout)
-            for invalid in cleared.discarded:
-                print(f"removed invalid process record {invalid.path.name}", file=io.stdout)
-            return _copy_old_files(io, ctx, cleared_any=bool(cleared.removed or cleared.discarded))
-    except FileRecordsBlocked as blocked:
-        print(f"old process records remain: {blocked}; nothing changed", file=io.stderr)
-        return 1
-    except AlreadyRunning:
-        print("another factory run holds the lock (a running `factory serve` holds every repo it serves); nothing changed", file=io.stderr)
-        return 1
-
-
-def _copy_old_files(io, ctx, cleared_any: bool) -> int:
-    try:
-        report = migrate(TaskStore(ctx.settings.tasks_dir), Ledger(ctx.settings.ledger_path), ctx.store, ctx.ledger)
-    except DatabaseNotEmpty as refused:
-        if cleared_any:  # the process records were the work that remained; the task copy was done earlier
-            print(f"{refused}; task files not copied", file=io.stdout)
-            return 0
-        print(f"{refused}; nothing changed", file=io.stderr)
-        return 1
-    print(f"migrated {report.tasks} tasks, {report.ledger_entries} ledger entries", file=io.stdout)
-    for name in report.skipped:
-        print(escape_control(f"skipped: {name}"), file=io.stdout)
-    return 0
-
 
 _PLAIN_HTTP = ("the connection is plain HTTP, so the token, login code and session cookie can be read on the way: "
                "use a VPN or SSH tunnel")

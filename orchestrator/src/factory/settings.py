@@ -210,13 +210,13 @@ def _check_config_outside_editable_area(path: Path, repos: set[Path]) -> None:
 
 def _check_no_in_repo_state(factory_dir: Path, state_dir: Path) -> None:
     if state_dir.resolve() == factory_dir.resolve():
-        return  # the old state is configured on purpose, as `migrate` needs
+        return  # the old state is configured on purpose, state_dir is set to .factory/ itself
     for name in ("factory.db", "token"):
         if (factory_dir / name).exists():
             raise SettingsError(
                 f"{factory_dir / name} is old in-repo state, which is no longer read: "
-                f"move the state files in {factory_dir} (factory.db, token, tasks, ledger) to {state_dir} "
-                "and run `factory migrate`"
+                f"the old files in {factory_dir} (factory.db, token, tasks, ledger) can be moved or deleted; "
+                f"state lives in {state_dir}"
             )
 
 

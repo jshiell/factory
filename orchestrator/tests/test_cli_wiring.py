@@ -114,7 +114,7 @@ def _await_listening(port: int) -> None:
 
 def factory(project, *args, served=True):
     repo, env, _ = project
-    if served and args[0] not in ("--help", "migrate"):
+    if served and args[0] != "--help":
         _serving(repo, env)
     return sh("uv", "run", "--project", str(ORCHESTRATOR), "factory", *args, cwd=repo, env=env)
 

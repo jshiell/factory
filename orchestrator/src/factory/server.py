@@ -666,7 +666,7 @@ def claim_state_dir(ctx):
             leftovers = leftover_file_records(state_dir)
             if leftovers:
                 raise StartRefused(f"old process records in {leftovers[0].parent} ({', '.join(p.name for p in leftovers)}); "
-                                   "run `factory migrate` first; nothing changed")
+                                   f"check that no agent process is still alive, then delete the directory {leftovers[0].parent} and start again; nothing changed")
             try:
                 reaped = ctx.reap(SqliteProcessRecords(ctx.settings.db_path))
             except ReapUncertain as uncertain:

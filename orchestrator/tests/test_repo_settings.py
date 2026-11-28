@@ -58,7 +58,7 @@ def test_old_in_repo_state_is_refused_with_where_to_move_it(home):
         load_repo_settings(home, "proj")
 
     assert str(home / "proj" / "state") in str(refused.value)
-    assert "factory migrate" in str(refused.value)
+    assert "moved or deleted" in str(refused.value) and "factory migrate" not in str(refused.value)
 
 
 def test_a_bad_project_subdir_is_refused(home):

@@ -11,7 +11,7 @@ from factory.audit_corpus import CASES as EVAL_CASES
 from factory.audit_corpus import PROJECT_SUBDIR
 from factory.audit_eval import check_corpus
 from factory.audit_share import build_bundle, write_bundle
-from factory.cli.admin import _clone, _migrate, _serve, _ui
+from factory.cli.admin import _clone, _serve, _ui
 from factory.cli.base import (
     IO,
     NO_REPO_MESSAGE,
@@ -72,7 +72,6 @@ def _preparser() -> argparse.ArgumentParser:
 def _parser() -> argparse.ArgumentParser:
     parser = _Parser(prog="factory")
     commands = parser.add_subparsers(dest="command", required=True, parser_class=_Parser)
-    commands.add_parser("migrate")
     commands.add_parser("init")
     commands.add_parser("clone").add_argument("repository")
     serve = commands.add_parser("serve")
@@ -294,7 +293,7 @@ def _eval_export(args, io, ctx) -> int:
 
 
 _COMMANDS = {
-    "migrate": _migrate, "eval-audit": _eval_audit, "eval-export": _eval_export, "serve": _serve, "ui": _ui,
+    "eval-audit": _eval_audit, "eval-export": _eval_export, "serve": _serve, "ui": _ui,
     "init": lambda args, io, ctx: init_global_config(io),
     "clone": lambda args, io, ctx: _clone(args.repository, io),
 }

@@ -115,14 +115,14 @@ def test_claiming_kills_a_live_orphan_recorded_in_the_database_and_empties_the_t
 
 
 @pytest.mark.parametrize("leftover", ["7.json", ".7.tmp"])
-def test_old_file_records_stop_the_start_and_leave_jobs_alone_until_migrated(ctx, leftover):
+def test_old_file_records_stop_the_start_and_leave_jobs_alone_until_the_directory_is_cleared(ctx, leftover):
     jobs = JobStore(ctx.settings.db_path)
     running = jobs.create("advance", "t")
     jobs.mark_running(running.id)
     (ctx.settings.state_dir / "procs").mkdir()
     (ctx.settings.state_dir / "procs" / leftover).write_text("{}")
 
-    with pytest.raises(StartRefused, match="`factory migrate` first; nothing changed"), claim_state_dir(ctx):
+    with pytest.raises(StartRefused, match=r"no agent process is still alive, then delete the directory .*procs and start again; nothing changed"), claim_state_dir(ctx):
         pass
 
     assert ctx.reaped == [] and jobs.get(running.id).state == "running"
