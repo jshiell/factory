@@ -28,7 +28,7 @@ def test_the_cli_prints_settings_warnings_to_stderr(tmp_path):
     subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
     env = {key: value for key, value in os.environ.items() if key != "FACTORY_HOME"} | {"FACTORY_HOME": str(home)}
 
-    result = _in_a_fresh_interpreter("-m", "factory.cli", "list", cwd=repo, env=env)  # no server runs, so it stops there
+    result = _in_a_fresh_interpreter("-m", "factory.cli", "eval-audit", "--runs", "0", cwd=repo, env=env)  # no server runs, so it stops there
 
     assert result.stderr.startswith("settings warning: project_subdir is unset")
     assert "target/" not in result.stdout

@@ -30,7 +30,7 @@ def run(ctx, *argv):
 
 
 def test_a_command_with_no_server_running_says_to_start_one(ctx):
-    code, out, err = run(ctx, "list")
+    code, out, err = run(ctx, "ui")
 
     assert (code, out) == (1, "")
     assert "no factory server" in err and "factory serve" in err
@@ -39,7 +39,7 @@ def test_a_command_with_no_server_running_says_to_start_one(ctx):
 def test_ctrl_c_while_waiting_stops_waiting_and_names_the_job_that_keeps_running(ctx):
     def handler(request):
         if request.method == "POST":
-            return httpx2.Response(202, json={"job": {"id": "j7", "state": "queued"}})
+            return httpx2.Response(202, json={"job": {"id": "j7", "state": "queued"}, "eval_dir": str(ctx.settings.state_dir / "evals" / "e1")})
         return httpx2.Response(200, json={"id": "j7", "state": "running", "result": None, "error": None})
 
     def interrupted(seconds):
@@ -48,7 +48,7 @@ def test_ctrl_c_while_waiting_stops_waiting_and_names_the_job_that_keeps_running
     http = httpx2.Client(transport=httpx2.MockTransport(handler), base_url="http://127.0.0.1:8765")
     ctx.server = ServerClient(http, "tok", sleep=interrupted)
 
-    code, out, err = run(ctx, "advance", "t1")
+    code, out, err = run(ctx, "eval-audit", "--runs", "1")
 
     assert code == 130 and "j7" in err and "still running" in err
 
@@ -60,7 +60,7 @@ def test_a_server_that_refuses_the_token_says_where_the_token_comes_from(ctx):
     http = httpx2.Client(transport=httpx2.MockTransport(unauthorized), base_url="http://127.0.0.1:8765")
     ctx.server = ServerClient(http, "stale")
 
-    code, out, err = run(ctx, "list")
+    code, out, err = run(ctx, "ui")
 
     assert (code, out) == (1, "")
     assert str(ctx.settings.token_path) in err

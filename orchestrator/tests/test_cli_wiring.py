@@ -170,14 +170,14 @@ def test_new_list_show_work_against_a_fresh_state_directory(project):
 
 def test_the_repo_option_names_the_repo_when_the_command_runs_elsewhere(project):
     repo, env, tmp_path = project
-    task_id = factory(project, "new", "add multiply").stdout.strip()
+    _serving(repo, env)
 
-    named = sh("uv", "run", "--project", str(ORCHESTRATOR), "factory", "--repo", "proj", "list", cwd=tmp_path, env=env,
-               stdin=subprocess.DEVNULL)
-    unnamed = sh("uv", "run", "--project", str(ORCHESTRATOR), "factory", "list", cwd=tmp_path, env=env,
-                 stdin=subprocess.DEVNULL)
+    named = sh("uv", "run", "--project", str(ORCHESTRATOR), "factory", "--repo", "proj", "eval-audit", "--check-corpus",
+               cwd=tmp_path, env=env, stdin=subprocess.DEVNULL)
+    unnamed = sh("uv", "run", "--project", str(ORCHESTRATOR), "factory", "eval-audit", "--check-corpus", cwd=tmp_path,
+                 env=env, stdin=subprocess.DEVNULL)
 
-    assert named.returncode == 0 and task_id in named.stdout, named.stderr
+    assert "no repo" not in named.stderr, named.stderr
     assert unnamed.returncode == 2 and "no repo" in unnamed.stderr
 
 
@@ -221,7 +221,7 @@ def test_a_bad_config_file_exits_2_naming_the_key(project):
     repo, _, _ = project
     write_config(repo, "bogus = 1\n")
 
-    result = factory(project, "list", served=False)  # the server could not start on this config either
+    result = factory(project, "eval-audit", "--check-corpus", served=False)  # the server could not start on this config either
 
     assert result.returncode == 2 and "bogus" in result.stderr
 
@@ -435,7 +435,7 @@ def test_an_unknown_repo_is_refused_without_creating_its_state(project):
     _, env, tmp_path = project
     home = Path(env["FACTORY_HOME"])
 
-    result = sh("uv", "run", "--project", str(ORCHESTRATOR), "factory", "--repo", "typo", "list", cwd=tmp_path, env=env,
+    result = sh("uv", "run", "--project", str(ORCHESTRATOR), "factory", "--repo", "typo", "eval-audit", "--check-corpus", cwd=tmp_path, env=env,
                 stdin=subprocess.DEVNULL)
 
     assert result.returncode == 2 and "unknown repo typo" in result.stderr
