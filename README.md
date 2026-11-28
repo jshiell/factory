@@ -184,7 +184,7 @@ Before writing a plan the planner can ask you questions, using the shipped `gril
 
 No downgrade: an older build reading task rows written with the new fields raises a `TypeError`.
 
-`factory watch` was removed; approve and merge in the web UI or at the terminal. It leaves nothing to migrate, and the factory does not clean up after it: a `watch.json` and a `watch` lock file in the state directory, and the comments it posted on GitHub issues, stay until you delete them.
+`factory watch` was removed; approve and merge in the web UI or at the terminal. It leaves nothing to migrate, and the factory does not clean up after it: a `watch.json` and a `watch` lock file in the state directory, and the comments it posted on GitHub issues, stay until you delete them. A repo whose config still sets `watch_approvers`, `watch_merge` or `watch_retry` is refused, and `serve` skips it until you remove the key (see "Configuration").
 
 ### Configuration
 

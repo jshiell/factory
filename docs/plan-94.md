@@ -1,6 +1,6 @@
 # Plan 94: remove `factory watch`
 
-Drafted 2026-11-27, revised after a plan review (2026-11-27). Not yet approved.
+Drafted 2026-11-27, revised after a plan review (2026-11-27). Approved and implemented (increments 1 to 6 in 417e34d..a758ab3).
 Source: `todo.md` open item "remove watch".
 Base: `main`.
 
