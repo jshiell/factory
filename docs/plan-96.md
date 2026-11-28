@@ -2,7 +2,7 @@
 
 Drafted 2026-11-28, revised after a plan review. Not yet approved.
 Source: user request. Base: `main`.
-**Depends on plan 95** (waivers in the web UI, drafted and reviewed, not yet approved). Do not start increment 1 until plan 95 is implemented, because until then the CLI is the only place to waive a required reviewer note.
+**Depends on plan 95** (waivers in the web UI, implemented). Do not start increment 1 until plan 95 is implemented, because until then the CLI is the only place to waive a required reviewer note.
 
 ## Decided
 - Keep `serve` and `ui` (`serve` hosts the web UI, `ui` prints the login link), plus `eval-audit`, `eval-export`, `init` and `clone`. Drop `migrate`.
