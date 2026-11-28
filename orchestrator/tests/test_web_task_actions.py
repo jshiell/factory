@@ -104,6 +104,15 @@ def test_advance_is_a_post_button_with_a_spending_note_not_a_link(client, ctx):
     assert "May spend money on several stages" in html
 
 
+def test_the_live_fragment_offers_advance_as_the_same_button_with_the_note(client, ctx):
+    add(ctx, TASK, TaskState.QUEUED, goal="g")
+
+    html = _task_fragment(ctx.store, client.app.state.repos["proj"].jobs, TASK, "/ui/repos/proj")
+
+    assert form("advance") in html and link("advance") not in html
+    assert "May spend money on several stages" in html
+
+
 def test_the_action_links_have_readable_text(client, ctx):
     add(ctx, TASK, TaskState.AUDITED, goal="g")
 
