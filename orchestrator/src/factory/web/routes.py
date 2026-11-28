@@ -713,6 +713,8 @@ async def _retry(request: Request) -> RedirectResponse | HTMLResponse:
 def _retry_choice(form: dict[str, list[str]]) -> str | None:
     """The plan digest shown on the page for a keep-plan retry, or None for a retry from scratch."""
     if _single(form, "keep_plan") is None:
+        if "waive" in form or "reinstate" in form:  # only the keep-plan form carries them
+            raise _BadForm
         return None
     return _shown_digest(form)
 

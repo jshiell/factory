@@ -66,6 +66,16 @@ def test_a_waive_value_that_is_no_required_note_is_refused_with_a_409_naming_no_
         assert [task.id for task in ctx.store.list().tasks] == [TASK_ID]
 
 
+def test_a_retry_from_scratch_that_posts_waive_or_reinstate_is_a_422_and_queues_nothing(client, ctx):
+    keepable(ctx, ("Recommend (required): fix x",))
+
+    for field in ("waive", "reinstate"):
+        response = post_retry(client, urlencode({field: "Recommend (required): fix x"}).encode())
+
+        assert response.status_code == 422
+        assert [task.id for task in ctx.store.list().tasks] == [TASK_ID]
+
+
 def test_the_keep_plan_page_warns_when_required_notes_were_dropped_by_the_cap(client, ctx):
     keepable(ctx, tuple(f"Recommend (required): note {i}" for i in range(MAX_ITEMS + 2)))
 
