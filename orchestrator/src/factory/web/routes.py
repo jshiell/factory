@@ -703,8 +703,8 @@ async def _retry(request: Request) -> RedirectResponse | HTMLResponse:
         return _wrong_state_page("The plan changed since you opened this page. Open the task again to see what "
                                  "a retry would keep now.")
     except InvalidWaiver:  # a ValueError, so it must come before _UNREADABLE
-        return _wrong_state_page("That task cannot be retried with this form: a waive choice is not a required note "
-                                 "of the plan. Open the task again to choose which notes to waive.")
+        return _wrong_state_page("That task cannot be retried with this form. The waive or reinstate choices in this "
+                                 "form cannot be applied to this plan. Open the task again to choose again.")
     except (TaskNotFound, InvalidTaskId):  # the task went between the load above and the one inside the retry
         return _missing_page()
     except _UNREADABLE:

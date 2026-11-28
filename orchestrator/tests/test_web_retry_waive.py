@@ -137,6 +137,19 @@ def test_reinstating_past_the_note_cap_is_refused_and_queues_nothing(client, ctx
     assert [task.id for task in ctx.store.list().tasks] == [TASK_ID]
 
 
+def test_every_waive_or_reinstate_refusal_uses_the_same_neutral_sentence(client, ctx):
+    keepable(ctx, ("Recommend (required): add y",), waived_findings=("Recommend (required): fix x",))
+    posts = ({"waive": "Recommend (required): nope"}, {"reinstate": "Recommend (required): nope"},
+             {"waive": "Recommend (required): add y", "reinstate": "Recommend (required): fix x"})
+
+    for fields in posts:
+        text = post_retry(client, keep_form(plan_digest("the plan"), **fields)).text
+
+        assert "cannot be retried with this form" in text
+        assert "The waive or reinstate choices in this form cannot be applied to this plan." in text
+        assert "waive choice is not" not in text
+
+
 def test_the_keep_plan_page_warns_when_required_notes_were_dropped_by_the_cap(client, ctx):
     keepable(ctx, tuple(f"Recommend (required): note {i}" for i in range(MAX_ITEMS + 2)))
 
